@@ -3,6 +3,104 @@
 .env.*
 !.env.example
 /docs/credentials
+*.pem
+*.key
 
-# OS / editor
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js / build output
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+
+# Project build output (docs/plans §3.6, §6.7)
+.generated/
+.bot/
+
+# Vercel
+.vercel
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+supabase/.env
+
+# Tests / coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# Caches
+.cache/
+.turbo/
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Python (runners, prototypes)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Java (runners)
+*.class
+target/
+.gradle/
+
+# Go (runners)
+*.test
+*.out
+go.work.sum
+
+# OS
 .DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Scratch
+tmp/
+*.tmp
