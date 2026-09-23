@@ -2,8 +2,7 @@
 
 - **Date:** 2026-09-23
 - **Gate:** 1 of 3 (design doc → design system → implementation plan)
-- **Status:** sections 1–6 **approved** (§5.11 has one open decision) · section 7 **in review** ·
-  sections 8–9 **not yet written**
+- **Status:** sections 1–7 **approved** · sections 8–9 **in review**
 - **Owner:** khanhnguyendev
 - **Repo (planned):** `github.com/khanhnguyendev/hoc-deu` (public)
 
@@ -51,7 +50,7 @@ freezes.
 | Q6 | Solutions run in CI | Harness phased M3a/b/c; `verification: tested \| compile-only`; comparators; validators live outside `content/**`; sandboxed job. |
 | Q7 | Public GitHub repo | Encrypted backups; secret scanning, Dependabot, CodeQL; never copy LeetCode problem statements. No LICENSE file yet (all rights reserved) — **open item for you to decide**. |
 | Approach | TypeScript domain core + atomic DB writes | See §4 and §5. Rules live once, in pure TypeScript; Postgres functions apply events atomically. |
-| §5 | Simulation-backed parameters | DSA `[7, 21, 60]`, relearn 3, mastery; English `[1, 3, 7, 14]` + mastery (§5.10). Open: DSA budget vs roadmap length (§5.11). |
+| §5 | Simulation-backed parameters | DSA `[7, 21, 60]`, relearn 3, mastery; English `[1, 3, 7, 14]` + mastery (§5.10). DSA variant follows the budget: 8w below 75 min/day, 10w at 75+, with a simulated finish shown (§5.11). |
 | §6 | Daily evolution, two loops | Per-learner data loop (plans, custom items, overrides) + shared content loop (one auto-merging content PR per run, drafts by default). No code PRs in v1. |
 
 ---
@@ -327,7 +326,7 @@ estimates:
   lesson: 25
   problem: { new: { E: 20, M: 35, H: 50 } }     # review cost comes from `review`
   prompt: 10
-roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]   # §5.11 (option A)
+roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]   # §5.11 (decided: A)
 weeklyTemplate:                                                    # §5.4
   mon-fri: [{ kind: review, maxMinutes: 15 }, { kind: new }]
   sat:     [{ kind: review }]
@@ -393,7 +392,7 @@ signature: { kind: design-codec }       # used by the verification harness
 - **Cards** (`decks/*.yaml`): term/phrase · Vietnamese meaning · usage note (part of speech,
   formal/informal) · one work-context example · pronunciation hint · tags (week, topic) · `tier`.
 - **Problem note** (`note.mdx`): key idea · complexity · `<Solution />` (3-language tabs, hidden until
-  revealed; code comes from the solution files) · `<Bilingual vi en />` one-liner (becomes the
+  revealed; code comes from the solution files, syntax-highlighted at build time) · `<Bilingual vi en />` one-liner (becomes the
   derived "Explaining code" card) · verification badge (`tested` / `compile-only`).
 - **Deep-dive:** a lesson with `kind: deep-dive, about: dsa:lc-XXXX`. The catalog builds a reverse
   lookup problem → deep-dive; the problem page shows the link. Adding one = adding one file.
@@ -566,7 +565,8 @@ All in the `public` schema with RLS on.
   `per_run_user_cap` (default 10), `limits` jsonb (custom-item and override quotas, capped by hard
   maxima in code), `token_hash`, `token_prev_hash`, `token_prev_valid_until`.
   A hard env switch `BOT_API_ENABLED` also exists; both must be on.
-- **`bot_runs`**: `run_key` (Asia/Ho_Chi_Minh date, unique), mode, status (running / completed /
+- **`bot_runs`**: `run_key` (`run_<date>` or `run_<date>_publish-<n>`, unique), `kind`
+  (plan / publish), mode, status (running / completed /
   failed), `failure_reason` (incl. `timeout`, set lazily after 2 h), users eligible / processed /
   deferred, content PR URL, error, timestamps.
 - **`content_publish_requests`** (admin only — §6.6): `item_id`, `requested_by`, `requested_at`,
@@ -691,7 +691,7 @@ All in the `public` schema with RLS on.
 
 ---
 
-## 5. Plan engine, spaced repetition and edge cases — APPROVED (one open decision: §5.11)
+## 5. Plan engine, spaced repetition and edge cases — APPROVED
 
 All functions in this section are **pure TypeScript** in `lib/domain/**`. They receive `now`,
 the user's `localDay`, state and the catalog as parameters — never the client clock, never I/O.
@@ -1018,7 +1018,7 @@ unmastered items at the start of a day):
 realistic learners per scenario, 126 days, runs in `pnpm test`). Thresholds come from this
 prototype; they are recalibrated **once** against the TypeScript engine in M4, then frozen:
 
-- DSA 8w @ 60 min realistic: finish p90 ≤ 12.5 weeks, max ≤ 13.5.
+- DSA 8w @ 60 min realistic (the default): finish p90 ≤ 12.5 weeks, max ≤ 13.5.
 - DSA 10w @ 90 min realistic: finish p90 ≤ 11.5 weeks. DSA 10w @ 75 min realistic: p90 ≤ 14.
 - Ideal: 8w @ 60 ≤ 8.5 weeks; 10w @ 90 ≤ 7.5 weeks.
 - Every simulated day: planned minutes per track ≤ budget, or ≤ budget + the largest single item.
@@ -1026,22 +1026,35 @@ prototype; they are recalibrated **once** against the TypeScript engine in M4, t
 - English: mean due in weeks 8–12 ≤ 25; max due p90 ≤ 90; due p90 at week 18 ≤ 25; all core
   cards introduced by week 18.
 - Snapshot (documents the §5.11 trade-off): DSA 10w @ 60 min realistic median > 12 weeks.
+- `projections.generated.json` matches a fresh run (§5.11).
 
-### 5.11 Open decision: DSA budget vs roadmap length
+### 5.11 Decision: DSA variant by budget (option A)
 
-The brief asks for "DSA 10w finishes within 12 weeks (realistic)" **and** "DSA 60 min/day".
-The simulation shows both cannot hold at once. Options:
+The brief asked for "10w finishes within 12 weeks (realistic)" **and** "60 min/day"; §5.10 shows
+both cannot hold at once. **Decision: A.**
 
-- **A (recommended). Recommend the variant by budget.** Onboarding and settings recommend the
-  **8w** variant when the DSA budget is below 75 min/day and **10w** at 75 min/day or more, and
-  show the simulated realistic finish ("Dự kiến ~12 tuần"). Defaults stay as in the brief
-  (60 min/day), so the default roadmap becomes 8w. Manifest: `roadmaps: [{ id: 8w,
-  recommendedBelowMinutes: 75 }, { id: 10w }]`. The user can still pick 10w at 60 min and sees
-  "~16 tuần".
-- **B. Raise the default DSA weekday budget to 90 min** and keep 10w as the default
-  (realistic p90 11.1 weeks).
-- **C. Keep 10w @ 60 min** and state honestly that it takes ~16–17 calendar weeks for a
-  realistic learner; relax the assertion accordingly.
+- The **default DSA variant follows the budget:** `8w` below 75 min/day, `10w` at 75 min/day or
+  more (`roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]`). Users can still pick
+  any combination.
+- Onboarding and settings show the **simulated realistic finish for the user's actual budget and
+  variant**, e.g. "Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4
+  tuần)". The value comes from a lookup table, interpolated linearly between budget rows and
+  clamped at the ends:
+
+| Budget (min/day) | 8w median | 8w p90 | 10w median | 10w p90 |
+| --- | --- | --- | --- | --- |
+| 45 | 16.7 | 18.1 | 22.6 | 24.1 |
+| 60 | 11.6 | 12.4 | 16.5 | 17.4 |
+| 75 | 9.3 | 9.7 | 12.7 | 13.6 |
+| 90 | 7.3 | 7.7 | 10.3 | 11.1 |
+| 120 | 5.6 | 6.1 | 7.7 | 8.4 |
+
+(Weeks, realistic learner, 200 runs each, prototype numbers.)
+
+- In M4 the table is regenerated by the TypeScript simulation (`pnpm sim:projections`) into
+  `lib/domain/plan/projections.generated.json` and committed. A test fails when the committed table
+  is stale relative to `RULES_VERSION` and the catalog hash, so a rules or content change forces a
+  refresh.
 
 ### 5.12 Per-user personalization: overrides and custom items (AI users only)
 
@@ -1145,10 +1158,14 @@ complete. Everyone else gets baseline plans only (zero AI cost).
   `bot_run_users.detail`, but writes no plans, custom items or overrides.
 - **Content proposals:** `bot_settings.content_proposals` — **default ON**, seeded OFF during the
   M7 dry-run week and switched on at its acceptance.
-- **Run key = Asia/Ho_Chi_Minh date.** `runId = run_<YYYY-MM-DD>` in the ops timezone
-  (`OPS_TIMEZONE = Asia/Ho_Chi_Minh`), unique across modes. Starting again the same day returns the
-  same run and its remaining users — safe for retries (the Routine `/fire` trigger has no
-  idempotency key) and prevents the Routine and the fallback from both running.
+- **Run key = Asia/Ho_Chi_Minh date.** Two run kinds:
+  - **plan run:** `run_<YYYY-MM-DD>` in the ops timezone (`OPS_TIMEZONE = Asia/Ho_Chi_Minh`),
+    unique per date across modes. Starting again the same day returns the same run and its
+    remaining users — safe for retries (the Routine `/fire` trigger has no idempotency key) and
+    prevents the Routine and the fallback from both running.
+  - **publish run:** `run_<YYYY-MM-DD>_publish-<n>` (n = 1, 2, …). Started by "Chạy ngay" or by the
+    Routine when publish requests are pending — **even if today's plan run already completed**.
+    It only runs `pnpm bot content:publish` and opens the flip PR; it touches no learner data.
 - **Per-run user cap + warning:** `bot_settings.per_run_user_cap` (default 10). Run start returns at
   most that many users, least recently processed first. If more users are eligible, the response
   includes `deferredUsers`, `bot_runs.users_deferred` records it, and `/admin/bot` shows a warning:
@@ -1201,7 +1218,7 @@ same outcome, a different body with a used key returns `409`.
 
 ```jsonc
 // request
-{ "requestedMode": "dry_run" }            // optional; cannot escalate to live
+{ "kind": "plan", "requestedMode": "dry_run" }   // kind: plan (default) | publish; mode cannot escalate
 // 200
 {
   "runId": "run_2026-10-05",              // Asia/Ho_Chi_Minh date
@@ -1401,14 +1418,21 @@ loop.
        item IDs only).
 - **No approving review is required** — see ADR below. Owner PRs follow the same checks.
 - **Publishing (should-have): "Publish" button.** `/admin/content` lists draft items (bot or not)
-  with a link to the merged PR. "Xuất bản" records a `content_publish_requests` row — the app holds
-  **no GitHub write token**. The next Routine run (or an immediate one via the admin "Chạy ngay"
-  button, which calls the Routine's `/fire` trigger) runs the deterministic
-  `pnpm bot content:publish`, which flips exactly the requested items to `active` and opens
-  `claude/content-publish-<date>`. That PR auto-merges through the same required checks; the
-  `bot-content-policy` check verifies every flip against the pending requests. A PR created by
-  `GITHUB_TOKEN` would not trigger the required checks, which is why this goes through the
-  Routine. Manual fallback: a one-line edit in the GitHub web editor.
+  with a link to the merged PR.
+  - "Xuất bản" records a `content_publish_requests` row. **Creating requests is admin-only**; the
+    app holds **no GitHub write token**.
+  - A **publish run** (§6.2) — started by "Chạy ngay" (the Routine's `/fire` trigger) or by the next
+    Routine run — executes the deterministic `pnpm bot content:publish`: it flips exactly the
+    requested items to `active` and opens `claude/content-publish-<date>-<n>`, which auto-merges
+    through the same required checks.
+  - `bot-content-policy` reads the pending requests from the read-only
+    `GET /api/content/publish-requests` (item IDs only, no personal data) and fails any
+    draft→active flip that has no pending request.
+  - **A request is consumed when its flip merges:** once the deployed catalog shows the item as
+    `active`, the request is marked `merged` (lazily, the next time requests are read) and drops out
+    of the public list.
+  - A PR created by `GITHUB_TOKEN` would not trigger the required checks, which is why publishing
+    goes through the Routine. Manual fallback: a one-line edit in the GitHub web editor.
 - **Housekeeping:** a daily workflow closes `claude/content-*` PRs that are still open after 7 days
   (e.g. merge conflicts); `content-signals` then re-proposes the content if still needed.
 - Merges done with `GITHUB_TOKEN` do not trigger other workflows on `main`; that is fine — the PR
@@ -1504,6 +1528,7 @@ pnpm bot run:finish <completed|failed> [--summary "..."]
   checks (path guard, size guard, MDX safety, sandboxed verification, bot content policy) and from
   new items shipping as `draft`.
 - **Run key uses the Asia/Ho_Chi_Minh date**, not UTC, so a "day" matches the main audience's day.
+  One plan run per date; publish runs are numbered and may run any time.
 - **One content PR per run**, auto-closed after 7 days if unmerged.
 - **Content PRs only from the Routine**, never from the GitHub Actions fallback (`GITHUB_TOKEN`
   PRs don't trigger required checks). The app holds no GitHub write token; publishing goes through
@@ -1514,7 +1539,7 @@ pnpm bot run:finish <completed|failed> [--summary "..."]
 - **Far-west timezones** rarely get AI plans in v1 (one run per day).
 - **No code PRs from the daily bot**; a weekly code Routine with manual-only merge is future work.
 
-## 7. Repo structure and component layers — IN REVIEW
+## 7. Repo structure and component layers — APPROVED
 
 ### 7.1 Top-level layout
 
@@ -1568,11 +1593,11 @@ Each layer may only import from the layers above it.
 | Layer | May import | May not import |
 | --- | --- | --- |
 | 1 `app/globals.css` | — | — |
-| 2 `components/ui` | `lib/utils`, Radix, `class-variance-authority` | patterns, features, app, any other `lib/*` |
+| 2 `components/ui` | `lib/utils`, `lib/i18n` (accessible labels like "Đóng"), Radix, `class-variance-authority` | patterns, features, app, any other `lib/*` |
 | 3 `components/patterns` | `components/ui`, `lib/utils`, `lib/i18n` | features, app, data access (`lib/supabase`, `lib/auth`), `lib/domain` |
 | 4 `features/<x>` | ui, patterns, `lib/*`, `features/items` (registry), its own folder | other features' internals (only their `index.ts`), app |
 | 5 `app/` | features (via `index.ts`), patterns (shells and states only), `lib/auth`, `lib/env` | `components/ui` directly |
-| `lib/domain` | `lib/domain`, `zod` | React, Next, Supabase, `fetch`, `Date.now()` / argument-less `new Date()` |
+| `lib/domain` | `lib/domain`, `zod`; time via the built-in `Intl` API only | React, Next, Supabase, any date library, `fetch`, `Date.now()` / argument-less `new Date()` |
 | other `lib/*` | `lib/*`, server SDKs | components, features, app |
 | `tools/*` | `lib/content`, `lib/bot`, `lib/domain` | components, features, app |
 
@@ -1585,7 +1610,9 @@ Each layer may only import from the layers above it.
 - Architecture tests (`tools/guards/*.test.ts`, Vitest):
   - every `'use server'` module and route handler calls a `require*` DAL function
     (`requireBotToken` for bot routes);
-  - `lib/domain/**` stays pure (import and clock checks above);
+  - `lib/domain/**` stays pure: only `lib/domain` and `zod` imports, no date library (time zones
+    via `Intl.DateTimeFormat` with `timeZone`; calendar math on integer local-day numbers), no
+    clock reads;
   - no `switch`/`case` on item types outside `features/items` and `lib/content/item-types`
     (§7.6);
   - every component file in `components/**` and `features/*/components/**` has an entry in
@@ -1708,13 +1735,15 @@ pnpm bot <command>
 - **Runtime:** `next` 16.3, `react` / `react-dom` 19.3, `@supabase/supabase-js`, `@supabase/ssr`,
   `zod` 4, `@upstash/redis`, `@upstash/ratelimit`, `@next/mdx`, `@mdx-js/loader`,
   `@mdx-js/react`, `remark-frontmatter`, `remark-gfm`, `class-variance-authority`, `clsx`,
-  `tailwind-merge`, `radix-ui` (via shadcn), `lucide-react`, `next-themes`, `shiki` (server-side
-  code highlighting, zero client JS), `date-fns` 4 + `@date-fns/tz`, `server-only`.
+  `tailwind-merge`, `radix-ui` (via shadcn), `lucide-react`, `next-themes`, `server-only`.
+  No date library: `lib/domain` and the UI use the built-in `Intl` API (`DateTimeFormat`,
+  `RelativeTimeFormat` with `vi-VN`).
 - **Dev:** `typescript` 6.0.x, `tailwindcss` 4 + `@tailwindcss/postcss`, `tw-animate-css`,
   `eslint` 9.39 + `eslint-config-next`, `eslint-plugin-better-tailwindcss`, `prettier` +
   `prettier-plugin-tailwindcss`, `vitest` 5, `@vitejs/plugin-react`, `jsdom`,
   `@testing-library/react`, `@testing-library/user-event`, `fast-check`, `@playwright/test`,
-  `@axe-core/playwright`, `supabase` (CLI), `tsx`, `yaml`, `@types/node`, `@types/react`,
+  `@axe-core/playwright`, `supabase` (CLI), `tsx`, `yaml`, `shiki` (code highlighting **at build
+  time** in `content:build` — zero runtime CPU and zero client JS), `@types/node`, `@types/react`,
   `@types/mdx`.
 - Exact versions are pinned in M0 (`pnpm-lock.yaml`); Dependabot proposes weekly updates, which
   are merged manually.
@@ -1728,9 +1757,177 @@ the DAL; `lib/domain` stays pure; no new dependencies without asking; never comm
 never read `.env*`); conventional commits; per-user data never goes into the repo; UI copy in
 Vietnamese with English technical terms.
 
-## 8. Free-tier budget — NOT YET WRITTEN
+## 8. Free-tier budget — IN REVIEW
 
-## 9. Risks and ADRs — NOT YET WRITTEN
+Limits are from the official pages listed in Appendix A (checked 2026-09-23). Usage numbers are
+**estimates from stated assumptions**, to be replaced by measurements after M5 (admin shows DB
+size; Vercel and Supabase dashboards show the rest).
+
+### 8.1 Assumptions
+
+- "N users" = N **daily active** learners (worst case; real usage will be lower).
+- Per active learner per day: ~30 page navigations (incl. RSC prefetches), ~35 events
+  (check-ins, item results — mostly single-card grades), 1 `ensurePlan`.
+  → ~65 function invocations, ~100 edge requests.
+- Averages per invocation: ~30 ms CPU (RSC render, Zod, domain logic — MDX and code highlighting
+  are done at build time), ~0.25 s wall time at 1 GB memory, ~25 KB response, ~8 KB read from the
+  database.
+- Storage per learner-year: events ~3.8 MB (35 × ~300 B × 365, incl. indexes), plans ~0.55 MB,
+  derived tables ~0.4 MB. AI learners add ≤ 0.4 MB of custom items and ~1 MB of run-log detail.
+- AI learners: 0 / 2 / 20 at 1 / 10 / 100 users; the per-run cap (10) defers the rest (§6.2).
+- Supabase fixed overhead (auth and system schemas): ~30 MB.
+
+### 8.2 Budget table
+
+| Service · limit (free) | 1 user | 10 users | 100 users | Notes |
+| --- | --- | --- | --- | --- |
+| **Vercel** function invocations · 1,000,000/mo | ~2 K | ~20 K | ~200 K (20 %) | |
+| **Vercel** Active CPU · 4 CPU-h/mo | ~0.02 h | ~0.16 h | ~1.6 h (**41 %**) | Tightest Vercel metric; keep heavy work at build time |
+| **Vercel** provisioned memory · 360 GB-h/mo | < 1 | ~1.4 | ~14 (4 %) | 1 GB functions |
+| **Vercel** Fast Data Transfer · 100 GB/mo | ~0.1 GB | ~0.7 GB | ~7 GB (7 %) | |
+| **Vercel** Fast Origin Transfer · 10 GB/mo | ~0.03 GB | ~0.3 GB | ~3.3 GB (33 %) | Avoid broad `revalidatePath` payloads after actions |
+| **Vercel** Edge Requests · 1,000,000/mo | ~3 K | ~30 K | ~300 K (30 %) | |
+| **Vercel** deployments · 100/day | 2–5/day | 2–5/day | 2–5/day | Dev pushes + ≤ 1 bot content PR + publish PRs |
+| **Vercel** cron · daily only | 1 job | 1 job | 1 job | Maintenance only (§8.4) |
+| **Supabase** DB size · 500 MB (read-only above) | ~35 MB | ~80 MB | ~530 MB/yr raw → **~330 MB with compaction** | Needs §8.4 before ~month 10 at 100 DAU |
+| **Supabase** egress · 5 GB/mo | < 0.1 GB | ~0.2 GB | ~1.6 GB app + backups | Daily full dumps would exceed the limit → incremental backups (§8.4) |
+| **Supabase** Auth MAU · 50,000 | 1 | 10 | 100 | |
+| **Supabase** projects · 2 active | 2 of 2 | 2 of 2 | 2 of 2 | prod + staging (previews); no spare |
+| **Supabase** pausing · ~1 week inactive | at risk | low | none | Daily backup + bot keep prod active; staging may pause (restorable) |
+| **Upstash** commands · 500 K/mo | < 1 K | ~2 K | ~8 K (2 %) | Only if learner writes are **not** rate-limited in Upstash (§8.4); otherwise ~315 K (63 %) |
+| **Upstash** data · 256 MB | ~0 | ~0 | < 1 MB | Rate-limit keys only |
+| **GitHub Actions** (public repo) · standard runners free | ~1,100 min/mo | same | ~1,400 min/mo | Would even fit the 2,000-min private allowance |
+| **GitHub Actions** artifact storage | ~0.5 GB | ~1 GB | ~3 GB | **Verify in M0** whether public-repo artifact storage is unlimited; if not, keep 14 daily + 8 weekly |
+| **Claude Code Routine** runs · Pro 5 / Max 15 / day | 1–2/day | 1–2/day | 1–3/day | 1 plan run + occasional publish runs; usage counts against the owner's subscription |
+
+### 8.3 What runs out first
+
+1. **Supabase DB size at ~100 daily learners after ~10 months** — events dominate.
+2. **Supabase egress if backups stay full daily dumps** — at a 300 MB database, 30 daily dumps
+   alone are ~9 GB/month.
+3. **Upstash commands if every learner write is rate-limited** — 63 % at 100 users.
+4. **Vercel Active CPU** — ~41 % at 100 users; the first Vercel limit to watch. Hobby cannot buy
+   extra: the feature pauses until the 30-day window resets.
+
+### 8.4 Proposed amendments (need your approval; they change approved sections)
+
+1. **Incremental backups** (amends §2.3). Derived tables are rebuildable from events, so they are
+   never backed up:
+   - daily: dump of the small state tables (`profiles`, `schedule_versions`, `user_tracks`,
+     `day_plans`, `user_items`, `roadmap_overrides`, bot and admin tables) + `COPY` of events
+     since the last backup;
+   - weekly (Sunday): full `events` dump;
+   - restore test: restore the latest weekly + dailies, then **replay** to rebuild derived tables
+     and compare a sample with production aggregates;
+   - egress at 100 users: ~0.5 GB/month instead of ~9 GB. Encryption, storage and retention stay
+     as approved.
+2. **Learner write quotas in Postgres, not Upstash** (amends §2.1 / §6.2). `apply_event` rejects
+   more than 500 learner events per user per local day (counted in `daily_activity`). Upstash
+   rate-limits only the bot API, the OAuth callback, account deletion, data export and admin
+   actions. Upstash stays in the stack, used where it matters.
+3. **Daily maintenance cron** (Vercel Hobby allows one daily job; `/api/cron/maintenance`,
+   protected by `CRON_SECRET`): lazy bot-run timeouts are also swept here, `bot_run_users.detail`
+   older than 30 days is pruned, and event compaction (below) runs. No plan generation happens in
+   cron — plans stay lazy.
+4. **Event compaction after 180 days** (amends §4.7): card results older than 180 days are
+   replaced by one `item.snapshot` event per item (level, weak flag, due date, counters,
+   `rules_version`). Replay starts from snapshots; replaying history **before** a snapshot under
+   new rules is no longer possible — accepted. Plan and check-in events are kept (they are small
+   and feed the heatmap and weekly summaries).
+5. **Admin warnings** (`/admin`): DB size ≥ 350 MB (warn) / ≥ 450 MB (critical); last backup and
+   restore test age; deferred AI users; Upstash errors (fail-open count).
+
+With 1–4, every service stays below ~70 % of its free limit at 100 daily learners for the first
+year (the largest is the database at ~66 %).
+
+### 8.5 Upgrade path (if usage outgrows the free tiers)
+
+- Supabase Pro (paid, larger database and egress quotas — check current pricing at the time) is
+  the first upgrade to consider.
+- Vercel Pro is required anyway if the product ever becomes commercial (Hobby is non-commercial
+  only).
+- Neither is needed for the planned 1–100 learners with §8.4 in place.
+
+---
+
+## 9. Risks and ADRs — IN REVIEW
+
+### 9.1 Risks
+
+| # | Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- | --- |
+| R1 | Claude Code Routines (research preview) change limits, pricing or APIs | Medium | Medium | Baseline plans need no bot; GitHub Actions fallback for the per-learner loop; kill switch; `pnpm bot` CLI isolates the API |
+| R2 | Supabase DB hits 500 MB and goes read-only | Medium at 100 DAU | High | §8.4 compaction and pruning, admin size warnings, upgrade path |
+| R3 | Supabase egress exceeded by backups | High without §8.4 | Medium | Incremental backups (§8.4) |
+| R4 | Vercel Hobby limit hit → feature paused up to 30 days | Low | High | Build-time MDX and highlighting, lean RSC payloads, usage review after M5 |
+| R5 | Vercel Hobby non-commercial terms | Low (by decision) | High | No payments, ads or paid work; move to Pro before any commercial use |
+| R6 | Bot content auto-merges without human review and is wrong | Medium | Medium | Required checks, drafts for notes/lessons/deep-dives, publish tiers, `git revert` or `status: retired` in one PR |
+| R7 | Prompt injection via learner notes | Medium | Low | Notes opt-in, sanitized, under `untrusted`; server validation; blast radius = the author's own data |
+| R8 | Bot token leaked | Low | Medium | Hash in DB, rotation with 24 h overlap, rate limit, kill switch, pseudonymous contexts |
+| R9 | Public repo leaks data (secrets, backups, logs) | Low | High | Push protection, encrypted backups, `backup`/`bot` environments limited to `main`, CLI keeps learner data out of logs, fallback dry-run until verified |
+| R10 | AI-written solutions or explanations are wrong | Medium | Medium | `content-verify` runs every solution; `compile-only` badge; drafts; could-have "Báo lỗi nội dung" button |
+| R11 | Day-boundary / time-zone bugs (gate, streak) | Medium | Medium | One `localDay()`, SQL parity test, property tests, simulation |
+| R12 | Derived state drifts from events | Low | Medium | Replay tool, `rules_version`, drift check (could-have) |
+| R13 | Content volume (110 notes × 3 languages, 14 lessons, ~300 cards) delays launch | High | Medium | Phased content (W1–W3 first), bot content loop, projections show coverage gaps |
+| R14 | Single maintainer; no second reviewer possible | High | Medium | CI as the gate, ADRs, `CLAUDE.md`, small reviewable commits |
+| R15 | Supabase free project pauses (dev phase) | Medium | Low | Daily backup and bot activity; documented restore steps |
+| R16 | GitHub disables scheduled workflows after 60 days of inactivity | Low | Medium | Daily bot PRs keep the repo active; admin shows staleness |
+| R17 | Routine on Team/Enterprise: token must be an env var | Low | Medium | Prefer Pro/Max API credentials; otherwise rotate often |
+| R18 | Dependency churn (TypeScript 7, ESLint 10 not yet supported by the toolchain) | Medium | Low | Version pins, Dependabot proposals merged manually |
+| R19 | Accessibility regressions | Medium | Medium | axe on `/dev/components` and key flows in CI |
+| R20 | Far-west time-zone users rarely get AI plans | Low (audience in Vietnam) | Low | Accepted for v1; could-have: more runs per day |
+| R21 | LeetCode link rot or problems becoming premium | Low | Low | Free alternatives required for premium; could-have link checker |
+
+### 9.2 ADR list
+
+ADRs live in `docs/adr/NNNN-<slug>.md` (context · decision · consequences · status). M0 adds the
+template; each ADR is written in the milestone that implements it.
+
+| ADR | Decision | Section |
+| --- | --- | --- |
+| 0001 | Next.js 16 App Router on Vercel Hobby, non-commercial | §2 |
+| 0002 | Supabase with publishable/secret keys; `getClaims()` on the server | §2.1 |
+| 0003 | Google + GitHub OAuth only; env-gated test login for local/CI | §0.1, §2.3 |
+| 0004 | Open sign-up with admin approval | §0.1 |
+| 0005 | Public repository; encrypted backups; security features on | §0.1, §2.3 |
+| 0006 | `proxy.ts` only refreshes the session; access checks in layouts + DAL | §2.2 |
+| 0007 | Event log + derived state; pure TypeScript domain + `apply_event` RPC (`SECURITY INVOKER`) | §4 |
+| 0008 | `rules_version` on events and derived rows | §4.7 |
+| 0009 | Tracks are data, item types are code (registry) | §3 |
+| 0010 | Namespaced IDs, append-only `ids.lock`, reserved `user:` prefix | §3.3 |
+| 0011 | `@next/mdx` with a strict MDX safety check; code highlighting at build time | §3.6, §7.10 |
+| 0012 | Solutions verified in a sandboxed CI job; phased harness | §3.7 |
+| 0013 | One lesson per pattern; notes upgradeable to deep-dives | §0.1 |
+| 0014 | Simulation-backed SRS parameters per track; mastery | §5.7, §5.10 |
+| 0015 | DSA variant follows the budget; simulated finish shown | §5.11 |
+| 0016 | Gate rule on the last **seen** plan; stale-plan resume | §5.2, §5.8 |
+| 0017 | Per-user day start; schedule versions effective at the next day start | §5.1, §5.9 |
+| 0018 | Baseline vs AI plan precedence (zero check-ins) | §2.3 |
+| 0019 | Cache Components off in v1 | §2.3 |
+| 0020 | Intl-only time handling in `lib/domain`; no date library | §7.2 |
+| 0021 | Layer rules via built-in ESLint + architecture tests; token guard | §7.2, §7.3 |
+| 0022 | Daily bot: two loops, app code off-limits; weekly code Routine is future work | §6.1 |
+| 0023 | Auto-merge `claude/content-*` without an approving review (self-approval impossible) | §6.6, §6.11 |
+| 0024 | Content PRs only from the Routine; publishing via admin requests; no GitHub token in the app | §6.6, §6.9 |
+| 0025 | Publishing tiers for bot content | §6.6 |
+| 0026 | Bot token hash in the database, rotated from admin | §6.3 |
+| 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | §6.2 |
+| 0028 | Far-west time-zone limitation accepted for v1 | §6.8 |
+| 0029 | Incremental, derived-free backups | §8.4 (pending) |
+| 0030 | Learner write quotas in Postgres; Upstash for bot/auth/admin only | §8.4 (pending) |
+| 0031 | Event compaction after 180 days | §8.4 (pending) |
+| 0032 | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | §2.1 |
+
+### 9.3 Open items
+
+- **License:** no `LICENSE` file yet, so the public repo is "all rights reserved". Decide before
+  inviting contributors or reusing the content elsewhere.
+- **§8.4 amendments:** incremental backups, Postgres write quotas, maintenance cron, event
+  compaction.
+- **M0 checks:** `hoc-deu.vercel.app` availability and a trademark/domain search for "Học Đều";
+  public-repo artifact storage quota.
+- **Routine plan:** confirm the owner's Claude plan (Pro/Max gives API credentials for the bot
+  token; Team/Enterprise does not yet).
 
 ---
 
