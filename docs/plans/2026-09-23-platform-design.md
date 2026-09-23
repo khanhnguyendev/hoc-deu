@@ -2,7 +2,8 @@
 
 - **Date:** 2026-09-23
 - **Gate:** 1 of 3 (design doc → design system → implementation plan)
-- **Status:** sections 1–7 **approved** · sections 8–9 **in review**
+- **Status:** all sections **approved** (2026-09-24) · final consistency pass done · awaiting the
+  owner's end-to-end review
 - **Owner:** khanhnguyendev
 - **Repo (planned):** `github.com/khanhnguyendev/hoc-deu` (public)
 
@@ -48,7 +49,7 @@ freezes.
 | Q4 | One lesson per **pattern** (~14 + optional Tries) | Anchor problem ≠ practice problem, both in the lesson's pattern. Every problem has a compact note. Notes are upgradeable to an optional deep-dive lesson without schema or route changes. |
 | Q5 | English decks ~30 cards/week | `tier: core \| extended`, core first. Review-load throttle. Extended cards for W1–W3 now; W4–W10 later via content PRs. DSA: metadata for all ~110 problems; notes and lessons for W1–W3 now. |
 | Q6 | Solutions run in CI | Harness phased M3a/b/c; `verification: tested \| compile-only`; comparators; validators live outside `content/**`; sandboxed job. |
-| Q7 | Public GitHub repo | Encrypted backups; secret scanning, Dependabot, CodeQL; never copy LeetCode problem statements. No LICENSE file yet (all rights reserved) — **open item for you to decide**. |
+| Q7 | Public GitHub repo | Encrypted backups; secret scanning, Dependabot, CodeQL; never copy LeetCode problem statements. **License split:** code MIT (`LICENSE`), `content/**` CC BY-NC-SA 4.0 (`content/LICENSE`), stated in the README (M0). |
 | Approach | TypeScript domain core + atomic DB writes | See §4 and §5. Rules live once, in pure TypeScript; Postgres functions apply events atomically. |
 | §5 | Simulation-backed parameters | DSA `[7, 21, 60]`, relearn 3, mastery; English `[1, 3, 7, 14]` + mastery (§5.10). DSA variant follows the budget: 8w below 75 min/day, 10w at 75+, with a simulated finish shown (§5.11). |
 | §6 | Daily evolution, two loops | Per-learner data loop (plans, custom items, overrides) + shared content loop (one auto-merging content PR per run, drafts by default). No code PRs in v1. |
@@ -113,18 +114,22 @@ Browser ──► proxy.ts  (Supabase session refresh; signed-out → /sign-in. 
    ├──► Route-group layouts + DAL (lib/auth/dal.ts: requireUser / requireActive / requireAdmin)
    │       ├──► Server Components  (read with the user's JWT; RLS applies) ──► Supabase Postgres
    │       └──► Server actions: DAL → Zod → lib/domain (pure TS) → rpc apply_event ──┘
-   │                               └─ Upstash rate limit (writes only, fails open)
+   │       (learner write quota: BEFORE INSERT trigger on events, §4.5)
+   │  Upstash rate limit: bot API, OAuth callback, deletion, export, admin (fails open)
    │
 content/** ──► pnpm content:build (Zod + cross-reference + MDX safety) ──► generated catalog (bundled)
 
 Claude Code Routine ──► HTTPS /api/bot/v1/* (bearer) ──► server-only secret key ──► rpc apply_system_event
 
-GitHub Actions: CI · content-verify (sandboxed) · daily encrypted pg_dump · weekly restore test
+GitHub Actions: CI · content-verify (sandboxed) · daily incremental encrypted backup · weekly restore test
+Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
 ```
 
 - **Stack:** Next.js 16 App Router on Vercel Hobby (Node runtime, Fluid compute), TypeScript strict,
   pnpm, Tailwind CSS v4, shadcn/ui, MDX via `@next/mdx`, Zod, Supabase (Postgres + Auth + RLS) via
-  `@supabase/ssr`, Upstash Redis (rate limits only), Vitest, Playwright + axe, GitHub Actions.
+  `@supabase/ssr`, Upstash Redis (rate limits for the bot API, OAuth callback, account deletion,
+  data export and admin actions only — learner writes use a Postgres quota), Vitest, Playwright +
+  axe, GitHub Actions.
 - **Version pins (from research, 2026-09-23):** TypeScript 6.0.x (typescript-eslint does not
   support TS 7), ESLint 9.39.x (Next's ESLint plugins declare ≤ 9), Node 22.12+ (Vitest 5 and
   supabase-js require it). `next-mdx-remote` is archived — not used.
@@ -180,21 +185,41 @@ GitHub Actions: CI · content-verify (sandboxed) · daily encrypted pg_dump · w
 - **Cache Components** stay off in v1 (every screen is per-user and dynamic). Recorded as an ADR.
 - **URLs are English; all UI text is Vietnamese** (technical terms stay English). Strings live in
   `lib/i18n/vi.ts` — no i18n library.
-- **Backups:**
-  - Daily GitHub Actions job at 22:00 UTC (05:00 Asia/Ho_Chi_Minh) runs `pg_dump` as a dedicated
-    read-only role `backup_reader`.
-  - The dump is encrypted with `age` for two recipients: the owner's offline key and a separate
-    restore-test key.
-  - Stored as the Actions artifact `db-backup-{date}`, retention **30 days**; Sunday dumps are also
-    kept as `db-backup-weekly-{date}` with retention **90 days**.
-  - The DB URL and restore key live in the GitHub environment `backup`, restricted to the `main`
-    branch, so PR branches (including `claude/*`) cannot read them.
-  - **Weekly restore test** (Sunday): download the latest artifact → decrypt → restore into a
-    Postgres service container → check tables exist, row counts > 0, and a sample replay matches
-    stored derived rows → fail the job if anything is off. The job never prints data.
+- **Backups (incremental, derived-free):**
+  - A daily GitHub Actions job at 22:00 UTC (05:00 Asia/Ho_Chi_Minh) runs as a dedicated read-only
+    role `backup_reader`.
+  - **Derived tables** (`item_state`, `plan_block_state`, `daily_activity`) are **never backed
+    up** — they are rebuilt by replaying events.
+  - **Weekly full** (Sunday): every non-derived table, including all of `events`.
+  - **Daily incremental** (Monday–Saturday): the small state tables (`profiles`,
+    `schedule_versions`, `user_tracks`, `day_plans`, `user_items`, `roadmap_overrides`,
+    `content_publish_requests`, bot tables) in full, plus `COPY` of events with `occurred_at`
+    after the previous backup's watermark (1-hour overlap; duplicates are removed by event `id` on
+    restore). Each artifact carries a small manifest: watermark, row counts and aggregate
+    checksums (no personal data).
+  - Encrypted with `age` for two recipients: the owner's offline key and a separate restore-test
+    key.
+  - Artifacts: `db-backup-daily-{date}` kept **30 days**, `db-backup-weekly-{date}` kept
+    **90 days**. A daily depends only on the most recent weekly full before it (≤ 7 days older),
+    so every weekly full outlives all dailies that depend on it (90 ≥ 30 + 7).
+  - **Restore chain** = the latest weekly full + every daily since, applied in order; then replay
+    rebuilds the derived tables.
+  - **Weekly restore test** (Saturday, so the chain includes six dailies): download and decrypt
+    the whole chain → restore into a Postgres service container → replay to rebuild derived
+    tables → check tables exist, row counts match the manifests, and the rebuilt aggregates match
+    the checksums → fail the job if anything is off. The job never prints data.
+  - The DB URL and restore key live in the GitHub environment `backup`, restricted to `main`, so PR
+    branches (including `claude/*`) cannot read them.
   - `/admin` shows the latest backup and restore-test status, read from the public GitHub API.
-  - Anyone signed in to GitHub can download artifacts of a public repo — that is why dumps are
-    encrypted before upload.
+  - Anyone signed in to GitHub can download artifacts of a public repo — that is why every
+    artifact is encrypted before upload.
+  - Egress at 100 daily learners: ~0.5 GB/month (full daily dumps would be ~9 GB, §8).
+- **Daily maintenance cron** (`/api/cron/maintenance`, Vercel cron once a day): requires
+  `Authorization: Bearer CRON_SECRET`; **idempotent** and tolerant of Hobby's imprecise timing
+  (it may run anywhere in its hour, and running twice or skipping a day is harmless). It marks
+  timed-out bot runs failed, prunes `bot_run_users.detail` older than 30 days, marks merged
+  publish requests, and records DB size for the admin warnings. It never generates plans. The
+  event compaction job (§4.7) will be added here only when needed.
 - **`/api/health`** returns only `200 {"ok":true}` or `503 {"ok":false}` (cheap DB query). No
   versions or dependency details.
 
@@ -214,13 +239,14 @@ GitHub Actions: CI · content-verify (sandboxed) · daily encrypted pg_dump · w
 | `/t/[trackId]/items/[itemId]` | active | **One route for every item type**, rendered via the item-type registry (§3.2) — including the user's own `user:` items (RLS-scoped) |
 | `/progress` | active | Calendar heatmap + weekly summary |
 | `/settings` | active | Tracks, minutes, weekly template, timezone, day start, code language, throttle, notes sharing, theme, delete account; AI users also see "Điều chỉnh lộ trình bởi AI" (revoke overrides) and "Mục riêng của bạn" (hide custom items) |
-| `/admin` | admin | Overview and warnings (content coverage, backup/restore status, DB size, bot health) |
+| `/admin` | admin | Overview and warnings: DB size ≥ 350 MB (warn) / ≥ 450 MB (critical), last backup and restore-test age, deferred AI users, Upstash fail-open count, content coverage, bot health |
 | `/admin/users` | admin | Approval queue, role, suspend, AI flag |
 | `/admin/bot` | admin | Kill switch, dry-run, content proposals, per-run cap + deferred-users warning, token rotation, run log with content PR links |
 | `/admin/content` | admin | Catalog stats, verification counts, coverage by week, draft tracks, drafts awaiting publish with a "Xuất bản" button (§6.6) |
 | `/dev/components` | dev + preview; admin-only in prod | Component catalog |
 | `/api/bot/v1/*` | bot token | Bot contract (§6) |
 | `/api/health` | public | ok / fail |
+| `/api/cron/maintenance` | `CRON_SECRET` | Daily housekeeping (§2.3) |
 | `/api/content/publish-requests` | public | Item IDs with a pending admin publish request (used by the `bot-content-policy` CI check); nothing else |
 
 ---
@@ -554,6 +580,7 @@ All in the `public` schema with RLS on.
 
 - PK `(user_id, local_day)`
 - `minutes_by_track` jsonb, `items_done`, `completed` bool
+- `learner_events` int — counter maintained by the events quota trigger (§4.5)
 - **`completed` = at least one block checked in as `done` or `partial` on that local day.**
   Used by the gate rule (§5.2) and the streak (§5.7). Item results alone do not set it
   (but see off-plan study, §5.9).
@@ -617,6 +644,8 @@ All in the `public` schema with RLS on.
 - `admin.bot_token_rotated`
 - `admin.user_approved` / `rejected` / `suspended` / `role_changed` / `ai_flag_changed`
 - Admin events are stored with `actor_id` → free audit trail.
+- **Reserved:** `item.snapshot` {level, weak, top_successes, due_on, lapses, reps, rules_version}
+  — written only by the future compaction job (§4.7). Replay handles it from M4 on.
 
 #### Atomicity and locking
 
@@ -637,6 +666,13 @@ All in the `public` schema with RLS on.
   `source = 'learner'`, and **computes `local_day` in the database** from `schedule_versions`
   (`(occurred_at at time zone tz − day_starts_at)::date`) — never taken from input. A parity test
   runs the same fixtures through the SQL function and TypeScript `localDay()`.
+- **Learner write quota** — a `BEFORE INSERT` trigger on `events`, so direct inserts cannot bypass
+  it: for learner events it increments `daily_activity.learner_events` for `(user_id, local_day)`
+  with an upsert (`… on conflict do update set learner_events = learner_events + 1 returning`,
+  which also serializes concurrent inserts for that user-day) and raises `quota_exceeded` above
+  **500 per local day**. No `count(*)`. `apply_event` turns it into a friendly message:
+  "Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai." System, bot and admin
+  events are not counted.
 - **`profiles`:** read own row. Created with status `pending` by a trigger on `auth.users`; users
   cannot insert. Users can update only `display_name`, `avatar_url`, `code_language`,
   `share_notes_with_ai` (column-level grants; `share_notes_with_ai` is only settable while
@@ -674,6 +710,11 @@ All in the `public` schema with RLS on.
   rules.
 - **Could-have:** a drift check in the admin run log — replay a sample of users and compare with
   stored derived rows.
+- **Event compaction (design approved, implementation deferred):** card results older than
+  180 days would be replaced by one `item.snapshot` per item; plan and check-in events are kept.
+  Replay starting from a snapshot cannot recompute pre-snapshot history under new rules — accepted.
+  `item.snapshot` is reserved and replay supports it from M4; **the compaction job is built only
+  when the 350 MB DB-size warning fires** (trigger recorded in ADR-0031).
 
 ### 4.8 What lives where
 
@@ -685,8 +726,8 @@ All in the `public` schema with RLS on.
 
 - ~300 B per event including indexes; ~35 events per active user per day (per-card grading).
 - 100 daily users → ~1 MB/day → **~365 MB/year vs the 500 MB free limit.**
-- Mitigation plan in §8: lean columns, DB-size warning in admin, compacting old card-result events
-  into snapshots (versioned by `rules_version`).
+- Mitigation (§8.4): lean columns, derived-free incremental backups, DB-size warnings in admin,
+  and compaction of old card results once the 350 MB warning fires (§4.7).
 - Custom items add at most 200 × ~2 KB = ~0.4 MB per AI user (quota-bounded).
 
 ---
@@ -1186,10 +1227,11 @@ complete. Everyone else gets baseline plans only (zero AI cost).
   (`token_prev_hash`, `token_prev_valid_until`) so the Routine credential and the fallback secret
   can be updated without downtime. Audit event `admin.bot_token_rotated`. The first token is
   created the same way (no token in env).
-- **Routine side:** on Pro/Max plans the token is set as an **API credential** of the Routine
-  environment (host `hoc-deu.vercel.app`, header `Authorization: Bearer …`), injected by
-  Anthropic's proxy — it never enters the VM, the transcript or env vars. On Team/Enterprise (no
-  API credentials yet) it must be an env var — a documented risk (§9).
+- **Routine side:** the owner is on the **Max** plan, so the token is set as an **API credential**
+  of the Routine environment (host `hoc-deu.vercel.app`, header `Authorization: Bearer …`),
+  injected by Anthropic's proxy — it never enters the VM, the transcript or env vars.
+  Note: Team/Enterprise plans have no API credentials yet; if the Routine ever moves to such a
+  plan, the token would have to be an env var (R17).
 - **Pseudonyms:** API addressing uses per-run refs `u_<hmac(user_id, run_id)>`. Custom item IDs
   use a separate stable opaque key `profiles.bot_ref` (random, not derived from the user ID), so
   items stay addressable across runs without exposing identity.
@@ -1757,7 +1799,7 @@ the DAL; `lib/domain` stays pure; no new dependencies without asking; never comm
 never read `.env*`); conventional commits; per-user data never goes into the repo; UI copy in
 Vietnamese with English technical terms.
 
-## 8. Free-tier budget — IN REVIEW
+## 8. Free-tier budget — APPROVED
 
 Limits are from the official pages listed in Appendix A (checked 2026-09-23). Usage numbers are
 **estimates from stated assumptions**, to be replaced by measurements after M5 (admin shows DB
@@ -1809,7 +1851,7 @@ size; Vercel and Supabase dashboards show the rest).
 4. **Vercel Active CPU** — ~41 % at 100 users; the first Vercel limit to watch. Hobby cannot buy
    extra: the feature pauses until the 30-day window resets.
 
-### 8.4 Proposed amendments (need your approval; they change approved sections)
+### 8.4 Amendments (approved 2026-09-24; applied to §2.1, §2.3, §4.1, §4.4, §4.5, §4.7)
 
 1. **Incremental backups** (amends §2.3). Derived tables are rebuildable from events, so they are
    never backed up:
@@ -1817,28 +1859,29 @@ size; Vercel and Supabase dashboards show the rest).
      `day_plans`, `user_items`, `roadmap_overrides`, bot and admin tables) + `COPY` of events
      since the last backup;
    - weekly (Sunday): full `events` dump;
-   - restore test: restore the latest weekly + dailies, then **replay** to rebuild derived tables
-     and compare a sample with production aggregates;
-   - egress at 100 users: ~0.5 GB/month instead of ~9 GB. Encryption, storage and retention stay
-     as approved.
-2. **Learner write quotas in Postgres, not Upstash** (amends §2.1 / §6.2). `apply_event` rejects
-   more than 500 learner events per user per local day (counted in `daily_activity`). Upstash
-   rate-limits only the bot API, the OAuth callback, account deletion, data export and admin
-   actions. Upstash stays in the stack, used where it matters.
+   - restore chain = latest weekly full + every daily since; weekly fulls are kept at least as long
+     as any daily that depends on them; the weekly restore test restores the **full chain** and
+     rebuilds derived tables by replay (details in §2.3);
+   - egress at 100 users: ~0.5 GB/month instead of ~9 GB. Encryption and storage stay as approved.
+2. **Learner write quotas in Postgres, not Upstash** (amends §2.1 / §6.2): at most 500 learner
+   events per user per local day, enforced by a `BEFORE INSERT` trigger on `events` using a
+   counter on `daily_activity` (no `count(*)`); `apply_event` shows a friendly error (§4.5).
+   Upstash rate-limits only the bot API, the OAuth callback, account deletion, data export and
+   admin actions.
 3. **Daily maintenance cron** (Vercel Hobby allows one daily job; `/api/cron/maintenance`,
-   protected by `CRON_SECRET`): lazy bot-run timeouts are also swept here, `bot_run_users.detail`
-   older than 30 days is pruned, and event compaction (below) runs. No plan generation happens in
-   cron — plans stay lazy.
-4. **Event compaction after 180 days** (amends §4.7): card results older than 180 days are
-   replaced by one `item.snapshot` event per item (level, weak flag, due date, counters,
-   `rules_version`). Replay starts from snapshots; replaying history **before** a snapshot under
-   new rules is no longer possible — accepted. Plan and check-in events are kept (they are small
-   and feed the heatmap and weekly summaries).
+   protected by `CRON_SECRET`, idempotent, tolerant of imprecise timing): sweeps timed-out bot
+   runs, prunes `bot_run_users.detail` older than 30 days, marks merged publish requests, records
+   DB size. No plan generation happens in cron — plans stay lazy.
+4. **Event compaction after 180 days** (amends §4.7) — **design approved, implementation
+   deferred:** `item.snapshot` is reserved and replay handles it in M4; the compaction job is built
+   only when the 350 MB DB-size warning fires (ADR-0031).
 5. **Admin warnings** (`/admin`): DB size ≥ 350 MB (warn) / ≥ 450 MB (critical); last backup and
    restore test age; deferred AI users; Upstash errors (fail-open count).
 
-With 1–4, every service stays below ~70 % of its free limit at 100 daily learners for the first
-year (the largest is the database at ~66 %).
+With 1–3 in place and compaction added when the warning fires, every service stays below ~70 %
+of its free limit at 100 daily learners for the first year (the largest is the database at
+~66 % with compaction; without it, ~530 MB would be reached around month 12, and the 350 MB
+warning fires around month 8).
 
 ### 8.5 Upgrade path (if usage outgrows the free tiers)
 
@@ -1850,7 +1893,7 @@ year (the largest is the database at ~66 %).
 
 ---
 
-## 9. Risks and ADRs — IN REVIEW
+## 9. Risks and ADRs — APPROVED
 
 ### 9.1 Risks
 
@@ -1872,7 +1915,7 @@ year (the largest is the database at ~66 %).
 | R14 | Single maintainer; no second reviewer possible | High | Medium | CI as the gate, ADRs, `CLAUDE.md`, small reviewable commits |
 | R15 | Supabase free project pauses (dev phase) | Medium | Low | Daily backup and bot activity; documented restore steps |
 | R16 | GitHub disables scheduled workflows after 60 days of inactivity | Low | Medium | Daily bot PRs keep the repo active; admin shows staleness |
-| R17 | Routine on Team/Enterprise: token must be an env var | Low | Medium | Prefer Pro/Max API credentials; otherwise rotate often |
+| R17 | Routine moved to a Team/Enterprise plan: token must be an env var | Not applicable today (owner on Max) | Medium | Kept as a note: stay on Pro/Max API credentials; otherwise rotate often |
 | R18 | Dependency churn (TypeScript 7, ESLint 10 not yet supported by the toolchain) | Medium | Low | Version pins, Dependabot proposals merged manually |
 | R19 | Accessibility regressions | Medium | Medium | axe on `/dev/components` and key flows in CI |
 | R20 | Far-west time-zone users rarely get AI plans | Low (audience in Vietnam) | Low | Accepted for v1; could-have: more runs per day |
@@ -1913,21 +1956,24 @@ template; each ADR is written in the milestone that implements it.
 | 0026 | Bot token hash in the database, rotated from admin | §6.3 |
 | 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | §6.2 |
 | 0028 | Far-west time-zone limitation accepted for v1 | §6.8 |
-| 0029 | Incremental, derived-free backups | §8.4 (pending) |
-| 0030 | Learner write quotas in Postgres; Upstash for bot/auth/admin only | §8.4 (pending) |
-| 0031 | Event compaction after 180 days | §8.4 (pending) |
+| 0029 | Incremental, derived-free backups; restore chain; chain restore test | §2.3, §8.4 |
+| 0030 | Learner write quota via `BEFORE INSERT` trigger; Upstash for bot/auth/admin only | §4.5, §8.4 |
+| 0031 | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | §4.7, §8.4 |
 | 0032 | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | §2.1 |
+| 0033 | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | §9.3 |
+| 0034 | Daily maintenance cron (idempotent, `CRON_SECRET`) | §2.3 |
 
-### 9.3 Open items
+### 9.3 Resolved items and remaining checks
 
-- **License:** no `LICENSE` file yet, so the public repo is "all rights reserved". Decide before
-  inviting contributors or reusing the content elsewhere.
-- **§8.4 amendments:** incremental backups, Postgres write quotas, maintenance cron, event
-  compaction.
-- **M0 checks:** `hoc-deu.vercel.app` availability and a trademark/domain search for "Học Đều";
-  public-repo artifact storage quota.
-- **Routine plan:** confirm the owner's Claude plan (Pro/Max gives API credentials for the bot
-  token; Team/Enterprise does not yet).
+- **License (resolved):** code under **MIT** (`LICENSE` at the root); `content/**` under
+  **CC BY-NC-SA 4.0** (`content/LICENSE`, the official legal code fetched from
+  creativecommons.org — not retyped). The README states the split. Created in M0. Bot content PRs
+  add content under the same license.
+- **Claude plan (resolved):** Max — the Routine holds the bot token as an API credential (§6.3).
+- **§8.4 amendments (resolved):** approved and applied; compaction deferred with a trigger.
+- **§5.11 (resolved):** option A.
+- **M0 checks (to do):** `hoc-deu.vercel.app` availability; trademark/domain search for
+  "Học Đều"; GitHub artifact storage quota for public repos.
 
 ---
 
