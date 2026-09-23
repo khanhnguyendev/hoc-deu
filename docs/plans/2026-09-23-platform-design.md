@@ -41,14 +41,66 @@ and **English for IT workplaces** (10 weeks, runs in parallel).
 mobile apps, offline mode beyond safe retries, email notifications, multiple UI languages, streak
 freezes.
 
-### Release boundary (proposed — confirm at spec review)
+### Release boundary (confirmed 2026-09-24)
 
-- **v1.0 — learners onboarded at the end of M5:** sign-up with approval (the admin approval queue
-  ships with M2), onboarding, baseline plans, check-in, review and progress. The AI flag stays off
-  for everyone. Content at launch: metadata for all DSA problems, notes and pattern lessons for
-  W1–W3, English W1–W3 full decks and W4–W10 core cards (Q5).
-- **v1.1 — AI layer:** M6 (admin bot controls, bot API) and M7 (Routine in dry-run, then live after
-  the acceptance week, §6.10).
+- **v1.0 — M0–M5:** sign-up with approval (the admin approval queue ships with M2), onboarding,
+  baseline plans, check-in, review and progress. The AI flag stays off for everyone. Content at
+  launch: metadata for all DSA problems, notes and pattern lessons for W1–W3, English W1–W3 full
+  decks and W4–W10 core cards (Q5).
+- **v1.1 — M6–M7, the AI layer:** admin bot controls and the bot API (M6); the Routine in dry-run,
+  then live after the acceptance week (M7, §6.10).
+- **Hard content constraint:** before the first learner reaches **roadmap week 4** of any track,
+  either the W4–W5 notes and pattern lessons have been written (manually), or v1.1 has shipped so
+  the content loop can fill them. `/admin` and `/admin/content` show a **red warning** for every
+  week that an active learner will reach within 14 days while its notes or lessons are missing.
+- **Rollout:**
+  1. v1.0 dogfooding — the owner is the only learner for 1–2 weeks;
+  2. invites open (sign-up with approval);
+  3. the v1.1 dry-run week runs on that real data (the owner's AI flag on, `dry_run` on).
+
+### Release scope by feature
+
+The implementation plan must not pull a `v1.1` or `later` item into v1.0. For a `later` item the
+data model may exist (columns, defaults) but no UI or job is built.
+
+| Feature | Release | Spec |
+| --- | --- | --- |
+| Google/GitHub OAuth; env-gated test login (local/CI) | v1.0 | §2.3, §2.5 |
+| Open sign-up + admin approval queue (approve, reject, suspend, role); admin bootstrap | v1.0 | §2.5, §4.5 |
+| Onboarding (tracks, minutes, DSA variant with simulated finish, start date, timezone, day start, code language) | v1.0 | §2.4, §5.11 |
+| Settings: tracks, minutes, DSA variant, timezone, day start, code language, theme, delete account | v1.0 | §2.4, §4.6 |
+| Light + dark mode, theme toggle | v1.0 | §2.3, §7.7 |
+| Track plugin system: manifests, roadmaps, `content:build`, MDX safety, `ids.lock`, item registry (5 types) | v1.0 | §3 |
+| Launch content (Q5) and `content-verify` harness M3a/b/c | v1.0 | §3.7 |
+| Baseline plan engine: gate rule with `seen_at`, stale-plan resume, default weekly templates, throttle with defaults, review cap + debt, recap, mock interview, "Học thêm" | v1.0 | §5.2–§5.9 |
+| Spaced repetition incl. relearn, mastery, `srs.byType` | v1.0 | §5.7 |
+| Check-in (one-tap, sheet, auto check-in), item results, review modes (recall/redo), review page | v1.0 | §5.5 |
+| Dashboard (streak, progress, due reviews, weak areas, mode badge, paused banner), progress page (heatmap, weekly summary) | v1.0 | §2.4 |
+| Track pause/resume/remove/reset, variant switch | v1.0 | §5.9 |
+| Event log, derived state, replay (incl. reserved `item.snapshot`), `rules_version`, learner write quota | v1.0 | §4 |
+| Simulation test + projection table | v1.0 | §5.10, §5.11 |
+| Admin overview + warnings (DB size, backups, content coverage red warning), `/admin/content` (coverage, verification, drafts list) | v1.0 | §2.4, §8.4 |
+| Incremental backups + restore test; daily maintenance cron (DB size, stale-run sweep once v1.1 exists) | v1.0 | §2.3 |
+| Upstash rate limits for OAuth callback, account deletion, admin actions | v1.0 | §2.3 |
+| Component library, `/dev/components`, token guard, axe checks | v1.0 | §7 |
+| CI: `ci`, `content-build`, `content-verify`; privacy text and account deletion | v1.0 | §4.6, §6.6 |
+| AI flag toggle in admin, "AI-personalized" mode badge | v1.1 | §6 |
+| Bot API (all endpoints), bot tables and settings, token rotation, kill switch, dry-run, run log | v1.1 | §4.2, §6.2–§6.4 |
+| Pseudonymous refs (`BOT_REF_SECRET`, `bot_ref`) | v1.1 | §6.3 |
+| AI plans + baseline/AI precedence | v1.1 | §2.3, §6.4.3 |
+| Custom items (`user_items`, "Mục riêng" tab) | v1.1 | §5.12, §6.4.4 |
+| Roadmap overrides (`roadmap_overrides`, "Điều chỉnh lộ trình bởi AI") | v1.1 | §5.12, §6.4.5 |
+| `share_notes_with_ai` | v1.1 | §4.6, §6.3 |
+| Routine, `pnpm bot` CLI, GitHub Actions fallback runner | v1.1 | §6.7–§6.9 |
+| Content PR loop: `content-signals`, `path-guard`, `bot-content-policy`, auto-merge, stale-PR closer | v1.1 | §6.6 |
+| Publish flow: publish requests, publish runs, "Xuất bản", "Chạy ngay", public publish-requests endpoint (v1.0 publishes drafts with a one-line edit) | v1.1 | §6.6 |
+| Upstash rate limit for the bot API | v1.1 | §2.3 |
+| Editing UI for weekly templates and throttle thresholds (v1.0 uses defaults; columns exist) | later | §4.1, §5.4, §5.5 |
+| `include_bonus` toggle (default false) | later | §5.3 |
+| Event compaction job (trigger: 350 MB warning) | later | §4.7 |
+| Data export ("Tải dữ liệu của tôi") and its rate limit | later | §4.6 |
+| Drift check, per-user estimate calibration, large-input performance tests, link checker, "Báo lỗi nội dung" | later | §4.7, §5.4, §3.7, §9.1 |
+| More bot runs per day (far-west timezones), weekly code Routine, GitHub App token for the fallback | later | §6.8, §6.9 |
 
 ### 0.1 Decisions log
 
@@ -260,11 +312,11 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
 | `/t/[trackId]` | active | Track overview: roadmap weeks, progress, topics/decks, weak items; a "Mục riêng" tab lists the learner's custom items for the track (study, hide) whenever they have any — even with the AI flag off |
 | `/t/[trackId]/items/[itemId]` | active | **One route for every item type**, rendered via the item-type registry (§3.2) — including the user's own `user:` items (RLS-scoped) |
 | `/progress` | active | Calendar heatmap + weekly summary |
-| `/settings` | active | Tracks, minutes, DSA variant (with the simulated finish), weekly template, timezone, day start, code language, throttle, notes sharing, theme, delete account; AI users also see "Điều chỉnh lộ trình bởi AI" (revoke overrides) |
-| `/admin` | admin | Overview and warnings: DB size ≥ 350 MB (warn) / ≥ 450 MB (critical), last backup and restore-test age, deferred AI users, Upstash fail-open count, content coverage, bot health |
+| `/settings` | active | Tracks, minutes, DSA variant (with the simulated finish), timezone, day start, code language, theme, delete account; the weekly template and throttle are shown read-only (editing UI: later). v1.1 adds notes sharing and, for AI users, "Điều chỉnh lộ trình bởi AI" (revoke overrides) |
+| `/admin` | admin | Overview and warnings: DB size ≥ 350 MB (warn) / ≥ 450 MB (critical), last backup and restore-test age, **red: weeks reached within 14 days without notes or lessons**, Upstash fail-open count, deferred AI users and bot health (v1.1) |
 | `/admin/users` | admin | Approval queue, role, suspend, AI flag |
 | `/admin/bot` | admin | Kill switch, dry-run, content proposals, per-run cap + deferred-users warning, token rotation, run log with content PR links |
-| `/admin/content` | admin | Catalog stats, verification counts, coverage by week, draft tracks, drafts awaiting publish with a "Xuất bản" button (§6.6) |
+| `/admin/content` | admin | Catalog stats, verification counts, coverage by week with a **red warning** for weeks an active learner will reach within 14 days without notes or lessons, draft tracks, drafts awaiting publish ("Xuất bản" button in v1.1, §6.6) |
 | `/dev/components` | dev + preview; admin-only in prod | Component catalog |
 | `/api/bot/v1/*` | bot token | Bot contract (§6) |
 | `/api/health` | public | ok / fail |
@@ -429,7 +481,7 @@ weeklyTemplate:                                                    # §5.4
   `retired` = no new enrollments, existing enrollments are paused with a notice.
 - **`fromWeek`** refers to the **user's roadmap week** for that track (§5.3), not calendar weeks.
 - **Weekly template:** the user's template in `user_tracks.weekly_template` overrides the track
-  default.
+  default (editing UI: later; v1.0 uses the defaults).
 - **Lesson formats are declared per track**, so each track has its own lesson structure. A
   lesson's frontmatter `format` picks one (`pattern`, `deep-dive`, `concept`, …); a deep-dive is a
   lesson with `format: deep-dive` and `about: <problemId>`.
@@ -1040,7 +1092,9 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
 5. AI users: if the bot already wrote today's AI plan, step 1 returns it. If a baseline plan is
    created first, the bot may replace it only while it has zero check-ins (§6).
 
-**Default weekly templates** (user-editable; `minutes` = fixed block length, `maxMinutes` = cap):
+**Default weekly templates** (`minutes` = fixed block length, `maxMinutes` = cap). Stored per
+user in `user_tracks.weekly_template`; v1.0 always uses these defaults and the editing UI comes
+later (release scope, §0):
 
 ```yaml
 # DSA
@@ -1127,7 +1181,8 @@ from the next plan.
 - **Throttle:** `dueCount` = the track's items due on `localDay` at plan time.
   `effectiveNewPerDay` = `newPerDay` of the matching rule with the highest `dueAbove` that
   `dueCount` exceeds; otherwise `newPerDay`. English defaults: > 40 due → 4 new; > 60 due → 0 new.
-  Thresholds are track defaults, user-overridable in settings. When throttled, the dashboard says
+  Thresholds are track defaults; per-user overrides exist in the data model, with the editing UI
+  later (release scope, §0). When throttled, the dashboard says
   why, e.g. "Đang có 52 thẻ cần ôn — tạm giảm thẻ mới." DSA has no count throttle; its review
   load is controlled by the review cap, review debt rule, intervals and mastery (§5.7, §5.10).
 
@@ -1865,8 +1920,9 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
 - Validation tests: a custom item whose `type` is not in the track's `itemTypes` is rejected; a
   `reorder_topics` that breaks `requires` is rejected.
 - A "malicious note" fixture: validation rejects every out-of-bounds plan, item or override.
-- M7 dry-run acceptance: one week of dry-run with zero server-side `invalid` bugs and a reviewed
-  sample of proposals; then `dry_run` off and `content_proposals` on.
+- M7 dry-run acceptance: one week of dry-run on the real v1.0 data (dogfooding and first invites,
+  §0) with zero server-side `invalid` bugs and a reviewed sample of proposals; then `dry_run` off
+  and `content_proposals` on.
 
 ### 6.11 Decisions to record as ADRs (§9)
 
@@ -2187,7 +2243,8 @@ size; Vercel and Supabase dashboards show the rest).
    deferred:** `item.snapshot` is reserved and replay handles it in M4; the compaction job is built
    only when the 350 MB DB-size warning fires (ADR-0031).
 5. **Admin warnings** (`/admin`): DB size ≥ 350 MB (warn) / ≥ 450 MB (critical); last backup and
-   restore test age; deferred AI users; Upstash errors (fail-open count).
+   restore test age; red warning for weeks reached within 14 days without notes or lessons (§0);
+   deferred AI users (v1.1); Upstash errors (fail-open count).
 
 With 1–3 in place and compaction added when the warning fires, every service stays below ~70 %
 of its free limit at 100 daily learners for the first year (the largest is the database at
@@ -2222,7 +2279,7 @@ warning fires around month 8).
 | R10 | AI-written solutions or explanations are wrong | Medium | Medium | `content-verify` runs every solution; `compile-only` badge; drafts; could-have "Báo lỗi nội dung" button |
 | R11 | Day-boundary / time-zone bugs (gate, streak) | Medium | Medium | One `localDay()`, SQL parity test, property tests, simulation |
 | R12 | Derived state drifts from events | Low | Medium | Replay tool, `rules_version`, drift check (could-have) |
-| R13 | Content volume (110 notes × 3 languages, 14 lessons, ~300 cards) delays launch | High | Medium | Phased content (W1–W3 first), bot content loop, projections show coverage gaps |
+| R13 | Content volume (110 notes × 3 languages, 14 lessons, ~300 cards) delays launch or leaves learners at week 4 without notes | High | Medium | Phased content (W1–W3 first); hard constraint: W4–W5 written manually or v1.1 shipped before any learner reaches week 4, with a red admin warning (§0); v1.1 content loop |
 | R14 | Single maintainer; no second reviewer possible | High | Medium | CI as the gate, ADRs, `CLAUDE.md`, small reviewable commits |
 | R15 | Supabase free project pauses (dev phase) | Medium | Low | Daily backup and bot activity; documented restore steps |
 | R16 | GitHub disables scheduled workflows after 60 days of inactivity | Low | Medium | Daily bot PRs keep the repo active; admin shows staleness |
@@ -2276,6 +2333,7 @@ template; each ADR is written in the milestone that implements it.
 | 0035 | One content PR per plan run; stale bot PRs closed after 7 days | §6.6, §6.11 |
 | 0036 | No offline queue in v1; a future queue needs a clamped client timestamp | §4.1 |
 | 0037 | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | §5.11, §6.6 |
+| 0038 | Release boundary v1.0 / v1.1 / later, week-4 content constraint, dogfooding rollout | §0 |
 
 ### 9.3 Resolved items and remaining checks
 
