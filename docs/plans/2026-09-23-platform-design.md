@@ -2,8 +2,8 @@
 
 - **Date:** 2026-09-23
 - **Gate:** 1 of 3 (design doc → design system → implementation plan)
-- **Status:** sections 1–5 **approved** (§5.11 has one open decision; §5.12 added with §6) ·
-  section 6 **in review** · sections 7–9 **not yet written**
+- **Status:** sections 1–6 **approved** (§5.11 has one open decision) · section 7 **in review** ·
+  sections 8–9 **not yet written**
 - **Owner:** khanhnguyendev
 - **Repo (planned):** `github.com/khanhnguyendev/hoc-deu` (public)
 
@@ -218,10 +218,11 @@ GitHub Actions: CI · content-verify (sandboxed) · daily encrypted pg_dump · w
 | `/admin` | admin | Overview and warnings (content coverage, backup/restore status, DB size, bot health) |
 | `/admin/users` | admin | Approval queue, role, suspend, AI flag |
 | `/admin/bot` | admin | Kill switch, dry-run, content proposals, per-run cap + deferred-users warning, token rotation, run log with content PR links |
-| `/admin/content` | admin | Catalog stats, verification counts, coverage by week, draft tracks, bot drafts awaiting publish |
+| `/admin/content` | admin | Catalog stats, verification counts, coverage by week, draft tracks, drafts awaiting publish with a "Xuất bản" button (§6.6) |
 | `/dev/components` | dev + preview; admin-only in prod | Component catalog |
 | `/api/bot/v1/*` | bot token | Bot contract (§6) |
 | `/api/health` | public | ok / fail |
+| `/api/content/publish-requests` | public | Item IDs with a pending admin publish request (used by the `bot-content-policy` CI check); nothing else |
 
 ---
 
@@ -231,8 +232,9 @@ GitHub Actions: CI · content-verify (sandboxed) · daily encrypted pg_dump · w
 
 - **A track is data** (manifest + content). A new track that uses existing item types needs
   **no code changes**.
-- **An item type is code** — a plugin in the registry. A new item type means one new folder
-  `features/items/<type>/` plus one registry entry; no existing screen changes.
+- **An item type is code** — a plugin in the registry. A new item type means one file in
+  `lib/content/item-types/` (schema, outcomes, estimates), one folder `features/items/<type>/`
+  (Page, Row) and one registry entry (§7.6); no existing screen changes.
 
 ### 3.2 Item-type registry
 
@@ -286,14 +288,31 @@ id: dsa
 status: active                       # draft | active | retired
 title: { vi: "Cấu trúc dữ liệu & Giải thuật", en: "Data Structures & Algorithms" }
 accent: track-1                      # must be one of the design tokens track-1..track-8
-itemTypes: [lesson, problem, prompt]
+itemTypes: [lesson, problem, prompt, flashcard]   # flashcard: pattern / complexity recall cards
 codeLanguages: [python, java, go]
-srs: { intervals: [7, 21, 60], relearnDays: 3, masteredAfter: 2 }     # see §5.7, §5.10
+srs:                                                                   # see §5.7, §5.10
+  intervals: [7, 21, 60]
+  relearnDays: 3
+  masteredAfter: 2
+  byType: { flashcard: { intervals: [1, 3, 7, 14], relearnDays: 1 } }  # cards recall faster
 review: { recallMinutes: 5, redoFactor: 0.6 }                          # problem review modes, §5.5
-topics:
-  - { id: arrays-hashing, title: { vi: …, en: "Arrays & Hashing" }, signals: [...] }
-  # … two-pointers, sliding-window, stack, binary-search, linked-list, trees, heap,
-  #   tries (optional), backtracking, graphs, dp-1d, dp-2d, intervals, greedy
+topics:                              # `requires` = prerequisite topics (checked, §3.6, §5.12)
+  - { id: arrays-hashing, title: { vi: …, en: "Arrays & Hashing" }, signals: [...], requires: [] }
+  - { id: two-pointers,   requires: [arrays-hashing] }
+  - { id: sliding-window, requires: [arrays-hashing] }
+  - { id: stack,          requires: [arrays-hashing] }
+  - { id: binary-search,  requires: [arrays-hashing] }
+  - { id: linked-list,    requires: [two-pointers] }
+  - { id: trees,          requires: [linked-list, binary-search] }
+  - { id: heap,           requires: [trees] }
+  - { id: tries,          requires: [trees] }                        # optional bonus lesson
+  - { id: backtracking,   requires: [trees] }
+  - { id: graphs,         requires: [trees, backtracking] }
+  - { id: dp-1d,          requires: [backtracking] }
+  - { id: dp-2d,          requires: [dp-1d] }
+  - { id: intervals,      requires: [heap] }
+  - { id: greedy,         requires: [heap] }
+  # (titles and signals omitted here for brevity)
 lessonFormats:
   pattern:
     sections: [signals, analogy, visual, approach, code, complexity, bilingual, practice, quiz]
@@ -394,6 +413,8 @@ Runs first in `pnpm verify` and in the build.
    - derived-deck sources and field mappings exist
    - premium problems have a free alternative
    - item `status` values are valid; no ID uses the reserved `user:` prefix
+   - topic `requires` form no cycles, and every roadmap variant introduces each topic's
+     prerequisites before (or earlier in the same week than) the topic itself
 3. **MDX safety check** (the bot can open content PRs):
    - no `import` / `export`; no `{expressions}`
    - only allow-listed components; literal attribute values only
@@ -517,14 +538,15 @@ All in the `public` schema with RLS on.
 
 **`user_items`** (per-user custom items, AI users only — §5.12, §6.4.4)
 
-- PK `(user_id, item_id)`; `item_id` = `user:<bot_ref>:<slug>`
+- PK `(user_id, item_id)`; `user_id` → `profiles` **on delete cascade**;
+  `item_id` = `user:<bot_ref>:<slug>`
 - `item_type` (flashcard / exercise / prompt), `track_id`, `topic_id`
 - `payload` jsonb — validated by the registry schema, plain text only, ≤ 2 KB
 - `status` active / hidden / retired; `created_by_run`; `created_at`
 
 **`roadmap_overrides`** (per-user, AI users only — §5.12, §6.4.5)
 
-- `id`; unique `(user_id, track_id, key)`
+- `id`; unique `(user_id, track_id, key)`; `user_id` → `profiles` **on delete cascade**
 - `kind` insert_block / extra_week / reorder_topics; `params` jsonb (Zod per kind)
 - `status` active / expired / revoked / suspended; `until_local_day` or `study_days_left`
 - `created_by_run`, `created_at`, `revoked_at`
@@ -547,6 +569,9 @@ All in the `public` schema with RLS on.
 - **`bot_runs`**: `run_key` (Asia/Ho_Chi_Minh date, unique), mode, status (running / completed /
   failed), `failure_reason` (incl. `timeout`, set lazily after 2 h), users eligible / processed /
   deferred, content PR URL, error, timestamps.
+- **`content_publish_requests`** (admin only — §6.6): `item_id`, `requested_by`, `requested_at`,
+  `status` pending / in_pr / merged / cancelled, `pr_url`. Only the list of pending **item IDs** is
+  exposed publicly (for the CI check); nothing else.
 - **`bot_run_users`**: one row per user per run; outcome `applied | dry_run | skipped_plan_in_use |
   skipped_gate_closed | skipped_unseen | invalid | error`; detail. **`user_id` references `profiles` with
   on delete cascade.**
@@ -623,6 +648,7 @@ All in the `public` schema with RLS on.
   affects their own self-reported data, and the drift check (§4.7) catches it.
 - **`day_plans`:** read own; only the server writes. `mark_plan_seen(plan_id)` is the one
   `SECURITY DEFINER` exception: it sets `seen_at` once, for the caller's own plan only.
+- **`content_publish_requests`:** admins only (read and write through the admin server action).
 - **`user_items`, `roadmap_overrides`:** owner read-only. No writes from `authenticated`; all
   changes go through `apply_system_event` (bot, or a server action after `requireActive` for
   hide/revoke).
@@ -636,7 +662,7 @@ All in the `public` schema with RLS on.
   "Bot AI và người vận hành bot có thể xem ghi chú bạn chia sẻ." Only when it is on does the bot
   context include the sanitized, truncated note (§6).
 - **Account deletion:** a server action deletes the `auth.users` row, which cascades to every table
-  (including `bot_run_users`). Privacy wins over append-only here. The privacy text states:
+  (including `bot_run_users`, `user_items` and `roadmap_overrides`). Privacy wins over append-only here. The privacy text states:
   **"Dữ liệu đã xoá vẫn có thể tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."**
 - **Could-have:** "Tải dữ liệu của tôi" — JSON export of the user's events and derived state in
   settings.
@@ -717,9 +743,15 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
   5. `extended` cards
   6. `bonus` problems — only when `user_tracks.include_bonus` is true (default false; otherwise
      bonus problems are listed on the track page and reachable via "Học thêm")
-- **Current roadmap week** = the week of the first not-introduced **core** item. Content added
-  later to earlier weeks (e.g. extended cards for W4 after the user reached W6) is still scheduled
-  from the queue, but **does not move the week back**.
+- **Current roadmap week is progress-based:** `roadmapWeek = weekForProgress(introducedCore,
+  weekSizes)` — the number of core items the learner has introduced, mapped onto the variant's
+  core-items-per-week sizes (e.g. 8w DSA: `[8, 8, 7, 11, 7, 7, 8, 8]`). 20 core items introduced →
+  week 3. It never goes backwards (introduced counts only grow), equals "the week of the first
+  not-introduced core item" when items are studied in order, and stays meaningful after a
+  `reorder_topics` override (§5.12), so `fromWeek` keeps working.
+- Content added later to earlier weeks (e.g. extended cards for W4 after the user reached W6) is
+  still scheduled from the queue, but **does not move the week back** (extended cards are not
+  core).
 - Switching roadmap variant (10w ↔ 8w) keeps the introduced set (it is item-based); the queue
   simply follows the new order.
 - Roadmap advances by **study days**: only plans advance it, and plans are only created when the
@@ -843,11 +875,12 @@ from the next plan.
 ### 5.7 Spaced repetition
 
 Applies to item types with `srs: true` (problems, flashcards). Per-track parameters live in the
-manifest under `srs`:
+manifest under `srs`, with optional per-item-type overrides in `srs.byType`:
 
 | Track | `intervals` (days) | `relearnDays` | `masteredAfter` |
 | --- | --- | --- | --- |
-| DSA | `[7, 21, 60]` | 3 | 2 |
+| DSA (problems) | `[7, 21, 60]` | 3 | 2 |
+| DSA (flashcards, `byType`) | `[1, 3, 7, 14]` | 1 | 2 |
 | English | `[1, 3, 7, 14]` | 1 | 2 |
 
 The brief's shared default `1 → 3 → 7 → 14` stays the platform default; DSA overrides it (tracks
@@ -1021,7 +1054,7 @@ roadmap.
 
 | Override | Effect on the plan engine | Bounds |
 | --- | --- | --- |
-| `reorder_topics` | Upcoming (not-started) topic-weeks follow the given order; the current and past weeks never move. The roadmap week number = position in the effective order. | Must be a permutation of the not-started topics; nothing removed. |
+| `reorder_topics` | Upcoming (not-started) topics follow the given order; the current and past topics never move. The roadmap week stays progress-based (§5.3), so `fromWeek` keeps its meaning. | A permutation of the not-started topics only; nothing removed; must satisfy every topic's `requires` given the topics already started. |
 | `insert_block` | On the listed weekdays until `until`, the track's template gets an extra fixed block (`kind: practice`, `minutes`), reserved first (§5.4 step 2). Items: the topic's Weak/due items (redo/recall), then the user's custom items for that topic. | `minutes` ≤ 25 % of the track budget; `until` ≤ 14 days ahead. |
 | `extra_week` | For the next `studyDays` plans, the track's `new` block is replaced by topic practice (the topic's introduced items in review modes + custom items). The roadmap pointer pauses — no new core items — which is visible as a later projected finish. | Topic has ≥ 1 Weak item; `studyDays` ≤ 5; 1 active per track; 21-day cooldown. |
 
@@ -1065,7 +1098,7 @@ lib/domain/
 Built test-first in M4 (Vitest, table-driven fixtures for every row of §5.7 and §5.9, plus the
 §5.10 simulation).
 
-## 6. AI bot boundaries and bot API contract — IN REVIEW
+## 6. AI bot boundaries and bot API contract — APPROVED
 
 Built in M6 (endpoints, admin) and M7 (routine, dry-run). Designed now so the data model and plan
 engine already fit it.
@@ -1092,7 +1125,7 @@ The daily bot runs two loops. Neither touches app code.
 | --- | --- |
 | Read a **sanitized, pseudonymized** context per user through the bot API | Read the database, raw events, names, emails, avatars or other users' data |
 | Write **one day plan per user per day** (§6.4.3) | Bypass the gate rule, the budget invariant or the catalog |
-| Create **per-user custom items** within quotas (§6.4.4) | Create lessons/MDX, links or HTML in custom items; exceed quotas |
+| Create **per-user custom items** within quotas, of a type the track allows (§6.4.4) | Create lessons/MDX, links or HTML in custom items; exceed quotas |
 | Add **roadmap overrides** within bounds (§6.4.5) | Skip or remove core items; change budgets, templates or settings |
 | Reference only catalog items and the user's own custom items | Invent items, pick retired/draft/mastered items, jump ahead in the roadmap |
 | Open **one PR per run** on `claude/content-<date>`, changing only `content/**` | Push to `main`; change app code, CI, validators, allow-lists, policies |
@@ -1143,6 +1176,13 @@ complete. Everyone else gets baseline plans only (zero AI cost).
 - **Pseudonyms:** API addressing uses per-run refs `u_<hmac(user_id, run_id)>`. Custom item IDs
   use a separate stable opaque key `profiles.bot_ref` (random, not derived from the user ID), so
   items stay addressable across runs without exposing identity.
+  **This is addressing, not unlinkability:** because `bot_ref` is stable and appears in custom item
+  IDs (and contexts contain learning history), the bot can link one learner across runs. It still
+  never learns who the learner is.
+- **"Chạy ngay" trigger token:** the Routine's `/fire` bearer token is stored server-side as
+  `ROUTINE_FIRE_TOKEN` (Vercel env, server-only). It can only start this routine; each manual run
+  counts toward the plan's daily run cap. It is the app's only credential for anything
+  Anthropic-side, and the app holds no GitHub write token at all.
 - **Context contents are allow-listed** (§6.4.2). No names, emails, avatars, raw events, admin
   data or other users' data.
 - **Notes:** only when the user turned on `share_notes_with_ai` (§4.6): at most 5 notes from the
@@ -1264,6 +1304,8 @@ otherwise → `skipped_plan_in_use`.
 // 200 { "outcome": "applied", "created": ["user:k3j9…:ah-anagram-drill"], "retired": [...] }
 ```
 
+- `type` must be one of `flashcard | exercise | prompt` **and** listed in the track's `itemTypes`
+  (e.g. DSA allows `flashcard` and `prompt`; English allows all three).
 - Validated with **the same item-type Zod schemas as repo content**, plus: plain text only (no
   MDX, HTML or URLs), each item ≤ 2 KB, `topicId` must exist in the track.
 - **Quotas** (admin-tunable in `bot_settings.limits`, hard maxima in code): ≤ 10 new items per user
@@ -1294,7 +1336,7 @@ Allowed kinds and bounds (details in §5.12):
 | --- | --- | --- |
 | `insert_block` | topic, weekdays, minutes, until | minutes ≤ 25 % of the track budget; `until` ≤ 14 days ahead |
 | `extra_week` | topic, studyDays | topic must have ≥ 1 Weak item; `studyDays` ≤ 5; 1 active per track; 21-day cooldown |
-| `reorder_topics` | order of upcoming topics | a permutation of not-yet-started topics only; no removal; core items never skipped |
+| `reorder_topics` | order of upcoming topics | a permutation of not-yet-started topics only; satisfies topic `requires`; no removal; core items never skipped |
 
 - ≤ 3 active overrides per track. Each is idempotent by `key`.
 - Stored in `roadmap_overrides` (§4.1); the learner sees them in settings and can revoke any.
@@ -1349,13 +1391,24 @@ loop.
      changed lines; no removals from `ids.lock`;
   3. `content-build` — `pnpm content:build` incl. the MDX safety check (§3.6);
   4. `content-verify` — sandboxed solution tests (§3.7);
-  5. `bot-content-policy` — for `claude/*` branches: every new item has `origin: bot` and the
-     status required by `tools/content/bot-policy.ts` (default `draft`). The policy lives outside
-     `content/**`, so the bot cannot change it.
+  5. `bot-content-policy` — for `claude/*` branches, using `tools/content/bot-policy.ts` (outside
+     `content/**`, so the bot cannot change it):
+     - every new item has `origin: bot` and `createdByRun`;
+     - **publishing tiers:** new `flashcard` and `exercise` items may ship `active`; new notes,
+       deep-dives and lessons must ship `draft`;
+     - any change of an existing item's status to `active` must match a pending admin publish
+       request (checked against the public `GET /api/content/publish-requests`, which returns
+       item IDs only).
 - **No approving review is required** — see ADR below. Owner PRs follow the same checks.
-- **Publishing:** `/admin/content` lists bot items in `draft` with a link to the merged PR.
-  Flipping to `active` is a one-line change (GitHub web editor link from the admin page).
-  Could-have: a "Publish" button that dispatches a workflow opening an auto-merging flip PR.
+- **Publishing (should-have): "Publish" button.** `/admin/content` lists draft items (bot or not)
+  with a link to the merged PR. "Xuất bản" records a `content_publish_requests` row — the app holds
+  **no GitHub write token**. The next Routine run (or an immediate one via the admin "Chạy ngay"
+  button, which calls the Routine's `/fire` trigger) runs the deterministic
+  `pnpm bot content:publish`, which flips exactly the requested items to `active` and opens
+  `claude/content-publish-<date>`. That PR auto-merges through the same required checks; the
+  `bot-content-policy` check verifies every flip against the pending requests. A PR created by
+  `GITHUB_TOKEN` would not trigger the required checks, which is why this goes through the
+  Routine. Manual fallback: a one-line edit in the GitHub web editor.
 - **Housekeeping:** a daily workflow closes `claude/content-*` PRs that are still open after 7 days
   (e.g. merge conflicts); `content-signals` then re-proposes the content if still needed.
 - Merges done with `GITHUB_TOKEN` do not trigger other workflows on `main`; that is fine — the PR
@@ -1370,10 +1423,11 @@ Both the Routine and the fallback runner call the API through one committed CLI
 ```text
 pnpm bot run:start [--dry-run]
 pnpm bot user:context <userRef>                  # writes .bot/<runId>/<userRef>/context.json
-pnpm bot user:plan <userRef> <file>
-pnpm bot user:custom-items <userRef> <file>
-pnpm bot user:overrides <userRef> <file>
+pnpm bot user:plan <userRef> --json '<body>'     # or a file path instead of --json
+pnpm bot user:custom-items <userRef> --json '<body>'
+pnpm bot user:overrides <userRef> --json '<body>'
 pnpm bot content:signals                         # writes .bot/<runId>/signals.json
+pnpm bot content:publish                         # applies pending admin publish requests (Routine only)
 pnpm bot run:finish <completed|failed> [--summary "..."]
 ```
 
@@ -1407,17 +1461,20 @@ pnpm bot run:finish <completed|failed> [--summary "..."]
 
 ### 6.9 Fallback runner: GitHub Actions + `anthropics/claude-code-action@v1`
 
-- Same prompt file and the same `pnpm bot` CLI; scheduled `cron: "30 22 * * *"` plus
-  `workflow_dispatch`.
+- **Per-learner loop only:** plans, custom items and overrides. **The fallback never opens content
+  PRs** — a PR created with the workflow's `GITHUB_TOKEN` does not trigger other workflows, so the
+  required checks would never run and auto-merge would never fire. Content PRs come only from the
+  Routine. Could-have later: a dedicated GitHub App token for the fallback.
+- Same prompt file (the content-PR step is skipped when `BOT_RUNNER=fallback`) and the same
+  `pnpm bot` CLI; scheduled `cron: "30 22 * * *"` plus `workflow_dispatch`.
 - Auth: `claude_code_oauth_token` (subscription) and `BOT_API_TOKEN` in the GitHub environment
   `bot`, restricted to `main`.
-- `claude_args`: `--max-turns 60 --allowedTools "Bash(pnpm bot:*),Bash(git:*),Read,Write,Edit"`.
-  Tool path rules are not a security boundary (and `Write(...)` path rules are ignored by Claude
-  Code), so the real limit on what can land is the `path-guard` required check (§6.6).
+- `claude_args`: `--max-turns 60 --allowedTools "Bash(pnpm bot:*),Read"` — no `git`, `Write` or
+  `Edit`. Request bodies are passed inline with `--json`.
 - **Public-repo caveats:** workflow logs are public. The CLI keeps learner data out of stdout, but
   the action's own output settings must be verified to not echo tool results before the fallback
-  is enabled in live mode; until then it runs dry-run only. GitHub disables scheduled workflows
-  after 60 days without repo activity — `/admin/bot` shows the last fallback run.
+  runs in live mode; until then it runs dry-run only. GitHub disables scheduled workflows after
+  60 days without repo activity — `/admin/bot` shows the last fallback run.
 - Only one of the two runs per day: the run key (§6.2) makes the second a resume, not a new run.
 
 ### 6.10 Testing
@@ -1430,7 +1487,11 @@ pnpm bot run:finish <completed|failed> [--summary "..."]
 - pgTAP: `apply_system_event` precedence under a concurrent check-in; RLS on `user_items` and
   `roadmap_overrides` (owner read-only, no writes from `authenticated`).
 - Workflow tests: a fixture PR from a `claude/content-*` branch touching `lib/` fails
-  `path-guard`; a fork PR named `claude/content-x` never gets auto-merge enabled.
+  `path-guard`; a fork PR named `claude/content-x` never gets auto-merge enabled; a new bot lesson
+  marked `active` fails `bot-content-policy`; a draft→active flip without a publish request fails
+  it; a new bot flashcard marked `active` passes.
+- Validation tests: a custom item whose `type` is not in the track's `itemTypes` is rejected; a
+  `reorder_topics` that breaks `requires` is rejected.
 - A "malicious note" fixture: validation rejects every out-of-bounds plan, item or override.
 - M7 dry-run acceptance: one week of dry-run with zero server-side `invalid` bugs and a reviewed
   sample of proposals; then `dry_run` off and `content_proposals` on.
@@ -1444,11 +1505,228 @@ pnpm bot run:finish <completed|failed> [--summary "..."]
   new items shipping as `draft`.
 - **Run key uses the Asia/Ho_Chi_Minh date**, not UTC, so a "day" matches the main audience's day.
 - **One content PR per run**, auto-closed after 7 days if unmerged.
+- **Content PRs only from the Routine**, never from the GitHub Actions fallback (`GITHUB_TOKEN`
+  PRs don't trigger required checks). The app holds no GitHub write token; publishing goes through
+  admin publish requests processed by the Routine.
+- **Publishing tiers:** bot flashcards/exercises may go live after checks; notes, deep-dives and
+  lessons need an admin publish.
 - **Bot token hash in the database**, rotated from `/admin/bot`, with a 24-hour overlap.
 - **Far-west timezones** rarely get AI plans in v1 (one run per day).
 - **No code PRs from the daily bot**; a weekly code Routine with manual-only merge is future work.
 
-## 7. Repo structure and component layers — NOT YET WRITTEN
+## 7. Repo structure and component layers — IN REVIEW
+
+### 7.1 Top-level layout
+
+```text
+hoc-deu/
+  app/                          # LAYER 5 — routes compose features; no styling logic
+    (public)/ (account)/ (onboarding)/ (app)/ (admin)/     # route groups + guard layouts (§2.2)
+    dev/components/             # component catalog page (§7.7)
+    api/bot/v1/…  api/health/  api/content/publish-requests/
+    globals.css                 # LAYER 1 — the ONLY place visual values live (tokens, @theme)
+    layout.tsx  error.tsx  not-found.tsx
+  components/
+    ui/                         # LAYER 2 — shadcn/ui primitives, themed only through tokens
+    patterns/                   # LAYER 3 — shared composites (PageHeader, StatCard, EmptyState, …)
+  features/                     # LAYER 4 — one folder per domain
+    today/ checkin/ review/ tracks/ progress/ settings/ onboarding/ admin/ auth/
+      components/               # domain components built from layers 2–3
+      queries.ts                # server-only data loaders (call the DAL)
+      actions.ts                # 'use server' mutations (call the DAL first)
+      index.ts                  # the feature's public API
+    items/                      # item renderer registry (§7.6)
+      registry.ts
+      problem/ flashcard/ lesson/ exercise/ prompt/   # Page.tsx, Row.tsx per type
+  lib/                          # non-UI code
+    domain/                     # pure TypeScript rules (§5.13) — no React, Next, Supabase, clock, I/O
+    content/                    # catalog loader + item-type schemas (lib/content/item-types/*.ts)
+    auth/dal.ts                 # requireUser / requireActive / requireAdmin (+ requireBotToken)
+    supabase/                   # client.ts, server.ts, proxy.ts, admin.ts ('server-only')
+    bot/contract.ts             # Zod schemas shared by the bot API and `pnpm bot`
+    env.ts  i18n/vi.ts  rate-limit.ts  utils.ts (cn)
+  content/                      # tracks: data only (§3) — the only folder the bot may change
+  tools/
+    content/                    # content:build, MDX safety, allowlist.ts, bot-policy.ts
+    content-verify/             # runners (python/java/go), orchestrator, validators/
+    bot/cli.ts                  # `pnpm bot` (§6.7)
+    guards/                     # architecture + token guard tests (§7.2, §7.3)
+  supabase/                     # config.toml, migrations/, tests/database/*.sql, seed.sql
+  e2e/                          # Playwright specs (+ axe)
+  bot/ROUTINE_PROMPT.md
+  docs/plans/  docs/design/DESIGN_SYSTEM.md  docs/design/COMPONENTS.md  docs/adr/
+  .github/workflows/            # ci, content-verify, path-guard, bot-content-policy,
+                                # bot-automerge, stale-bot-prs, backup, restore-test, codeql
+  proxy.ts  mdx-components.tsx  next.config.ts  eslint.config.mjs
+  vitest.config.ts  playwright.config.ts  components.json  CLAUDE.md
+```
+
+### 7.2 Layer rules (import direction)
+
+Each layer may only import from the layers above it.
+
+| Layer | May import | May not import |
+| --- | --- | --- |
+| 1 `app/globals.css` | — | — |
+| 2 `components/ui` | `lib/utils`, Radix, `class-variance-authority` | patterns, features, app, any other `lib/*` |
+| 3 `components/patterns` | `components/ui`, `lib/utils`, `lib/i18n` | features, app, data access (`lib/supabase`, `lib/auth`), `lib/domain` |
+| 4 `features/<x>` | ui, patterns, `lib/*`, `features/items` (registry), its own folder | other features' internals (only their `index.ts`), app |
+| 5 `app/` | features (via `index.ts`), patterns (shells and states only), `lib/auth`, `lib/env` | `components/ui` directly |
+| `lib/domain` | `lib/domain`, `zod` | React, Next, Supabase, `fetch`, `Date.now()` / argument-less `new Date()` |
+| other `lib/*` | `lib/*`, server SDKs | components, features, app |
+| `tools/*` | `lib/content`, `lib/bot`, `lib/domain` | components, features, app |
+
+**Enforcement — no new dependencies needed:**
+
+- ESLint flat config: built-in `no-restricted-imports` with per-folder `files` globs encodes the
+  table above.
+- ESLint `no-restricted-syntax`: no `className` prop in `app/**` (except `app/layout.tsx`, which
+  sets the font classes on `<html>`/`<body>`); no `'use client'` in `page.tsx` / `layout.tsx`.
+- Architecture tests (`tools/guards/*.test.ts`, Vitest):
+  - every `'use server'` module and route handler calls a `require*` DAL function
+    (`requireBotToken` for bot routes);
+  - `lib/domain/**` stays pure (import and clock checks above);
+  - no `switch`/`case` on item types outside `features/items` and `lib/content/item-types`
+    (§7.6);
+  - every component file in `components/**` and `features/*/components/**` has an entry in
+    `docs/design/COMPONENTS.md` and in the `/dev/components` registry (§7.7).
+
+### 7.3 Guard against hard-coded visual values
+
+Two complementary checks; both run in `pnpm verify`.
+
+1. **ESLint `eslint-plugin-better-tailwindcss`** (supports Tailwind v4 and ESLint 9; new dev
+   dependency — approved with this spec):
+   - `no-restricted-classes`:
+     - bans arbitrary values — `p-[13px]`, `text-[#fff]`, `grid-cols-[1fr_2fr]` (pattern
+       `\[[^\]]*\](?!:)`, so arbitrary *variants* like `data-[state=open]:` are still allowed);
+     - bans raw palette classes — `(bg|text|border|ring|fill|stroke|outline|decoration|from|via|to|shadow)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}`
+       and `(bg|text|border)-(black|white)`, with a message pointing to the semantic tokens.
+   - `no-unknown-classes` with `entryPoint: app/globals.css`, so only classes backed by tokens
+     exist (`bg-surface`, `text-muted-foreground`, `bg-accent`, `rounded-card`, …).
+   - `no-conflicting-classes`.
+2. **Token guard test** (`tools/guards/token-guard.test.ts`) scans `components/**`,
+   `features/**` and `app/**` (except `app/globals.css`) and fails on:
+   - hex colors (`#[0-9a-fA-F]{3,8}\b`), `rgb(`, `rgba(`, `hsl(`, `oklch(`;
+   - numeric `px` / `rem` / `ms` literals inside `style` props;
+   - any `.css` file other than `app/globals.css`, inline `<style>`, `!important`.
+   - `style` is allowed only for CSS custom properties that carry data (e.g.
+     `style={{ '--progress': value }}`), never for colors or sizes.
+   - Exceptions live in `tools/guards/token-guard.allow.ts`, one entry per file with a reason;
+     empty by default.
+
+**shadcn primitives** are normalized when added (M1): token classes only; Radix positioning
+variables use Tailwind v4's variable shorthand (`origin-(--radix-popover-content-transform-origin)`),
+which references a variable rather than hard-coding a value. `shadcn eject` inlines
+`shadcn/tailwind.css` into `globals.css`, so every visual value really lives in one file.
+
+### 7.4 Variants, composition, track accents
+
+- **Variants via `cva`** only; classes merged with `cn()` (clsx + tailwind-merge). No
+  copy-pasted class strings: a class list used in two places becomes a variant or a pattern.
+- **Prop conventions:** `variant`, `size`, `tone` (semantic: neutral / success / warning /
+  danger), `asChild`; variant props typed with `VariantProps<typeof x>`.
+- **Track accents without code:** a track's manifest names a token (`accent: track-2`). Components
+  inside a track context render `data-accent="track-2"`; `globals.css` maps
+  `[data-accent="track-N"]` to `--color-accent` / `--color-accent-foreground` for `track-1` …
+  `track-8`. Components only ever use `bg-accent`, `text-accent`, `ring-accent`. A new track picks
+  one of the eight — no code change.
+
+### 7.5 Loading, empty and error states
+
+- **Server data** is loaded in `features/*/queries.ts` inside Server Components. Every route
+  segment has `loading.tsx` (skeleton from `LoadingState`) and `error.tsx` (`ErrorState` with
+  retry). A component that receives an empty list renders `EmptyState` with a next action.
+- **Client data-driven components** (check-in sheet, review queue, flashcard viewer) take a
+  discriminated union and render through the `DataState` pattern:
+
+  ```ts
+  type DataState<T> =
+    | { status: 'loading' }
+    | { status: 'empty' }
+    | { status: 'error'; retry: () => void }
+    | { status: 'ready'; data: T }
+  ```
+
+- Each data-driven component shows all four states in `/dev/components`, and a render test
+  covers each state.
+
+### 7.6 Item renderer registry
+
+- **Non-UI half** — `lib/content/item-types/<type>.ts`: Zod schema, outcome mapping, `srs` flag,
+  `estimateMinutes`. Used by `content:build`, the bot API validation, the CLI and the plan
+  engine — no React.
+- **UI half** — `features/items/<type>/Page.tsx` and `Row.tsx`, joined with the non-UI half in
+  `features/items/registry.ts` into the `ItemTypeDef` of §3.2.
+- Screens never branch on item type; they call `getItemType(item.type).Row` / `.Page`
+  (architecture test in §7.2).
+- **Adding an item type:** one file in `lib/content/item-types/`, one folder in `features/items/`,
+  one registry line, one `COMPONENTS.md` entry. No existing screen changes.
+
+### 7.7 Component catalog: `docs/design/COMPONENTS.md` and `/dev/components`
+
+- **Before creating a component, search the catalog.** When two or more places need something
+  similar, extract it into `components/patterns`.
+- **Entry format:** name · layer · file · props (with types) · variants · states · usage example ·
+  accessibility notes.
+- **Same-commit rule:** a new or changed component updates `COMPONENTS.md` in the same commit
+  (the architecture test fails otherwise).
+- **`/dev/components`** renders every entry with all variants and states, in light and dark
+  mode. Playwright + axe scan it in CI, so every component is accessibility-checked in every state.
+
+### 7.8 Tests and quality gates
+
+| Kind | Tool | Location |
+| --- | --- | --- |
+| Unit (domain, utils, schemas) | Vitest | colocated `*.test.ts` |
+| Property tests (plan engine, overrides) | Vitest + fast-check | `lib/domain/**/__tests__` |
+| Simulation (§5.10) | Vitest | `lib/domain/plan/__tests__/simulation.test.ts` |
+| Components (states, a11y roles) | Vitest + Testing Library (jsdom) | colocated `*.test.tsx` |
+| Architecture + token guard | Vitest | `tools/guards/` |
+| Database (RLS, `apply_event`, precedence) | pgTAP via `supabase test db` | `supabase/tests/database/*.sql` |
+| End-to-end + accessibility | Playwright + `@axe-core/playwright` | `e2e/*.spec.ts` |
+| Content | `content:build`, `content-verify` | `tools/content*` |
+
+- **`pnpm verify`** = `content:build → typecheck → lint → test → build` (every milestone ends
+  green on it).
+- **`pnpm verify:full`** adds `test:db` and `test:e2e` (needs Docker for local Supabase). CI runs
+  both as separate jobs.
+
+### 7.9 Scripts
+
+```text
+pnpm dev              pnpm build           pnpm start
+pnpm verify           pnpm verify:full
+pnpm typecheck        pnpm lint            pnpm test            pnpm test:e2e
+pnpm db:start         pnpm db:reset        pnpm db:types        pnpm test:db
+pnpm content:build    pnpm content:verify
+pnpm bot <command>
+```
+
+### 7.10 Dependencies (approving this spec approves this list; anything else is asked first)
+
+- **Runtime:** `next` 16.3, `react` / `react-dom` 19.3, `@supabase/supabase-js`, `@supabase/ssr`,
+  `zod` 4, `@upstash/redis`, `@upstash/ratelimit`, `@next/mdx`, `@mdx-js/loader`,
+  `@mdx-js/react`, `remark-frontmatter`, `remark-gfm`, `class-variance-authority`, `clsx`,
+  `tailwind-merge`, `radix-ui` (via shadcn), `lucide-react`, `next-themes`, `shiki` (server-side
+  code highlighting, zero client JS), `date-fns` 4 + `@date-fns/tz`, `server-only`.
+- **Dev:** `typescript` 6.0.x, `tailwindcss` 4 + `@tailwindcss/postcss`, `tw-animate-css`,
+  `eslint` 9.39 + `eslint-config-next`, `eslint-plugin-better-tailwindcss`, `prettier` +
+  `prettier-plugin-tailwindcss`, `vitest` 5, `@vitejs/plugin-react`, `jsdom`,
+  `@testing-library/react`, `@testing-library/user-event`, `fast-check`, `@playwright/test`,
+  `@axe-core/playwright`, `supabase` (CLI), `tsx`, `yaml`, `@types/node`, `@types/react`,
+  `@types/mdx`.
+- Exact versions are pinned in M0 (`pnpm-lock.yaml`); Dependabot proposes weekly updates, which
+  are merged manually.
+
+### 7.11 `CLAUDE.md` (created in M0)
+
+Contents: the stack and version pins; commands (§7.9); the layer rules (§7.2) and "search the
+catalog before creating a component"; no hard-coded visual values (§7.3); Server Components by
+default and browser APIs only in client components; every server action and route handler calls
+the DAL; `lib/domain` stays pure; no new dependencies without asking; never commit secrets (and
+never read `.env*`); conventional commits; per-user data never goes into the repo; UI copy in
+Vietnamese with English technical terms.
 
 ## 8. Free-tier budget — NOT YET WRITTEN
 
