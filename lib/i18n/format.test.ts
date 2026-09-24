@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { formatDay, formatDayLong, formatMinutes, formatMonth, formatNumber } from './format'
+import {
+  formatDay,
+  formatDayLong,
+  formatMinutes,
+  formatMonth,
+  formatMonthShort,
+  formatNumber,
+} from './format'
 
 const originalTz = process.env.TZ
 afterEach(() => {
@@ -30,6 +37,8 @@ describe('local-day formatting', () => {
     expect(formatDay('2026-02-03')).toBe('3 tháng 2, 2026')
     expect(formatDayLong('2026-02-03')).toBe('Thứ Ba, 3 tháng 2, 2026')
     expect(formatMonth('2026-02-03')).toBe('Tháng 2 năm 2026')
+    expect(formatMonthShort('2026-02-03')).toBe('Th2')
+    expect(formatMonthShort('2026-12-01')).toBe('Th12')
   })
 
   it.each(['Pacific/Kiritimati', 'Pacific/Pago_Pago', 'Asia/Ho_Chi_Minh'])(

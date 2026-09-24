@@ -1,0 +1,53 @@
+'use client'
+
+import { useState } from 'react'
+import { formatDayLong, formatMinutes } from '@/lib/i18n/format'
+import { vi } from '@/lib/i18n/vi'
+import { Legend } from './legend'
+import { MonthView } from './month-view'
+import { TableView } from './table-view'
+import { YearView } from './year-view'
+
+type HeatmapDay = { day: string; minutes: number }
+
+/**
+ * Study minutes per local day (DESIGN_SYSTEM §3.4): a year view from 768 px, a month view below,
+ * the legend, a live detail line that follows focus, hover and taps, and a table fallback. The
+ * caller passes `today` (the learner's local day); the pattern never reads the clock.
+ */
+function CalendarHeatmap({
+  days,
+  today,
+  label,
+}: {
+  days: readonly HeatmapDay[]
+  today: string
+  label: string
+}) {
+  const minutesByDay = new Map<string, number>()
+  for (const { day, minutes } of days) {
+    minutesByDay.set(day, (minutesByDay.get(day) ?? 0) + minutes)
+  }
+  const [active, setActive] = useState<string | null>(null)
+
+  return (
+    <div data-slot="calendar-heatmap" className="flex flex-col gap-3">
+      <YearView minutesByDay={minutesByDay} today={today} label={label} onActive={setActive} />
+      <MonthView minutesByDay={minutesByDay} today={today} label={label} onActive={setActive} />
+      <p
+        data-slot="heatmap-detail"
+        aria-live="polite"
+        className="min-h-6 text-sm text-muted-foreground"
+      >
+        {active
+          ? `${formatDayLong(active)}: ${formatMinutes(minutesByDay.get(active) ?? 0)}`
+          : vi.heatmap.pickDay}
+      </p>
+      <Legend />
+      <TableView minutesByDay={minutesByDay} />
+    </div>
+  )
+}
+
+export { CalendarHeatmap }
+export type { HeatmapDay }

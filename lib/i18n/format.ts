@@ -46,3 +46,8 @@ export function formatDayLong(isoDay: string): string {
 export function formatMonth(isoDay: string): string {
   return capitalize(format(isoDay, { month: 'long', year: 'numeric' }))
 }
+
+/** `Th2` — compact month labels above the heatmap's year view (ICU's short form is `Tháng 2`). */
+export function formatMonthShort(isoDay: string): string {
+  return `Th${new Date(utcOf(isoDay)).getUTCMonth() + 1}`
+}
