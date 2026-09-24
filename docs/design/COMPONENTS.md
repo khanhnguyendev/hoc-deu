@@ -379,6 +379,21 @@ from `lib/i18n/vi.ts`.
 - **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
   DESIGN_SYSTEM §5)
 
+### FormActions
+
+- **Layer:** pattern
+- **File:** `components/patterns/form-actions.tsx`
+- **Props:** `error: string | null` (the form-level failure), `children` (the buttons),
+  `label?: string` (names the buttons as a `group`, e.g. "Thao tác với {title}")
+- **Variants:** unnamed row · named group
+- **States:** no failure (an empty, zero-height alert region) · failed (a danger Banner above the
+  buttons)
+- **Usage:** `<FormActions error={failure}><Button type="submit" loading={pending}>Lưu</Button></FormActions>`
+  (the settings forms)
+- **Accessibility:** the failure sits in an always-mounted `role="alert"` region, so it is
+  announced when it appears — a toast is never the only feedback for a failed save (DESIGN_SYSTEM
+  §9); the region and the buttons share one block, so the empty region adds no gap to a flex form
+
 ### FormErrorSummary
 
 - **Layer:** pattern (client)
@@ -538,7 +553,8 @@ from `lib/i18n/vi.ts`.
 - **File:** `features/tracks/components/variant-picker.tsx`
 - **Props:** `trackId: string`, `name: string`, `roadmaps: TrackOption['roadmaps']`,
   `budgetMinutes: number`, `value: string`, `onValueChange: (id) => void`, `aria-labelledby?` /
-  `aria-label?` (the group's name — one is needed)
+  `aria-label?` (the group's name — one is needed), `aria-describedby?` (an error line under the
+  group, settings)
 - **Variants:** with the simulated finish (a track with a projection table, DSA) · without (English)
 - **States:** each roadmap unselected / selected (ChoiceCard)
 - **Usage:** `<VariantPicker trackId="dsa" name="variant-dsa" roadmaps={track.roadmaps}
@@ -667,3 +683,111 @@ from `lib/i18n/vi.ts`.
   the server page (`router.refresh()`) every 30 s, on `focus` and when the tab becomes visible
   again, so the redirect to the user's home path fires as soon as an admin approves the account
 - **Accessibility:** no visible output, nothing to announce
+
+### AdminLink
+
+- **Layer:** feature (`features/settings`, server-compatible — no hooks)
+- **File:** `features/settings/components/admin-link.tsx`
+- **Props:** `isAdmin: boolean` (`SessionUser.isAdmin`)
+- **Variants:** admin (the row) · learner (renders nothing)
+- **States:** default, hover (`surface-muted`), focus-visible
+- **Usage:** `<AdminLink isAdmin={data.user.isAdmin} />` right under the PageHeader of
+  `app/(app)/settings/page.tsx`
+- **Accessibility:** a link to `/admin` (≥ 44 px) named "Quản trị" followed by its description;
+  the icons are decorative. It exists because the bottom navigation has no admin item, so admin
+  pages stay reachable on a phone (DESIGN_SYSTEM §5)
+
+### ScheduleForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/schedule-form.tsx`
+- **Props:** `schedule: Schedule` (in force now), `pendingSchedule: (Schedule & { effectiveAt })
+  | null`, `timeZones: readonly string[]` (built on the server), `requestId: string` (per render,
+  decision 9), `updateSchedule: SettingsAction` — the action comes in as a prop, so the catalog
+  passes a no-op
+- **Variants:** no change pending · a change pending (the fields show the pending values, which a
+  save is compared with, and an info Banner "Thay đổi áp dụng từ {ngày} lúc {giờ} (giờ {múi giờ
+  cũ}) — ngày đang học không bị ảnh hưởng.", on the clock of the zone in force, §5.9)
+- **States:** idle; saving ("Lưu lịch học" busy); saved (toast; the page re-renders and the fields
+  follow the saved values); failed (danger Banner in an always-mounted `role="alert"` region, field
+  errors under the fields)
+- **Usage:** `<ScheduleForm schedule={data.schedule} pendingSchedule={data.pendingSchedule}
+  timeZones={data.timeZones} requestId={data.requestId} updateSchedule={updateSchedule} />`
+- **Accessibility:** a `form` named "Lịch học"; labelled native selects (time zone — a saved zone
+  the list lacks is still listed — and day start with its helper); `aria-invalid` and the error in
+  `aria-describedby`; submits through `onSubmit` (no form reset), and ignores a second submit while
+  saving
+
+### TrackSettings
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/track-settings.tsx`
+- **Props:** `tracks: SettingsTrack[]` (every active track with the learner's enrollment — only
+  active and paused ones are shown), `requestId: string`, `updateTrack: SettingsAction`,
+  `setTrackStatus: SettingsAction`
+- **Variants:** per track: active ("Đang học" `success` Badge; "Tạm dừng", "Gỡ lộ trình") · paused
+  ("Tạm dừng" `warning` Badge; "Tiếp tục", "Gỡ lộ trình"); a track with several roadmaps shows the
+  VariantPicker, one roadmap shows it as text (TrackBudgetFields)
+- **States:** empty (EmptyState "Bạn chưa học lộ trình nào"); per track: saving ("Lưu" busy), a
+  status change running (the pressed button busy, the other disabled), confirming the removal
+  (destructive ConfirmDialog "Gỡ lộ trình {title}?"), failed (danger Banner in the track, under
+  `role="alert"`, and field errors); the weekly template and throttle are read-only
+  (WeeklyTemplatePreview "Mẫu tuần"; editing is later, §0)
+- **Usage:** `<TrackSettings tracks={data.tracks} requestId={data.requestId}
+  updateTrack={updateTrack} setTrackStatus={setTrackStatus} />`
+- **Accessibility:** each track is a region named by its h3 title; its form is named the same; the
+  status buttons sit in a group "Thao tác với {title}". "Tạm dừng" and "Tiếp tục" are one button
+  (keyed by its slot), so it keeps focus when the status flips; after a removal the list itself
+  (`tabIndex={-1}`) takes focus, since the removed track's buttons are gone (WCAG 2.4.3); results
+  are toasts, failures also stay in the track
+
+### TrackBudgetFields
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/track-budget-fields.tsx`
+- **Props:** `track: Pick<TrackOption, 'id' | 'roadmaps'>`, `minutes: string` (as typed),
+  `onMinutesChange`, `variant: string`, `onVariantChange`, `fallbackMinutes: number` (the budget
+  the finish line uses while the typed minutes are not a valid budget), `errors: Record<string,
+  string>` (`budgetMinutes`, `roadmapVariant`)
+- **Variants:** several roadmaps (VariantPicker with the simulated finish, §5.11) · one roadmap
+  (text, sent through a hidden field)
+- **States:** default; with field errors
+- **Usage:** inside a settings form — TrackSettings and AddTrackForm: `<TrackBudgetFields
+  track={option} minutes={minutes} onMinutesChange={setMinutes} variant={variant}
+  onVariantChange={setVariant} fallbackMinutes={60} errors={errors} />`
+- **Accessibility:** a labelled number field "Số phút mỗi ngày" with its helper; the variant
+  radiogroup is named "Phiên bản lộ trình" by a visible line and points `aria-describedby` at its
+  error; the form values are named `budgetMinutes` and `roadmapVariant`
+
+### AddTrackForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/add-track-form.tsx`
+- **Props:** `tracks: SettingsTrack[]` (removed and never-enrolled tracks are offered),
+  `schedule: Schedule` (in force: today and the date range), `now: string`, `requestId: string`,
+  `enrollTrack: SettingsAction`
+- **Variants:** a removed track ("Đã gỡ" Badge; starts from its last minutes and variant —
+  re-adding keeps the history, §5.9) · a never-enrolled track (the suggested-minutes Badge;
+  default minutes, the variant following the minutes until picked, ADR-0015)
+- **States:** empty (EmptyState "Bạn đang học tất cả lộ trình hiện có"); idle; adding ("Thêm lộ
+  trình" busy); added (toast; the track moves to TrackSettings); failed (danger Banner under
+  `role="alert"`, field errors)
+- **Usage:** `<AddTrackForm tracks={data.tracks} schedule={data.schedule} now={data.now}
+  requestId={data.requestId} enrollTrack={enrollTrack} />`
+- **Accessibility:** a `form` named "Thêm lộ trình"; the tracks are ChoiceCard radios in a group
+  "Lộ trình"; the start date is a labelled date field (today to 60 days ahead, decision 22); when
+  the last candidate is added and the form goes away, its container takes focus
+
+### CodeLanguageForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/code-language-form.tsx`
+- **Props:** `codeLanguage: CodeLanguage | null` (`null` reads as Python), `requestId: string`,
+  `updateCodeLanguage: SettingsAction`
+- **Variants:** —
+- **States:** idle; saving ("Lưu" busy); saved (toast); failed (danger Banner under
+  `role="alert"`, the error under the group)
+- **Usage:** `<CodeLanguageForm codeLanguage={data.user.codeLanguage} requestId={data.requestId}
+  updateCodeLanguage={updateCodeLanguage} />`
+- **Accessibility:** a `form` and a radiogroup both named "Ngôn ngữ lập trình"; Python / Java /
+  Go as ChoiceCard radios (the card is the target, `gap-3`)

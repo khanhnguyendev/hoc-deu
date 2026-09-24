@@ -14,6 +14,7 @@ import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
 import { FocusLayout } from '@/components/patterns/focus-layout'
+import { FormActions } from '@/components/patterns/form-actions'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField } from '@/components/patterns/form-field'
 import { ErrorState } from '@/components/patterns/error-state'
@@ -88,6 +89,13 @@ import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
 import type { OnboardingState } from '@/features/onboarding/schema'
+import { AddTrackForm } from '@/features/settings/components/add-track-form'
+import { AdminLink } from '@/features/settings/components/admin-link'
+import { CodeLanguageForm } from '@/features/settings/components/code-language-form'
+import { ScheduleForm } from '@/features/settings/components/schedule-form'
+import { TrackBudgetFields } from '@/features/settings/components/track-budget-fields'
+import { TrackSettings } from '@/features/settings/components/track-settings'
+import type { SettingsAction, SettingsTrack } from '@/features/settings/schema'
 import { VariantPicker } from '@/features/tracks/components/variant-picker'
 import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
 import type { TrackOption } from '@/lib/content/track-options'
@@ -399,6 +407,66 @@ const DEMO_ONBOARDING_ERROR: OnboardingState = {
 /** The onboarding action as a no-op: "Bắt đầu học" returns to the wizard unchanged. */
 const demoCompleteOnboarding = async (): Promise<OnboardingState> => ({ status: 'idle' })
 const demoFailOnboarding = async (): Promise<OnboardingState> => DEMO_ONBOARDING_ERROR
+
+/** The settings actions as no-ops: they "succeed" (a toast), or fail with a field error. */
+const demoSettingsSave: SettingsAction = async () => ({ ok: true, message: 'Đã lưu (bản demo).' })
+const demoSettingsFailure: SettingsAction = async () => ({
+  ok: false,
+  message: vi.settings.errors.fields,
+  fieldErrors: { budgetMinutes: vi.onboarding.errors.minutes },
+})
+const DEMO_VN_SCHEDULE = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
+const DEMO_SETTINGS_TRACKS: SettingsTrack[] = [
+  {
+    option: DEMO_DSA,
+    enrollment: {
+      status: 'active',
+      budgetMinutes: 60,
+      roadmapVariant: '8w',
+      startDate: DEMO_TODAY,
+    },
+  },
+  {
+    option: DEMO_ENGLISH,
+    enrollment: {
+      status: 'paused',
+      budgetMinutes: 25,
+      roadmapVariant: '10w',
+      startDate: DEMO_TODAY,
+    },
+  },
+]
+/** DSA removed, English never enrolled: both are offered under "Thêm lộ trình". */
+const DEMO_ADDABLE_TRACKS: SettingsTrack[] = [
+  {
+    option: DEMO_DSA,
+    enrollment: {
+      status: 'removed',
+      budgetMinutes: 90,
+      roadmapVariant: '10w',
+      startDate: DEMO_TODAY,
+    },
+  },
+  { option: DEMO_ENGLISH, enrollment: null },
+]
+
+function TrackBudgetFieldsDemo({ track, minutes }: { track: TrackOption; minutes: string }) {
+  const [typed, setTyped] = useState(minutes)
+  const [variant, setVariant] = useState(track.roadmaps[0]?.id ?? '')
+  return (
+    <form aria-label={track.title} className="flex w-full max-w-xl flex-col gap-4">
+      <TrackBudgetFields
+        track={track}
+        minutes={typed}
+        onMinutesChange={setTyped}
+        variant={variant}
+        onVariantChange={setVariant}
+        fallbackMinutes={Number(minutes)}
+        errors={{}}
+      />
+    </form>
+  )
+}
 
 function VariantPickerDemo({
   track,
@@ -1051,6 +1119,30 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'FormActions',
+    layer: 'patterns',
+    file: 'components/patterns/form-actions.tsx',
+    demos: [
+      {
+        title: 'Không có lỗi: chỉ các nút',
+        render: () => (
+          <FormActions error={null}>
+            <Button>Lưu</Button>
+          </FormActions>
+        ),
+      },
+      {
+        title: 'Lưu thất bại: thông báo ngay trên các nút',
+        render: () => (
+          <FormActions error={vi.errors.saveFailed} label="Thao tác với DSA">
+            <Button variant="outline">Tạm dừng</Button>
+            <Button variant="outline">Gỡ lộ trình</Button>
+          </FormActions>
+        ),
+      },
+    ],
+  },
+  {
     name: 'FormErrorSummary',
     layer: 'patterns',
     file: 'components/patterns/form-error-summary.tsx',
@@ -1454,6 +1546,163 @@ export const CATALOG: Entry[] = [
                 throttle={track.throttle}
               />
             ))}
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'AdminLink',
+    layer: 'features',
+    file: 'features/settings/components/admin-link.tsx',
+    demos: [
+      {
+        title: 'Hàng "Quản trị" ở đầu Cài đặt (chỉ quản trị viên; học viên không thấy gì)',
+        render: () => (
+          <div className="w-full max-w-xl">
+            <AdminLink isAdmin />
+            <AdminLink isAdmin={false} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ScheduleForm',
+    layer: 'features',
+    file: 'features/settings/components/schedule-form.tsx',
+    demos: [
+      {
+        title: 'Lịch đang áp dụng, không có thay đổi chờ',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <ScheduleForm
+              schedule={DEMO_VN_SCHEDULE}
+              pendingSchedule={null}
+              timeZones={DEMO_TIME_ZONES}
+              requestId={DEMO_REQUEST_ID}
+              updateSchedule={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Có thay đổi đang chờ: thông báo ngày và giờ áp dụng theo múi giờ cũ',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <ScheduleForm
+              schedule={DEMO_VN_SCHEDULE}
+              pendingSchedule={{
+                timezone: 'Europe/London',
+                dayStartsAt: '05:00',
+                effectiveAt: '2026-02-04T21:00:00.000Z',
+              }}
+              timeZones={DEMO_TIME_ZONES}
+              requestId={DEMO_REQUEST_ID}
+              updateSchedule={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackSettings',
+    layer: 'features',
+    file: 'features/settings/components/track-settings.tsx',
+    demos: [
+      {
+        title: 'DSA đang học, English tạm dừng ("Lưu" bị lỗi để xem thông báo lỗi)',
+        render: () => (
+          <div className="w-full">
+            <TrackSettings
+              tracks={DEMO_SETTINGS_TRACKS}
+              requestId={DEMO_REQUEST_ID}
+              updateTrack={demoSettingsFailure}
+              setTrackStatus={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Chưa học lộ trình nào',
+        render: () => (
+          <div className="w-full">
+            <TrackSettings
+              tracks={DEMO_ADDABLE_TRACKS}
+              requestId={DEMO_REQUEST_ID}
+              updateTrack={demoSettingsSave}
+              setTrackStatus={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackBudgetFields',
+    layer: 'features',
+    file: 'features/settings/components/track-budget-fields.tsx',
+    demos: [
+      {
+        title: 'DSA: số phút và phiên bản với thời gian hoàn thành mô phỏng',
+        render: () => <TrackBudgetFieldsDemo track={DEMO_DSA} minutes="60" />,
+      },
+      {
+        title: 'English: một phiên bản, hiện dạng chữ',
+        render: () => <TrackBudgetFieldsDemo track={DEMO_ENGLISH} minutes="25" />,
+      },
+    ],
+  },
+  {
+    name: 'AddTrackForm',
+    layer: 'features',
+    file: 'features/settings/components/add-track-form.tsx',
+    demos: [
+      {
+        title: 'Lộ trình đã gỡ (DSA) và lộ trình chưa học (English)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <AddTrackForm
+              tracks={DEMO_ADDABLE_TRACKS}
+              schedule={DEMO_VN_SCHEDULE}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              enrollTrack={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Đang học tất cả lộ trình',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <AddTrackForm
+              tracks={DEMO_SETTINGS_TRACKS}
+              schedule={DEMO_VN_SCHEDULE}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              enrollTrack={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'CodeLanguageForm',
+    layer: 'features',
+    file: 'features/settings/components/code-language-form.tsx',
+    demos: [
+      {
+        title: 'Java đã lưu (chưa lưu ngôn ngữ nào thì hiện Python)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <CodeLanguageForm
+              codeLanguage="java"
+              requestId={DEMO_REQUEST_ID}
+              updateCodeLanguage={demoSettingsSave}
+            />
           </div>
         ),
       },

@@ -125,12 +125,56 @@ export async function getScheduleVersions(userId: string): Promise<TestScheduleV
   return data
 }
 
-/** How many events the user's log holds. */
-export async function countEvents(userId: string): Promise<number> {
-  const { count, error } = await admin()
+/**
+ * Gives an onboarded test user a schedule and tracks directly (secret key), as onboarding would
+ * have: one `schedule_versions` row (the first version may lie in the past) and one `user_tracks`
+ * row per track, all `active`. No events are written.
+ */
+export async function seedLearnerSetup(
+  userId: string,
+  setup: {
+    schedule?: { timezone: string; dayStartsAt: string; effectiveAt: string }
+    tracks?: { trackId: string; roadmapVariant: string; budgetMinutes: number; startDate: string }[]
+  },
+): Promise<void> {
+  if (setup.schedule) {
+    const { timezone, dayStartsAt, effectiveAt } = setup.schedule
+    const { error } = await admin().from('schedule_versions').insert({
+      user_id: userId,
+      timezone,
+      day_starts_at: dayStartsAt,
+      effective_at: effectiveAt,
+    })
+    if (error) throw new Error(`seed schedule for ${userId} failed: ${error.message}`)
+  }
+  if (setup.tracks && setup.tracks.length > 0) {
+    const { error } = await admin()
+      .from('user_tracks')
+      .insert(
+        setup.tracks.map((track) => ({
+          user_id: userId,
+          track_id: track.trackId,
+          roadmap_variant: track.roadmapVariant,
+          budget_minutes: track.budgetMinutes,
+          start_date: track.startDate,
+        })),
+      )
+    if (error) throw new Error(`seed tracks for ${userId} failed: ${error.message}`)
+  }
+}
+
+/** How many events the user's log holds — of one type (and track) when given. */
+export async function countEvents(
+  userId: string,
+  filter: { type?: string; trackId?: string } = {},
+): Promise<number> {
+  let query = admin()
     .from('events')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+  if (filter.type !== undefined) query = query.eq('type', filter.type)
+  if (filter.trackId !== undefined) query = query.eq('track_id', filter.trackId)
+  const { count, error } = await query
   if (error || count === null) {
     throw new Error(`countEvents(${userId}) failed: ${error?.message ?? 'no count'}`)
   }

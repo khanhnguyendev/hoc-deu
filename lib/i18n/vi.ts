@@ -200,6 +200,87 @@ export const vi = {
     throttleTitle: 'Giới hạn thẻ mới',
   },
   /**
+   * /settings (§2.4, task 2.11). `{title}` is a track's title; `{day}`, `{time}` and `{timezone}`
+   * are a formatted day, an `HH:MM` time and an IANA zone id.
+   */
+  settings: {
+    description: 'Lịch học, lộ trình, ngôn ngữ lập trình và giao diện của bạn.',
+    /** The "Quản trị" row at the top, admins only (DESIGN_SYSTEM §5). */
+    admin: {
+      title: 'Quản trị',
+      description: 'Duyệt tài khoản và xem cảnh báo của hệ thống.',
+    },
+    schedule: {
+      title: 'Lịch học',
+      description:
+        'Múi giờ và giờ bắt đầu ngày quyết định ngày học của bạn. Thay đổi có hiệu lực từ ngày học tiếp theo.',
+      timezone: 'Múi giờ',
+      dayStart: 'Ngày mới bắt đầu lúc',
+      dayStartHelper: 'Học lúc 01:30 vẫn tính cho ngày hôm trước khi ngày mới bắt đầu lúc 04:00.',
+      save: 'Lưu lịch học',
+      pending:
+        'Thay đổi áp dụng từ {day} lúc {time} (giờ {timezone}) — ngày đang học không bị ảnh hưởng.',
+      unchanged: 'Lịch học không thay đổi.',
+      cancelled: 'Đã huỷ thay đổi lịch học đang chờ.',
+    },
+    tracks: {
+      title: 'Lộ trình của bạn',
+      description: 'Mẫu tuần và giới hạn thẻ mới theo mặc định của từng lộ trình.',
+      emptyTitle: 'Bạn chưa học lộ trình nào',
+      emptyBody: 'Thêm một lộ trình ở mục "Thêm lộ trình" bên dưới.',
+      status: {
+        active: 'Đang học',
+        paused: 'Tạm dừng',
+      },
+      minutes: 'Số phút mỗi ngày',
+      minutesHelper: 'Từ 10 đến 240 phút, bước 5 phút.',
+      variant: 'Phiên bản lộ trình',
+      templateTitle: 'Mẫu tuần',
+      save: 'Lưu',
+      actionsFor: 'Thao tác với {title}',
+      pause: 'Tạm dừng',
+      resume: 'Tiếp tục',
+      remove: 'Gỡ lộ trình',
+      confirmRemove: {
+        title: 'Gỡ lộ trình {title}?',
+        description:
+          'Lộ trình sẽ không còn trong kế hoạch, thẻ cần ôn và thống kê. Lịch sử học vẫn được giữ: khi thêm lại, bạn học tiếp từ những bài đã học.',
+      },
+      updated: 'Đã lưu {title}.',
+      unchanged: 'Không có gì thay đổi.',
+      paused: 'Đã tạm dừng {title}.',
+      resumed: 'Đã tiếp tục {title}.',
+      removed: 'Đã gỡ {title}.',
+    },
+    add: {
+      title: 'Thêm lộ trình',
+      description: 'Lộ trình đã gỡ được thêm lại cùng lịch sử học cũ.',
+      emptyTitle: 'Bạn đang học tất cả lộ trình hiện có',
+      track: 'Lộ trình',
+      removed: 'Đã gỡ',
+      startDate: 'Ngày bắt đầu',
+      startDateHelper: 'Từ hôm nay đến tối đa 60 ngày tới.',
+      submit: 'Thêm lộ trình',
+      added: 'Đã thêm {title}.',
+    },
+    codeLanguage: {
+      title: 'Ngôn ngữ lập trình',
+      description: 'Dùng cho lời giải và code mẫu.',
+      save: 'Lưu',
+      saved: 'Đã lưu ngôn ngữ lập trình.',
+      unchanged: 'Ngôn ngữ lập trình không thay đổi.',
+    },
+    theme: {
+      title: 'Giao diện',
+      description: 'Lựa chọn được lưu trên thiết bị này.',
+    },
+    errors: {
+      invalid: 'Không đọc được yêu cầu. Bạn tải lại trang rồi thử lại nhé.',
+      fields: 'Kiểm tra lại các mục được đánh dấu.',
+      alreadyEnrolled: 'Lộ trình này đã có trong danh sách của bạn. Bạn tải lại trang nhé.',
+    },
+  },
+  /**
    * /admin/users, the approval queue (§2.4, task 2.8). `{count}`, `{date}` and `{name}` are
    * replaced with a formatted number, a formatted day and the user's name.
    */

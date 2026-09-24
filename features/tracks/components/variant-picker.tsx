@@ -20,6 +20,8 @@ type VariantPickerProps = {
   /** Names the group (e.g. the id of the track's heading); the group needs one of the two. */
   'aria-labelledby'?: string
   'aria-label'?: string
+  /** The id of an error line under the group (settings, task 2.11). */
+  'aria-describedby'?: string
 }
 
 /**

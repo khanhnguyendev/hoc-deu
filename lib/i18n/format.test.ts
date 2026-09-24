@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   formatDay,
   formatDayLong,
+  formatDayTimeIn,
   formatFinishEstimate,
   formatMinutes,
   formatMonth,
@@ -105,5 +106,33 @@ describe('variantLabel', () => {
 
   it('leaves any other id unchanged', () => {
     expect(variantLabel('custom')).toBe('custom')
+  })
+})
+
+describe('formatDayTimeIn', () => {
+  it('shows the date and 24-hour time an instant reads on a clock in the zone', () => {
+    expect(formatDayTimeIn('2026-09-24T21:00:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '04:00',
+    })
+    expect(formatDayTimeIn('2026-09-24T11:00:00.000Z', 'America/Los_Angeles')).toEqual({
+      day: '24 tháng 9, 2026',
+      time: '04:00',
+    })
+  })
+
+  it('reads midnight as 00:00, never 24:00', () => {
+    expect(formatDayTimeIn('2026-09-24T17:00:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '00:00',
+    })
+  })
+
+  it('does not depend on the runtime zone (TZ)', () => {
+    process.env.TZ = 'Pacific/Kiritimati'
+    expect(formatDayTimeIn('2026-09-24T21:30:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '04:30',
+    })
   })
 })

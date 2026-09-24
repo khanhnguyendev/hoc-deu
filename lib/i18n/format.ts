@@ -45,6 +45,34 @@ export function formatDay(isoDay: string): string {
   return format(isoDay, { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+const pad = (value: string) => value.padStart(2, '0')
+
+/**
+ * The date (`formatDay`) and 24-hour time (`04:00`) an instant reads on a clock in `timeZone` —
+ * e.g. when a schedule change takes effect, in the zone in force (§5.9). Independent of the
+ * runtime's own zone.
+ */
+export function formatDayTimeIn(
+  instant: string | Date,
+  timeZone: string,
+): { day: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(new Date(instant))
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '00'
+  return {
+    day: formatDay(`${part('year')}-${pad(part('month'))}-${pad(part('day'))}`),
+    time: `${pad(part('hour'))}:${pad(part('minute'))}`,
+  }
+}
+
 /** `Thứ Ba, 3 tháng 2, 2026` */
 export function formatDayLong(isoDay: string): string {
   return format(isoDay, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
