@@ -49,7 +49,9 @@ A quiet, Swiss-minimal workspace that stays out of the way of studying.
    table.
 4. **Vietnamese-first typography.** Diacritics never clip or collide (§4).
 5. **Tokens, not values.** Components use semantic utilities (`bg-surface`, `text-muted-foreground`,
-   `bg-track`); the lint and token guard enforce it (platform design §7.3).
+   `bg-track`); the lint and token guard enforce it (platform design §7.3). `tokens.css` clears
+   Tailwind's default colours, fonts, text sizes, radii, shadows and easings, so only these tokens
+   exist as utilities.
 
 ---
 

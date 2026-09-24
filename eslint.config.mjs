@@ -2,34 +2,35 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
+import layers from './tools/eslint/layer-imports.mjs'
 
 const PALETTE =
   '(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)'
+const COLOUR_UTILITY =
+  '(bg|text|border(-[xytrblse])?|ring(-offset)?|inset-ring|outline|decoration|from|via|to|shadow|inset-shadow|drop-shadow|text-shadow|divide|placeholder|caret|accent|fill|stroke)'
+const OPACITY = '(/\\S+)?'
 const TOKEN_HINT = 'Use a semantic token utility (see docs/design/DESIGN_SYSTEM.md).'
 
-// Layer rules (platform design §7.2). Each entry: files → import patterns they must not use.
-const UP = (group, message) => ({ group, message })
-const NO_APP = UP(['@/app', '@/app/*'], 'Nothing imports from app/ (layer 5).')
-const NO_FEATURES = UP(['@/features', '@/features/*'], 'Lower layers must not import features.')
-const NO_PATTERNS = UP(
-  ['@/components/patterns', '@/components/patterns/*'],
-  'components/ui must not import patterns.',
-)
-const NO_COMPONENTS = UP(['@/components', '@/components/*'], 'lib/ and tools/ are non-UI.')
-const ONLY_UTILS_I18N = UP(
-  ['@/lib/*', '!@/lib/utils', '!@/lib/i18n', '!@/lib/i18n/*'],
-  'This layer may only use lib/utils and lib/i18n from lib/.',
-)
-const FEATURE_INTERNALS = UP(
-  ['@/features/*/*', '!@/features/items/*'],
-  'Import other features through their index.ts only.',
-)
-const NO_UI_IN_PAGES = UP(
-  ['@/components/ui', '@/components/ui/*'],
-  'Pages compose features and patterns, not ui primitives.',
-)
-const DOMAIN_ONLY = UP(
-  [
+// Style props may carry data as CSS custom properties (style={{ '--progress': value }}), nothing else.
+const STYLE = "JSXAttribute[name.name='style'] > JSXExpressionContainer"
+const STYLE_MESSAGE =
+  "Style props may only set CSS custom properties, e.g. style={{ '--progress': value }}. Style with token utilities."
+const STYLE_PROPS = [
+  { selector: `${STYLE} > :not(ObjectExpression)`, message: STYLE_MESSAGE },
+  { selector: `${STYLE} > ObjectExpression > SpreadElement`, message: STYLE_MESSAGE },
+  {
+    selector: `${STYLE} > ObjectExpression > Property:not([key.type='Literal'][key.value=/^--/])`,
+    message: STYLE_MESSAGE,
+  },
+]
+const NO_CLASSNAME_IN_PAGES = {
+  selector: "JSXAttribute[name.name='className']",
+  message: 'Pages contain no styling logic — compose patterns and features.',
+}
+const syntax = (...selectors) => ['error', ...STYLE_PROPS, ...selectors]
+
+const DOMAIN_PACKAGES = {
+  group: [
     'react',
     'react-dom',
     'react/*',
@@ -39,14 +40,9 @@ const DOMAIN_ONLY = UP(
     'date-fns',
     'date-fns/*',
     '@date-fns/*',
-    '@/lib/*',
-    '!@/lib/domain',
-    '!@/lib/domain/*',
   ],
-  'lib/domain is pure: only lib/domain and zod.',
-)
-
-const restrict = (...patterns) => ['error', { patterns }]
+  message: 'lib/domain is pure: only lib/domain and zod.',
+}
 
 export default defineConfig([
   ...nextVitals,
@@ -77,12 +73,26 @@ export default defineConfig([
               message: `Arbitrary values are not allowed. ${TOKEN_HINT}`,
             },
             {
-              pattern: `^(?:.*:)?(bg|text|border|ring|fill|stroke|outline|decoration|from|via|to|shadow|divide|placeholder|caret|accent)-${PALETTE}-\\d{2,3}$`,
+              pattern: '(^|:)@?(min|max)-\\[',
+              message:
+                'Arbitrary breakpoints are not allowed. Use sm/md/lg/xl (DESIGN_SYSTEM.md §6).',
+            },
+            {
+              pattern: `^(.*:)?!?${COLOUR_UTILITY}-${PALETTE}-\\d{2,3}${OPACITY}!?$`,
               message: `Raw palette colours are not allowed. ${TOKEN_HINT}`,
             },
             {
-              pattern: '^(?:.*:)?(bg|text|border)-(black|white)$',
+              pattern: `^(.*:)?!?${COLOUR_UTILITY}-(black|white)${OPACITY}!?$`,
               message: `Raw black/white are not allowed. ${TOKEN_HINT}`,
+            },
+            {
+              pattern: '^(.*:)?(duration|delay)-\\d+$',
+              message:
+                'Use the motion tokens, e.g. duration-(--duration-fast) (DESIGN_SYSTEM.md §5).',
+            },
+            {
+              pattern: '(^|:)!|!$',
+              message: 'The important modifier is not allowed. Fix the cascade instead.',
             },
           ],
         },
@@ -90,25 +100,18 @@ export default defineConfig([
     },
   },
   {
-    files: ['components/ui/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': restrict(NO_APP, NO_FEATURES, NO_PATTERNS, ONLY_UTILS_I18N) },
+    files: ['{app,components,features,lib,tools}/**/*.{ts,tsx}'],
+    plugins: { layers },
+    rules: { 'layers/imports': 'error' },
   },
   {
-    files: ['components/patterns/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': restrict(NO_APP, NO_FEATURES, ONLY_UTILS_I18N) },
-  },
-  {
-    files: ['features/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': restrict(NO_APP, FEATURE_INTERNALS) },
-  },
-  {
-    files: ['lib/**/*.{ts,tsx}', 'tools/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': restrict(NO_APP, NO_FEATURES, NO_COMPONENTS) },
+    files: ['**/*.tsx'],
+    rules: { 'no-restricted-syntax': syntax() },
   },
   {
     files: ['lib/domain/**/*.ts'],
     rules: {
-      'no-restricted-imports': restrict(NO_APP, NO_FEATURES, NO_COMPONENTS, DOMAIN_ONLY),
+      'no-restricted-imports': ['error', { patterns: [DOMAIN_PACKAGES] }],
       'no-restricted-syntax': [
         'error',
         {
@@ -126,46 +129,26 @@ export default defineConfig([
   {
     files: ['app/**/*.{ts,tsx}'],
     ignores: ['app/api/**', 'app/dev/**'],
-    rules: {
-      'no-restricted-imports': restrict(NO_UI_IN_PAGES, FEATURE_INTERNALS),
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "JSXAttribute[name.name='className']",
-          message: 'Pages contain no styling logic — compose patterns and features.',
-        },
-      ],
-    },
+    rules: { 'no-restricted-syntax': syntax(NO_CLASSNAME_IN_PAGES) },
   },
   {
     files: ['app/**/page.tsx', 'app/**/layout.tsx'],
     ignores: ['app/dev/**'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "JSXAttribute[name.name='className']",
-          message: 'Pages contain no styling logic — compose patterns and features.',
-        },
-        {
-          selector: "Program > ExpressionStatement[directive='use client']",
-          message:
-            "Pages and layouts are Server Components; put 'use client' in an interactive leaf component.",
-        },
-      ],
+      'no-restricted-syntax': syntax(NO_CLASSNAME_IN_PAGES, {
+        selector: "Program > ExpressionStatement[directive='use client']",
+        message:
+          "Pages and layouts are Server Components; put 'use client' in an interactive leaf component.",
+      }),
     },
   },
   {
-    // The root layout sets the font variables on <html>; it is the only className allowed in app/.
     files: ['app/layout.tsx'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "Program > ExpressionStatement[directive='use client']",
-          message: 'The root layout is a Server Component.',
-        },
-      ],
+      'no-restricted-syntax': syntax({
+        selector: "Program > ExpressionStatement[directive='use client']",
+        message: 'The root layout is a Server Component.',
+      }),
     },
   },
 ])

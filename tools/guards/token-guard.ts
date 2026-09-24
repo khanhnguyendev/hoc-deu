@@ -7,11 +7,19 @@ const SCANNED_DIRS = ['app', 'components', 'features'] as const
 const TOKEN_FILE = 'app/globals.css'
 
 const LINE_RULES: ReadonlyArray<{ rule: string; pattern: RegExp }> = [
-  { rule: 'hex-colour', pattern: /#[0-9a-fA-F]{3,8}\b/ },
-  { rule: 'colour-function', pattern: /\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\(/ },
+  // A hex colour starts a value (line start, quote, bracket, `=`, `,` or `:`), so `href="#add-note"`,
+  // `LeetCode #217` and `&#160;` are not colours.
+  {
+    rule: 'hex-colour',
+    pattern: /(?:^|['"`([=,:])\s*#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/,
+  },
+  {
+    rule: 'colour-function',
+    pattern:
+      /(?<![\w$.-])(?:(?:rgba?|hsla?|oklch|oklab|lab|lch)\(|color\(\s*(?:srgb|srgb-linear|display-p3|a98-rgb|prophoto-rgb|rec2020|xyz|xyz-d50|xyz-d65)\b)/,
+  },
   { rule: 'important', pattern: /!important/ },
   { rule: 'inline-style-tag', pattern: /<style[\s>]/ },
-  { rule: 'style-literal-unit', pattern: /style=\{\{[^}]*\b\d+(?:\.\d+)?(?:px|rem|em|ms|s)\b/ },
 ]
 
 /** Find hard-coded visual values in one source file (platform design §7.3). */

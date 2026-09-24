@@ -194,6 +194,20 @@
 [data-accent="track-7"] { --track: var(--track-7); --track-soft: var(--track-7-soft); --track-foreground: var(--track-on-solid); }
 [data-accent="track-8"] { --track: var(--track-8); --track-soft: var(--track-8-soft); --track-foreground: var(--track-on-solid); }
 
+/* Tailwind's default theme is cleared for every namespace these tokens own, so only token
+   utilities exist: a raw `bg-red-500`, `shadow-lg`, `text-5xl` or `font-serif` is an unknown class. */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --text-shadow-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --ease-*: initial;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

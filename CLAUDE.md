@@ -36,6 +36,10 @@ Later milestones add `pnpm test:db`, `pnpm content:build`, `pnpm content:verify`
 5. **`app/`** — routes compose features. **No `className` in pages**, no `components/ui` imports
    in pages.
 
+`tools/eslint/layer-imports.mjs` resolves every import (alias, relative, re-export, `import()`)
+to a repo path before checking it, so `../` cannot skip a layer. A feature may import its own
+files by alias or relative path.
+
 - **Search `docs/design/COMPONENTS.md` before creating a component.** If two or more places need
   something similar, extract it into `components/patterns`. Update `COMPONENTS.md` and
   `/dev/components` in the same commit as any new or changed component.
@@ -47,8 +51,11 @@ Later milestones add `pnpm test:db`, `pnpm content:build`, `pnpm content:verify`
 ## Visual values
 
 No hex, `rgb()`, `oklch()`, `px`/`rem`/`ms` literals, `!important`, extra CSS files or arbitrary
-Tailwind values (`p-[13px]`, `text-[#fff]`) outside `app/globals.css`. Use token utilities
-(`bg-surface`, `text-muted-foreground`, `bg-track`, `rounded-lg`). ESLint and the token guard
+Tailwind values (`p-[13px]`, `text-[#fff]`, `max-[600px]:`) outside `app/globals.css`. Use token
+utilities (`bg-surface`, `bg-background/50`, `text-muted-foreground`, `bg-track`, `rounded-lg`,
+`duration-(--duration-fast)`). Tailwind's default colours, fonts, text sizes, radii, shadows and
+easings are cleared, so `bg-red-500` or `shadow-lg` is an unknown class. `style` props may only set
+CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token guard
 (`tools/guards`) fail the build otherwise. To change a token: edit
 `docs/design/assets/palette.py`, run `python3 docs/design/assets/gen_tokens.py`, regenerate
 `app/globals.css`.

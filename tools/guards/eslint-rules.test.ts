@@ -2,6 +2,7 @@ import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
 
 const eslint = new ESLint({ cwd: process.cwd() })
+const LAYERS = 'layers/imports'
 
 async function ruleIds(code: string, filePath: string): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath })
@@ -14,7 +15,7 @@ describe('layer rules (platform design §7.2)', () => {
       "import { PageHeader } from '@/components/patterns/page-header'\nexport const x = PageHeader\n",
       'components/ui/button.tsx',
     )
-    expect(ids).toContain('no-restricted-imports')
+    expect(ids).toContain(LAYERS)
   })
 
   it('lets ui primitives use lib/utils', async () => {
@@ -22,7 +23,7 @@ describe('layer rules (platform design §7.2)', () => {
       "import { cn } from '@/lib/utils'\nexport const x = cn\n",
       'components/ui/button.tsx',
     )
-    expect(ids).not.toContain('no-restricted-imports')
+    expect(ids).not.toContain(LAYERS)
   })
 
   it('forbids deep imports into another feature', async () => {
@@ -30,7 +31,7 @@ describe('layer rules (platform design §7.2)', () => {
       "import { X } from '@/features/review/components/x'\nexport const y = X\n",
       'features/today/components/plan.tsx',
     )
-    expect(ids).toContain('no-restricted-imports')
+    expect(ids).toContain(LAYERS)
   })
 
   it('forbids pages importing ui primitives', async () => {
@@ -38,7 +39,7 @@ describe('layer rules (platform design §7.2)', () => {
       "import { Button } from '@/components/ui/button'\nexport default function P() { return <Button /> }\n",
       'app/(app)/today/page.tsx',
     )
-    expect(ids).toContain('no-restricted-imports')
+    expect(ids).toContain(LAYERS)
   })
 
   it('forbids className in pages', async () => {
@@ -55,6 +56,53 @@ describe('layer rules (platform design §7.2)', () => {
       'app/(app)/today/page.tsx',
     )
     expect(ids).toContain('no-restricted-syntax')
+  })
+
+  it('forbids parent-relative imports that bypass the layer rules', async () => {
+    const fromUi = await ruleIds(
+      "import { PageHeader } from '../patterns/page-header'\nexport const x = PageHeader\n",
+      'components/ui/button.tsx',
+    )
+    const fromFeature = await ruleIds(
+      "import { X } from '../../review/components/x'\nexport const y = X\n",
+      'features/today/components/plan.tsx',
+    )
+    const fromPage = await ruleIds(
+      "import { Button } from '../../../components/ui/button'\nexport default function P() { return <Button /> }\n",
+      'app/(app)/today/page.tsx',
+    )
+    expect(fromUi).toContain(LAYERS)
+    expect(fromFeature).toContain(LAYERS)
+    expect(fromPage).toContain(LAYERS)
+  })
+
+  it('lets a feature import its own files through the alias', async () => {
+    const ids = await ruleIds(
+      "import { loadToday } from '@/features/today/queries'\nexport const x = loadToday\n",
+      'features/today/components/plan.tsx',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it('lets any feature use the item registry', async () => {
+    const ids = await ruleIds(
+      "import { getItemType } from '@/features/items/registry'\nexport const x = getItemType\n",
+      'features/review/components/queue.tsx',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it('allows same-folder relative imports', async () => {
+    const ids = await ruleIds("import { cn } from './utils'\nexport const x = cn\n", 'lib/other.ts')
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it('allows className only in the root layout', async () => {
+    const ids = await ruleIds(
+      'export default function L({ children }: { children: React.ReactNode }) { return <html lang="vi" className="font-sans"><body>{children}</body></html> }\n',
+      'app/layout.tsx',
+    )
+    expect(ids).not.toContain('no-restricted-syntax')
   })
 
   it('keeps lib/domain pure', async () => {
@@ -93,10 +141,81 @@ describe('token rules (platform design §7.3)', () => {
     expect(ids).toContain('better-tailwindcss/no-unknown-classes')
   })
 
+  it.each([
+    'bg-black/50',
+    'text-white/80',
+    'bg-red-500/50',
+    'from-red-500/20',
+    'border-t-red-500',
+    'ring-offset-red-500',
+    'fill-white',
+    'stroke-black',
+    'max-[600px]:p-4',
+    '!p-4',
+    'p-4!',
+    'duration-700',
+  ])('rejects the raw or escaping form %s', async (cls) => {
+    const ids = await ruleIds(
+      `export const C = () => <div className="${cls}" />\n`,
+      'components/patterns/c.tsx',
+    )
+    expect(ids).toContain('better-tailwindcss/no-restricted-classes')
+  })
+
+  it.each(['shadow-lg', 'text-5xl', 'rounded-3xl', 'font-serif', 'ease-in', 'drop-shadow-lg'])(
+    'treats Tailwind default theme value %s as unknown',
+    async (cls) => {
+      const ids = await ruleIds(
+        `export const C = () => <div className="${cls}" />\n`,
+        'components/patterns/c.tsx',
+      )
+      expect(ids).toContain('better-tailwindcss/no-unknown-classes')
+    },
+  )
+
+  it('accepts token utilities with opacity, weights and motion tokens', async () => {
+    const ids = await ruleIds(
+      'export const C = () => <div className="bg-background/50 font-sans font-semibold text-sm shadow-sm rounded-lg ease-standard duration-(--duration-fast) motion-reduce:transition-none" />\n',
+      'components/patterns/c.tsx',
+    )
+    expect(ids).toEqual([])
+  })
+
   it('accepts semantic token classes', async () => {
     const ids = await ruleIds(
       'export const C = () => <div data-accent="track-1" className="rounded-lg border bg-surface p-4 text-muted-foreground hover:bg-surface-muted data-[state=open]:bg-track-soft" />\n',
       'components/patterns/c.tsx',
+    )
+    expect(ids).toEqual([])
+  })
+})
+
+describe('style props (platform design §7.3)', () => {
+  it('rejects style properties that are not custom properties', async () => {
+    const ids = await ruleIds(
+      'export const C = () => (\n  <div\n    style={{\n      width: 240,\n    }}\n  />\n)\n',
+      'components/patterns/c.tsx',
+    )
+    expect(ids).toContain('no-restricted-syntax')
+  })
+
+  it('rejects style objects passed by reference or spread', async () => {
+    const byRef = await ruleIds(
+      'const s = { color: "red" }\nexport const C = () => <div style={s} />\n',
+      'features/x/components/c.tsx',
+    )
+    const spread = await ruleIds(
+      'export const C = (p: object) => <div style={{ ...p }} />\n',
+      'features/x/components/c.tsx',
+    )
+    expect(byRef).toContain('no-restricted-syntax')
+    expect(spread).toContain('no-restricted-syntax')
+  })
+
+  it('allows custom properties that carry data', async () => {
+    const ids = await ruleIds(
+      "export const C = ({ v }: { v: number }) => <div style={{ '--progress': v }} />\n",
+      'components/patterns/ring.tsx',
     )
     expect(ids).toEqual([])
   })

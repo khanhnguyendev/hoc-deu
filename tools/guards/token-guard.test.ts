@@ -15,16 +15,15 @@ describe('findTokenViolations', () => {
     )
   })
 
-  it('flags literal units in style props', () => {
-    expect(rules('components/ui/c.tsx', '<div style={{ padding: 12px }} />')).toEqual([
-      'style-literal-unit',
-    ])
+  it('flags three-digit hex colours with letters', () => {
+    expect(rules('components/patterns/a.tsx', "const c = '#fff'")).toEqual(['hex-colour'])
   })
 
-  it('allows CSS custom properties that carry data', () => {
-    expect(
-      rules('components/patterns/ring.tsx', "<div style={{ '--progress': value }} />"),
-    ).toEqual([])
+  it('does not flag anchors, issue numbers, entities or a function named color', () => {
+    expect(rules('components/patterns/a.tsx', '<a href="#add-note">x</a>')).toEqual([])
+    expect(rules('features/x/b.tsx', "const t = 'LeetCode #217'")).toEqual([])
+    expect(rules('features/x/b.tsx', '<span>&#160;</span>')).toEqual([])
+    expect(rules('features/x/b.tsx', 'const c = color(1)')).toEqual([])
   })
 
   it('flags !important and inline style tags', () => {
