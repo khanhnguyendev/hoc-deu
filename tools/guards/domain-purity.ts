@@ -1,3 +1,4 @@
+import path from 'node:path'
 import ts from 'typescript'
 
 const ALLOWED_TEST_PACKAGES = new Set(['vitest', 'fast-check'])
@@ -30,22 +31,33 @@ function isTestFile(file: string): boolean {
   return /\.test\.tsx?$/.test(file) || /(^|\/)__tests__\//.test(file)
 }
 
-function isAllowedImport(spec: string, testFile: boolean): boolean {
+/**
+ * Whether `spec`, imported/exported/dynamically-imported from a file in directory `fileDir`
+ * (posix, repo-relative), is allowed under `lib/domain`. A relative specifier is resolved against
+ * `fileDir` and must land under `lib/domain/`, so `../../supabase/admin` from
+ * `lib/domain/time/x.ts` is rejected even though it starts with `../`.
+ */
+function isAllowedSpecifier(spec: string, fileDir: string, testFile: boolean): boolean {
   if (spec === 'zod' || spec.startsWith('zod/')) return true
   if (testFile && ALLOWED_TEST_PACKAGES.has(spec)) return true
-  if (spec.startsWith('@/lib/domain')) return true
-  if (spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../')) return true
+  if (spec === '@/lib/domain' || spec.startsWith('@/lib/domain/')) return true
+  if (spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../')) {
+    const resolved = path.posix.normalize(path.posix.join(fileDir, spec))
+    return resolved === 'lib/domain' || resolved.startsWith('lib/domain/')
+  }
   return false
 }
 
 /**
- * Architecture-test rules for `lib/domain/**` (task 2.3 brief): imports only from `lib/domain`
- * (alias or relative) and `zod` (plus `vitest`/`fast-check` in test files); no `node:*`; no
- * `.tsx` files; no clock reads (`Date.now()`, `Date()` without `new`, argument-less `new Date()`,
- * `performance.now()`); no local-time getters/setters; no `Math.random()`; no `fetch`.
+ * Architecture-test rules for `lib/domain/**` (task 2.3 brief): imports (static, re-exports and
+ * dynamic `import()`) only from `lib/domain` (alias or relative, resolved and boundary-checked)
+ * and `zod` (plus `vitest`/`fast-check` in test files); no `node:*`; no `.tsx` files; no clock
+ * reads (`Date.now()`, `Date()` without `new`, argument-less `new Date()`, `performance.now()`);
+ * no local-time getters/setters; no `Math.random()`; no `fetch`.
  */
 export function purityViolations(file: string, source: string): string[] {
   const normalized = file.split('\\').join('/')
+  const fileDir = path.posix.dirname(normalized)
   const violations: string[] = []
 
   if (normalized.endsWith('.tsx')) {
@@ -61,15 +73,25 @@ export function purityViolations(file: string, source: string): string[] {
     ts.ScriptKind.TS,
   )
 
-  function visit(node: ts.Node): void {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const spec = node.moduleSpecifier.text
-      if (!isAllowedImport(spec, testFile)) {
-        violations.push(`${normalized}: disallowed import "${spec}"`)
-      }
+  function checkModuleSpecifier(specifier: ts.Expression | undefined): void {
+    if (specifier === undefined || !ts.isStringLiteral(specifier)) return
+    const spec = specifier.text
+    if (!isAllowedSpecifier(spec, fileDir, testFile)) {
+      violations.push(`${normalized}: disallowed import "${spec}"`)
     }
+  }
 
-    if (ts.isNewExpression(node)) {
+  function visit(node: ts.Node): void {
+    if (ts.isImportDeclaration(node)) {
+      checkModuleSpecifier(node.moduleSpecifier)
+    } else if (ts.isExportDeclaration(node)) {
+      // Covers both `export { x } from '...'` and `export * from '...'` / `export * as ns from
+      // '...'` — all ExportDeclaration nodes with a moduleSpecifier.
+      checkModuleSpecifier(node.moduleSpecifier)
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      // Dynamic `import('...')`.
+      checkModuleSpecifier(node.arguments[0])
+    } else if (ts.isNewExpression(node)) {
       if (ts.isIdentifier(node.expression) && node.expression.text === 'Date') {
         const argCount = node.arguments?.length ?? 0
         if (argCount === 0) {

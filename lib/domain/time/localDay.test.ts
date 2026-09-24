@@ -161,8 +161,10 @@ describe('nextDayStart', () => {
     }
   })
 
-  describe('moving west or east (RF-1: repeats or skips at most one date)', () => {
+  describe('moving west or east (§5.9: repeats a date westward, skips a date eastward)', () => {
     const STEP_MS = 15 * 60_000
+    const WINDOW_DAYS = 2
+    const SAMPLES_PER_UNSWITCHED_DAY = 86_400_000 / STEP_MS // 96, at a 15-minute step
 
     /** Sample `localDay` every 15 minutes across a schedule switch, `windowDays` each side. */
     function sample(versions: readonly ScheduleVersion[], switchAt: Date, windowDays: number) {
@@ -175,16 +177,55 @@ describe('nextDayStart', () => {
       return days
     }
 
-    function assertNeverDecreasesAndSkipsAtMostOneDate(days: readonly LocalDay[]) {
+    /** Lengths of each maximal run of consecutive equal dates, in sampled-array order. */
+    function runLengths(days: readonly LocalDay[]): number[] {
+      const lengths: number[] = []
+      let count = 1
       for (let i = 1; i < days.length; i++) {
-        expect(daysBetween(days[i - 1] as LocalDay, days[i] as LocalDay)).toBeGreaterThanOrEqual(0)
+        if (days[i] === days[i - 1]) {
+          count++
+        } else {
+          lengths.push(count)
+          count = 1
+        }
       }
-      const distinct = new Set(days).size
-      const span = daysBetween(days[0] as LocalDay, days[days.length - 1] as LocalDay) + 1
-      expect(span - distinct).toBeLessThanOrEqual(1)
+      lengths.push(count)
+      return lengths
     }
 
-    it('VN -> America/Los_Angeles (west)', () => {
+    /**
+     * Westward (earlier offset): the local day never skips ahead by more than one calendar day
+     * per sample, and at most one date's run of samples is longer than a normal, unswitched day
+     * — the date active at the switch, stretched by the new, more-negative UTC offset (§5.9,
+     * "moving west can repeat a local date").
+     */
+    function assertWest(days: readonly LocalDay[]) {
+      for (let i = 1; i < days.length; i++) {
+        const diff = daysBetween(days[i - 1] as LocalDay, days[i] as LocalDay)
+        expect(diff).toBeGreaterThanOrEqual(0)
+        expect(diff).toBeLessThanOrEqual(1)
+      }
+      const extendedRuns = runLengths(days).filter((len) => len > SAMPLES_PER_UNSWITCHED_DAY)
+      expect(extendedRuns.length).toBeLessThanOrEqual(1)
+    }
+
+    /**
+     * Eastward (later offset): the local day never decreases, and at most one sample-to-sample
+     * step skips a whole date (a difference of 2, never more) — the date the switch jumps clean
+     * over (§5.9, "moving east can skip a date").
+     */
+    function assertEast(days: readonly LocalDay[]) {
+      let skippedDates = 0
+      for (let i = 1; i < days.length; i++) {
+        const diff = daysBetween(days[i - 1] as LocalDay, days[i] as LocalDay)
+        expect(diff).toBeGreaterThanOrEqual(0)
+        expect(diff).toBeLessThanOrEqual(2)
+        if (diff === 2) skippedDates++
+      }
+      expect(skippedDates).toBeLessThanOrEqual(1)
+    }
+
+    it('VN -> America/Los_Angeles (west): never skips a date, repeats at most one', () => {
       const scheduleA: Schedule = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
       const scheduleB: Schedule = { timezone: 'America/Los_Angeles', dayStartsAt: '04:00' }
       const switchAt = nextDayStart(new Date('2026-09-24T03:00:00Z'), scheduleA)
@@ -192,10 +233,10 @@ describe('nextDayStart', () => {
         { ...scheduleA, effectiveAt: '2020-01-01T00:00:00Z' },
         { ...scheduleB, effectiveAt: switchAt.toISOString() },
       ]
-      assertNeverDecreasesAndSkipsAtMostOneDate(sample(versions, switchAt, 2))
+      assertWest(sample(versions, switchAt, WINDOW_DAYS))
     })
 
-    it('America/Los_Angeles -> VN (east)', () => {
+    it('America/Los_Angeles -> VN (east): never decreases, skips at most one date', () => {
       const scheduleA: Schedule = { timezone: 'America/Los_Angeles', dayStartsAt: '04:00' }
       const scheduleB: Schedule = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
       const switchAt = nextDayStart(new Date('2026-09-24T03:00:00Z'), scheduleA)
@@ -203,7 +244,7 @@ describe('nextDayStart', () => {
         { ...scheduleA, effectiveAt: '2020-01-01T00:00:00Z' },
         { ...scheduleB, effectiveAt: switchAt.toISOString() },
       ]
-      assertNeverDecreasesAndSkipsAtMostOneDate(sample(versions, switchAt, 2))
+      assertEast(sample(versions, switchAt, WINDOW_DAYS))
     })
   })
 })

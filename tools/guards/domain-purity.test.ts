@@ -87,6 +87,54 @@ describe('purityViolations', () => {
       purityViolations('lib/domain/time/localDay.ts', "import { it } from 'vitest'"),
     ).toHaveLength(1)
   })
+
+  it('flags a re-export from outside lib/domain and zod', () => {
+    expect(
+      purityViolations('lib/domain/time/localDay.ts', "export { z } from 'date-fns'"),
+    ).toHaveLength(1)
+  })
+
+  it('flags export * from outside lib/domain and zod', () => {
+    expect(purityViolations('lib/domain/time/localDay.ts', "export * from 'lodash'")).toHaveLength(
+      1,
+    )
+  })
+
+  it('flags a dynamic import() from outside lib/domain and zod', () => {
+    expect(
+      purityViolations('lib/domain/time/localDay.ts', "const m = import('date-fns')"),
+    ).toHaveLength(1)
+  })
+
+  it('flags a relative import that escapes lib/domain', () => {
+    expect(
+      purityViolations(
+        'lib/domain/time/localDay.ts',
+        "import { admin } from '../../supabase/admin'",
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('flags @/lib/domain-legacy as a prefix sibling of @/lib/domain, not a match', () => {
+    expect(
+      purityViolations('lib/domain/time/localDay.ts', "import { x } from '@/lib/domain-legacy/x'"),
+    ).toHaveLength(1)
+  })
+
+  it('allows a relative import that stays inside lib/domain', () => {
+    expect(
+      purityViolations(
+        'lib/domain/time/localDay.ts',
+        "import { canonicalTimeZone } from '../time/timeZones'",
+      ),
+    ).toHaveLength(0)
+  })
+
+  it('allows export * to a sibling file inside lib/domain', () => {
+    expect(purityViolations('lib/domain/time/index.ts', "export * from './localDay'")).toHaveLength(
+      0,
+    )
+  })
 })
 
 describe('the real lib/domain tree', () => {
