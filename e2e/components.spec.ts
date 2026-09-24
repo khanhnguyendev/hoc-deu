@@ -61,3 +61,21 @@ test.describe('dialog footer on a phone', () => {
     }
   })
 })
+
+test.describe('theme toggle on a phone', () => {
+  test.use({ viewport: { width: 390, height: 800 } })
+
+  test('each option stays on one line and the page never scrolls sideways', async ({ page }) => {
+    await page.goto('/dev/components')
+    const group = page.getByRole('radiogroup', { name: 'Giao diện' }).first()
+    const heights = await group
+      .getByRole('radio')
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))
+    expect(heights).toHaveLength(3)
+    for (const height of heights) expect(height).toBeLessThanOrEqual(48)
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBe(0)
+  })
+})

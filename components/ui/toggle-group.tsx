@@ -13,7 +13,8 @@ function ToggleGroup({
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
       className={cn(
-        'inline-flex w-fit items-center gap-1 rounded-md border border-border-strong p-1',
+        // Options never wrap their text; the group wraps as a whole when it runs out of room.
+        'inline-flex w-fit max-w-full flex-wrap items-center gap-1 rounded-md border border-border-strong p-1',
         className,
       )}
       {...props}
@@ -29,7 +30,7 @@ function ToggleGroupItem({
     <ToggleGroupPrimitive.Item
       data-slot="toggle-group-item"
       className={cn(
-        'inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-primary-soft data-[state=on]:text-primary-soft-foreground [&_svg]:size-4 [&_svg]:shrink-0',
+        'inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-sm px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-primary-soft data-[state=on]:text-primary-soft-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className,
       )}
       {...props}
