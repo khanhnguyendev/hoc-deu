@@ -298,11 +298,15 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/confirm-dialog.tsx`
 - **Props:** `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `onConfirm`,
-  `cancelLabel?`, `tone?: 'default' | 'destructive'`, `pending?`
+  `cancelLabel?`, `tone?: 'default' | 'destructive'`, `pending?`, `onCloseAutoFocus?: (event:
+  Event) => void` — runs once the dialog has closed; calling `event.preventDefault()` keeps the
+  focus where the handler put it (e.g. UserRowActions moves it to a row that changed section)
 - **Variants:** default · destructive
 - **States:** closed, open, pending (confirm busy, cancel disabled, cannot close)
 - **Usage:** `<ConfirmDialog open={open} … tone="destructive" onConfirm={remove} />`
-- **Accessibility:** `alertdialog` named by its title; focus trapped and restored
+- **Accessibility:** `alertdialog` named by its title; focus trapped, and restored on close to the
+  control that had it when the dialog opened — it is opened without a `DialogTrigger`, so Radix
+  alone would drop focus to `<body>` (WCAG 2.4.3, task 2.8 fix round 1)
 
 ### DataList
 
@@ -576,7 +580,9 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<PageHeader title="Người dùng" /><UserQueue users={await listUsers()}
   setUserStatus={setUserStatus} setUserRole={setUserRole} />` (`app/(admin)/admin/users/page.tsx`)
 - **Accessibility:** each section is a region named by its h2; the empty-state titles are h3;
-  rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone
+  rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone;
+  each row's content is a programmatic focus target (`id={userRowId(user.id)}`, `tabIndex={-1}`,
+  `features/admin/components/user-row-id.ts`) that UserRowActions focuses after an action
 
 ### UserRowActions
 
@@ -596,7 +602,12 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** the buttons sit in a `group` named "Thao tác với {name}", so each "Duyệt" is
   announced with its account; the result is a toast in the polite live region (the AppShell's
   Toaster); the confirm dialog is an `alertdialog` named "Từ chối tài khoản của {name}?" (etc.),
-  focus trapped and restored
+  focus trapped. **Focus after an action** (WCAG 2.4.3): once the list shows the row in another
+  status or role — moved to another section (a new instance mounts there) or changed in place —
+  keyboard focus goes to that row's target (scrolled into view only as far as needed); a
+  cancelled dialog or a failure that changes nothing returns focus to the pressed button (the
+  role button is keyed by its slot, so promote ↔ demote keeps the same element); names are
+  inserted literally (a replacer function, so `$&` in a display name stays text)
 
 ### Landing
 

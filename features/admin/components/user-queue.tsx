@@ -10,6 +10,7 @@ import { vi } from '@/lib/i18n/vi'
 import type { AdminActionResult } from '../actions'
 import type { AdminUserRow } from '../queries'
 import { UserRowActions } from './user-row-actions'
+import { userRowId } from './user-row-id'
 
 type Actions = {
   setUserStatus: (
@@ -47,7 +48,14 @@ function UserRow({ user, actions }: { user: AdminUserRow; actions: Actions }) {
   const name = user.displayName ?? user.email ?? vi.admin.users.unnamed
   const email = user.displayName !== null ? user.email : null
   return (
-    <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    // The row's focus target: after an action keyboard focus follows the row, also into another
+    // section (UserRowActions).
+    <div
+      id={userRowId(user.id)}
+      tabIndex={-1}
+      data-slot="user-row"
+      className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between"
+    >
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <span data-slot="user-name" className="font-medium break-words">

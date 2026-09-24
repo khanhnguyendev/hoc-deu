@@ -5,6 +5,7 @@ import type { Role } from '@/lib/auth/dal'
 import type { AdminActionResult } from '../actions'
 import type { AdminUserRow } from '../queries'
 import { UserQueue } from './user-queue'
+import { userRowId } from './user-row-id'
 
 const row = (overrides: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): AdminUserRow => ({
   email: `${overrides.id}@example.test`,
@@ -88,6 +89,13 @@ describe('UserQueue', () => {
     expect(within(own).getByText('Bạn')).toBeTruthy()
     expect(within(own).queryAllByRole('button')).toEqual([])
     expect(within(rowOf('Admin Khác')).getAllByRole('button').length).toBeGreaterThan(0)
+  })
+
+  it('gives each row a programmatic focus target (focus follows a moved row)', () => {
+    setup()
+    const target = document.getElementById(userRowId('p1'))
+    expect(target?.getAttribute('tabindex')).toBe('-1')
+    expect(rowOf('Chờ Một').contains(target)).toBe(true)
   })
 
   it('renders the empty queue', () => {

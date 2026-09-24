@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Inbox } from 'lucide-react'
+import { useState } from 'react'
 import { describe, expect, it, vi as mock } from 'vitest'
 import { Banner } from './banner'
 import { ConfirmDialog } from './confirm-dialog'
@@ -156,6 +157,62 @@ describe('ConfirmDialog as an alert dialog', () => {
     await user.keyboard('{Escape}')
     expect(onConfirm).toHaveBeenCalledOnce()
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('ConfirmDialog focus on close', () => {
+  const base = {
+    title: 'Xoá tài khoản?',
+    description: 'Không thể hoàn tác.',
+    confirmLabel: 'Xoá',
+    onConfirm: () => {},
+  }
+
+  /** A controlled dialog opened from a button, as its consumers use it (no DialogTrigger). */
+  function Opener({ onCloseAutoFocus }: { onCloseAutoFocus?: (event: Event) => void }) {
+    const [open, setOpen] = useState(false)
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Mở
+        </button>
+        <button type="button">Khác</button>
+        <ConfirmDialog
+          {...base}
+          open={open}
+          onOpenChange={setOpen}
+          onCloseAutoFocus={onCloseAutoFocus}
+        />
+      </>
+    )
+  }
+
+  it('returns focus to the control that opened it (WCAG 2.4.3)', async () => {
+    const user = userEvent.setup()
+    render(<Opener />)
+    const opener = screen.getByRole('button', { name: 'Mở' })
+    await user.click(opener)
+    await user.click(await screen.findByRole('button', { name: 'Huỷ' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(opener))
+  })
+
+  it('leaves focus to onCloseAutoFocus when it prevents the default', async () => {
+    const user = userEvent.setup()
+    render(
+      <Opener
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          screen.getByRole('button', { name: 'Khác' }).focus()
+        }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Mở' }))
+    await user.click(await screen.findByRole('button', { name: 'Huỷ' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Khác' })),
+    )
   })
 })
 

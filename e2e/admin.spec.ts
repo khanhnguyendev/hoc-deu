@@ -66,6 +66,10 @@ async function confirmAction(page: Page, target: ReturnType<typeof row>, button:
 
 const statusOf = (id: string) => async () => (await getProfile(id)).status
 
+/** Keyboard focus followed the row to its new section (WCAG 2.4.3), not dropped to <body>. */
+const expectFocusInRow = (page: Page, sectionName: string | RegExp, name: string) =>
+  expect(row(page, sectionName, name).locator(':focus')).toHaveCount(1)
+
 test.describe('/admin/users', () => {
   test('an admin approves a pending user: the row moves to "Đang hoạt động" and the account is active', async ({
     page,
@@ -78,10 +82,13 @@ test.describe('/admin/users', () => {
     await expect(row(page, PENDING, pending.name)).toBeVisible()
     await expectNoAxeViolationsInBothThemes(page)
 
-    await row(page, PENDING, pending.name).getByRole('button', { name: 'Duyệt' }).click()
+    // By keyboard, as a screen-reader or keyboard user would.
+    await row(page, PENDING, pending.name).getByRole('button', { name: 'Duyệt' }).focus()
+    await page.keyboard.press('Enter')
     await expect(page.getByText('Đã duyệt tài khoản.')).toBeVisible()
     await expect(row(page, ACTIVE, pending.name)).toBeVisible()
     await expect(row(page, PENDING, pending.name)).toHaveCount(0)
+    await expectFocusInRow(page, ACTIVE, pending.name)
     await expect.poll(statusOf(pending.id)).toBe('active')
     expect((await getProfile(pending.id)).approved_at).not.toBeNull()
   })
@@ -118,6 +125,7 @@ test.describe('/admin/users', () => {
     await confirmAction(page, row(page, ACTIVE, learner.name), 'Tạm khoá')
     await expect(page.getByText('Đã tạm khoá tài khoản.')).toBeVisible()
     await expect(row(page, SUSPENDED, learner.name)).toBeVisible()
+    await expectFocusInRow(page, SUSPENDED, learner.name)
     await expect.poll(statusOf(learner.id)).toBe('suspended')
 
     await row(page, SUSPENDED, learner.name).getByRole('button', { name: 'Kích hoạt lại' }).click()

@@ -1,13 +1,14 @@
 'use client'
 
 import { CircleAlert } from 'lucide-react'
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { Button, type ButtonProps } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
 import type { AccountStatus, Role } from '@/lib/auth/dal'
 import { vi } from '@/lib/i18n/vi'
 import type { AdminActionResult } from '../actions'
+import { userRowId } from './user-row-id'
 
 type Action = keyof typeof vi.admin.actions
 /** The actions that ask first (§2.4 task 2.8): rejecting, suspending and changing a role. */
@@ -38,13 +39,50 @@ const VARIANT: Record<Action, ButtonProps['variant']> = {
   demote: 'outline',
 }
 
-const withName = (text: string, name: string) => text.replace('{name}', name)
+// A replacer function: a display name is user text, and a replacement string would expand `$&`.
+const withName = (text: string, name: string) => text.replace('{name}', () => name)
+
+/** The role button keeps one key through promote ↔ demote, so it stays the same element. */
+const slotOf = (action: Action) => (action === 'promote' || action === 'demote' ? 'role' : action)
+
+type RowState = { userId: string; status: AccountStatus; role: Role }
+
+/**
+ * The row whose next render in a different status or role takes keyboard focus (WCAG 2.4.3). An
+ * action usually moves its row to another section, which unmounts this component and mounts a new
+ * one there — so the note lives outside the component. One slot: a newer action replaces it.
+ */
+let followed: RowState | null = null
+
+/** Notes the row's state before an action. */
+function followRow(row: RowState): void {
+  followed = row
+}
+
+/** Whether `row` is the followed row, now shown in another state; clears the note if so. */
+function takeFollowedRow(row: RowState): boolean {
+  if (followed?.userId !== row.userId) return false
+  if (followed.status === row.status && followed.role === row.role) return false
+  followed = null
+  return true
+}
+
+/** Focuses the row's target (UserQueue); false when there is none (e.g. the catalog's demos). */
+function focusRow(userId: string): boolean {
+  const target = document.getElementById(userRowId(userId))
+  if (!target) return false
+  target.focus({ preventScroll: true })
+  target.scrollIntoView({ block: 'nearest' })
+  return true
+}
 
 /**
  * One account's buttons in the approval queue: approve and reactivate run at once; reject,
  * suspend and the role changes confirm first. The result is a polite toast — and, when it failed,
  * also a line in the row, since a toast is never the only feedback for a failure (DESIGN_SYSTEM
- * §9). The server actions come in as props, so the catalog renders it with no-ops.
+ * §9). Keyboard focus follows the row once the list shows it in its new state, and returns to the
+ * pressed button when the dialog is cancelled. The server actions come in as props, so the catalog
+ * renders it with no-ops.
  */
 function UserRowActions({
   user,
@@ -63,6 +101,15 @@ function UserRowActions({
   // The dialog keeps its action while it closes, so its copy stays put during the exit animation.
   const [dialog, setDialog] = useState<{ action: ConfirmedAction; open: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Read by the dialog's close handler, which may run after this row has moved (and unmounted).
+  const succeeded = useRef(false)
+
+  // On mount (the row moved here) or when this row's status or role changed in place.
+  useEffect(() => {
+    if (takeFollowedRow({ userId: user.id, status: user.status, role: user.role })) {
+      focusRow(user.id)
+    }
+  }, [user.id, user.status, user.role])
 
   const perform = (action: Action): Promise<AdminActionResult> => {
     switch (action) {
@@ -83,6 +130,9 @@ function UserRowActions({
   const run = (action: Action) => {
     setRunning(action)
     setError(null)
+    succeeded.current = false
+    // Noted before the call: the re-rendered list may arrive before the action's result does.
+    followRow({ userId: user.id, status: user.status, role: user.role })
     startTransition(async () => {
       let result: AdminActionResult
       try {
@@ -91,8 +141,11 @@ function UserRowActions({
         // A thrown action (network, session) must not reach the route's error boundary.
         result = { ok: false, message: vi.admin.errors.failed }
       }
+      succeeded.current = result.ok
+      // `running` stays set: with `pending` it marks the pressed button busy until the transition
+      // ends. Clearing it here would disable that button while `pending` is still true, and the
+      // dialog could not return focus to it.
       setDialog((current) => current && { ...current, open: false })
-      setRunning(null)
       if (!result.ok) setError(result.message)
       toast(result.message)
     })
@@ -107,7 +160,7 @@ function UserRowActions({
       >
         {actionsFor(user.status, user.role).map((action) => (
           <Button
-            key={action}
+            key={slotOf(action)}
             variant={VARIANT[action]}
             loading={pending && running === action}
             disabled={pending && running !== action}
@@ -133,6 +186,11 @@ function UserRowActions({
           tone={dialog.action === 'promote' ? 'default' : 'destructive'}
           pending={pending}
           onConfirm={() => run(dialog.action)}
+          // After a success focus goes to the row (the button may be gone); otherwise ConfirmDialog
+          // returns it to the button that opened the dialog.
+          onCloseAutoFocus={(event) => {
+            if (succeeded.current && focusRow(user.id)) event.preventDefault()
+          }}
         />
       )}
     </div>

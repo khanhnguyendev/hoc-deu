@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,7 +13,12 @@ import {
 } from '@/components/ui/dialog'
 import { vi } from '@/lib/i18n/vi'
 
-/** Asks before an important or destructive action; announced as an alert dialog. */
+/**
+ * Asks before an important or destructive action; announced as an alert dialog. It is opened
+ * without a DialogTrigger, so on close it returns focus to the control that had it when it opened
+ * (Radix would focus its empty trigger ref, dropping focus to `<body>`) — unless
+ * `onCloseAutoFocus` moves focus itself and calls `event.preventDefault()`.
+ */
 function ConfirmDialog({
   open,
   onOpenChange,
@@ -23,6 +29,7 @@ function ConfirmDialog({
   tone = 'default',
   pending = false,
   onConfirm,
+  onCloseAutoFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -33,12 +40,25 @@ function ConfirmDialog({
   tone?: 'default' | 'destructive'
   pending?: boolean
   onConfirm: () => void
+  /** Runs when the dialog has closed; `event.preventDefault()` keeps focus where it put it. */
+  onCloseAutoFocus?: (event: Event) => void
 }) {
+  const opener = useRef<HTMLElement | null>(null)
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent
         role="alertdialog"
         showCloseButton={false}
+        onOpenAutoFocus={() => {
+          opener.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (event.defaultPrevented) return
+          event.preventDefault()
+          opener.current?.focus()
+        }}
         // An alert dialog needs an explicit answer: no dismissal by clicking outside, and no
         // Escape while the action runs.
         onInteractOutside={(event) => event.preventDefault()}

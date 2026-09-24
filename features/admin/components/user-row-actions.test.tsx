@@ -4,6 +4,7 @@ import { describe, expect, it, vi as mock } from 'vitest'
 import type { AccountStatus, Role } from '@/lib/auth/dal'
 import { Toaster } from '@/components/ui/toaster'
 import type { AdminActionResult } from '../actions'
+import { userRowId } from './user-row-id'
 import { UserRowActions } from './user-row-actions'
 
 const ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
@@ -126,5 +127,112 @@ describe('UserRowActions — a failed action', () => {
       .getAllByText(message)
       .find((element) => group().parentElement?.contains(element))
     expect(inline).toBeTruthy()
+  })
+})
+
+describe('UserRowActions — a name is shown as written', () => {
+  it('keeps "$&" and friends literal in the labels (String.replace patterns)', async () => {
+    const name = "An $& $` $' $$"
+    const user = userEvent.setup()
+    render(
+      <UserRowActions
+        user={{ id: ID, name, status: 'active', role: 'learner' }}
+        setUserStatus={async () => ({ ok: true, message: 'x' })}
+        setUserRole={async () => ({ ok: true, message: 'x' })}
+      />,
+    )
+    expect(screen.getByRole('group', { name: `Thao tác với ${name}` })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Tạm khoá' }))
+    expect(
+      await screen.findByRole('alertdialog', { name: `Tạm khoá tài khoản của ${name}?` }),
+    ).toBeTruthy()
+  })
+})
+
+describe('UserRowActions — keyboard focus follows the row (WCAG 2.4.3)', () => {
+  type RowProps = {
+    status: AccountStatus
+    role?: Role
+    result?: AdminActionResult
+  }
+
+  /** The row as UserQueue renders it: the focus target (row id, tabIndex -1) around the actions. */
+  function Row({ status, role = 'learner', result = { ok: true, message: 'Xong.' } }: RowProps) {
+    return (
+      <div id={userRowId(ID)} tabIndex={-1} data-testid="row">
+        <UserRowActions
+          user={{ id: ID, name: NAME, status, role }}
+          setUserStatus={async () => result}
+          setUserRole={async () => result}
+        />
+      </div>
+    )
+  }
+
+  it('focuses the row in its new section after "Duyệt" moved it', async () => {
+    const user = userEvent.setup()
+    // A different key remounts the row, as moving it to another Section does.
+    const { rerender } = render(<Row key="pending" status="pending" />)
+    await user.click(screen.getByRole('button', { name: 'Duyệt' }))
+    rerender(<Row key="active" status="active" />)
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
+  })
+
+  it('focuses the row after a confirmed "Tạm khoá" moved it', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<Row key="active" status="active" />)
+    await user.click(screen.getByRole('button', { name: 'Tạm khoá' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Tạm khoá' }))
+    rerender(<Row key="suspended" status="suspended" />)
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
+  })
+
+  it('focuses the row after a confirmed role change that keeps it in place', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<Row key="active" status="active" />)
+    const roleButton = screen.getByRole('button', { name: 'Đặt làm quản trị' })
+    await user.click(roleButton)
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Đặt làm quản trị' }))
+    rerender(<Row key="active" status="active" role="admin" />)
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
+    // The role button is keyed by its slot, so the same element now offers the way back.
+    expect(screen.getByRole('button', { name: 'Bỏ quyền quản trị' })).toBe(roleButton)
+  })
+
+  it('returns focus to the button when the dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    render(<Row status="active" />)
+    const trigger = screen.getByRole('button', { name: 'Tạm khoá' })
+    await user.click(trigger)
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Huỷ' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
+
+  it('returns focus to the button after a failed confirmed action', async () => {
+    const user = userEvent.setup()
+    render(<Row status="pending" result={{ ok: false, message: 'Không được.' }} />)
+    const trigger = screen.getByRole('button', { name: 'Từ chối' })
+    await user.click(trigger)
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Từ chối' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
+
+  it('focuses the row when a failed action re-renders it in another state (a stale list)', async () => {
+    const user = userEvent.setup()
+    const failed: AdminActionResult = { ok: false, message: 'Đã đổi.' }
+    const { rerender } = render(<Row key="pending" status="pending" result={failed} />)
+    await user.click(screen.getByRole('button', { name: 'Duyệt' }))
+    await screen.findAllByText('Đã đổi.')
+    // Another admin had rejected the account; the revalidated list shows it there.
+    rerender(<Row key="rejected" status="rejected" result={failed} />)
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
   })
 })

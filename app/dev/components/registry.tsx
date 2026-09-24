@@ -1315,7 +1315,11 @@ export const CATALOG: Entry[] = [
         render: () => (
           <div className="flex w-full flex-col gap-6">
             <UserQueue
-              users={DEMO_ADMIN_USERS.filter((user) => user.status !== 'pending')}
+              // Own ids: each row's id is its focus target, and ids are unique on the page.
+              users={DEMO_ADMIN_USERS.filter((user) => user.status !== 'pending').map((user) => ({
+                ...user,
+                id: `empty-queue-${user.id}`,
+              }))}
               setUserStatus={demoSetUserStatus}
               setUserRole={demoSetUserRole}
             />

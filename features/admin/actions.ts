@@ -26,10 +26,13 @@ const ERRORS: ReadonlyMap<string, string> = new Map([
   ['no_change', vi.admin.errors.noChange],
 ])
 
-const failure = (error: { message: string }): AdminActionResult => ({
-  ok: false,
-  message: ERRORS.get(error.message) ?? vi.admin.errors.failed,
-})
+/** The account changed since the list was rendered: re-render it, so it shows the current state. */
+const STALE: ReadonlySet<string> = new Set(['not_found', 'invalid_transition', 'no_change'])
+
+function failure(error: { message: string }): AdminActionResult {
+  if (STALE.has(error.message)) revalidatePath('/admin/users')
+  return { ok: false, message: ERRORS.get(error.message) ?? vi.admin.errors.failed }
+}
 
 function statusMessage(data: unknown, status: 'active' | 'rejected' | 'suspended'): string {
   if (status === 'rejected') return vi.admin.results.rejected
@@ -42,7 +45,7 @@ function statusMessage(data: unknown, status: 'active' | 'rejected' | 'suspended
  * Approves, rejects, suspends or reactivates an account (§2.4, decision 17): pending → active |
  * rejected, active → suspended, suspended | rejected → active. The RPC runs with the admin's own
  * session and checks `is_admin()`, the transition and "never yourself" again; each change writes
- * one audit event. On success the queue re-renders.
+ * one audit event. On success — and when the list was stale — the queue re-renders.
  */
 export async function setUserStatus(
   userId: string,

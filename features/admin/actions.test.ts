@@ -74,13 +74,21 @@ describe('setUserStatus', () => {
   it.each([
     ['forbidden', 'Bạn không có quyền thực hiện thao tác này.'],
     ['cannot_change_self', 'Bạn không thể thay đổi tài khoản của chính mình.'],
-    ['not_found', 'Không tìm thấy tài khoản này. Bạn tải lại trang nhé.'],
-    ['invalid_transition', 'Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.'],
     ['something else', 'Không thực hiện được thao tác. Bạn thử lại nhé.'],
   ])('maps the RPC error %j to Vietnamese, without re-rendering', async (code, message) => {
     fake.rpc = { data: null, error: { message: code } }
     await expect(setUserStatus(ID, 'active')).resolves.toEqual({ ok: false, message })
     expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc'])
+  })
+
+  it.each([
+    ['not_found', 'Không tìm thấy tài khoản này. Bạn tải lại trang nhé.'],
+    ['invalid_transition', 'Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.'],
+  ])('maps %j and re-renders the stale list', async (code, message) => {
+    fake.rpc = { data: null, error: { message: code } }
+    await expect(setUserStatus(ID, 'active')).resolves.toEqual({ ok: false, message })
+    expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc', 'revalidatePath'])
+    expect(fake.calls.at(-1)).toEqual(['revalidatePath', '/admin/users'])
   })
 })
 
@@ -104,11 +112,18 @@ describe('setUserRole', () => {
     expect(fake.calls).toEqual([['requireAdmin']])
   })
 
-  it('maps no_change', async () => {
+  it('maps no_change and re-renders the stale list', async () => {
     fake.rpc = { data: null, error: { message: 'no_change' } }
     await expect(setUserRole(ID, 'admin')).resolves.toEqual({
       ok: false,
       message: 'Tài khoản đã có quyền này. Bạn tải lại trang nhé.',
     })
+    expect(fake.calls.at(-1)).toEqual(['revalidatePath', '/admin/users'])
+  })
+
+  it('does not re-render after forbidden', async () => {
+    fake.rpc = { data: null, error: { message: 'forbidden' } }
+    await setUserRole(ID, 'admin')
+    expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc'])
   })
 })
