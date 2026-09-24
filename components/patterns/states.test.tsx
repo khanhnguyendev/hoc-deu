@@ -119,6 +119,46 @@ describe('ConfirmDialog', () => {
   })
 })
 
+describe('ConfirmDialog as an alert dialog', () => {
+  const base = {
+    open: true,
+    title: 'Xoá tài khoản?',
+    description: 'Không thể hoàn tác.',
+    confirmLabel: 'Xoá',
+    tone: 'destructive' as const,
+  }
+
+  it('does not close on an outside click', async () => {
+    const onOpenChange = mock.fn()
+    render(<ConfirmDialog {...base} onOpenChange={onOpenChange} onConfirm={() => {}} />)
+    const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!
+    await userEvent.setup().click(overlay)
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+  })
+
+  it('keeps focus inside and ignores repeat clicks and Escape while pending', async () => {
+    const user = userEvent.setup()
+    const onConfirm = mock.fn()
+    const onOpenChange = mock.fn()
+    const props = { ...base, onOpenChange, onConfirm }
+    const { rerender } = render(<ConfirmDialog {...props} />)
+    const confirm = screen.getByRole('button', { name: 'Xoá' })
+    await user.click(confirm)
+    rerender(<ConfirmDialog {...props} pending />)
+
+    // Still focusable (aria-disabled, not disabled), so focus never falls to <body>.
+    expect(confirm).toHaveProperty('disabled', false)
+    expect(confirm.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByRole('alertdialog').contains(document.activeElement)).toBe(true)
+
+    await user.click(confirm)
+    await user.keyboard('{Escape}')
+    expect(onConfirm).toHaveBeenCalledOnce()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('DataList', () => {
   it('renders one 44 px row per item', () => {
     render(

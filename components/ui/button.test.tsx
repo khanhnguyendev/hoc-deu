@@ -35,11 +35,12 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toHaveProperty('disabled', true)
   })
 
-  it('keeps its label and width while loading, and reports busy', () => {
+  it('keeps its label, width and focus while loading, and reports busy', () => {
     render(<Button loading>Lưu</Button>)
     const button = screen.getByRole('button', { name: 'Lưu' })
     expect(button.getAttribute('aria-busy')).toBe('true')
-    expect(button).toHaveProperty('disabled', true)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button).toHaveProperty('disabled', false)
     const spinner = button.querySelector('svg')
     expect(spinner?.getAttribute('aria-hidden')).toBe('true')
     expect(button.textContent).toBe('Lưu')
@@ -59,18 +60,21 @@ describe('Button', () => {
   it.each([
     ['disabled', { disabled: true }],
     ['loading', { loading: true }],
-  ] as const)('a %s asChild link is aria-disabled, not a tab stop and does not navigate', (_, props) => {
-    render(
-      <Button asChild {...props}>
-        <a href="/today">Hôm nay</a>
-      </Button>,
-    )
-    const link = screen.getByRole('link', { name: 'Hôm nay' })
-    expect(link.getAttribute('aria-disabled')).toBe('true')
-    expect(link.tabIndex).toBe(-1)
-    // fireEvent returns false when the default action (navigation) was prevented.
-    expect(fireEvent.click(link)).toBe(false)
-  })
+  ] as const)(
+    'a %s asChild link is aria-disabled, not a tab stop and does not navigate',
+    (_, props) => {
+      render(
+        <Button asChild {...props}>
+          <a href="/today">Hôm nay</a>
+        </Button>,
+      )
+      const link = screen.getByRole('link', { name: 'Hôm nay' })
+      expect(link.getAttribute('aria-disabled')).toBe('true')
+      expect(link.tabIndex).toBe(-1)
+      // fireEvent returns false when the default action (navigation) was prevented.
+      expect(fireEvent.click(link)).toBe(false)
+    },
+  )
 
   it('an enabled asChild link stays a normal link', () => {
     render(

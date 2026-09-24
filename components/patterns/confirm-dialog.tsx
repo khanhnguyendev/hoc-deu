@@ -36,7 +36,14 @@ function ConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent role="alertdialog" showCloseButton={false}>
+      <DialogContent
+        role="alertdialog"
+        showCloseButton={false}
+        // An alert dialog needs an explicit answer: no dismissal by clicking outside, and no
+        // Escape while the action runs.
+        onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => pending && event.preventDefault()}
+      >
         <DialogHeader className="pr-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

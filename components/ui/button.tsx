@@ -33,7 +33,7 @@ type ButtonProps = React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     /** Render the child element (e.g. a link) with button styling. */
     asChild?: boolean
-    /** Show a spinner, keep the width, disable and mark `aria-busy`. */
+    /** Show a spinner, keep the width and focus, ignore clicks, mark `aria-busy`/`aria-disabled`. */
     loading?: boolean
   }
 
@@ -45,6 +45,7 @@ function Button({
   loading = false,
   disabled,
   type,
+  onClick,
   children,
   ...props
 }: ButtonProps) {
@@ -62,6 +63,7 @@ function Button({
         data-variant={resolvedVariant}
         data-size={resolvedSize}
         className={cn(classes, inert && 'pointer-events-none opacity-50')}
+        onClick={onClick}
         {...props}
         {...(inert && {
           'aria-disabled': true,
@@ -84,8 +86,12 @@ function Button({
       data-variant={resolvedVariant}
       data-size={resolvedSize}
       type={type ?? 'button'}
-      disabled={disabled || loading}
+      disabled={disabled}
+      // Loading keeps the button focusable (aria-disabled, not disabled) so focus never drops to
+      // <body> mid-action; clicks are ignored until it finishes.
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
+      onClick={loading ? (event) => event.preventDefault() : onClick}
       className={classes}
       {...props}
     >
