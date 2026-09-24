@@ -44,3 +44,15 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+test('light and dark themes paint different backgrounds', async ({ page }) => {
+  const background = () =>
+    page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const light = await background()
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  expect(await background()).not.toBe(light)
+})

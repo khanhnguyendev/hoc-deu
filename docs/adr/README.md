@@ -26,7 +26,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5 |
 | 0019 | Cache Components off in v1 | 2.6 |
 | 0020 | Intl-only time handling in `lib/domain`; no date library | 2.3 |
-| 0021 | Layer rules via an in-repo ESLint rule + architecture tests; token guard | 1.10 |
+| [0021](0021-layer-rules-and-guards.md) | Layer rules via an in-repo ESLint rule + architecture tests; token guard | 1.10 |
 | 0022 | Daily bot: two loops, app code off-limits; weekly code Routine is future work | 7.2 |
 | 0023 | Auto-merge `claude/content-*` without an approving review (self-approval impossible) | 7.3 |
 | 0024 | Content PRs only from the Routine; publishing via admin requests; no GitHub token in the app | 6.7 |

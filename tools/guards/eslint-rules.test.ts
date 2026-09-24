@@ -113,6 +113,54 @@ describe('layer rules (platform design §7.2)', () => {
     expect(ids).toContain('no-restricted-imports')
   })
 
+  it.each([
+    [
+      'patterns use ui primitives',
+      "import { Button } from '@/components/ui/button'",
+      'components/patterns/x.tsx',
+    ],
+    [
+      'features use ui',
+      "import { Button } from '@/components/ui/button'",
+      'features/today/components/plan.tsx',
+    ],
+    [
+      'features use patterns',
+      "import { PageHeader } from '@/components/patterns/page-header'",
+      'features/today/components/plan.tsx',
+    ],
+    [
+      'features use lib',
+      "import { vi } from '@/lib/i18n/vi'",
+      'features/today/components/plan.tsx',
+    ],
+    [
+      'features use their own files relatively',
+      "import { plan } from '../queries'",
+      'features/today/components/plan.tsx',
+    ],
+    [
+      'pages use a feature index',
+      "import { TodayPage } from '@/features/today'",
+      'app/(app)/today/page.tsx',
+    ],
+    [
+      'pages use patterns',
+      "import { PageHeader } from '@/components/patterns/page-header'",
+      'app/(app)/today/page.tsx',
+    ],
+    ['lib uses lib', "import { createClient } from '@/lib/supabase/server'", 'lib/auth/dal.ts'],
+    ['tools use lib', "import { schema } from '@/lib/content/schemas'", 'tools/content/build.ts'],
+    [
+      'the catalog uses ui primitives',
+      "import { Button } from '@/components/ui/button'",
+      'app/dev/components/catalog.tsx',
+    ],
+  ])('allows: %s', async (_, importLine, filePath) => {
+    const ids = await ruleIds(`${importLine}\nexport const x = 1\n`, filePath)
+    expect(ids).not.toContain(LAYERS)
+  })
+
   it('keeps lib/domain pure', async () => {
     const ids = await ruleIds(
       "import { cookies } from 'next/headers'\nexport const n = () => Date.now() + String(cookies)\n",

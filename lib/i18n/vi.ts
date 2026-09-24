@@ -76,4 +76,9 @@ export const vi = {
     globalErrorTitle: 'Học Đều đang gặp sự cố',
     globalErrorBody: 'Ứng dụng không tải được. Bạn thử lại sau ít phút nhé.',
   },
+  /** The component catalog at /dev/components (dev and preview only). */
+  dev: {
+    catalogTitle: 'Thư viện thành phần',
+    catalogNav: 'Danh mục thành phần',
+  },
 } as const
