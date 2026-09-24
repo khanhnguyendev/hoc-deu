@@ -2114,9 +2114,10 @@ which references a variable rather than hard-coding a value. `shadcn eject` inli
   danger), `asChild`; variant props typed with `VariantProps<typeof x>`.
 - **Track accents without code:** a track's manifest names a token (`accent: track-2`). Components
   inside a track context render `data-accent="track-2"`; `globals.css` maps
-  `[data-accent="track-N"]` to `--color-accent` / `--color-accent-foreground` for `track-1` …
-  `track-8`. Components only ever use `bg-accent`, `text-accent`, `ring-accent`. A new track picks
-  one of the eight — no code change.
+  `[data-accent="track-N"]` to `--track` / `--track-soft` / `--track-foreground` for `track-1` …
+  `track-8`. Components only ever use `bg-track`, `text-track`, `bg-track-soft`, `ring-track`
+  (shadcn/ui already uses `accent` for hover surfaces — see `docs/design/DESIGN_SYSTEM.md` §3.2).
+  A new track picks one of the eight — no code change.
 
 ### 7.5 Loading, empty and error states
 

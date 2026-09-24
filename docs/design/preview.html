@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Học Đều — token preview</title>
+<!-- Review aid only (not app code). Reads the real token file; open this file directly in a browser. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  :root { --font-be-vietnam-pro: "Be Vietnam Pro"; --font-jetbrains-mono: "JetBrains Mono"; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground);
+         font-family: "Be Vietnam Pro", system-ui, sans-serif; font-size: 16px; line-height: 1.65; }
+  main { max-width: 72rem; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 30px; line-height: 1.3; font-weight: 600; margin: 0 0 4px; }
+  h2 { font-size: 20px; line-height: 1.45; font-weight: 600; margin: 40px 0 12px; }
+  p.muted { color: var(--muted-foreground); margin: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .sw { border-radius: 8px; height: 56px; border: 1px solid var(--border); }
+  .sw-label { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--muted-foreground); margin-top: 6px; }
+  .btn { font: inherit; font-weight: 500; min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+         transition: background var(--duration-fast) cubic-bezier(0.2,0,0,1); }
+  .btn:focus-visible, .cell:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-secondary { background: var(--surface-muted); color: var(--foreground); }
+  .btn-outline { background: transparent; color: var(--foreground); border-color: var(--border-strong); }
+  .btn-ghost { background: transparent; color: var(--foreground); }
+  .btn-danger { background: var(--danger); color: var(--danger-foreground); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; line-height: 1.5;
+          padding: 2px 10px; border-radius: 999px; }
+  .ic { width: 14px; height: 14px; }
+  .block { position: relative; overflow: hidden; padding-left: 20px; }
+  .block::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--track); }
+  .chip { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px;
+          background: var(--track-soft); color: var(--track); }
+  .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: 12px; }
+  .heat { display: grid; grid-template-columns: repeat(7, 16px); gap: 4px; }
+  .cell { width: 16px; height: 16px; border-radius: 3px; position: relative; }
+  .cell.dot::after { content: ""; position: absolute; left: 6px; top: 6px; width: 4px; height: 4px; border-radius: 50%;
+                     background: var(--foreground); opacity: .4; }
+  .mono { font-family: "JetBrains Mono", monospace; font-size: 14px; }
+  pre { background: var(--surface-muted); border-radius: 8px; padding: 12px 16px; overflow-x: auto; margin: 0; }
+  .scale div { margin: 6px 0; }
+  table { border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 4px 12px 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content: space-between;">
+    <div>
+      <h1>Học Đều — token preview</h1>
+      <p class="muted">Calm study desk · Minimalism &amp; Swiss · values from <span class="mono">tokens.css</span></p>
+    </div>
+    <button class="btn btn-outline" id="theme" type="button" aria-pressed="false">Chuyển sang tối</button>
+  </div>
+
+  <h2>Semantic colours</h2>
+  <div class="grid" id="swatches"></div>
+
+  <h2>Track accents</h2>
+  <div class="grid" id="tracks"></div>
+
+  <h2>Typography — Be Vietnam Pro / JetBrains Mono</h2>
+  <div class="card scale">
+    <div style="font-size:36px;line-height:1.25;font-weight:700;letter-spacing:-0.01em">12 ngày liên tiếp</div>
+    <div style="font-size:30px;line-height:1.3;font-weight:600">Hôm nay học gì?</div>
+    <div style="font-size:24px;line-height:1.35;font-weight:600">Lộ trình đang tạm dừng</div>
+    <div style="font-size:20px;line-height:1.45;font-weight:600">Two Pointers — Tuần 2</div>
+    <div style="font-size:18px;line-height:1.6;font-weight:500" lang="en">I'm blocked on the API review — could someone help?</div>
+    <div style="font-size:16px;line-height:1.65">Người học ghi nhớ từ vựng mỗi ngày; dấu thanh chồng như ế, ộ, ữ, Ặ, Ẫ, Ỗ không được chạm dòng trên. Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.</div>
+    <div style="font-size:14px;line-height:1.55;color:var(--muted-foreground)">Ước tính 35 phút · Cập nhật 2 giờ trước</div>
+    <div style="font-size:12px;line-height:1.5;font-weight:500;color:var(--muted-foreground)">META · 12 PX</div>
+    <pre class="mono">def two_sum(nums, target):
+    seen = {}  # giá trị → chỉ số
+    for i, x in enumerate(nums):
+        if target - x in seen:
+            return [seen[target - x], i]
+        seen[x] = i</pre>
+  </div>
+
+  <h2>Buttons</h2>
+  <div class="row">
+    <button class="btn btn-primary" type="button">Check-in</button>
+    <button class="btn btn-secondary" type="button">Học thêm</button>
+    <button class="btn btn-outline" type="button">Xem lời giải</button>
+    <button class="btn btn-ghost" type="button">Bỏ qua</button>
+    <button class="btn btn-danger" type="button">Xoá tài khoản</button>
+  </div>
+
+  <h2>Status pills</h2>
+  <div class="row">
+    <span class="pill" style="background:var(--surface-sunken);color:var(--muted-foreground);border:1px dashed var(--border-strong)">○ Chưa học</span>
+    <span class="pill" style="background:var(--danger-soft);color:var(--danger-soft-foreground)">▲ Yếu</span>
+    <span class="pill" style="background:var(--surface-muted);color:var(--foreground)">◉ Ổn</span>
+    <span class="pill" style="background:var(--success-soft);color:var(--success-soft-foreground)">✓ Vững</span>
+    <span class="pill" style="background:var(--primary-soft);color:var(--primary-soft-foreground)">★ Thành thạo</span>
+  </div>
+  <p class="muted" style="font-size:14px;margin-top:8px">(Symbols stand in for lucide icons in this preview.)</p>
+
+  <h2>Plan block</h2>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
+    <div class="card block" data-accent="track-1">
+      <div class="row" style="justify-content:space-between"><span class="chip">DSA</span><span class="muted" style="font-size:14px">Mới · ~55 phút</span></div>
+      <div style="font-weight:600;margin:8px 0 4px">Two Pointers — bài học + 1 bài tập</div>
+      <div class="muted" style="font-size:14px">125 Valid Palindrome · 167 Two Sum II</div>
+      <button class="btn btn-primary" type="button" style="width:100%;margin-top:12px;min-height:48px">Check-in</button>
+    </div>
+    <div class="card block" data-accent="track-2">
+      <div class="row" style="justify-content:space-between"><span class="chip">English</span><span class="muted" style="font-size:14px">Ôn tập · ~12 phút</span></div>
+      <div style="font-weight:600;margin:8px 0 4px">24 thẻ đến hạn</div>
+      <div class="banner" style="background:var(--warning-soft);color:var(--warning-soft-foreground);margin-top:8px;font-size:14px">
+        <span aria-hidden="true">⚠</span><span>Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.</span></div>
+    </div>
+  </div>
+
+  <h2>Heatmap scale</h2>
+  <div class="row" style="gap:24px">
+    <div class="heat" aria-label="Heatmap levels 0 to 4">
+      <span class="cell" style="background:var(--heat-0)"></span>
+      <span class="cell dot" style="background:var(--heat-1)"></span>
+      <span class="cell dot" style="background:var(--heat-2)"></span>
+      <span class="cell dot" style="background:var(--heat-3)"></span>
+      <span class="cell dot" style="background:var(--heat-4)"></span>
+      <span class="cell" tabindex="0" style="background:var(--heat-2);outline:2px solid var(--ring);outline-offset:1px"></span>
+      <span class="cell" style="background:var(--heat-0)"></span>
+    </div>
+    <span class="muted" style="font-size:14px">0 · 1–15 · 16–40 · 41–75 · &gt; 75 phút (dot = studied; ring = today)</span>
+  </div>
+
+  <h2>Banners</h2>
+  <div class="banner" style="background:var(--danger-soft);color:var(--danger-soft-foreground);font-size:14px">
+    <span aria-hidden="true">●</span><span>Tuần 4 (DSA) chưa có ghi chú — 1 học viên sẽ tới trong 9 ngày.</span></div>
+</main>
+<script>
+  const sem = ['background','surface','surface-muted','surface-sunken','foreground','muted-foreground','subtle-foreground',
+    'border','border-strong','ring','primary','primary-hover','primary-soft','success','success-soft','warning','warning-soft','danger','danger-soft'];
+  const sw = document.getElementById('swatches');
+  for (const k of sem) sw.insertAdjacentHTML('beforeend', `<div><div class="sw" style="background:var(--${k})"></div><div class="sw-label">${k}</div></div>`);
+  const tr = document.getElementById('tracks');
+  for (let i = 1; i <= 8; i++) tr.insertAdjacentHTML('beforeend',
+    `<div class="card block" data-accent="track-${i}" style="padding:12px 12px 12px 20px"><span class="chip">track-${i}</span>
+     <div style="margin-top:8px;display:flex;gap:8px"><span style="width:28px;height:28px;border-radius:50%;background:var(--track)"></span>
+     <span style="width:28px;height:28px;border-radius:50%;background:var(--track-soft);border:1px solid var(--border)"></span></div></div>`);
+  const btn = document.getElementById('theme');
+  btn.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark');
+    btn.textContent = dark ? 'Chuyển sang sáng' : 'Chuyển sang tối';
+    btn.setAttribute('aria-pressed', String(dark));
+  });
+</script>
+</body>
+</html>
