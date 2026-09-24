@@ -29,6 +29,8 @@ pnpm verify:full  # verify + test:db + test:e2e — needs the local stack runnin
 
 Contributor and agent rules live in [CLAUDE.md](CLAUDE.md).
 
+Staging environment setup (Supabase, Vercel, OAuth): [docs/ops/staging.md](docs/ops/staging.md).
+
 ## License
 
 - **Code:** [MIT](LICENSE).
