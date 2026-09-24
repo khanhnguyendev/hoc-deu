@@ -78,7 +78,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Landing } from '@/features/auth/components/landing'
+import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
+import { StatusWatcher } from '@/features/auth/components/status-watcher'
 import { vi } from '@/lib/i18n/vi'
 
 /**
@@ -724,7 +727,7 @@ export const CATALOG: Entry[] = [
         render: () => (
           // transform-gpu makes this box the containing block of the fixed bottom navigation.
           <div className="relative h-96 w-full transform-gpu overflow-hidden rounded-lg border border-border">
-            <AppShell user={{ name: DEMO_USER }} isAdmin title="Hôm nay" onSignOut={() => {}}>
+            <AppShell user={{ name: DEMO_USER }} isAdmin onSignOut={async () => {}}>
               <PageHeader title="Hôm nay học gì?" />
             </AppShell>
           </div>
@@ -1113,6 +1116,62 @@ export const CATALOG: Entry[] = [
               signInWithProvider={async () => {}}
               signInWithTestLogin={async () => ({ error: vi.auth.wrongCredentials })}
             />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Landing',
+    layer: 'features',
+    file: 'features/auth/components/landing.tsx',
+    demos: [
+      {
+        title: 'Wordmark, positioning line, "Đăng nhập"',
+        render: () => (
+          <div className="w-full max-w-md">
+            <Landing />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'PendingStatus',
+    layer: 'features',
+    file: 'features/auth/components/pending-status.tsx',
+    demos: [
+      {
+        title: 'Chờ duyệt, kèm nút đăng xuất (headerActions)',
+        render: () => (
+          <div className="flex w-full max-w-md flex-col gap-4">
+            <SignOutButton signOut={async () => {}} />
+            <PendingStatus status="pending" />
+          </div>
+        ),
+      },
+      {
+        title: 'Bị từ chối và tạm khoá',
+        render: () => (
+          <div className="flex w-full max-w-md flex-col gap-6">
+            <PendingStatus status="rejected" />
+            <PendingStatus status="suspended" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'StatusWatcher',
+    layer: 'features',
+    file: 'features/auth/components/status-watcher.tsx',
+    demos: [
+      {
+        title: 'Không có giao diện — làm mới trang mỗi 30 giây, khi focus lại hoặc hiện lại',
+        render: () => (
+          <div className="text-sm text-muted-foreground">
+            <StatusWatcher />
+            <p>Không hiển thị gì (features/auth/components/status-watcher.tsx).</p>
           </div>
         ),
       },

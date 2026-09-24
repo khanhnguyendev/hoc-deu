@@ -8,20 +8,18 @@ import { TopBar } from './top-bar'
 /**
  * The signed-in frame (DESIGN_SYSTEM §5): sidebar from 1024 px; top bar + bottom navigation below;
  * a skip link; `main#main` padded so nothing hides behind the bottom navigation, stacking the
- * page's sections with the section spacing (pages carry no classes of their own).
+ * page's sections with the section spacing (pages carry no classes of their own). The mobile top
+ * bar's title is derived from the path (R3), not passed in.
  */
 function AppShell({
   user,
   isAdmin,
-  title,
   onSignOut,
   children,
 }: {
   user: { name: string }
   isAdmin: boolean
-  /** Shown in the mobile top bar; the page still renders its own h1 (PageHeader). */
-  title: string
-  onSignOut?: () => void
+  onSignOut?: () => Promise<void>
   children: React.ReactNode
 }) {
   return (
@@ -35,7 +33,7 @@ function AppShell({
         </a>
         <Sidebar name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar title={title} name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
+          <TopBar name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
           <main
             id="main"
             tabIndex={-1}

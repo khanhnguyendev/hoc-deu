@@ -111,11 +111,16 @@ export const vi = {
     wrongCredentials: 'Email hoặc mật khẩu không đúng.',
     testLoginDisabled: 'Đăng nhập thử nghiệm không được bật.',
   },
+  /** `/` (§2.4): the signed-out landing page (the h1 reuses the "Học Đều" wordmark). */
+  landing: {
+    positioning: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
+    signIn: 'Đăng nhập',
+  },
   /** /pending, one entry per status that is not `active` (§2.4). */
   account: {
     pending: {
       title: 'Tài khoản của bạn đang chờ duyệt',
-      description: 'Quản trị viên sẽ duyệt tài khoản của bạn sớm.',
+      description: 'Quản trị viên sẽ duyệt sớm. Trang này tự chuyển khi tài khoản được duyệt.',
     },
     rejected: {
       title: 'Tài khoản chưa được duyệt',

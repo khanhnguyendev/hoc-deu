@@ -25,7 +25,7 @@ export function AccountMenu({
 }: {
   name: string
   isAdmin: boolean
-  onSignOut?: () => void
+  onSignOut?: () => Promise<void>
 }) {
   const { theme, setTheme } = useTheme()
   return (
@@ -58,7 +58,13 @@ export function AccountMenu({
             </Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem disabled={!onSignOut} onSelect={onSignOut}>
+        <DropdownMenuItem
+          disabled={!onSignOut}
+          // Radix's onSelect passes a non-serializable Event; onSignOut takes none.
+          onSelect={() => {
+            if (onSignOut) void onSignOut()
+          }}
+        >
           <LogOut aria-hidden="true" strokeWidth={1.75} />
           {vi.nav.signOut}
         </DropdownMenuItem>

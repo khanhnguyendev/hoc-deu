@@ -240,15 +240,18 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/app-shell/index.tsx`
-- **Props:** `user: { name: string }`, `isAdmin: boolean`, `title: string` (mobile top bar),
-  `onSignOut?: () => void`, `children`
+- **Props:** `user: { name: string }`, `isAdmin: boolean`, `onSignOut?: () => Promise<void>`,
+  `children` — the mobile top bar's title is not a prop: `TopBar` derives it from `usePathname()`
+  via `NAV_ITEMS` + `ADMIN_ITEMS`, falling back to "Học Đều" (M1 deferred #5, ruling R3)
 - **Variants:** sidebar (≥ 1024 px, collapsible 240 → 64 px) · top bar + bottom nav (< 1024 px)
 - **States:** current route (`aria-current="page"`, `primary-soft`), collapsed, admin / learner
-- **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} title="Hôm nay">…</AppShell>`
+- **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
 - **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
-  menu with "Quản trị" for admins only; bottom nav 56 px; `main` and the root scroll padding keep
-  content and focus clear of the top bar and bottom nav
+  menu with "Quản trị" for admins only; "Đăng xuất" is invoked as `() => void onSignOut()` from
+  `DropdownMenuItem onSelect` (Radix passes a non-serializable Event, and `onSignOut` takes none);
+  bottom nav 56 px; `main` and the root scroll padding keep content and focus clear of the top bar
+  and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
 
@@ -490,6 +493,32 @@ from `lib/i18n/vi.ts`.
 
 ## features
 
+### Landing
+
+- **Layer:** feature (`features/auth`)
+- **File:** `features/auth/components/landing.tsx`
+- **Props:** none
+- **Variants:** none
+- **States:** static
+- **Usage:** `<FocusLayout><Landing /></FocusLayout>` (`app/(public)/page.tsx`, signed-out only —
+  a signed-in visitor is redirected to `homePathFor(user)` before this renders)
+- **Accessibility:** one h1 ("Học Đều"); "Đăng nhập" is a link styled as a button (`buttonVariants`)
+  to `/sign-in`
+
+### PendingStatus
+
+- **Layer:** feature (`features/auth`)
+- **File:** `features/auth/components/pending-status.tsx`
+- **Props:** `PendingStatus`: `status: 'pending' | 'rejected' | 'suspended'` (never `active` — the
+  page redirects first). `SignOutButton`: `signOut: () => Promise<void>`
+- **Variants:** one per status, copy from `vi.account[status]`
+- **States:** static; `SignOutButton` default / hover / focus-visible (Button `outline`)
+- **Usage:** `<FocusLayout headerActions={<SignOutButton signOut={signOut} />}><PendingStatus
+  status={user.status} /><StatusWatcher /></FocusLayout>` (`app/(account)/pending/page.tsx`) —
+  `SignOutButton` goes in `headerActions` because the page itself may not import `components/ui`
+- **Accessibility:** one h1 (PageHeader, the status title) with its description; the sign-out
+  button is a submit button of its own form (`action={signOut}`)
+
 ### SignInPanel
 
 - **Layer:** feature (`features/auth`, client)
@@ -510,3 +539,15 @@ from `lib/i18n/vi.ts`.
   form named by its h2 "Đăng nhập thử nghiệm", with labelled, required e-mail and password fields
   (`autocomplete` username / current-password) and its error in an always-mounted `role="alert"`
   region, so it is announced when it appears
+
+### StatusWatcher
+
+- **Layer:** feature (`features/auth`, client)
+- **File:** `features/auth/components/status-watcher.tsx`
+- **Props:** none
+- **Variants:** none
+- **States:** renders nothing — it exists only for its effect
+- **Usage:** `<StatusWatcher />` inside `/pending` (`app/(account)/pending/page.tsx`); refreshes
+  the server page (`router.refresh()`) every 30 s, on `focus` and when the tab becomes visible
+  again, so the redirect to the user's home path fires as soon as an admin approves the account
+- **Accessibility:** no visible output, nothing to announce

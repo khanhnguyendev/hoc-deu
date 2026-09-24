@@ -5,10 +5,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`home page (${colorScheme})`, () => {
     test.use({ colorScheme })
 
+    // A signed-in visitor is redirected to their home path instead (task 2.7b, e2e/account.spec.ts);
+    // this suite only ever runs signed out, so the landing page always renders here.
     test('renders in Vietnamese with the design tokens applied', async ({ page }) => {
       await page.goto('/')
       await expect(page.locator('html')).toHaveAttribute('lang', 'vi')
       await expect(page.getByRole('heading', { level: 1, name: 'Học Đều' })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute(
+        'href',
+        '/sign-in',
+      )
       const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
       expect(isDark).toBe(colorScheme === 'dark')
       const { painted, token } = await page.evaluate(() => {

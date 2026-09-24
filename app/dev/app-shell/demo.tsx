@@ -19,7 +19,7 @@ const DAYS: HeatmapDay[] = Array.from({ length: 120 }, (_, i) => ({
  */
 export function AppShellDemo() {
   return (
-    <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin title="Hôm nay">
+    <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin>
       <div className="flex flex-col gap-6">
         <PageHeader
           title="Hôm nay học gì?"
