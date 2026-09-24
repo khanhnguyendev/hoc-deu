@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* tokens:start — generated from docs/design/tokens.css by `pnpm tokens:sync`; do not edit by hand */
 /*
  * Học Đều — design token spec (gate 2).
  * GENERATED from docs/design/DESIGN_SYSTEM.md §3 values; M0 copies this into app/globals.css
@@ -328,3 +329,4 @@
   html { @apply bg-background text-foreground font-sans antialiased; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
 }
+/* tokens:end */

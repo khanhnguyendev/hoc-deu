@@ -187,7 +187,9 @@ for name, t, dark in (('Light', P.LIGHT, False), ('Dark', P.DARK, True)):
     for r in rows:
         rep.append(f'| {r[0]} | {r[1]:.2f} | {r[2]} | {"pass" if r[3] else "FAIL"} |')
     rep.append('')
-open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'contrast.md'), 'w').write('\n'.join(rep))
+# Written only on request (`--report`), so `pnpm tokens:sync` leaves no stray file behind.
+if '--report' in sys.argv:
+    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'contrast.md'), 'w').write('\n'.join(rep))
 
 # token tables (markdown) for §3
 def token_table(keys):
