@@ -12,7 +12,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0004 | Open sign-up with admin approval | 2.8 |
 | 0005 | Public repository; encrypted backups; security features on | 5.7 |
 | 0006 | `proxy.ts` only refreshes the session; access checks in layouts + DAL | 2.6 |
-| 0007 | Event log + derived state; pure TypeScript domain + `apply_event` RPC (`SECURITY INVOKER`) | 2.5 |
+| [0007](0007-event-log-and-apply-event.md) | Event log + derived state; pure TypeScript domain + `apply_event` RPC (`SECURITY INVOKER`) | 2.5b |
 | 0008 | `rules_version` on events and derived rows | 4.2 |
 | 0009 | Tracks are data, item types are code (registry) | 3.4 |
 | 0010 | Namespaced IDs, append-only `ids.lock`, reserved `user:` prefix | 3.2 |

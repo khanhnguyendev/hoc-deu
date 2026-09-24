@@ -226,6 +226,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_bootstrap: { Args: { p_user_id: string }; Returns: boolean }
+      admin_set_role: {
+        Args: { p_role: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_set_status: {
+        Args: { p_status: string; p_user_id: string }
+        Returns: Json
+      }
+      apply_event: {
+        Args: { p_changes?: Json; p_event: Json; p_expected?: Json }
+        Returns: Json
+      }
+      apply_system_event: {
+        Args: {
+          p_changes?: Json
+          p_event: Json
+          p_expected?: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
       is_active: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       learner_event_types: { Args: never; Returns: string[] }
@@ -234,6 +256,7 @@ export type Database = {
         Returns: string
       }
       rules_version: { Args: never; Returns: number }
+      system_event_types: { Args: never; Returns: string[] }
       user_local_day: {
         Args: { p_at: string; p_user_id: string }
         Returns: string

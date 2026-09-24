@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { vi } from './vi'
 
-/** Every key the M1 components read. */
+/** Every key the components and lib/events read. */
 const USED = [
   'common.close',
   'common.openMenu',
@@ -56,6 +56,11 @@ const USED = [
   'states.backHome',
   'states.globalErrorTitle',
   'states.globalErrorBody',
+  'errors.quotaExceeded',
+  'errors.saveFailed',
+  'errors.notAllowed',
+  'errors.invalidTransition',
+  'errors.invalidTimezone',
 ]
 
 function lookup(path: string): unknown {

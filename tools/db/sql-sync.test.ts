@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { LEARNER_EVENT_TYPES } from '@/lib/domain/events'
+import { LEARNER_EVENT_TYPES, SYSTEM_EVENT_TYPES } from '@/lib/domain/events'
 import { RULES_VERSION } from '@/lib/domain/rules'
 
 const MIGRATIONS = 'supabase/migrations'
@@ -38,6 +38,12 @@ describe('SQL and TypeScript stay in sync', () => {
   it('public.learner_event_types() returns exactly LEARNER_EVENT_TYPES', () => {
     expect(stringLiterals(lastFunctionBody(migrationsSql(), 'learner_event_types'))).toEqual([
       ...LEARNER_EVENT_TYPES,
+    ])
+  })
+
+  it('public.system_event_types() returns exactly SYSTEM_EVENT_TYPES', () => {
+    expect(stringLiterals(lastFunctionBody(migrationsSql(), 'system_event_types'))).toEqual([
+      ...SYSTEM_EVENT_TYPES,
     ])
   })
 

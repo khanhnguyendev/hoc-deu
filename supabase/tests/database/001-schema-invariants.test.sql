@@ -9,13 +9,16 @@ create extension if not exists pgtap with schema extensions;
 -- so a second overload of an already-listed name must be listed again or the check fails (an
 -- overload is a distinct, separately-grantable function). 2.4 adds is_active and is_admin; 2.5
 -- adds local_day, user_local_day, learner_event_types and rules_version (the events trigger and
--- the rules_version column default run as the inserting user). The final M2 list (2.4-2.8):
+-- the rules_version column default run as the inserting user); 2.5b adds apply_event,
+-- admin_set_status and admin_set_role (the admin functions check the caller themselves). The
+-- final M2 list (2.4-2.8):
 -- is_active, is_admin, local_day, user_local_day, learner_event_types, rules_version, apply_event,
 -- admin_set_status, admin_set_role, admin_list_users.
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
-  ('local_day'), ('user_local_day'), ('learner_event_types'), ('rules_version');
+  ('local_day'), ('user_local_day'), ('learner_event_types'), ('rules_version'),
+  ('apply_event'), ('admin_set_status'), ('admin_set_role');
 
 select plan(6);
 

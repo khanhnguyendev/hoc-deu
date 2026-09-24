@@ -26,8 +26,9 @@ export const LEARNER_EVENT_TYPES = [
 ] as const
 
 /**
- * Types only the server writes (`apply_system_event`, secret key). `block.checked_in` is in both
- * lists: the learner's check-in and the system's auto check-in (§5.5).
+ * Types only the server writes (`apply_system_event`, secret key); SQL
+ * `public.system_event_types()` mirrors this list. `block.checked_in` is in both lists: the
+ * learner's check-in and the system's auto check-in (§5.5).
  */
 export const SYSTEM_EVENT_TYPES = [
   'plan.generated',

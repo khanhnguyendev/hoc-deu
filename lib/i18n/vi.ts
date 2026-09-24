@@ -76,6 +76,15 @@ export const vi = {
     globalErrorTitle: 'Học Đều đang gặp sự cố',
     globalErrorBody: 'Ứng dụng không tải được. Bạn thử lại sau ít phút nhé.',
   },
+  /** Save errors shown to the user (lib/events/apply.ts EventError.userMessage). */
+  errors: {
+    /** §4.5: the learner write quota (500 events per local day). */
+    quotaExceeded: 'Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai.',
+    saveFailed: 'Không lưu được thay đổi. Bạn thử lại nhé.',
+    notAllowed: 'Bạn không có quyền thực hiện thao tác này.',
+    invalidTransition: 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.',
+    invalidTimezone: 'Múi giờ không hợp lệ.',
+  },
   /** The component catalog at /dev/components (dev and preview only). */
   dev: {
     catalogTitle: 'Thư viện thành phần',
