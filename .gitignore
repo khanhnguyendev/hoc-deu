@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 /docs/credentials
+client_secret*.json
 *.pem
 *.key
 
@@ -105,5 +106,3 @@ Desktop.ini
 tmp/
 *.tmp
 
-# Python caches (docs/design/assets, docs/plans/assets)
-__pycache__/
