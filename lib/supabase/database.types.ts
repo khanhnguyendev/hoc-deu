@@ -3,6 +3,88 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      event_quota: {
+        Row: {
+          count: number
+          local_day: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          local_day: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          local_day?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'event_quota_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      events: {
+        Row: {
+          actor_id: string
+          block_id: string | null
+          id: string
+          item_id: string | null
+          local_day: string
+          occurred_at: string
+          payload: Json
+          plan_id: string | null
+          rules_version: number
+          source: string
+          track_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_id: string
+          block_id?: string | null
+          id: string
+          item_id?: string | null
+          local_day: string
+          occurred_at?: string
+          payload?: Json
+          plan_id?: string | null
+          rules_version?: number
+          source: string
+          track_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string
+          block_id?: string | null
+          id?: string
+          item_id?: string | null
+          local_day?: string
+          occurred_at?: string
+          payload?: Json
+          plan_id?: string | null
+          rules_version?: number
+          source?: string
+          track_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'events_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profiles: {
         Row: {
           ai_personalization: boolean
@@ -146,6 +228,16 @@ export type Database = {
     Functions: {
       is_active: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      learner_event_types: { Args: never; Returns: string[] }
+      local_day: {
+        Args: { p_at: string; p_day_starts_at: string; p_timezone: string }
+        Returns: string
+      }
+      rules_version: { Args: never; Returns: number }
+      user_local_day: {
+        Args: { p_at: string; p_user_id: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

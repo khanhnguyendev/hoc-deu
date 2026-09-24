@@ -35,7 +35,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | 6.4 |
 | 0028 | Far-west time-zone limitation accepted for v1 | 7.4 |
 | 0029 | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | 5.7 |
-| 0030 | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | 2.5 |
+| [0030](0030-learner-write-quota.md) | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | 2.5 |
 | 0031 | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | 5.6 |
 | [0032](0032-tooling-pins.md) | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | 1.0 |
 | [0033](0033-license-split.md) | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | 1.0 |

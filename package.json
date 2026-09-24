@@ -23,6 +23,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local --schema public > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
+    "db:fixtures": "tsx tools/db/local-day-parity-cli.ts",
     "test:db": "supabase test db"
   },
   "dependencies": {

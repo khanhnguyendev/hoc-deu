@@ -1,4 +1,5 @@
 begin;
+set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
@@ -6,11 +7,15 @@ create extension if not exists pgtap with schema extensions;
 -- migration that adds a function `authenticated` may call only has to touch this one INSERT, in
 -- the same commit. One row per overload the function has — check 6 uses bag (multiset) equality,
 -- so a second overload of an already-listed name must be listed again or the check fails (an
--- overload is a distinct, separately-grantable function). 2.4 adds is_active and is_admin. The
--- final M2 list (2.4-2.8): is_active, is_admin, local_day, user_local_day, learner_event_types,
--- rules_version, apply_event, admin_set_status, admin_set_role, admin_list_users.
+-- overload is a distinct, separately-grantable function). 2.4 adds is_active and is_admin; 2.5
+-- adds local_day, user_local_day, learner_event_types and rules_version (the events trigger and
+-- the rules_version column default run as the inserting user). The final M2 list (2.4-2.8):
+-- is_active, is_admin, local_day, user_local_day, learner_event_types, rules_version, apply_event,
+-- admin_set_status, admin_set_role, admin_list_users.
 create temporary table _authenticated_allowlist (proname text) on commit drop;
-insert into _authenticated_allowlist (proname) values ('is_active'), ('is_admin');
+insert into _authenticated_allowlist (proname) values
+  ('is_active'), ('is_admin'),
+  ('local_day'), ('user_local_day'), ('learner_event_types'), ('rules_version');
 
 select plan(6);
 
