@@ -33,6 +33,16 @@ function target(spec, file) {
   return null
 }
 
+/** The directive prologue: the leading `'use …'` string statements (`'use strict'; 'use client'`). */
+function directives(body) {
+  const found = []
+  for (const statement of body) {
+    if (statement.type !== 'ExpressionStatement' || typeof statement.directive !== 'string') break
+    found.push(statement.directive)
+  }
+  return found
+}
+
 /** `features/<name>` for any path inside a feature, else null. */
 const featureOf = (p) => (under(p, 'features') ? (p.split('/')[1] ?? null) : null)
 
@@ -82,8 +92,7 @@ const imports = {
   },
   create(context) {
     const file = path.relative(context.cwd, context.filename).split(path.sep).join('/')
-    const [first] = context.sourceCode.ast.body
-    const clientModule = first?.type === 'ExpressionStatement' && first.directive === 'use client'
+    const clientModule = directives(context.sourceCode.ast.body).includes('use client')
     const check = (source) => {
       if (source?.type !== 'Literal' || typeof source.value !== 'string') return
       const to = target(source.value, file)

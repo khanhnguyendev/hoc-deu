@@ -14,11 +14,12 @@ export type TestOptions = {
 // M3/M5 — Next's RSC prefetch failures log a "Failed to load resource" console error for the
 // `?_rsc=` request. That is expected until those routes exist, so it is always ignored.
 // Since task 2.6 the proxy answers a signed-out prefetch of a private route (/today, /settings, …)
-// with a redirect to `/sign-in?next=…`, which the browser follows without `_rsc=`; `/sign-in`
-// itself 404s until task 2.7a builds it, which then removes the second clause.
+// with a redirect to `/sign-in?next=…`, which the browser follows without `_rsc=`, and `/sign-in`
+// 404s until it exists. Remove the `/sign-in?next=` clause in 2.7a when /sign-in exists.
 const isIgnoredRscPrefetchError = (text: string, url: string | undefined) =>
   text.includes('Failed to load resource') &&
-  Boolean(url?.includes('_rsc=') || url?.includes('/sign-in?next='))
+  (Boolean(url?.includes('_rsc=')) ||
+    (text.includes('status of 404') && Boolean(url?.includes('/sign-in?next='))))
 
 export const test = base.extend<TestOptions>({
   allowedConsoleErrors: [[], { option: true }],

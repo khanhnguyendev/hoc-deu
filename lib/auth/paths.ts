@@ -28,7 +28,13 @@ export function safeNextPath(next: string | null | undefined): string | null {
     return null
   }
   if (url.host !== 'x') return null
-  const { pathname } = url
+  // Compare the decoded path: `/%73ign-in` is routed as `/sign-in`. A malformed escape is refused.
+  let pathname: string
+  try {
+    pathname = decodeURIComponent(url.pathname)
+  } catch {
+    return null
+  }
   if (pathname === '/sign-in' || pathname.startsWith('/sign-in/')) return null
   if (pathname === '/auth' || pathname.startsWith('/auth/')) return null
   return next

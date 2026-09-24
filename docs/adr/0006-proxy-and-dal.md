@@ -57,15 +57,21 @@ on the profile (pending, active, admin, onboarded), which lives in the database.
   `publicRoute()` marker for handlers that are public on purpose (`lib/auth/guards.ts`,
   `GUARD_NAMES`). The architecture test `tools/guards/server-guards.ts` parses every `*.ts` /
   `*.tsx` file under `app`, `features`, `lib` and `components` with the TypeScript compiler API
-  and fails when the first statement of one of these is not a (possibly awaited or assigned) call
-  to a guard:
-  - every export of a module whose first statement is `'use server'`;
+  and fails when the first statement of one of these is not a guard call:
+  - every export of a module with `'use server'` in its directive prologue;
   - every exported `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD` or `OPTIONS` in
     `app/**/route.ts`;
-  - every exported async function (also inside `cache()`) in `features/<name>/queries.ts`;
+  - every exported async function (also inside `cache()` from `react`) in
+    `features/<name>/queries.ts`;
   - every inline server action (a function whose body starts with `'use server'`).
 
-  A re-export or wrapped export it cannot see into counts as a violation.
+  The guard call must be **awaited** (`await requireActive()` or `const user = await …`): an
+  un-awaited async guard lets the handler run on while its `redirect()` becomes an unhandled
+  rejection. Only guards listed in `SYNC_GUARD_NAMES` (today just `publicRoute`) may be called
+  bare. The only wrapper the check looks through is `cache(…)` imported as `cache` from `react`;
+  an export it cannot see into — a re-export, `export *`, an imported name, `React.cache`, a
+  renamed `cache`, `unstable_cache` or any other wrapper — counts as a violation wherever a guard
+  is required.
 - **RLS remains the data backstop** (§4.5): a missed guard still cannot read another user's rows.
 
 ## Consequences
@@ -76,4 +82,5 @@ on the profile (pending, active, admin, onboarded), which lives in the database.
 - Harder: every new action, handler or loader must start with a guard, even a trivial one; public
   handlers must say so with `publicRoute()`.
 - Accepted: a signed-out prefetch of a private route is answered with the sign-in redirect; the
-  guard check is syntactic (it trusts that a function named `requireUser` is the DAL's).
+  guard check is syntactic (it trusts that a function named `requireUser` is the DAL's), and a
+  loader wrapped in anything but React's `cache()` must be restructured to pass it.

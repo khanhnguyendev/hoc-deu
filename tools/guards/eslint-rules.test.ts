@@ -263,6 +263,14 @@ describe('client modules (owner review SF7)', () => {
     expect(ids).not.toContain(LAYERS)
   })
 
+  it("finds 'use client' anywhere in the directive prologue", async () => {
+    const messages = await layerMessages(
+      "'use strict'\n'use client'\nimport { serverEnv } from '@/lib/env'\nexport const x = serverEnv\n",
+      CLIENT_FILE,
+    )
+    expect(messages).toEqual([`'@/lib/env': ${MESSAGE}`])
+  })
+
   it("only treats a leading 'use client' as the directive", async () => {
     const ids = await ruleIds(
       "import { serverEnv } from '@/lib/env'\n'use client'\nexport const x = serverEnv\n",

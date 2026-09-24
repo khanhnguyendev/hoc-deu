@@ -22,3 +22,11 @@ export const GUARD_NAMES: readonly string[] = [
   'requireCronSecret',
   'publicRoute',
 ]
+
+/**
+ * Guards that return synchronously and may be called without `await`. Every other guard is async:
+ * an un-awaited call lets the handler run on while its `redirect()` becomes an unhandled rejection,
+ * so the architecture test requires `await` for it (fix round 1 ruling). A future synchronous
+ * guard (e.g. a header check) is added here explicitly.
+ */
+export const SYNC_GUARD_NAMES: readonly string[] = ['publicRoute']

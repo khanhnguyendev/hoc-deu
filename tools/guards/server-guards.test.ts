@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GUARD_NAMES } from '@/lib/auth/guards'
+import { GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
 import { guardViolations } from './server-guards'
 
 const ACTIONS = 'features/x/actions.ts'
@@ -50,11 +50,40 @@ export const b = async () => {
 export const c = async function () {
   return 2
 }
-export const d = async () => requireUser()
+export const d = async () => await requireUser()
 export const e = async () => 3`
     const violations = guardViolations(ACTIONS, source)
     expect(violations).toHaveLength(3)
     expect(violations.join('\n')).toMatch(/\bb\b[\s\S]*\bc\b[\s\S]*\be\b/)
+  })
+
+  it('requires await for an async guard (fix round 1, controller ruling)', () => {
+    const source = `'use server'
+import { requireActive } from '@/lib/auth/dal'
+export async function bare() {
+  requireActive()
+  await write()
+}
+export async function assigned() {
+  const user = requireActive()
+  return user
+}
+export const returned = async () => requireActive()
+export async function awaited() {
+  const user = await requireActive()
+  return user
+}`
+    const flagged = guardViolations(ACTIONS, source).map((v) => /`(\w+)`/.exec(v)?.[1])
+    expect(flagged).toEqual(['bare', 'assigned', 'returned'])
+  })
+
+  it("finds 'use server' anywhere in the directive prologue", () => {
+    const source = `'use strict'
+'use server'
+export async function save() {
+  return 1
+}`
+    expect(guardViolations(ACTIONS, source)).toHaveLength(1)
   })
 
   it('ignores a non-exported helper', () => {
@@ -164,6 +193,16 @@ ${['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
     expect(guardViolations('app/auth/callback/route.ts', source)).toHaveLength(7)
   })
 
+  it('only unwraps cache() imported from react', () => {
+    const source = `import { cache } from './not-react'
+import { publicRoute } from '@/lib/auth/guards'
+export const GET = cache(async () => {
+  publicRoute()
+  return new Response(null)
+})`
+    expect(guardViolations(ROUTE, source)).toHaveLength(1)
+  })
+
   it('checks a handler exported under a method name', () => {
     const source = `async function handler() {
   return new Response(null)
@@ -218,6 +257,70 @@ export const loadTracks = cache(async () => {
     expect(guardViolations(QUERIES, source)).toHaveLength(1)
   })
 
+  it.each([
+    [
+      'React.cache',
+      `import React from 'react'
+export const loadX = React.cache(async () => {
+  return 1
+})`,
+    ],
+    [
+      'an aliased cache',
+      `import { cache as memo } from 'react'
+export const loadX = memo(async () => {
+  return 1
+})`,
+    ],
+    [
+      'unstable_cache',
+      `import { unstable_cache } from 'next/cache'
+export const loadX = unstable_cache(async () => {
+  return 1
+})`,
+    ],
+    [
+      'a guarded function inside a wrapper the check cannot see into',
+      `import { requireUser } from '@/lib/auth/dal'
+import { memoize } from './memoize'
+export const loadX = memoize(async () => {
+  await requireUser()
+})`,
+    ],
+    [
+      'an imported name',
+      `import { impl } from './impl'
+export const loadX = impl`,
+    ],
+    [
+      'an imported name in an export list',
+      `import { impl } from './impl'
+export { impl as loadX }`,
+    ],
+    [
+      'a local const holding an opaque value',
+      `import { build } from './build'
+const impl = build()
+export const loadX = impl
+export { impl as loadY }`,
+    ],
+  ])('flags a loader it cannot see into: %s', (_, source) => {
+    expect(guardViolations(QUERIES, source).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('ignores plain values and follows local cache() loaders', () => {
+    const source = `import { cache } from 'react'
+import { requireUser } from '@/lib/auth/dal'
+export const PAGE_SIZE = 20
+export const LABELS = { a: 'x' }
+const impl = cache(async () => {
+  await requireUser()
+})
+export const loadX = impl
+export { impl as loadY, PAGE_SIZE as SIZE }`
+    expect(guardViolations(QUERIES, source)).toEqual([])
+  })
+
   it('only treats features/<name>/queries.ts as a loader module', () => {
     const source = `export async function load() {
   return 1
@@ -241,6 +344,13 @@ describe('GUARD_NAMES', () => {
         'publicRoute',
       ].sort(),
     )
+  })
+})
+
+describe('SYNC_GUARD_NAMES', () => {
+  it('lists the guards that may be called without await: only publicRoute today', () => {
+    expect([...SYNC_GUARD_NAMES]).toEqual(['publicRoute'])
+    for (const name of SYNC_GUARD_NAMES) expect(GUARD_NAMES).toContain(name)
   })
 })
 

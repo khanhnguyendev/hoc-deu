@@ -38,6 +38,9 @@ describe('safeNextPath (open-redirect guard)', () => {
     '/auth/callback',
     '/auth/callback?code=x',
     '/x/../sign-in',
+    '/%73ign-in',
+    '/%61uth/callback?code=x',
+    '/%E0%A4%A',
   ])('rejects %j', (next) => {
     expect(safeNextPath(next)).toBeNull()
   })
