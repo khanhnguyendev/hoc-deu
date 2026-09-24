@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EnvError, parseServerEnv, publicSupabaseEnv } from './env'
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 const SENTINEL = 'sentinel-value-should-never-leak-into-error-messages'
 
@@ -119,38 +123,24 @@ describe('parseServerEnv', () => {
 
 describe('publicSupabaseEnv', () => {
   it('reads NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY from process.env', () => {
-    const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const originalKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-    try {
-      process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321'
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_test'
-      expect(publicSupabaseEnv()).toEqual({
-        supabaseUrl: 'http://127.0.0.1:54321',
-        supabasePublishableKey: 'sb_publishable_test',
-      })
-    } finally {
-      process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey
-    }
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:54321')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test')
+    expect(publicSupabaseEnv()).toEqual({
+      supabaseUrl: 'http://127.0.0.1:54321',
+      supabasePublishableKey: 'sb_publishable_test',
+    })
   })
 
   it('throws EnvError naming the missing variable', () => {
-    const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const originalKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', undefined)
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test')
+    let error: unknown
     try {
-      delete process.env.NEXT_PUBLIC_SUPABASE_URL
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_test'
-      let error: unknown
-      try {
-        publicSupabaseEnv()
-      } catch (caught) {
-        error = caught
-      }
-      expect(error).toBeInstanceOf(EnvError)
-      expect((error as EnvError).message).toContain('NEXT_PUBLIC_SUPABASE_URL')
-    } finally {
-      process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey
+      publicSupabaseEnv()
+    } catch (caught) {
+      error = caught
     }
+    expect(error).toBeInstanceOf(EnvError)
+    expect((error as EnvError).message).toContain('NEXT_PUBLIC_SUPABASE_URL')
   })
 })

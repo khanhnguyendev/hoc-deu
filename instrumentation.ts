@@ -1,18 +1,11 @@
+// Bundled for both the Node and Edge runtimes; the startup check itself lives in a Node-only
+// module (dynamically imported only under `NEXT_RUNTIME=nodejs`) so the Edge bundle never sees the
+// Node-only `process.exit` call — that avoided a spurious "not supported in the Edge Runtime"
+// build warning while the guard below made it unreachable there anyway.
 export async function register() {
-  // Validate once at server start (§2.3); `next build` must work without runtime secrets.
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  // `next build` must work without runtime secrets (§2.3).
   if (process.env.NEXT_PHASE === 'phase-production-build') return
-  const { serverEnv, EnvError } = await import('./lib/env')
-  try {
-    serverEnv()
-  } catch (error) {
-    // Next only logs an uncaught error here and keeps serving — exit so a misconfigured server
-    // never comes up silently.
-    if (error instanceof EnvError) {
-      console.error(error.message)
-    } else {
-      console.error(error)
-    }
-    process.exit(1)
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./instrumentation-node')
   }
 }
