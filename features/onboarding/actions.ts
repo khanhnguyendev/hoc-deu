@@ -23,6 +23,14 @@ const errors = vi.onboarding.errors
 /** A future start date may be at most this many days ahead (decision 22). */
 const MAX_START_DAYS_AHEAD = 60
 
+/**
+ * The first schedule takes effect this long before the server's `now` (decision 5). The database
+ * files each event under the `local_day` of its own `now()`; were this server's clock slightly
+ * ahead, a schedule "from now" would not be in force yet there, and the onboarding events would
+ * land on the default schedule's day. The first version may lie in the past (no past day exists).
+ */
+const FIRST_SCHEDULE_LEAD_MS = 60_000
+
 const failed = (
   fieldErrors: Record<string, string>,
   formError: string | null = null,
@@ -90,7 +98,7 @@ const isChecked = (value: Checked | Record<string, string>): value is Checked =>
 
 /**
  * Finishes onboarding (§2.4) with events, in this order, each id derived from the page's
- * `requestId` (decision 9): `schedule.changed` (in force from `now`, decision 5) →
+ * `requestId` (decision 9): `schedule.changed` (in force from a minute before `now`, decision 5) →
  * `settings.changed` with the code language (when there is one) → `track.enrolled` per track →
  * `onboarding.completed` (system event, sets `onboarded_at`) → `/today`. A retry after a partial
  * failure sends the same ids, so the steps that already happened come back `duplicate` (RF-2).
@@ -121,7 +129,10 @@ export async function completeOnboarding(
     await applyLearnerEvent(supabase, {
       id: eventId('schedule.changed'),
       type: 'schedule.changed',
-      payload: { ...schedule, effectiveAt: now.toISOString() },
+      payload: {
+        ...schedule,
+        effectiveAt: new Date(now.getTime() - FIRST_SCHEDULE_LEAD_MS).toISOString(),
+      },
     })
     if (input.codeLanguage !== undefined) {
       await applyLearnerEvent(supabase, {

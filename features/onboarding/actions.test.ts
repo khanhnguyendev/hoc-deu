@@ -5,6 +5,8 @@ const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
 const USER_ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
 /** 10:00 in Asia/Ho_Chi_Minh: local day 2026-09-24 with a 04:00 day start. */
 const NOW = '2026-09-24T03:00:00.000Z'
+/** The first schedule takes effect a minute before the server's `now` (the DB clock may lag). */
+const SCHEDULE_FROM = '2026-09-24T02:59:00.000Z'
 
 const fake = vi.hoisted(() => ({
   user: { id: '', onboardedAt: null as string | null },
@@ -113,7 +115,11 @@ describe('completeOnboarding — the events, in order', () => {
         {
           id: id('schedule.changed'),
           type: 'schedule.changed',
-          payload: { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00', effectiveAt: NOW },
+          payload: {
+            timezone: 'Asia/Ho_Chi_Minh',
+            dayStartsAt: '04:00',
+            effectiveAt: SCHEDULE_FROM,
+          },
         },
       ],
       [
