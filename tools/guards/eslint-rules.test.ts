@@ -161,6 +161,55 @@ describe('layer rules (platform design §7.2)', () => {
     expect(ids).not.toContain(LAYERS)
   })
 
+  // M1 deferred #6: route handlers follow their own §7.2 row instead of being exempt.
+  it('forbids route handlers importing components', async () => {
+    const ids = await ruleIds(
+      "import { Button } from '@/components/ui/button'\nexport const x = Button\n",
+      'app/api/x/route.ts',
+    )
+    expect(ids).toContain(LAYERS)
+  })
+
+  it('lets route handlers use lib and a feature index', async () => {
+    const ids = await ruleIds(
+      "import { createClient } from '@/lib/supabase/server'\nimport { TodayPage } from '@/features/today'\nexport const x = [createClient, TodayPage]\n",
+      'app/api/x/route.ts',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it('checks .mjs files too', async () => {
+    const ids = await ruleIds(
+      "import { x } from '@/features/a/internal'\nexport const y = x\n",
+      'lib/x.mjs',
+    )
+    expect(ids).toContain(LAYERS)
+  })
+
+  it('lets .mjs files import what their layer allows', async () => {
+    const ids = await ruleIds(
+      "import { cn } from '@/lib/utils'\nexport const y = cn\n",
+      'lib/x.mjs',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it("forbids 'use client' in the catalog's pages", async () => {
+    const ids = await ruleIds(
+      "'use client'\nexport default function P() { return <main /> }\n",
+      'app/dev/x/page.tsx',
+    )
+    expect(ids).toContain('no-restricted-syntax')
+  })
+
+  it('keeps className allowed in the catalog pages', async () => {
+    const ids = await ruleIds(
+      'export default function P() { return <main className="p-4" /> }\n',
+      'app/dev/x/page.tsx',
+    )
+    expect(ids).not.toContain('no-restricted-syntax')
+  })
+
   it('keeps lib/domain pure', async () => {
     const ids = await ruleIds(
       "import { cookies } from 'next/headers'\nexport const n = () => Date.now() + String(cookies)\n",

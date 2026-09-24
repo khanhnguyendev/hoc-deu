@@ -11,6 +11,7 @@ const MESSAGES = {
   utilsI18n: 'This layer may only use lib/utils and lib/i18n from lib/.',
   featureInternals: 'Import other features through their index.ts only.',
   uiInPages: 'Pages compose features and patterns, not ui primitives.',
+  componentsInApi: 'Route handlers are thin adapters: lib/* and feature index.ts, no components.',
   domain: 'lib/domain is pure: only lib/domain and zod.',
 }
 
@@ -36,8 +37,11 @@ export function violation(file, to) {
 
   if (under(file, 'lib/domain')) return under(to, 'lib/domain') ? null : MESSAGES.domain
   if (under(file, 'app')) {
-    if (under(file, 'app/api') || under(file, 'app/dev')) return null
-    if (under(to, 'components/ui')) return MESSAGES.uiInPages
+    // The catalog renders every layer (§7.2 row `app/dev/components`).
+    if (under(file, 'app/dev')) return null
+    if (under(file, 'app/api')) {
+      if (under(to, 'components')) return MESSAGES.componentsInApi
+    } else if (under(to, 'components/ui')) return MESSAGES.uiInPages
   }
   if (!under(file, 'app') && under(to, 'app')) return MESSAGES.app
 

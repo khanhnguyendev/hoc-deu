@@ -27,6 +27,11 @@ const NO_CLASSNAME_IN_PAGES = {
   selector: "JSXAttribute[name.name='className']",
   message: 'Pages contain no styling logic — compose patterns and features.',
 }
+const NO_USE_CLIENT_IN_PAGES = {
+  selector: "Program > ExpressionStatement[directive='use client']",
+  message:
+    "Pages and layouts are Server Components; put 'use client' in an interactive leaf component.",
+}
 const syntax = (...selectors) => ['error', ...STYLE_PROPS, ...selectors]
 
 const DOMAIN_PACKAGES = {
@@ -100,7 +105,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['{app,components,features,lib,tools}/**/*.{ts,tsx}'],
+    files: ['{app,components,features,lib,tools}/**/*.{ts,tsx,js,jsx,mjs}'],
     plugins: { layers },
     rules: { 'layers/imports': 'error' },
   },
@@ -151,13 +156,12 @@ export default defineConfig([
   {
     files: ['app/**/page.tsx', 'app/**/layout.tsx'],
     ignores: ['app/dev/**'],
-    rules: {
-      'no-restricted-syntax': syntax(NO_CLASSNAME_IN_PAGES, {
-        selector: "Program > ExpressionStatement[directive='use client']",
-        message:
-          "Pages and layouts are Server Components; put 'use client' in an interactive leaf component.",
-      }),
-    },
+    rules: { 'no-restricted-syntax': syntax(NO_CLASSNAME_IN_PAGES, NO_USE_CLIENT_IN_PAGES) },
+  },
+  {
+    // The catalog keeps its className exemption, but its pages are Server Components too.
+    files: ['app/dev/**/page.tsx', 'app/dev/**/layout.tsx'],
+    rules: { 'no-restricted-syntax': syntax(NO_USE_CLIENT_IN_PAGES) },
   },
   {
     // global-error replaces the root layout: it is a Client Component that sets the font classes.
