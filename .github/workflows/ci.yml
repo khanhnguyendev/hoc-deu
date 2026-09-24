@@ -25,6 +25,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Block Google Fonts — the build must work offline (platform design §2.1)
+        run: echo "0.0.0.0 fonts.googleapis.com fonts.gstatic.com" | sudo tee -a /etc/hosts
       - run: pnpm verify
 
   e2e:

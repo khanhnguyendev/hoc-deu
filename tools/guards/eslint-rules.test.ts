@@ -105,6 +105,14 @@ describe('layer rules (platform design §7.2)', () => {
     expect(ids).not.toContain('no-restricted-syntax')
   })
 
+  it('bans next/font/google (the build must work offline)', async () => {
+    const ids = await ruleIds(
+      "import { Inter } from 'next/font/google'\nexport const f = Inter\n",
+      'app/fonts/fonts.ts',
+    )
+    expect(ids).toContain('no-restricted-imports')
+  })
+
   it('keeps lib/domain pure', async () => {
     const ids = await ruleIds(
       "import { cookies } from 'next/headers'\nexport const n = () => Date.now() + String(cookies)\n",

@@ -6,7 +6,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 
 | ADR | Decision | Written in task |
 | --- | --- | --- |
-| 0001 | Next.js 16 App Router on Vercel Hobby, non-commercial; offline-safe build with self-hosted fonts | 1.0 |
+| [0001](0001-nextjs-on-vercel-hobby.md) | Next.js 16 App Router on Vercel Hobby, non-commercial; offline-safe build with self-hosted fonts | 1.0 |
 | 0002 | Supabase with publishable/secret keys; `getClaims()` on the server | 2.6 |
 | 0003 | Google + GitHub OAuth only; env-gated test login for local/CI | 2.7 |
 | 0004 | Open sign-up with admin approval | 2.8 |
@@ -37,8 +37,8 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0029 | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | 5.7 |
 | 0030 | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | 2.5 |
 | 0031 | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | 5.6 |
-| 0032 | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | 1.0 |
-| 0033 | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | 1.0 |
+| [0032](0032-tooling-pins.md) | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | 1.0 |
+| [0033](0033-license-split.md) | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | 1.0 |
 | 0034 | Daily maintenance cron (idempotent, `CRON_SECRET`) | 5.7 |
 | 0035 | One content PR per plan run; stale bot PRs closed after 7 days | 7.3 |
 | 0036 | No offline queue in v1; a future queue needs a clamped client timestamp | 5.2 |
