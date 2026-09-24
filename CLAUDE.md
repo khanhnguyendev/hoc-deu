@@ -98,6 +98,9 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 - **Never read or commit `.env*`, `docs/credentials/` or any secret.** Never print secrets.
   `.env.example` is the committed template; every other `.env*` stays unread.
 - Per-user data never goes into the repo; `supabase/seed.sql` holds synthetic users only.
+- **Never edit a migration that is merged to `main`;** add a new migration
+  (`create or replace …`). CI resets the database from scratch, so an edited old migration passes
+  CI but diverges staging and production.
 - **No new dependencies without asking the owner** (approved list: platform design §7.10).
 - Do not pull `v1.1` or `later` features into v1.0 (release scope table, platform design §0).
 
