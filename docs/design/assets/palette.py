@@ -27,17 +27,17 @@ def oklch(h):
 
 LIGHT = {
     'background': '#FAFAF9', 'surface': '#FFFFFF', 'surface-muted': '#F5F5F4', 'surface-sunken': '#F0EFED',
-    'foreground': '#1C1917', 'muted-foreground': '#57534E', 'subtle-foreground': '#78716C',
+    'foreground': '#1C1917', 'muted-foreground': '#57534E', 'subtle-foreground': '#6B645F',
     'border': '#E7E5E4', 'border-strong': '#8A847F', 'ring': '#0D9488',
     'primary': '#0F766E', 'primary-hover': '#115E59', 'primary-foreground': '#FFFFFF',
     'primary-soft': '#F0FDFA', 'primary-soft-foreground': '#115E59',
-    'success': '#15803D', 'success-foreground': '#FFFFFF', 'success-soft': '#F0FDF4', 'success-soft-foreground': '#166534',
-    'warning': '#B45309', 'warning-foreground': '#FFFFFF', 'warning-soft': '#FFFBEB', 'warning-soft-foreground': '#92400E',
+    'success': '#157539', 'success-foreground': '#FFFFFF', 'success-soft': '#F0FDF4', 'success-soft-foreground': '#166534',
+    'warning': '#A34A0B', 'warning-foreground': '#FFFFFF', 'warning-soft': '#FFFBEB', 'warning-soft-foreground': '#92400E',
     'danger': '#B91C1C', 'danger-foreground': '#FFFFFF', 'danger-soft': '#FEF2F2', 'danger-soft-foreground': '#991B1B',
 }
 DARK = {
     'background': '#0C0A09', 'surface': '#1C1917', 'surface-muted': '#292524', 'surface-sunken': '#151312',
-    'foreground': '#FAFAF9', 'muted-foreground': '#A8A29E', 'subtle-foreground': '#8C8580',
+    'foreground': '#FAFAF9', 'muted-foreground': '#A8A29E', 'subtle-foreground': '#9A938E',
     'border': '#3A3532', 'border-strong': '#78716C', 'ring': '#2DD4BF',
     'primary': '#2DD4BF', 'primary-hover': '#5EEAD4', 'primary-foreground': '#042F2E',
     'primary-soft': '#0F2E2B', 'primary-soft-foreground': '#99F6E4',
@@ -56,42 +56,55 @@ TRACKS = {
     'track-7': ('#3F6212', '#F7FEE7', '#BEF264', '#1F2A0B'),   # olive (lime-800)
     'track-8': ('#155E75', '#ECFEFF', '#67E8F9', '#0A2A33'),   # cyan-800
 }
-HEAT_LIGHT = ['#F0EFED', '#99F6E4', '#0D9488', '#0F766E', '#134E4A']
-HEAT_DARK = ['#292524', '#134E4A', '#0D9488', '#2DD4BF', '#99F6E4']
+HEAT_LIGHT = ['#F0EFED', '#2DD4BF', '#0D9488', '#115E59', '#042F2E']
+HEAT_DARK = ['#292524', '#134E4A', '#0D9488', '#2DD4BF', '#CCFBF1']
+
+SURFACES = ('background', 'surface', 'surface-muted', 'surface-sunken')
+TEXT_TOKENS = ('foreground', 'muted-foreground', 'subtle-foreground', 'primary', 'success', 'warning', 'danger')
+
 
 def checks(t, dark):
+    """Every text token on every surface (4.5:1), every control/focus colour on every surface (3:1),
+    every on-colour pair, every track accent, and the heat ramp."""
     rows = []
-    def add(fg, bg, need, label):
-        c = contrast(t[fg] if fg in t else fg, t[bg] if bg in t else bg)
-        rows.append((label or f'{fg} on {bg}', round(c, 2), need, c >= need))
-    for bg in ('background', 'surface', 'surface-muted', 'surface-sunken'):
-        add('foreground', bg, 4.5, None)
-        add('muted-foreground', bg, 4.5, None)
-    add('subtle-foreground', 'surface', 3.0, 'subtle-foreground on surface (large/meta ≥3)')
-    add('border-strong', 'surface', 3.0, 'border-strong (input/control outline) on surface')
-    add('border-strong', 'background', 3.0, 'border-strong on background')
-    add('ring', 'surface', 3.0, 'ring on surface')
-    add('ring', 'background', 3.0, 'ring on background')
-    add('primary-foreground', 'primary', 4.5, None)
-    add('primary-foreground', 'primary-hover', 4.5, None)
-    add('primary', 'surface', 4.5, 'primary as text/link on surface')
-    add('primary', 'background', 4.5, 'primary as text/link on background')
-    add('primary-soft-foreground', 'primary-soft', 4.5, None)
+
+    def add(fg, bg, need, label=None):
+        a = t[fg] if fg in t else fg
+        b = t[bg] if bg in t else bg
+        cr = contrast(a, b)
+        rows.append((label or f'{fg} on {bg}', round(cr, 2), need, cr >= need))
+
+    for fg in TEXT_TOKENS:
+        for bg in SURFACES:
+            add(fg, bg, 4.5)
+    for fg in ('border-strong', 'ring'):
+        for bg in SURFACES:
+            add(fg, bg, 3.0, f'{fg} (control / focus) on {bg}')
+    add('primary-foreground', 'primary', 4.5)
+    add('primary-foreground', 'primary-hover', 4.5)
+    add('primary-soft-foreground', 'primary-soft', 4.5)
     for s in ('success', 'warning', 'danger'):
-        add(f'{s}-foreground', s, 4.5, None)
-        add(s, 'surface', 4.5, f'{s} as text on surface')
-        add(f'{s}-soft-foreground', f'{s}-soft', 4.5, None)
+        add(f'{s}-foreground', s, 4.5)
+        add(f'{s}-soft-foreground', f'{s}-soft', 4.5)
+    onsolid = '#0C0A09' if dark else '#FFFFFF'
     for k, (ls, lsoft, ds, dsoft) in TRACKS.items():
         solid, soft = (ds, dsoft) if dark else (ls, lsoft)
-        onsolid = '#0C0A09' if dark else '#FFFFFF'
-        rows.append((f'{k} text on surface', round(contrast(solid, t['surface']), 2), 4.5, contrast(solid, t['surface']) >= 4.5))
-        rows.append((f'{k}: on-accent text on {k}', round(contrast(onsolid, solid), 2), 4.5, contrast(onsolid, solid) >= 4.5))
-        rows.append((f'{k} text on {k}-soft', round(contrast(solid, soft), 2), 4.5, contrast(solid, soft) >= 4.5))
+        for bg in SURFACES:
+            cr = contrast(solid, t[bg])
+            rows.append((f'{k} text on {bg}', round(cr, 2), 4.5, cr >= 4.5))
+        cr = contrast(onsolid, solid)
+        rows.append((f'{k}: track-foreground on {k}', round(cr, 2), 4.5, cr >= 4.5))
+        cr = contrast(solid, soft)
+        rows.append((f'{k} text on {k}-soft', round(cr, 2), 4.5, cr >= 4.5))
     heat = HEAT_DARK if dark else HEAT_LIGHT
+    for i in range(2, len(heat)):
+        cr = contrast(heat[i], heat[0])
+        rows.append((f'heat-{i} vs heat-0 (graphic, 3:1)', round(cr, 2), 3.0, cr >= 3.0))
     for i in range(1, len(heat)):
-        c = contrast(heat[i], heat[0])
-        rows.append((f'heat-{i} vs heat-0 (non-text ≥3 from level 2 up)', round(c, 2), 3.0 if i >= 2 else 1.0, c >= (3.0 if i >= 2 else 1.0)))
+        cr = contrast(heat[i], heat[i - 1])
+        rows.append((f'heat-{i} vs heat-{i - 1} (adjacent levels, ≥ 1.5 target)', round(cr, 2), 1.5, cr >= 1.5))
     return rows
+
 
 if __name__ == '__main__':
     out = {}

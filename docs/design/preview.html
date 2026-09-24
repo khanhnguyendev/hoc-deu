@@ -44,6 +44,9 @@
   .cell { width: 16px; height: 16px; border-radius: 3px; position: relative; }
   .cell.dot::after { content: ""; position: absolute; left: 6px; top: 6px; width: 4px; height: 4px; border-radius: 50%;
                      background: var(--foreground); opacity: .4; }
+  .cell.dot.on-dark::after { background: var(--background); opacity: .7; }
+  .dark .cell.dot::after { background: var(--background); opacity: .7; }
+  .dark .cell.dot.on-light-dark::after { background: var(--foreground); opacity: .4; }
   .mono { font-family: "JetBrains Mono", monospace; font-size: 14px; }
   pre { background: var(--surface-muted); border-radius: 8px; padding: 12px 16px; overflow-x: auto; margin: 0; }
   .scale div { margin: 6px 0; }
@@ -124,10 +127,10 @@
   <div class="row" style="gap:24px">
     <div class="heat" aria-label="Heatmap levels 0 to 4">
       <span class="cell" style="background:var(--heat-0)"></span>
-      <span class="cell dot" style="background:var(--heat-1)"></span>
+      <span class="cell dot on-light-dark" style="background:var(--heat-1)"></span>
       <span class="cell dot" style="background:var(--heat-2)"></span>
-      <span class="cell dot" style="background:var(--heat-3)"></span>
-      <span class="cell dot" style="background:var(--heat-4)"></span>
+      <span class="cell dot on-dark" style="background:var(--heat-3)"></span>
+      <span class="cell dot on-dark" style="background:var(--heat-4)"></span>
       <span class="cell" tabindex="0" style="background:var(--heat-2);outline:2px solid var(--ring);outline-offset:1px"></span>
       <span class="cell" style="background:var(--heat-0)"></span>
     </div>

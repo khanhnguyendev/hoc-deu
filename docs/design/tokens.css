@@ -17,7 +17,7 @@
   --surface-sunken: oklch(0.952 0.003 84.6); /* #F0EFED */
   --foreground: oklch(0.216 0.006 56.0); /* #1C1917 */
   --muted-foreground: oklch(0.444 0.010 73.6); /* #57534E */
-  --subtle-foreground: oklch(0.553 0.012 58.1); /* #78716C */
+  --subtle-foreground: oklch(0.508 0.012 58.0); /* #6B645F */
   --border: oklch(0.923 0.003 48.7); /* #E7E5E4 */
   --border-strong: oklch(0.617 0.010 62.5); /* #8A847F */
   --ring: oklch(0.600 0.104 184.7); /* #0D9488 */
@@ -26,11 +26,11 @@
   --primary-foreground: oklch(1.000 0 0); /* #FFFFFF */
   --primary-soft: oklch(0.984 0.014 180.7); /* #F0FDFA */
   --primary-soft-foreground: oklch(0.437 0.071 188.2); /* #115E59 */
-  --success: oklch(0.527 0.137 150.1); /* #15803D */
+  --success: oklch(0.495 0.126 150.4); /* #157539 */
   --success-foreground: oklch(1.000 0 0); /* #FFFFFF */
   --success-soft: oklch(0.982 0.018 155.8); /* #F0FDF4 */
   --success-soft-foreground: oklch(0.448 0.108 151.3); /* #166534 */
-  --warning: oklch(0.555 0.146 49.0); /* #B45309 */
+  --warning: oklch(0.515 0.135 48.2); /* #A34A0B */
   --warning-foreground: oklch(1.000 0 0); /* #FFFFFF */
   --warning-soft: oklch(0.987 0.021 95.3); /* #FFFBEB */
   --warning-soft-foreground: oklch(0.473 0.125 46.2); /* #92400E */
@@ -58,10 +58,10 @@
   --track-on-solid: oklch(1.000 0 0); /* #FFFFFF */
 
   --heat-0: oklch(0.952 0.003 84.6); /* #F0EFED */
-  --heat-1: oklch(0.910 0.093 180.4); /* #99F6E4 */
+  --heat-1: oklch(0.785 0.133 181.9); /* #2DD4BF */
   --heat-2: oklch(0.600 0.104 184.7); /* #0D9488 */
-  --heat-3: oklch(0.511 0.086 186.4); /* #0F766E */
-  --heat-4: oklch(0.386 0.059 188.4); /* #134E4A */
+  --heat-3: oklch(0.437 0.071 188.2); /* #115E59 */
+  --heat-4: oklch(0.277 0.045 192.5); /* #042F2E */
 
   /* shadcn/ui aliases — `accent` here is shadcn's hover surface, NOT a track colour */
   --card: var(--surface);
@@ -103,7 +103,7 @@
   --surface-sunken: oklch(0.189 0.004 48.5); /* #151312 */
   --foreground: oklch(0.985 0 0); /* #FAFAF9 */
   --muted-foreground: oklch(0.716 0.009 56.3); /* #A8A29E */
-  --subtle-foreground: oklch(0.621 0.011 58.1); /* #8C8580 */
+  --subtle-foreground: oklch(0.668 0.011 58.1); /* #9A938E */
   --border: oklch(0.333 0.009 53.2); /* #3A3532 */
   --border-strong: oklch(0.553 0.012 58.1); /* #78716C */
   --ring: oklch(0.785 0.133 181.9); /* #2DD4BF */
@@ -147,7 +147,7 @@
   --heat-1: oklch(0.386 0.059 188.4); /* #134E4A */
   --heat-2: oklch(0.600 0.104 184.7); /* #0D9488 */
   --heat-3: oklch(0.785 0.133 181.9); /* #2DD4BF */
-  --heat-4: oklch(0.910 0.093 180.4); /* #99F6E4 */
+  --heat-4: oklch(0.953 0.050 180.8); /* #CCFBF1 */
 
   /* shadcn/ui aliases — `accent` here is shadcn's hover surface, NOT a track colour */
   --card: var(--surface);
