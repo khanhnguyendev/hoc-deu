@@ -160,6 +160,11 @@ export default defineConfig([
     },
   },
   {
+    // global-error replaces the root layout: it is a Client Component that sets the font classes.
+    files: ['app/global-error.tsx'],
+    rules: { 'no-restricted-syntax': syntax() },
+  },
+  {
     files: ['app/layout.tsx'],
     rules: {
       'no-restricted-syntax': syntax({
