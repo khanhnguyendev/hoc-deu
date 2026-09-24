@@ -19,14 +19,18 @@ export async function expectNoAxeViolations(
  * Scans the current page in the light and then the dark theme: switches `prefers-color-scheme`,
  * waits for next-themes to set the `dark` class accordingly, then runs axe. For flows whose users
  * cannot be created twice in parallel (one fixed e-mail), and to scan each page of a flow in both
- * themes without repeating the flow.
+ * themes without repeating the flow. `options` as for `expectNoAxeViolations` (an open overlay
+ * disables `aria-hidden-focus`, M1 deferred #19).
  */
-export async function expectNoAxeViolationsInBothThemes(page: Page): Promise<void> {
+export async function expectNoAxeViolationsInBothThemes(
+  page: Page,
+  options?: { disableRules?: string[] },
+): Promise<void> {
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
     await expect
       .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
       .toBe(colorScheme === 'dark')
-    await expectNoAxeViolations(page)
+    await expectNoAxeViolations(page, options)
   }
 }

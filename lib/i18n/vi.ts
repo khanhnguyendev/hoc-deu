@@ -139,6 +139,72 @@ export const vi = {
     comingSoonTitle: 'Phần thiết lập lộ trình sắp có',
     comingSoonBody: 'Tại đây bạn sẽ chọn lộ trình, số phút mỗi ngày và lịch học của mình.',
   },
+  /**
+   * /admin/users, the approval queue (§2.4, task 2.8). `{count}`, `{date}` and `{name}` are
+   * replaced with a formatted number, a formatted day and the user's name.
+   */
+  admin: {
+    users: {
+      pending: 'Chờ duyệt ({count})',
+      active: 'Đang hoạt động',
+      suspended: 'Tạm khoá',
+      rejected: 'Bị từ chối',
+      emptyPending: 'Không có tài khoản nào chờ duyệt.',
+      emptyActive: 'Không có tài khoản nào đang hoạt động.',
+      emptySuspended: 'Không có tài khoản nào bị tạm khoá.',
+      emptyRejected: 'Không có tài khoản nào bị từ chối.',
+      adminBadge: 'Quản trị viên',
+      you: 'Bạn',
+      joined: 'Tham gia {date}',
+      unnamed: 'Chưa có tên',
+      actionsFor: 'Thao tác với {name}',
+    },
+    actions: {
+      approve: 'Duyệt',
+      reject: 'Từ chối',
+      suspend: 'Tạm khoá',
+      reactivate: 'Kích hoạt lại',
+      promote: 'Đặt làm quản trị',
+      demote: 'Bỏ quyền quản trị',
+    },
+    /** ConfirmDialog copy for the actions that need a second step (reject, suspend, roles). */
+    confirm: {
+      reject: {
+        title: 'Từ chối tài khoản của {name}?',
+        description: 'Người này sẽ không dùng được Học Đều. Bạn có thể kích hoạt lại sau.',
+      },
+      suspend: {
+        title: 'Tạm khoá tài khoản của {name}?',
+        description: 'Người này sẽ không dùng được Học Đều cho đến khi được kích hoạt lại.',
+      },
+      promote: {
+        title: 'Đặt {name} làm quản trị viên?',
+        description: 'Quản trị viên có thể duyệt, tạm khoá và đổi quyền của các tài khoản khác.',
+      },
+      demote: {
+        title: 'Bỏ quyền quản trị của {name}?',
+        description: 'Tài khoản này sẽ trở lại là học viên và không vào được trang quản trị.',
+      },
+    },
+    /** Toasts after a successful action. */
+    results: {
+      approved: 'Đã duyệt tài khoản.',
+      rejected: 'Đã từ chối tài khoản.',
+      suspended: 'Đã tạm khoá tài khoản.',
+      reactivated: 'Đã kích hoạt lại tài khoản.',
+      promoted: 'Đã đặt làm quản trị viên.',
+      demoted: 'Đã bỏ quyền quản trị.',
+    },
+    /** The admin functions' error codes (20260925000300_rpc.sql), shown in the row and a toast. */
+    errors: {
+      invalid: 'Yêu cầu không hợp lệ.',
+      self: 'Bạn không thể thay đổi tài khoản của chính mình.',
+      notFound: 'Không tìm thấy tài khoản này. Bạn tải lại trang nhé.',
+      changed: 'Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.',
+      noChange: 'Tài khoản đã có quyền này. Bạn tải lại trang nhé.',
+      failed: 'Không thực hiện được thao tác. Bạn thử lại nhé.',
+    },
+  },
   /** /today until the dashboard arrives (task 5.1). */
   today: {
     comingSoonTitle: 'Kế hoạch hôm nay sắp có',

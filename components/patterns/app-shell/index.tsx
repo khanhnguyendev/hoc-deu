@@ -1,4 +1,5 @@
 import type * as React from 'react'
+import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { vi } from '@/lib/i18n/vi'
 import { BottomNav } from './bottom-nav'
@@ -9,7 +10,9 @@ import { TopBar } from './top-bar'
  * The signed-in frame (DESIGN_SYSTEM §5): sidebar from 1024 px; top bar + bottom navigation below;
  * a skip link; `main#main` padded so nothing hides behind the bottom navigation, stacking the
  * page's sections with the section spacing (pages carry no classes of their own). The mobile top
- * bar's title is derived from the path (R3), not passed in.
+ * bar's title is derived from the path (R3), not passed in. It mounts the one `Toaster` of the
+ * signed-in pages (task 2.8): layouts and pages may not import `components/ui`, and the toaster
+ * already keeps clear of this shell's bottom navigation.
  */
 function AppShell({
   user,
@@ -44,6 +47,7 @@ function AppShell({
         </div>
         <BottomNav />
       </div>
+      <Toaster />
     </TooltipProvider>
   )
 }

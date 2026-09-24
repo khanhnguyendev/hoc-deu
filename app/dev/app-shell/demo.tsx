@@ -5,7 +5,7 @@ import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar
 import { PageHeader } from '@/components/patterns/page-header'
 import { Section } from '@/components/patterns/section'
 import { Button } from '@/components/ui/button'
-import { Toaster, toast } from '@/components/ui/toaster'
+import { toast } from '@/components/ui/toaster'
 
 const TODAY = '2026-02-04'
 const DAYS: HeatmapDay[] = Array.from({ length: 120 }, (_, i) => ({
@@ -15,7 +15,7 @@ const DAYS: HeatmapDay[] = Array.from({ length: 120 }, (_, i) => ({
 
 /**
  * The real, uncontained AppShell on a long page — the catalog demo is boxed in, so fixed and
- * sticky layers are only exercised here (e2e/app-shell.spec.ts).
+ * sticky layers are only exercised here (e2e/app-shell.spec.ts). The AppShell mounts the Toaster.
  */
 export function AppShellDemo() {
   return (
@@ -42,7 +42,6 @@ export function AppShellDemo() {
           </div>
         </Section>
       </div>
-      <Toaster />
     </AppShell>
   )
 }

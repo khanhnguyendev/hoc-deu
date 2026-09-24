@@ -78,6 +78,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { AdminActionResult } from '@/features/admin/actions'
+import { UserQueue } from '@/features/admin/components/user-queue'
+import { UserRowActions } from '@/features/admin/components/user-row-actions'
+import type { AdminUserRow } from '@/features/admin/queries'
 import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
@@ -293,6 +297,51 @@ const PROBLEMS = [
 ]
 
 const emptyCards = <EmptyState icon={Inbox} title="Không có thẻ nào đến hạn" />
+
+/** The admin actions as no-ops: they "succeed" and toast, but nothing changes. */
+const demoSetUserStatus = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.admin.results.approved,
+})
+const demoSetUserRole = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.admin.results.promoted,
+})
+const demoFailure = async (): Promise<AdminActionResult> => ({
+  ok: false,
+  message: vi.admin.errors.changed,
+})
+
+const demoUser = (user: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): AdminUserRow => ({
+  email: `${user.id}@example.test`,
+  displayName: null,
+  role: 'learner',
+  status: 'active',
+  createdAt: '2026-01-12T02:00:00Z',
+  approvedAt: null,
+  onboardedAt: null,
+  isSelf: false,
+  ...user,
+})
+
+// Row names are constants: e2e/components.spec.ts reads every quoted `name` property in this
+// file as a catalog entry name.
+const DEMO_LEARNER = 'Trần Thị Bình'
+const DEMO_OTHER_ADMIN = 'Lê Văn Dũng'
+
+const DEMO_ADMIN_USERS: AdminUserRow[] = [
+  demoUser({
+    id: 'binh',
+    displayName: DEMO_LEARNER,
+    status: 'pending',
+    createdAt: '2026-02-02T09:30:00Z',
+  }),
+  demoUser({ id: 'cuong', status: 'pending', createdAt: '2026-02-03T20:00:00Z' }),
+  demoUser({ id: 'an', displayName: DEMO_USER, role: 'admin', isSelf: true }),
+  demoUser({ id: 'dung', displayName: DEMO_OTHER_ADMIN, role: 'admin' }),
+  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
+  demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
+]
 
 export const CATALOG: Entry[] = [
   {
@@ -1157,6 +1206,78 @@ export const CATALOG: Entry[] = [
             <PendingStatus status="rejected" />
             <PendingStatus status="suspended" />
           </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'UserQueue',
+    layer: 'features',
+    file: 'features/admin/components/user-queue.tsx',
+    demos: [
+      {
+        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn không có thao tác',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <UserQueue
+              users={DEMO_ADMIN_USERS}
+              setUserStatus={demoSetUserStatus}
+              setUserRole={demoSetUserRole}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Không có tài khoản nào chờ duyệt',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <UserQueue
+              users={DEMO_ADMIN_USERS.filter((user) => user.status !== 'pending')}
+              setUserStatus={demoSetUserStatus}
+              setUserRole={demoSetUserRole}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'UserRowActions',
+    layer: 'features',
+    file: 'features/admin/components/user-row-actions.tsx',
+    demos: [
+      {
+        title:
+          'Theo trạng thái: chờ duyệt, đang hoạt động (học viên, quản trị), tạm khoá, bị từ chối',
+        render: () => (
+          <div className="flex flex-col gap-4">
+            {(
+              [
+                ['pending', 'learner'],
+                ['active', 'learner'],
+                ['active', 'admin'],
+                ['suspended', 'learner'],
+                ['rejected', 'learner'],
+              ] as const
+            ).map(([status, role]) => (
+              <UserRowActions
+                key={`${status}-${role}`}
+                user={{ id: `${status}-${role}`, name: DEMO_LEARNER, status, role }}
+                setUserStatus={demoSetUserStatus}
+                setUserRole={demoSetUserRole}
+              />
+            ))}
+          </div>
+        ),
+      },
+      {
+        title: 'Thao tác thất bại: thông báo trong hàng và toast',
+        render: () => (
+          <UserRowActions
+            user={{ id: 'failed', name: DEMO_OTHER_ADMIN, status: 'pending', role: 'learner' }}
+            setUserStatus={demoFailure}
+            setUserRole={demoFailure}
+          />
         ),
       },
     ],

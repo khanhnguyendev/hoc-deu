@@ -227,6 +227,20 @@ export type Database = {
     }
     Functions: {
       admin_bootstrap: { Args: { p_user_id: string }; Returns: boolean }
+      admin_list_users: {
+        Args: never
+        Returns: {
+          approved_at: string
+          avatar_url: string
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          onboarded_at: string
+          role: string
+          status: string
+        }[]
+      }
       admin_set_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: Json

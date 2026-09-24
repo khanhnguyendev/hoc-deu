@@ -254,6 +254,9 @@ from `lib/i18n/vi.ts`.
   and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
+- **Toasts:** mounts the one `Toaster` of the signed-in pages (task 2.8) — layouts and pages may
+  not import `components/ui`, so a feature's `toast()` (e.g. the approval queue) needs no mount of
+  its own; the catalog's boxed demo therefore shows a second copy of catalog toasts
 
 ### Banner
 
@@ -492,6 +495,46 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** radio group labelled "Giao diện"
 
 ## features
+
+### UserQueue
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/user-queue.tsx`
+- **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
+  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended') => Promise<AdminActionResult>`,
+  `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the server actions come in as
+  props (passed on to `UserRowActions`), so the catalog passes no-ops
+- **Variants:** none
+- **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
+  khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
+  duyệt." for the queue); a row shows the name (the e-mail when there is none), the e-mail, "Tham
+  gia {day}" (the sign-up's calendar day in Asia/Ho_Chi_Minh, `formatDay`), a "Quản trị viên"
+  Badge for admins, and `UserRowActions` — the acting admin's own row shows a "Bạn" Badge and no
+  actions (decision 17)
+- **Usage:** `<PageHeader title="Người dùng" /><UserQueue users={await listUsers()}
+  setUserStatus={setUserStatus} setUserRole={setUserRole} />` (`app/(admin)/admin/users/page.tsx`)
+- **Accessibility:** each section is a region named by its h2; the empty-state titles are h3;
+  rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone
+
+### UserRowActions
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/user-row-actions.tsx`
+- **Props:** `user: { id, name, status: AccountStatus, role: Role }`, `setUserStatus`,
+  `setUserRole` (as UserQueue)
+- **Variants:** one button set per status (decision 17): pending — "Duyệt", "Từ chối"; active —
+  "Tạm khoá" and "Đặt làm quản trị" (learner) or "Bỏ quyền quản trị" (admin); suspended or
+  rejected — "Kích hoạt lại". "Duyệt" / "Kích hoạt lại" are `secondary`, the rest `outline`
+- **States:** idle; running (the pressed button shows its spinner, the others are disabled);
+  confirming — "Từ chối", "Tạm khoá" and the role changes open a ConfirmDialog first
+  (destructive, except "Đặt làm quản trị"), pending while the action runs; failed — the message
+  also stays in the row (`text-danger` + icon), because a toast is never the only feedback for a
+  failure (DESIGN_SYSTEM §9)
+- **Usage:** rendered by UserQueue for every row but the admin's own
+- **Accessibility:** the buttons sit in a `group` named "Thao tác với {name}", so each "Duyệt" is
+  announced with its account; the result is a toast in the polite live region (the AppShell's
+  Toaster); the confirm dialog is an `alertdialog` named "Từ chối tài khoản của {name}?" (etc.),
+  focus trapped and restored
 
 ### Landing
 
