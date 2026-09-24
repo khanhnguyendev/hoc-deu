@@ -2407,8 +2407,17 @@ template; each ADR is written in the milestone that implements it.
 - **Claude plan (resolved):** Max — the Routine holds the bot token as an API credential (§6.3).
 - **§8.4 amendments (resolved):** approved and applied; compaction deferred with a trigger.
 - **§5.11 (resolved):** option A.
-- **M0 checks (to do):** `hoc-deu.vercel.app` availability; trademark/domain search for
-  "Học Đều"; GitHub artifact storage quota for public repos.
+- **M0 checks (done 2026-09-24):**
+  - `hoc-deu.vercel.app`: not taken (`x-vercel-error: DEPLOYMENT_NOT_FOUND`); claimed when the
+    Vercel project is created (task 2.2).
+  - "Học Đều": no conflicting learning app found in the 2026-09-23 web search (not a formal
+    trademark search).
+  - GitHub Actions artifact storage for public repos: the billing page
+    (<https://docs.github.com/en/billing/concepts/product-billing/github-actions>) makes **minutes**
+    free for public repos on standard runners but states no storage exemption, so we assume the
+    Free plan's **500 MB** artifact-storage allowance applies. **Action for task 5.7:** size the
+    backup retention against 500 MB (compressed dumps; e.g. keep 7 daily + 4 weekly, or move
+    archives to a private store) before enabling the backup workflow.
 
 ---
 
