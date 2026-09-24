@@ -103,5 +103,5 @@ function StatusPill({
   )
 }
 
-export { STATUS_PILL, StatusPill }
+export { pillVariants, STATUS_PILL, StatusPill }
 export type { PillStatus }

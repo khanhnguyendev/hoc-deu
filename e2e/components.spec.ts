@@ -79,3 +79,48 @@ test.describe('theme toggle on a phone', () => {
     expect(overflow).toBe(0)
   })
 })
+
+test.describe('filter chips', () => {
+  test.use({ viewport: { width: 390, height: 800 } })
+
+  test('are 32 px tall, hit-testable over 44 px, and never overlap (DESIGN_SYSTEM §5)', async ({
+    page,
+  }) => {
+    await page.goto('/dev/components')
+    const chips = page.getByRole('group', { name: 'Lọc theo trạng thái' }).getByRole('button')
+    expect(await chips.count()).toBeGreaterThanOrEqual(4)
+    const result = await chips.evaluateAll((els) => {
+      const hit = (el: Element, x: number, y: number) => {
+        const target = document.elementFromPoint(x, y)
+        return target !== null && (target === el || el.contains(target))
+      }
+      // Scroll once so every rect shares one coordinate space.
+      els[0]?.parentElement?.scrollIntoView({ block: 'center' })
+      return els.map((el) => {
+        const r = el.getBoundingClientRect()
+        const x = r.left + r.width / 2
+        return {
+          height: r.height,
+          // >= 44 px: 32 px + 6 px each side (probe just inside 6 px).
+          top: hit(el, x, r.top - 5.9),
+          bottom: hit(el, x, r.bottom + 5.9),
+          // The largest possible hit area (8 px each side) for the overlap check.
+          rect: { left: r.left, right: r.right, top: r.top - 8, bottom: r.bottom + 8 },
+        }
+      })
+    })
+    for (const chip of result) {
+      expect(chip.height).toBeCloseTo(32, 0)
+      expect(chip.top && chip.bottom).toBe(true)
+    }
+    // Expanded hit areas of different chips never intersect (>= 8 px apart in a row).
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        const [a, b] = [result[i]!.rect, result[j]!.rect]
+        const apart =
+          a.right + 8 <= b.left || b.right + 8 <= a.left || a.bottom <= b.top || b.bottom <= a.top
+        expect(apart, `chips ${i} and ${j} overlap`).toBe(true)
+      }
+    }
+  })
+})

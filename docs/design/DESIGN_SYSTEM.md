@@ -240,6 +240,9 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
   2/3 column, stats in a 1/3 column.
 - **Touch targets:** ≥ 44 × 44 px for anything tappable (buttons, list rows, pills that act,
   month-view heatmap cells); ≥ 8 px between adjacent targets.
+  - **Chips that act** (FilterChip) keep a **32 px visual height with a hit area of at least
+    44 px** — a transparent region 8 px above and below the chip — and sit **≥ 8 px apart** in a
+    row and 20 px between rows, so hit areas never overlap (owner, 2026-09-24; e2e-tested).
 - **Forms:** one column; label above field; helper text below; errors under the field
   (`text-danger`, icon + message), plus a summary at the top of long forms (onboarding).
 
@@ -303,7 +306,7 @@ data-driven components render loading / empty / error through the `LoadingState`
 | **Button** (ui) | Variants `primary`, `secondary` (`surface-muted`), `outline` (`border-strong`), `ghost`, `destructive`, `link`. Sizes `sm` 36 px (desktop only), `md` 44 px (default), `lg` 48 px. Loading shows a spinner and keeps the width. One `primary` per view. |
 | **Input / Select / Textarea** (ui) | 44 px tall, `border-strong`, `rounded-md`, label always visible (no placeholder-as-label), error below. |
 | **Card** (ui) | `bg-surface`, `border`, `rounded-lg`, padding per §5. Clickable cards get `hover:shadow-sm` and a visible focus ring. |
-| **StatusPill** (pattern) | Colours, icon and label from §3.3; `text-xs` weight 500, `rounded-full`, 24 px tall (not tappable) or 32 px (filter chips). |
+| **StatusPill** (pattern) | Colours, icon and label from §3.3; `text-xs` weight 500, `rounded-full`, 24 px tall (not tappable). Filter chips use **FilterChip**: the same pill at 32 px with a 44 px hit area and `aria-pressed` (§5). |
 | **PageHeader, Section** (patterns) | Title `text-2xl md:text-3xl`, optional description in `muted-foreground`, actions on the right (stack below on mobile). |
 | **PlanBlockCard** (feature) | 4 px track stripe on the left (`bg-track`), block kind + estimated minutes, item rows, and a full-width **one-tap check-in** button (`primary`, 48 px) at the bottom. Checked-in state collapses the button into a status row (done / partial / skipped) with "Sửa". |
 | **CheckInSheet** (feature) | Bottom sheet on mobile, dialog on desktop: status segmented control (Xong / Một phần / Bỏ qua), minutes stepper (pre-filled), optional note. Focus moves to the sheet title; `Esc` closes; the result is announced in a polite live region. |

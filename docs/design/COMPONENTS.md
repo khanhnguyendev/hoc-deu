@@ -289,6 +289,19 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** `role="alert"`, so it is announced when it replaces loading content; what
   failed + "Thử lại"; no exclamation marks
 
+### FilterChip
+
+- **Layer:** pattern
+- **File:** `components/patterns/filter-chip.tsx`
+- **Props:** `status: PillStatus`, `pressed: boolean`, `onPressedChange(pressed)`; wrap chips in
+  `FilterChipGroup` (`label: string`)
+- **Variants:** the StatusPill statuses at 32 px
+- **States:** off, on (`aria-pressed`, 2 px `primary` ring), focus-visible
+- **Usage:** `<FilterChipGroup label="Lọc theo trạng thái"><FilterChip status="weak" pressed={on} onPressedChange={setOn} /></FilterChipGroup>`
+- **Accessibility:** toggle button named by its status label; 32 px visual with a transparent hit
+  area of at least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never
+  overlap
+
 ### LoadingState
 
 - **Layer:** pattern

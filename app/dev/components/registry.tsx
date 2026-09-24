@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
+import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { PageHeader } from '@/components/patterns/page-header'
@@ -148,6 +149,30 @@ function SheetDemo({ side }: { side: 'bottom' | 'right' }) {
         </SheetHeader>
       </SheetContent>
     </Sheet>
+  )
+}
+
+const FILTERS: PillStatus[] = ['not-started', 'weak', 'ok', 'strong', 'mastered', 'skipped']
+
+function FilterChipDemo() {
+  const [on, setOn] = useState<PillStatus[]>(['weak'])
+  return (
+    <div className="max-w-xs">
+      <FilterChipGroup label="Lọc theo trạng thái">
+        {FILTERS.map((status) => (
+          <FilterChip
+            key={status}
+            status={status}
+            pressed={on.includes(status)}
+            onPressedChange={(pressed) =>
+              setOn((current) =>
+                pressed ? [...current, status] : current.filter((s) => s !== status),
+              )
+            }
+          />
+        ))}
+      </FilterChipGroup>
+    </div>
   )
 }
 
@@ -686,6 +711,17 @@ export const CATALOG: Entry[] = [
             <ErrorState title="Không lưu được check-in" description="Kết nối bị gián đoạn." />
           </div>
         ),
+      },
+    ],
+  },
+  {
+    name: 'FilterChip',
+    layer: 'patterns',
+    file: 'components/patterns/filter-chip.tsx',
+    demos: [
+      {
+        title: 'Status filters: 32 px chips, 44 px hit areas, wrapping',
+        render: () => <FilterChipDemo />,
       },
     ],
   },
