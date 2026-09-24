@@ -35,10 +35,11 @@ sections for every task.
   written **at the start of that milestone** from the code that exists by then (component APIs,
   generated DB types, migrations), reviewed by the owner, then executed. Writing step-level code for
   M1–M7 today would describe interfaces that do not exist yet and go stale.
-- **Execution status:** M0 done (PR #1, merged 2026-09-24). M1: step-level detail in
-  [Part B-M1](#part-b-m1--component-library-step-by-step), written at the start of M1 and reviewed
-  by the owner together with the M1 pull request (the owner asked to stop only once that PR is
-  open).
+- **Execution status:** M0 done (PR #1, merged 2026-09-24). M1 done (PR #3, merged 2026-09-24):
+  step-level detail in [Part B-M1](#part-b-m1--component-library-step-by-step), reviewed by the
+  owner together with the M1 pull request. M2: step-level detail in
+  [Part B-M2](#part-b-m2--auth-onboarding-settings-step-by-step), written at the start of M2;
+  the owner reviews it before execution.
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
@@ -172,11 +173,18 @@ Legend: **[owner]** = needs the owner's accounts or clicks; **v1.0 / v1.1** = re
 | 2.10 Onboarding | `features/onboarding/*`, `app/(onboarding)/onboarding` — tracks → minutes → DSA variant (default by budget, simulated finish) → start date/timezone/day start → code language → template preview; events `track.enrolled`, `schedule.changed`, `settings.changed`, `onboarding.completed`; uses `localDay` (2.3) **Writes ADR-0015.** | 60 min → 8w default, 75 → 10w; finish text uses vi-VN decimal comma; e2e completes onboarding | `pnpm verify:full` |
 | 2.11 Settings + account deletion | `features/settings/*`, `app/(app)/settings` (template/throttle read-only), delete account + privacy text (90-day backup note); uses `localDay` (2.3) | e2e: change timezone takes effect next day start; deletion cascades (pgTAP) | `pnpm verify:full` |
 
+**Part B-M2 changes to this table** (decisions there): the admin functions move from 2.4 to a new
+task **2.5b** with `apply_event` / `apply_system_event` (1); a new task **2.6a** adds the form and
+focus-page primitives (2); **2.11b** splits account deletion out of 2.11 (3); 2.2's owner steps
+run at the PR stop (4); no browser client or client env schema until a consumer exists (11);
+`yaml` becomes a runtime dependency (12); `track.reset` moves to 4.9 / 5.4 (18);
+`admin_list_users()` is added in 2.8 (19); 2.7 splits into **2.7a** / **2.7b** (24).
+
 ### M3 — Track manifests, content loading and validation (v1.0)
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
-| 3.1 Content schemas | `lib/content/item-types/{problem,flashcard,lesson,exercise,prompt}.ts`, `lib/content/schemas/{manifest,roadmap}.ts` | valid/invalid fixtures per schema; exercise kinds; premium needs alternative | `pnpm test` |
+| 3.1 Content schemas | `lib/content/item-types/{problem,flashcard,lesson,exercise,prompt}.ts`, `lib/content/schemas/roadmap.ts`; **extends** `lib/content/schemas/manifest.ts` (created loose in 2.9) | valid/invalid fixtures per schema; exercise kinds; premium needs alternative | `pnpm test` |
 | 3.2 `content:build` | `tools/content/build.ts`, `tools/content/allowlist.ts`, MDX safety check, `ids.lock`, `.generated/catalog.json`, MDX import map, report; **`pnpm verify` now starts with `content:build`** and CI runs it **Writes ADR-0010.** | cross-refs; `requires` cycles and order; anchor ≠ practice; solutions/tests required only with a note; reserved `user:` prefix; MDX: `import`/`export`/expressions/`javascript:` rejected; **[RF-3]** IDs/slugs ASCII, titles NFC | `pnpm content:build && pnpm test` |
 | 3.3 MDX pipeline | `next.config.ts` (`@next/mdx`, remark plugins as strings), `mdx-components.tsx` (allow-listed components), shiki at build **Writes ADR-0011.** M1 deferred #20: the offline-build guard also scans root files (`next.config.ts`, `postcss.config.mjs`, `mdx-components.tsx`). | lesson renders sections in order; `<Term>` sets `lang="en"`; quiz score | `pnpm verify` |
 | 3.4 Item registry + track pages | `features/items/{registry.ts,<type>/Page.tsx,<type>/Row.tsx}`, `app/(app)/tracks`, `app/(app)/t/[trackId]`, `app/(app)/t/[trackId]/items/[itemId]` **Writes ADR-0009.** | no `switch` on item type outside registry (architecture test); each type renders page and row | `pnpm verify && pnpm test:e2e` |
@@ -204,7 +212,7 @@ need it first.
 | 4.6 buildPlan + invariants | `plan/buildPlan.ts` + fast-check property tests | planned minutes ≤ budget or budget + largest item; every core item queued once; **[RF-4]** empty catalog/new user/future start → valid empty state |
 | 4.7 Stats | `stats/{streak,weeklySummary,weakTopics}.ts` | streak across schedule change; weak topics ≥ 2 Weak |
 | 4.8 Simulation + projections | `plan/__tests__/simulation.test.ts`, `tools/sim/projections.ts` (`pnpm sim:projections`) **Writes ADR-0014, ADR-0037.** | §5.10 thresholds (recalibrated once); projection inputs hash |
-| 4.9 Derived tables + SQL | migrations: `item_state`, `plan_block_state`, `daily_activity`, `day_plans` (+ `seen_at`, `updated_at`), full `apply_event`, `mark_plan_seen` | pgTAP: **[RF-2]** duplicate event id → one row; version mismatch aborts; RLS on every derived table |
+| 4.9 Derived tables + SQL | migrations: `item_state`, `plan_block_state`, `daily_activity`, `day_plans` (+ `seen_at`, `updated_at`), full `apply_event` (incl. `track.reset` clearing the track's derived rows — Part B-M2 decision 18), `mark_plan_seen` | pgTAP: **[RF-2]** duplicate event id → one row; version mismatch aborts; RLS on every derived table |
 
 Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 
@@ -215,7 +223,7 @@ Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 | 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
 | 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
-| 5.4 "Học thêm" + off-plan study | `features/today/*` | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
+| 5.4 "Học thêm" + off-plan study; "Bắt đầu lại" | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
 | 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`) **Writes ADR-0031.** | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
 | 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
@@ -2493,3 +2501,1949 @@ browser keeps content in the safe areas; root scroll padding keeps focus clear o
    (each fix RED → GREEN, suite green); minors ledgered.
 3. Push, open the PR "M1: component library + /dev/components", CI green (`verify` with Google
    Fonts blocked, `e2e`, CodeQL). **Stop for the owner's review** — do not merge, do not start M2.
+
+## Part B-M2 — Auth, onboarding, settings, step by step
+
+Written at the start of M2 (2026-09-24) from the code merged in M0–M1 (PR #1, PR #3) and a
+throwaway spike of the Supabase tooling (CLI, `config.toml`, seed users, pgTAP, keys — findings in
+task 2.1). Executed **subagent-driven** (superpowers:subagent-driven-development): a fresh
+implementer and a fresh reviewer per task, then one whole-branch review on the most capable model,
+then the PR. The owner reviews this section before execution starts.
+
+**Branch:** `feat/m2-auth` from `main` at `c2a9583` (M1 merged); this section is its first commit.
+
+**Execution order:** 2.1 → 2.3 → 2.4 → 2.5 → 2.5b → 2.6 → 2.6a → 2.7a → 2.7b → 2.8 → 2.9 → 2.10 →
+2.11 → 2.11b → 2.2 (runbook). Each task is one reviewable change (one commit unless it says two) and ends
+with its verification command green.
+
+**Decisions taken while writing (each is a ledger ruling; the owner can overturn any):**
+
+1. **Admin functions move from 2.4 to a new task 2.5b.** `admin_set_status`, `admin_set_role` and
+   `admin_bootstrap` write audit events, and `events` is created in 2.5. Task 2.5 is split: **2.5**
+   = `events`, `event_quota`, triggers, `local_day` SQL + parity, payload schemas (ADR-0030);
+   **2.5b** = `apply_event`, `apply_system_event`, admin functions, the TypeScript apply helpers
+   (ADR-0007). The AI-flag function `admin_set_ai_flag` is v1.1 (§0 release table) and is not
+   built.
+2. **New task 2.6a — form and focus-page primitives** (Checkbox, RadioGroup, NativeSelect,
+   FocusLayout, FormField, FormErrorSummary, StepIndicator, ChoiceCard), because sign-in, pending,
+   onboarding and settings all need them, and a component must exist (with its catalog entry)
+   before its first consumer.
+3. **2.11 is split** into **2.11** (settings) and **2.11b** (account deletion + privacy text): two
+   independent review surfaces.
+4. **2.2 runs last and only its repo part runs in the loop:** the runbook `docs/ops/staging.md`
+   (no secrets). The owner's steps — Supabase staging project, Vercel project, Google/GitHub OAuth
+   apps, the real Google and GitHub sign-in on a staging preview (2.7a) — happen at the PR stop and
+   are listed in the PR description as open owner checks.
+5. **Schedules.** A user without a `schedule_versions` row uses the default
+   `{ Asia/Ho_Chi_Minh, 04:00 }`. The **first** schedule (onboarding) takes effect immediately
+   (`effectiveAt` = the server's `now`), because no past day exists to rewrite; every later change
+   takes effect at the **next day start** of the schedule in force (§5.9). `day_starts_at` is
+   limited to **00:00–12:00 in 30-minute steps** (DB check + Zod).
+6. **Time-zone IDs are canonicalised.** Node 22.17 (ICU 77.1, tz 2025b — observed 2026-09-24)
+   reports `Asia/Saigon` from `resolvedOptions()` and omits `Asia/Ho_Chi_Minh` from
+   `Intl.supportedValuesOf('timeZone')`; browsers may do the same. `canonicalTimeZone()` maps the
+   CLDR legacy aliases to IANA names (`Asia/Saigon` → `Asia/Ho_Chi_Minh`, …) before anything is
+   shown or stored, and the database validates every stored zone against `pg_timezone_names`.
+7. **Theme stays client-side** (`next-themes`, local storage). `profiles` has no theme column, so no
+   `settings.changed` event is emitted for the theme in v1.0; the payload field stays in the schema
+   for later.
+8. **`apply_event` in M2 applies state-table events only** (`track.*` except `reset`,
+   `schedule.changed`, `settings.changed`); every other learner type raises `not_implemented`
+   until M4/M5, and `p_changes` / `p_expected` must be empty (derived tables arrive in 4.9). The Zod
+   payload schemas for **every** §4.4 type exist from 2.5.
+9. **Event IDs are derived per request.** Every form that emits events carries a `requestId`: a
+   UUID the **server page creates on each render** and passes as a prop (never `useState` in the
+   client — that would repeat ids after a save and mismatch on hydration). The server derives each
+   event id as UUIDv5(`requestId`, a stable key such as `track.enrolled:dsa`). A double submit or a
+   retry within one render records each event once (groundwork for RF-2); a successful save
+   revalidates the page, which brings a fresh `requestId`, so the next change is a new event.
+10. **`requireOnboarded()`** (the `(app)` group: `requireActive` + onboarded) and
+    **`requireDevAccess()`** (`/dev/*`: admin-only in production) join the DAL, the guard list in
+    `CLAUDE.md` and the architecture test. `requireDevAccess` and the proxy read
+    `process.env.VERCEL_ENV` directly: `/dev/*` is prerendered at build time, where no runtime
+    secrets exist.
+11. **No browser Supabase client in M2** (`lib/supabase/client.ts`) and no client env schema
+    (§2.3 and Part A 2.6 list them): nothing client-side talks to Supabase yet; both arrive with
+    their first consumer. `lib/env.ts` is **not** `server-only` (the proxy and `instrumentation.ts`
+    import it, and the `server-only` package throws outside the `react-server` condition); secrets
+    stay safe because only `NEXT_PUBLIC_*` values are ever inlined into client bundles, and the
+    secret-key client lives behind `server-only` in `lib/supabase/admin.ts`.
+12. **`yaml` is a runtime dependency** (approved package, §7.10): the M2 manifest loader reads
+    `content/tracks/*/track.yaml` at request time, and `next.config.ts` ships those files with
+    `outputFileTracingIncludes`. M3's generated catalog may move it back to `devDependencies`.
+13. **Placeholders:** `/today` is a placeholder until 5.1; `/onboarding` is a placeholder in 2.7a and
+    becomes the wizard in 2.10; `/admin` redirects to `/admin/users` until 5.6.
+14. **End-to-end tests create their own users** through the local admin API (secret key of the
+    local stack) — one user per test, so the parallel desktop and mobile projects never race.
+    `supabase/seed.sql` keeps three synthetic users for manual local use only.
+15. **Playwright always targets the local stack:** `playwright.config.ts` reads `supabase status`
+    and passes the URL and keys to the web server and the tests explicitly, so a developer's
+    `.env.local` can never point e2e at a remote project (process env wins over `.env*` files).
+16. **Playwright traces** stay `retain-on-failure`, uploaded only when a job fails, kept 7 days:
+    they hold synthetic local users and the local stack's default keys only (M1 follow-up at 2.1).
+17. **Admin actions never target the acting admin** (no self-lockout). Status transitions:
+    `pending → active | rejected`, `active → suspended`, `suspended | rejected → active`.
+18. **Tracks in settings:** add, pause, resume and remove (state events). "Bắt đầu lại"
+    (`track.reset`) needs derived rows to clear, so it moves to Part A: `apply_event` handles it in
+    4.9 and the button ships in 5.4 (both rows updated).
+19. **`admin_list_users()`** is added in 2.8: the approval queue needs e-mail addresses from
+    `auth.users`; `admin_user_overview()` stays the M5 aggregate.
+20. **Site URL:** `NEXT_PUBLIC_SITE_URL` on production and locally; on Vercel previews the OAuth
+    `redirectTo` uses `https://$VERCEL_BRANCH_URL` (the owner allow-lists the preview wildcard in
+    the staging project, 2.2).
+21. **`CRON_SECRET` is optional** in `lib/env.ts` until task 5.7 adds the cron route.
+22. **Onboarding ranges:** minutes per track 10–240 in steps of 5; a start date in the past becomes
+    today, a future start date may be at most 60 days ahead.
+23. **Bootstrap never overrides an admin decision about an admin:** `admin_bootstrap` is a no-op
+    for any profile whose role is already `admin`, whatever its status (§2.5: "if the profile is not
+    yet an admin"), so a suspended admin stays suspended. A listed e-mail whose role was changed to
+    `learner` is promoted again at the next sign-in — to demote a listed admin, remove the e-mail
+    from `ADMIN_EMAILS` first (ADR-0004).
+24. **Task 2.7 is split** into **2.7a** (sign-in, OAuth callback, test login, bootstrap, seed, the
+    guarded route groups with `loading.tsx` / `error.tsx` and placeholders) and **2.7b** (pending
+    screen, landing page, AppShell sign-out and title — M1 deferred #5). The shared track pieces
+    live in `lib/content/track-options.ts` (server) and `features/tracks` (client-safe components
+    only), because a feature `index.ts` that client components import must not re-export
+    server-only modules.
+
+**Subagent contract for every task:** read `CLAUDE.md`, the platform-design sections the task
+cites and this task's text; TDD (superpowers:test-driven-development) — the listed tests fail
+first; `pnpm verify` green before the commit (plus `pnpm test:db` / `pnpm test:e2e` where the task
+says so; both need the local stack: `pnpm db:start`); never read `.env*` or `docs/credentials/`;
+no dependency beyond those named in the task. Call `redirect()` / `notFound()` outside
+`try`/`catch` (or rethrow with `unstable_rethrow`) — they work by throwing. Nothing that runs
+during `next build` prerendering may call `serverEnv()`: CI's `verify` job builds without runtime
+secrets.
+
+### Task 2.1: Supabase local stack, env, DB CI, e2e harness
+
+**Spike findings (2026-09-24, CLI 2.117.0 — every item below was run):**
+
+- Versions (install exact): `supabase` **2.117.0** (dev); `@supabase/supabase-js` **2.117.1**,
+  `@supabase/ssr` **0.12.7**, `zod` **4.6.5**, `server-only` **0.0.1** (runtime). The CLI ships
+  its binary as platform `optionalDependencies` (no postinstall), so `pnpm-workspace.yaml` needs
+  **no** `allowBuilds` entry and `pnpm exec supabase` works right after install — CI uses it from
+  `node_modules` (no `setup-cli` action).
+- `supabase init` writes only `supabase/config.toml` (`[api] 54321`, `[db] 54322` / shadow 54320 /
+  `major_version = 17`, `[studio] 54323`, `[local_smtp]` = Mailpit 54324 — there is no
+  `[inbucket]` any more). Google/GitHub blocks are **not** generated.
+- `env(...)` works only in **string** fields: `enabled = "env(X)"` fails with
+  `CliConfigParseError`. With `enabled = true` and `client_id`/`secret` from unset env vars the
+  stack still starts (empty credentials) — CI needs no OAuth secrets.
+- `-x` names: `gotrue, realtime, storage-api, imgproxy, kong, mailpit, postgrest, postgres-meta,
+  studio, edge-runtime, logflare, vector, supavisor`. The test stack (db + kong + gotrue +
+  postgrest) starts in ~28 s warm, ~90 s cold (excluded images are still pulled).
+- `supabase status -o env` prints `API_URL`, `PUBLISHABLE_KEY` (`sb_publishable_…`) and
+  `SECRET_KEY` (`sb_secret_…`) — the new-style keys exist locally.
+- pgTAP is **not** installed by default: every test file starts with
+  `create extension if not exists pgtap with schema extensions;`. `supabase test db` runs every
+  `*.sql` file under `supabase/tests/database/` with `pg_prove`, each file in its own transaction.
+- Seeded password users work with the inserts in task 2.7a; `getClaims()` returns `sub` + `email`;
+  the secret-key client bypasses RLS and `auth.admin.deleteUser()` cascades.
+- `@supabase/ssr` 0.12.7: `createServerClient(url, key, { cookies: { getAll, setAll } })`;
+  `setAll(cookiesToSet, headers)` receives cache headers that must be set on the response.
+
+**Files:**
+
+- Create: `supabase/config.toml` (from `pnpm exec supabase init`, then the edits below),
+  `supabase/tests/database/_helpers.psql`, `supabase/tests/database/000-smoke.test.sql`,
+  `lib/env.ts`, `lib/env.test.ts`, `instrumentation.ts`, `.env.example`, `tools/test/server-only.ts`,
+  `lib/supabase/database.types.ts` (generated), `tools/db/local-env.ts`,
+  `tools/db/local-env.test.ts`, `e2e/support/test.ts`, `e2e/support/axe.ts`
+- Modify: `package.json`, `vitest.config.ts`, `.github/workflows/ci.yml`,
+  `.github/workflows/codeql.yml` (`persist-credentials: false`), `playwright.config.ts`, every
+  `e2e/*.spec.ts` (import `test`/`expect` from `./support/test`, axe via `./support/axe`),
+  `e2e/components.spec.ts` (overlays), `README.md` (Development), `CLAUDE.md` (Commands, Safety)
+
+**Interfaces:**
+
+- Produces `lib/env.ts` (deliberately **not** `server-only` — decision 11):
+
+  ```ts
+  export type VercelEnv = 'production' | 'preview' | 'development'
+  export type ServerEnv = {
+    supabaseUrl: string              // NEXT_PUBLIC_SUPABASE_URL (url)
+    supabasePublishableKey: string   // NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (non-empty)
+    supabaseSecretKey: string        // SUPABASE_SECRET_KEY (non-empty)
+    siteUrl: string                  // decision 20 — see below
+    adminEmails: readonly string[]   // ADMIN_EMAILS: comma list, trimmed, lower-cased, empties dropped
+    authTestLogin: boolean           // AUTH_TEST_LOGIN: 'true' | 'false' | unset (= false)
+    vercelEnv: VercelEnv | undefined // VERCEL_ENV
+    cronSecret: string | undefined   // CRON_SECRET: optional until 5.7; ≥ 32 chars when set
+  }
+  export class EnvError extends Error {}            // message lists variable NAMES only, never values
+  export function parseServerEnv(source: Record<string, string | undefined>): ServerEnv
+  export function serverEnv(): ServerEnv            // memoised parseServerEnv(process.env)
+  /** Only the two public Supabase values (the proxy and the session client need nothing else). */
+  export function publicSupabaseEnv(): { supabaseUrl: string; supabasePublishableKey: string }
+  // reads process.env.NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE_KEY by their literal names
+  ```
+
+  `siteUrl`: when `VERCEL_ENV === 'preview'` and `VERCEL_BRANCH_URL` is set →
+  `https://${VERCEL_BRANCH_URL}`; otherwise `NEXT_PUBLIC_SITE_URL` (required, a URL, no trailing
+  slash kept). `AUTH_TEST_LOGIN=true` with `VERCEL_ENV=production` throws
+  `EnvError('AUTH_TEST_LOGIN must not be enabled in production')` (§2.3). No client schema yet
+  (decision 11).
+- Produces `tools/db/local-env.ts`:
+  `parseStatusEnv(output: string): { NEXT_PUBLIC_SUPABASE_URL: string;
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string; SUPABASE_SECRET_KEY: string }` (from `API_URL`,
+  `PUBLISHABLE_KEY`, `SECRET_KEY`; throws naming the missing key) and `localSupabaseEnv()` (runs
+  `pnpm exec supabase status -o env`; on failure throws
+  `Error('Local Supabase is not running — run `pnpm db:start` first.')`).
+- Produces `e2e/support/test.ts`: `test` (Playwright `test` extended so each test **fails on any
+  `console` error or `pageerror`**, with an option `allowedConsoleErrors: RegExp[]`, default `[]`;
+  a "Failed to load resource" error whose `msg.location().url` contains `_rsc=` is ignored — the
+  AppShell's links prefetch `/review`, `/tracks`, `/progress`, `/admin/content`, which 404 until
+  M3/M5)
+  and `expect`; `e2e/support/axe.ts`: `WCAG_TAGS` and
+  `expectNoAxeViolations(page: Page, options?: { disableRules?: string[] }): Promise<void>` (full
+  page, WCAG 2.1 A/AA tags).
+- Produces scripts: `db:start`, `db:stop`, `db:reset`, `db:types`, `test:db`, `verify:full`.
+- Produces the pgTAP include convention used by 2.4–2.11b: test files `NNN-name.test.sql`, shared
+  helpers in `supabase/tests/database/_helpers.psql` (not `*.sql`, so it is never run as a test),
+  included with `\ir _helpers.psql` right after the `create extension` line.
+
+- [ ] **Step 1: Install** (exact versions above):
+
+  ```bash
+  pnpm add --save-exact -D supabase@2.117.0
+  pnpm add --save-exact @supabase/supabase-js@2.117.1 @supabase/ssr@0.12.7 zod@4.6.5 server-only@0.0.1
+  pnpm exec supabase --version   # 2.117.0
+  ```
+
+- [ ] **Step 2: `supabase init`** (`pnpm exec supabase init`), then edit `supabase/config.toml`:
+  `project_id = "hoc-deu"`; `[auth] site_url = "http://localhost:3000"`,
+  `additional_redirect_urls = ["http://localhost:3000/**", "http://localhost:3100/**"]` (the
+  callback URL carries `?next=`); keep `[auth.email] enable_signup = true` and
+  `enable_confirmations = false` (the email provider must stay on locally for the test login; the
+  second lock is the hosted projects' disabled email provider, 2.2); append:
+
+  ```toml
+  # OAuth for the local stack is optional: unset variables start the stack with empty credentials.
+  # Booleans cannot use env() (CliConfigParseError), so `enabled` stays literal.
+  [auth.external.google]
+  enabled = true
+  client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+  secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+  redirect_uri = ""
+  url = ""
+  skip_nonce_check = true
+
+  [auth.external.github]
+  enabled = true
+  client_id = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID)"
+  secret = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET)"
+  redirect_uri = ""
+  url = ""
+  ```
+
+- [ ] **Step 3: Scripts** in `package.json`:
+
+  ```json
+  "db:start": "supabase start -x studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,postgres-meta,supavisor,mailpit",
+  "db:stop": "supabase stop",
+  "db:reset": "supabase db reset",
+  "db:types": "supabase gen types typescript --local --schema public > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
+  "test:db": "supabase test db",
+  "verify:full": "pnpm verify && pnpm test:db && pnpm test:e2e"
+  ```
+
+- [ ] **Step 4: pgTAP smoke + include convention (RED → GREEN).** `_helpers.psql`:
+
+  ```sql
+  -- Shared pgTAP helpers, included by every test file (`\ir _helpers.psql`) inside its
+  -- transaction, so they are rolled back with the test. Tasks 2.4+ add the user/auth helpers.
+  create schema if not exists tests;
+  grant usage on schema tests to anon, authenticated, service_role;
+  create or replace function tests.helpers_loaded() returns boolean language sql as $$ select true $$;
+  ```
+
+  `000-smoke.test.sql`:
+
+  ```sql
+  begin;
+  create extension if not exists pgtap with schema extensions;
+  \ir _helpers.psql
+  select plan(2);
+  select has_schema('public');
+  select ok(tests.helpers_loaded(), 'shared helpers load via \ir');
+  select * from finish();
+  rollback;
+  ```
+
+  Run `pnpm db:start && pnpm test:db` → PASS. **If `\ir` is not supported by the CLI's
+  `pg_prove`,** stop and report `BLOCKED` with the error — do not paste helpers into test files.
+  Then `pnpm db:types` (generates the empty `public` schema types; committed) — confirm it works
+  with `postgres-meta` excluded from `db:start`; if it does not, drop `postgres-meta` from the
+  `-x` list and say so in the report. If ESLint flags
+  the generated file, add `lib/supabase/database.types.ts` to `globalIgnores` in
+  `eslint.config.mjs` (generated code) rather than editing it.
+
+- [ ] **Step 5: `lib/env.ts` test-first.** `lib/env.test.ts` (node) — each must fail first:
+  1. a complete valid source parses; `ADMIN_EMAILS=' A@X.com, ,b@y.com '` →
+     `['a@x.com', 'b@y.com']`; unset `ADMIN_EMAILS` → `[]`;
+  2. missing `SUPABASE_SECRET_KEY` throws `EnvError` whose message contains
+     `SUPABASE_SECRET_KEY` and **does not contain** any provided value (use a sentinel value in
+     another variable and assert it is absent);
+  3. `NEXT_PUBLIC_SUPABASE_URL='not a url'` throws naming it;
+  4. `AUTH_TEST_LOGIN=true` + `VERCEL_ENV=production` throws; with `VERCEL_ENV=preview` →
+     `authTestLogin === true`; `AUTH_TEST_LOGIN=yes` throws;
+  5. `VERCEL_ENV=preview` + `VERCEL_BRANCH_URL=hoc-deu-git-x-me.vercel.app` → `siteUrl ===
+     'https://hoc-deu-git-x-me.vercel.app'` even when `NEXT_PUBLIC_SITE_URL` is unset;
+     `VERCEL_ENV=production` without `NEXT_PUBLIC_SITE_URL` throws;
+  6. `CRON_SECRET` shorter than 32 characters throws; unset → `undefined`.
+
+  Implement with Zod 4 (`z.object`, `safeParse`, collect `issue.path` names). `serverEnv()`
+  memoises. `publicSupabaseEnv()`: a missing value throws `EnvError` naming it (test).
+  **`server-only` in tests:** the package throws outside the `react-server` condition, so
+  `vitest.config.ts` aliases `server-only` to an empty module (`tools/test/server-only.ts`,
+  `export {}`) for both projects (later tasks' `lib/supabase/*`, `lib/auth/dal.ts`,
+  `lib/events/apply.ts` import it); e2e code imports server modules' **types** only
+  (`import type`).
+
+- [ ] **Step 6: Startup validation.** `instrumentation.ts`:
+
+  ```ts
+  export async function register() {
+    // Validate once at server start (§2.3); `next build` must work without runtime secrets.
+    if (process.env.NEXT_RUNTIME !== 'nodejs') return
+    if (process.env.NEXT_PHASE === 'phase-production-build') return
+    const { serverEnv } = await import('./lib/env')
+    serverEnv()
+  }
+  ```
+
+  Check by hand and record in the report: `pnpm build` with no Supabase variables succeeds;
+  `pnpm start` with `AUTH_TEST_LOGIN=true VERCEL_ENV=production` (plus the other variables) fails
+  at startup with the EnvError message. If Next only logs the error and keeps serving, make
+  `register()` log the message and `process.exit(1)`.
+
+- [ ] **Step 7: `.env.example`** (committed; no secrets) listing every §2.5 v1.0 variable with
+  local values or empty placeholders and one comment each (`NEXT_PUBLIC_SUPABASE_URL=
+  http://127.0.0.1:54321`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=` "from `pnpm exec supabase
+  status -o env`", `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, `SUPABASE_SECRET_KEY=`,
+  `ADMIN_EMAILS=admin@example.test`, `AUTH_TEST_LOGIN=true`, `# CRON_SECRET=` (5.7), the four
+  optional `SUPABASE_AUTH_EXTERNAL_*` variables commented out). `.gitignore` already has
+  `!.env.example`. `CLAUDE.md` Safety: "`.env.example` is the committed template; every other
+  `.env*` stays unread."
+
+- [ ] **Step 8: Playwright on the local stack (decision 15).** `tools/db/local-env.test.ts`
+  (node): `parseStatusEnv` maps the three keys from a sample `-o env` output (quoted values) and
+  throws naming a missing key. `playwright.config.ts`:
+
+  ```ts
+  import { localSupabaseEnv } from './tools/db/local-env'
+
+  const PORT = 3100
+  // Workers inherit process.env from the runner, so `supabase status` runs once.
+  if (!process.env.E2E_STACK_READY) {
+    Object.assign(process.env, {
+      ...localSupabaseEnv(),
+      NEXT_PUBLIC_SITE_URL: `http://localhost:${PORT}`,
+      AUTH_TEST_LOGIN: 'true',
+      ADMIN_EMAILS: 'bootstrap-admin@example.test',
+      E2E_STACK_READY: '1',
+    })
+  }
+  // … webServer.env: the same five variables, so the build inlines the local URL and key.
+  ```
+
+- [ ] **Step 9: e2e harness.** `e2e/support/test.ts` (console/pageerror fixture) and
+  `e2e/support/axe.ts`; every existing spec imports from them; `not-found.spec.ts` sets
+  `allowedConsoleErrors: [/status of 404/]` (the browser logs the 404 document load). M1 deferred
+  #19 in `components.spec.ts`: overlays are scanned as a **full page** with only
+  `aria-hidden-focus` disabled (`expectNoAxeViolations(page, { disableRules:
+  ['aria-hidden-focus'] })`), for Dialog, Sheet, ConfirmDialog, DropdownMenu and Tooltip open on
+  `/dev/components` and the AccountMenu open on `/dev/app-shell` — in light and dark. Traces stay
+  `retain-on-failure` (decision 16).
+
+- [ ] **Step 10: CI** — `.github/workflows/ci.yml` (deferred minor #11 included):
+
+  ```yaml
+  concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    # Cancel superseded pull-request runs only; every push to main runs to completion.
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  ```
+
+  Every `actions/checkout@v7` gets `with: { persist-credentials: false }`. New job:
+
+  ```yaml
+    db:
+      name: db
+      runs-on: ubuntu-latest
+      timeout-minutes: 20
+      steps:
+        - uses: actions/checkout@v7
+          with:
+            persist-credentials: false
+        - uses: pnpm/action-setup@v6
+        - uses: actions/setup-node@v7
+          with:
+            node-version-file: .nvmrc
+            cache: pnpm
+        - run: pnpm install --frozen-lockfile
+        - run: pnpm db:start
+        - run: pnpm test:db
+        - name: Generated database types match the migrations
+          run: pnpm db:types && git diff --exit-code -- lib/supabase/database.types.ts
+  ```
+
+  The `e2e` job adds `- run: pnpm db:start` before the Playwright install; the failure artifact
+  stays `playwright-report/`, 7 days.
+
+- [ ] **Step 11: Docs.** `README.md` Development: Docker is required for the local stack;
+  `pnpm db:start`, `pnpm db:reset`, `pnpm test:db`, `pnpm verify:full`; copy `.env.example` to
+  `.env.local` for `pnpm dev`. `CLAUDE.md` Commands: add `db:start`, `db:stop`, `db:reset`,
+  `db:types`, `test:db`; `verify:full` = verify + test:db + test:e2e (needs `pnpm db:start`).
+
+- [ ] **Step 12: Verify** — `pnpm verify`, then `pnpm db:start && pnpm test:db && pnpm test:e2e`
+  (all existing e2e green through the new harness — including `/dev/app-shell`, whose prefetches
+  exercise the `_rsc=` exception; the overlay scans pass). Record the timings.
+- [ ] **Step 13: Commit** — `build(db): local Supabase stack, env validation and DB CI`.
+
+### Task 2.3: `localDay` and time helpers (moved from M4)
+
+**Files:**
+
+- Create: `lib/domain/time/localDay.ts`, `lib/domain/time/timeZones.ts`,
+  `lib/domain/time/fixtures.ts`, `lib/domain/time/localDay.test.ts`,
+  `lib/domain/time/timeZones.test.ts`, `tools/guards/domain-purity.ts`,
+  `tools/guards/domain-purity.test.ts`, `tools/guards/vitest-tz.test.ts`,
+  `docs/adr/0017-day-start-and-schedule-versions.md`, `docs/adr/0020-intl-only-time.md`
+- Modify: `vitest.config.ts` (fixed `TZ`), `docs/adr/README.md`
+
+**Interfaces (produced — used by 2.5, 2.10, 2.11, M4, M5):**
+
+```ts
+/** A calendar date in the learner's schedule, `YYYY-MM-DD`. */
+export type LocalDay = string
+/** `HH:MM`, 00:00–12:00 in 30-minute steps (decision 5). */
+export type DayStart = string
+export type Schedule = { timezone: string; dayStartsAt: DayStart }
+export type ScheduleVersion = Schedule & { effectiveAt: string /* ISO-8601 instant */ }
+export const DEFAULT_SCHEDULE: Schedule // { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
+export const DAY_STARTS: readonly DayStart[] // '00:00', '00:30', …, '12:00' (25 values)
+
+/** Date part of (wall-clock time of `now` in `schedule.timezone` − `dayStartsAt`) — §5.1. */
+export function localDay(now: Date, schedule: Schedule): LocalDay
+/** Latest version with effectiveAt ≤ at; DEFAULT_SCHEDULE when none (versions in any order). */
+export function scheduleAt(versions: readonly ScheduleVersion[], at: Date): Schedule
+/** Earliest instant (whole minute) > now whose localDay is the day after localDay(now). */
+export function nextDayStart(now: Date, schedule: Schedule): Date
+export function addDays(day: LocalDay, days: number): LocalDay
+export function daysBetween(from: LocalDay, to: LocalDay): number // to − from, in days
+export function isLocalDay(value: string): boolean
+export function isDayStart(value: string): boolean
+```
+
+`timeZones.ts`:
+
+```ts
+/** CLDR legacy IDs that ICU still reports → IANA names (decision 6). */
+export const TIME_ZONE_ALIASES: Readonly<Record<string, string>>
+// at least: Asia/Saigon→Asia/Ho_Chi_Minh, Asia/Calcutta→Asia/Kolkata, Asia/Katmandu→Asia/Kathmandu,
+// Asia/Rangoon→Asia/Yangon, Europe/Kiev→Europe/Kyiv, Atlantic/Faeroe→Atlantic/Faroe,
+// America/Godthab→America/Nuuk, Pacific/Enderbury→Pacific/Kanton, Pacific/Truk→Pacific/Chuuk,
+// Pacific/Ponape→Pacific/Pohnpei, America/Buenos_Aires→America/Argentina/Buenos_Aires
+export function canonicalTimeZone(id: string): string
+export function isValidTimeZone(id: string): boolean // Intl.DateTimeFormat accepts it
+/** Sorted canonical IDs for pickers: supportedValuesOf, canonicalised, deduplicated, + Asia/Ho_Chi_Minh. */
+export function timeZoneOptions(): readonly string[]
+```
+
+**Algorithm notes:** read wall-clock parts with `Intl.DateTimeFormat('en-US', { timeZone,
+hourCycle: 'h23', year, month, day, hour, minute, second })`.`formatToParts(now)`; build a UTC
+millisecond value from those parts with `Date.UTC`, subtract the day start, take the UTC date.
+Calendar math on integer day numbers (`Date.UTC(y, m - 1, d) / 86_400_000`). `nextDayStart`:
+scan **forward linearly** in 15-minute steps from the next quarter hour after `now` (every current
+UTC offset and every allowed day start is a multiple of 15 minutes) for the first instant whose
+`localDay` is `addDays(localDay(now), 1)`. Not a binary search: `localDay` is not monotonic when
+the day start falls inside a fall-back repeated hour (New York, day start 01:30, on 1 November
+reads 31 Oct → 1 Nov → 31 Oct → 1 Nov), and the earliest instant is the one that counts. No
+`Date.now()`, no argument-less `new Date()`, no local-time getters.
+
+**Fixtures** (`fixtures.ts` exports `LOCAL_DAY_FIXTURES: readonly { at: string; timezone: string;
+dayStartsAt: DayStart; expected: LocalDay; note: string }[]`) — expected values checked
+independently with Python `zoneinfo` on 2026-09-24; task 2.5 generates the SQL parity test from
+this list:
+
+| at (UTC) | timezone | day start | expected | note |
+| --- | --- | --- | --- | --- |
+| 2026-09-24T18:30:00Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-24 | RF-1: 01:30 counts for the previous day |
+| 2026-09-24T21:00:00Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-25 | the day start itself is the new day |
+| 2026-09-24T20:59:59Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-24 | one second before the day start |
+| 2026-09-24T17:00:00Z | Asia/Ho_Chi_Minh | 00:00 | 2026-09-25 | midnight day start |
+| 2026-09-25T04:59:00Z | Asia/Ho_Chi_Minh | 12:00 | 2026-09-24 | latest allowed day start, before |
+| 2026-09-25T05:00:00Z | Asia/Ho_Chi_Minh | 12:00 | 2026-09-25 | latest allowed day start, at |
+| 2026-09-24T06:00:00Z | America/St_Johns | 04:00 | 2026-09-23 | half-hour offset (NDT −2:30) |
+| 2026-01-15T07:30:00Z | America/St_Johns | 04:00 | 2026-01-15 | half-hour offset (NST −3:30) |
+| 2026-03-08T07:30:00Z | America/New_York | 04:00 | 2026-03-07 | spring forward, 03:30 EDT |
+| 2026-03-08T08:00:00Z | America/New_York | 04:00 | 2026-03-08 | spring forward, 04:00 EDT |
+| 2026-11-01T08:30:00Z | America/New_York | 04:00 | 2026-10-31 | fall back, 03:30 EST |
+| 2026-11-01T09:00:00Z | America/New_York | 04:00 | 2026-11-01 | fall back, 04:00 EST |
+| 2026-09-24T22:00:00Z | Asia/Kolkata | 04:00 | 2026-09-24 | +5:30 |
+| 2026-09-24T22:00:00Z | Asia/Kolkata | 03:30 | 2026-09-25 | +5:30, half-hour day start |
+| 2026-09-24T22:15:00Z | Asia/Kathmandu | 04:00 | 2026-09-25 | +5:45 |
+| 2026-09-24T14:00:00Z | Pacific/Kiritimati | 04:00 | 2026-09-25 | +14 |
+| 2026-09-25T14:59:00Z | Pacific/Pago_Pago | 04:00 | 2026-09-24 | −11 |
+| 2028-02-29T23:30:00Z | Europe/London | 00:00 | 2028-02-29 | leap day |
+| 2028-03-01T03:00:00Z | Europe/London | 04:00 | 2028-02-29 | after a leap day |
+| 2026-12-31T18:59:59Z | Asia/Tokyo | 04:00 | 2026-12-31 | year boundary, before |
+| 2026-12-31T19:00:00Z | Asia/Tokyo | 04:00 | 2027-01-01 | year boundary, at |
+
+- [ ] **Step 1: Fixed test time zone.** At the top of `vitest.config.ts`:
+  `process.env.TZ = 'America/St_Johns'` with a comment (a non-UTC, half-hour zone flushes out
+  local-time bugs; §7.2). `tools/guards/vitest-tz.test.ts` asserts
+  `Intl.DateTimeFormat().resolvedOptions().timeZone === 'America/St_Johns'`. RED → GREEN.
+- [ ] **Step 2: Failing tests** (`localDay.test.ts`):
+  - every `LOCAL_DAY_FIXTURES` row (`it.each`);
+  - `scheduleAt`: no versions → `DEFAULT_SCHEDULE`; picks the latest `effectiveAt ≤ at` from an
+    unsorted list; a version effective exactly at `at` applies; a future version does not;
+  - **[RF-1] a change applies from the next day start:** schedule A = VN 04:00; at
+    2026-09-24T03:00:00Z (10:00 local) the user switches to America/Los_Angeles 04:00 with
+    `effectiveAt = nextDayStart(at, A)` = `2026-09-24T21:00:00Z`; `localDay` for an instant one
+    minute before uses A, at `effectiveAt` uses the new schedule;
+  - `nextDayStart`: VN 04:00 at 2026-09-24T03:00:00Z → 2026-09-24T21:00:00Z; at
+    2026-09-24T19:00:00Z (02:00 local, still the 24th) → 2026-09-24T21:00:00Z; America/St_Johns
+    04:00 at 2026-09-24T12:00:00Z → 2026-09-25T06:30:00Z; America/New_York **02:30** at
+    2026-03-07T12:00:00Z (the wall time does not exist on 8 March) → 2026-03-08T07:00:00Z;
+    America/New_York 04:00 at 2026-10-31T12:00:00Z → 2026-11-01T09:00:00Z; America/New_York
+    **01:30** at 2026-10-31T12:00:00Z (the day start repeats in the fall-back hour) →
+    2026-11-01T05:30:00Z, the first occurrence; property over every
+    fixture schedule and three `now` values: `localDay(result) === addDays(localDay(now), 1)` and
+    `localDay(result − 60 s) === localDay(now)`;
+  - **[RF-1] moving west or east:** sample `localDay` every 15 minutes across a
+    VN → America/Los_Angeles switch (west) — the sequence never decreases and repeats at most one
+    date; across America/Los_Angeles → VN (east) — never decreases and skips at most one date;
+  - `addDays` across month/year/leap boundaries; `daysBetween('2026-09-24', '2026-10-01') === 7`;
+    `isLocalDay`, `isDayStart` (`'04:30'` true, `'04:15'`, `'13:00'`, `'4:00'` false);
+    `DAY_STARTS.length === 25`.
+  `timeZones.test.ts`: `canonicalTimeZone('Asia/Saigon') === 'Asia/Ho_Chi_Minh'`; an IANA name is
+  returned unchanged; `timeZoneOptions()` includes `Asia/Ho_Chi_Minh` and `Asia/Kolkata`, excludes
+  `Asia/Saigon` and `Asia/Calcutta`, is sorted and duplicate-free; `isValidTimeZone('Mars/Base')`
+  false, `isValidTimeZone('Asia/Saigon')` true.
+- [ ] **Step 3: Purity guard (deferred minor #5), test first.** `tools/guards/domain-purity.ts`
+  exports `purityViolations(file: string, source: string): string[]` (TypeScript compiler API:
+  `ts.createSourceFile`, walk imports and calls). Rules for `lib/domain/**`: imports only from
+  `lib/domain` (alias or relative) and `zod`; no `node:*`; no `.tsx` files; no `Date.now()`,
+  `Date()` called without `new`, argument-less `new Date()`; no local-time getters/setters
+  (`getHours`, `getDate`, `getDay`, `getMonth`, `getFullYear`, `getMinutes`, `getSeconds`,
+  `getTimezoneOffset`, `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString` and the
+  `set*` counterparts); no `performance.now()`, `Math.random()`, `fetch`. Test files
+  (`*.test.ts` and `__tests__/**`) are scanned with the same rules, except that they may also
+  import `vitest` and `fast-check` (M4's property tests). The test feeds one bad snippet per rule
+  (each yields exactly one violation), one clean snippet (zero), a test-file snippet importing
+  `vitest` (zero; the same import in a non-test file: one), and scans the real `lib/domain/**`
+  (zero).
+- [ ] **Step 4: RED** — `pnpm test lib/domain tools/guards`. **Step 5: Implement**
+  `localDay.ts`, `timeZones.ts`, `fixtures.ts`, `domain-purity.ts`. **Step 6: GREEN** +
+  `pnpm lint`.
+- [ ] **Step 7: ADRs** — 0017 (per-user day start, schedule versions effective at the next day
+  start, the first schedule immediately, decision 5) and 0020 (Intl-only time handling, the TZ
+  test pin, alias canonicalisation, decision 6); `docs/adr/README.md` links them.
+- [ ] **Step 8: Verify** `pnpm verify`. **Commit** — `feat(domain): localDay and schedule
+  versions with the day-start rule`.
+
+### Task 2.4: Migration — profiles, schedule_versions, user_tracks (+ lint and doc hygiene)
+
+Two commits: first the M1 hygiene (deferred #6, #21), then the migration.
+
+**Files:**
+
+- Commit 1 — Modify: `eslint.config.mjs`, `tools/eslint/layer-imports.mjs`,
+  `tools/guards/eslint-rules.test.ts`, `docs/plans/2026-09-24-implementation-plan.md` (Part A
+  row 1.1), `docs/plans/2026-09-23-platform-design.md` (§7.2 className exceptions)
+- Commit 2 — Create: `supabase/migrations/20260925000100_profiles_schedules_tracks.sql`,
+  `supabase/tests/database/010-profiles.test.sql`,
+  `supabase/tests/database/011-schedules-tracks.test.sql`; Modify:
+  `supabase/tests/database/_helpers.psql`, `lib/supabase/database.types.ts` (`pnpm db:types`)
+
+**Commit 1 — layer-rule gaps (M1 deferred #6) and doc drift (#21), rule tests first:**
+
+- `app/api/**` follows its §7.2 row: it may import `lib/*` and features' `index.ts`, never
+  `components/**` (today `layer-imports.mjs` returns early for `app/api`). `app/dev/**` keeps its
+  exemption.
+- The layer rule also checks `.js`, `.jsx` and `.mjs` files under `app`, `components`,
+  `features`, `lib`, `tools` (the files glob in `eslint.config.mjs`).
+- The "no `'use client'` in `page.tsx` / `layout.tsx`" rule also covers `app/dev/**`.
+- `tools/guards/eslint-rules.test.ts`: one failing case per gap (an `app/api/x/route.ts`
+  importing `@/components/ui/button`; a `lib/x.mjs` importing `@/features/a/internal`; an
+  `app/dev/x/page.tsx` starting with `'use client'`) plus one allowed case each.
+- Docs: Part A row 1.1 says "merge `shadcn eject` CSS" — superseded by Part B-M1 decision 3
+  (nothing to eject); spec §7.2 lists `app/layout.tsx` as the only `className` exception — add
+  `app/global-error.tsx` (replaces the root layout) and `app/dev/**` (the catalog). Note each
+  edit as "(M1 review)".
+- Commit: `chore(lint): layer rules cover app/api, .mjs files and app/dev pages`.
+
+**Commit 2 — schema.** Write the migration exactly with these definitions (the contract later
+tasks rely on); add comments where a rule comes from the spec.
+
+```sql
+-- §4.1, §4.5. Every table: RLS on, deny by default; Supabase's default grants are revoked.
+create function public.set_updated_at() returns trigger language plpgsql set search_path = '' as $$
+begin new.updated_at := now(); return new; end $$;
+
+create table public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  role text not null default 'learner' check (role in ('learner', 'admin')),
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'rejected', 'suspended')),
+  ai_personalization boolean not null default false,
+  share_notes_with_ai boolean not null default false,
+  code_language text check (code_language in ('python', 'java', 'go')),
+  display_name text check (char_length(display_name) between 1 and 80),
+  avatar_url text check (avatar_url ~ '^https://'),
+  onboarded_at timestamptz,
+  approved_by uuid,  -- no FK: the approving admin may delete their account later
+  approved_at timestamptz,
+  bot_ref text not null unique default encode(extensions.gen_random_bytes(8), 'hex'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.schedule_versions (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  effective_at timestamptz not null,
+  timezone text not null default 'Asia/Ho_Chi_Minh',
+  day_starts_at time not null default '04:00',
+  created_at timestamptz not null default now(),
+  primary key (user_id, effective_at),
+  -- decision 5: 00:00–12:00 in 30-minute steps
+  constraint day_starts_at_step check (
+    day_starts_at between time '00:00' and time '12:00'
+    and extract(second from day_starts_at) = 0
+    and extract(minute from day_starts_at) in (0, 30)
+  )
+);
+
+create table public.user_tracks (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  track_id text not null check (track_id ~ '^[a-z][a-z0-9-]{0,31}$'),
+  roadmap_variant text not null check (roadmap_variant ~ '^[a-z0-9][a-z0-9-]{0,31}$'),
+  status text not null default 'active' check (status in ('active', 'paused', 'removed')),
+  start_date date not null,
+  budget_minutes integer not null check (budget_minutes between 10 and 240 and budget_minutes % 5 = 0),
+  new_per_day integer check (new_per_day >= 0),                                   -- null = track default
+  throttle jsonb check (throttle is null or jsonb_typeof(throttle) = 'array'),    -- null = track default
+  weekly_template jsonb check (weekly_template is null or jsonb_typeof(weekly_template) = 'object'),
+  include_bonus boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, track_id)
+);
+```
+
+Plus, in the same migration:
+
+- `updated_at` triggers on `profiles` and `user_tracks` (`set_updated_at`).
+- **`public.handle_new_user()`** — `security definer`, `set search_path = ''`, `after insert on
+  auth.users for each row`: inserts the profile with `display_name` =
+  `left(coalesce(nullif(btrim(meta->>'full_name'), ''), nullif(btrim(meta->>'name'), ''),
+  nullif(btrim(meta->>'user_name'), ''), split_part(new.email, '@', 1)), 80)` (an all-space name
+  must never block sign-up); `avatar_url` = `raw_user_meta_data->>'avatar_url'` only when
+  it starts with `https://`, else null. Status `pending` (§4.5).
+- **`public.is_active()`**, **`public.is_admin()`** — `language sql stable security definer set
+  search_path = ''`: whether the caller's (`(select auth.uid())`) profile has `status = 'active'`
+  (and `role = 'admin'` for `is_admin`). `revoke execute … from public, anon`; `grant execute …
+  to authenticated, service_role`.
+- **`public.profiles_guard_share_notes()`** — `before update on profiles`: turning
+  `share_notes_with_ai` **on** while `ai_personalization` is off raises
+  `ai_personalization_off` (§4.5); turning it off is always allowed.
+- **`public.schedule_versions_check_timezone()`** — `before insert or update on
+  schedule_versions`: raises `invalid_timezone` unless `new.timezone` is in `pg_timezone_names`
+  (decision 6).
+- **Grants** (Supabase grants everything to `anon`/`authenticated` by default — revoke first):
+
+  ```sql
+  revoke all on public.profiles, public.schedule_versions, public.user_tracks from anon, authenticated;
+  grant select on public.profiles to authenticated;
+  grant update (display_name, avatar_url, code_language, share_notes_with_ai) on public.profiles to authenticated;
+  grant select, insert on public.schedule_versions to authenticated;
+  grant update (timezone, day_starts_at) on public.schedule_versions to authenticated;  -- 2.5b upsert
+  grant select, insert, update on public.user_tracks to authenticated;
+  ```
+
+- **RLS policies** (`to authenticated`; `(select auth.uid())` form for the planner):
+  `profiles` — select own (`id = uid`); update own **and** `is_active()`, check `id = uid`.
+  `schedule_versions` — select own; insert check own **and** `is_active()`; update own **and**
+  `is_active()`. `user_tracks` — select own; insert check own **and** `is_active()`; update own
+  **and** `is_active()`. No delete policies (removal is a status; rows go with the account).
+
+**`_helpers.psql` additions** (used by every later pgTAP file):
+
+```sql
+-- Creates an auth user (the profile trigger fires), then sets status/role directly.
+create or replace function tests.create_user(
+  p_email text, p_status text default 'active', p_role text default 'learner',
+  p_meta jsonb default '{}'::jsonb
+) returns uuid language plpgsql as $$ … $$;
+-- Switches the transaction to `authenticated` with the user's JWT claims.
+create or replace function tests.authenticate_as(p_user uuid) returns void language plpgsql as $$ … $$;
+create or replace function tests.authenticate_as_service_role() returns void language plpgsql as $$ … $$;
+create or replace function tests.clear_authentication() returns void language plpgsql as $$ … $$;  -- back to postgres
+```
+
+`create_user` inserts into `auth.users` with the column set proven in the spike (`id`,
+`instance_id` `00000000-0000-0000-0000-000000000000`, `aud`/`role` `authenticated`, `email`,
+`encrypted_password` (`extensions.crypt('test-password-123', extensions.gen_salt('bf'))`),
+`email_confirmed_at`, `created_at`, `updated_at`, `raw_app_meta_data`
+`{"provider":"email","providers":["email"]}`, `raw_user_meta_data` = `p_meta`, and
+`confirmation_token`, `recovery_token`, `email_change`, `email_change_token_new`,
+`email_change_token_current` all `''`). `authenticate_as` sets `request.jwt.claims` to
+`{"sub": <uuid>, "role": "authenticated", "email": <email>}` and switches role (`set local role`
+via `execute`); grant `execute` on the helpers to `anon, authenticated, service_role`.
+
+**pgTAP tests (write first; each file `begin; create extension …; \ir _helpers.psql; select
+plan(n); … select * from finish(); rollback;`):**
+
+`010-profiles.test.sql`:
+1. a new auth user with `{"full_name": "Nguyễn Văn A", "avatar_url": "https://x.test/a.png"}` gets
+   a profile: `pending`, `learner`, `ai_personalization` false, `share_notes_with_ai` false,
+   `display_name` `Nguyễn Văn A`, the avatar, a 16-hex `bot_ref`; an `http://` avatar is stored as
+   null; no metadata, or a `full_name` of spaces only → `display_name` = the e-mail's local part;
+2. as `authenticated`, a user sees only their own profile (`count(*) = 1`);
+3. `anon` cannot select profiles (`42501`);
+4. an active user cannot update `status`, `role`, `ai_personalization`, `onboarded_at`,
+   `approved_by`, `bot_ref` (each `throws_ok(…, '42501')`);
+5. an active user can update `display_name` and `code_language`; a **pending** user's update of
+   `display_name` changes nothing (RLS: 0 rows);
+6. `code_language = 'rust'` fails (`23514`);
+7. `share_notes_with_ai = true` raises `ai_personalization_off` while the flag is off; after
+   `postgres` turns `ai_personalization` on, the same update succeeds;
+8. `is_active()` / `is_admin()`: active learner (t, f); pending learner (f, f); active admin
+   (t, t); suspended admin (f, f).
+
+`011-schedules-tracks.test.sql`:
+1. an active user inserts a schedule version for themselves; a pending user's insert fails
+   (`42501`); another user's rows are invisible;
+2. `day_starts_at` `04:15` and `13:00` fail (`23514`); `12:00` and `00:30` succeed;
+3. `timezone = 'Mars/Base'` raises `invalid_timezone`; `Asia/Saigon` and `Asia/Ho_Chi_Minh`
+   succeed;
+4. an active user inserts and updates their own `user_tracks` row; `budget_minutes` 7, 245 and 62
+   fail; `status = 'deleted'` fails; `track_id = 'DSA'` fails; another user's row is invisible and
+   an update of it changes nothing; `delete` fails (`42501`);
+5. deleting the `auth.users` row removes the profile, schedule versions and tracks (cascade).
+
+- [ ] **Step 1:** Commit 1 (rule tests RED → GREEN, `pnpm lint && pnpm test`).
+- [ ] **Step 2:** Write the two pgTAP files and the helpers; `pnpm test:db` → RED (tables missing).
+- [ ] **Step 3:** Write the migration; `pnpm db:reset && pnpm test:db` → GREEN.
+- [ ] **Step 4:** `pnpm db:types`; `pnpm verify`.
+- [ ] **Step 5: Commit** — `feat(db): profiles, schedule versions and user tracks with RLS`.
+
+### Task 2.5: Events core — log, quota, `local_day`, payload schemas
+
+**Files:**
+
+- Create: `supabase/migrations/20260925000200_events.sql`,
+  `supabase/tests/database/020-local-day-parity.test.sql` (generated),
+  `supabase/tests/database/030-events.test.sql`, `lib/domain/rules.ts`,
+  `lib/domain/events.ts`, `lib/domain/events.test.ts`, `tools/db/local-day-parity.ts`,
+  `tools/db/local-day-parity-cli.ts`, `tools/db/local-day-parity.test.ts`,
+  `tools/db/sql-sync.test.ts`,
+  `docs/adr/0030-learner-write-quota.md`
+- Modify: `package.json` (`db:fixtures`), `lib/supabase/database.types.ts`, `docs/adr/README.md`
+
+**Interfaces:**
+
+- Consumes: `LOCAL_DAY_FIXTURES`, `isLocalDay`, `isDayStart` (2.3); `is_active()`,
+  `schedule_versions`, `tests.*` helpers (2.4).
+- Produces `lib/domain/rules.ts`: `export const RULES_VERSION = 1`.
+- Produces `lib/domain/events.ts` (§4.4 is the source of truth; every schema `.strict()`):
+
+  ```ts
+  export const LEARNER_EVENT_TYPES = ['block.checked_in', 'item.result', 'lesson.completed',
+    'exercise.submitted', 'prompt.completed', 'item.skipped', 'item.readded', 'track.enrolled',
+    'track.updated', 'track.paused', 'track.resumed', 'track.removed', 'track.reset',
+    'schedule.changed', 'settings.changed'] as const
+  export const SYSTEM_EVENT_TYPES = ['plan.generated', 'plan.extra_added', 'onboarding.completed',
+    'plan.ai_proposed', 'plan.ai_applied', 'plan.ai_skipped', 'block.checked_in',
+    'user_item.created', 'user_item.retired', 'user_item.hidden', 'roadmap.override_set',
+    'roadmap.override_revoked', 'roadmap.override_suspended', 'roadmap.override_resumed',
+    'admin.bot_token_rotated', 'admin.bootstrapped', 'admin.user_approved', 'admin.user_rejected',
+    'admin.user_suspended', 'admin.role_changed', 'admin.ai_flag_changed', 'item.snapshot'] as const
+  export type LearnerEventType = (typeof LEARNER_EVENT_TYPES)[number]
+  export type SystemEventType = (typeof SYSTEM_EVENT_TYPES)[number]
+  export type EventType = LearnerEventType | SystemEventType
+  export const EVENT_PAYLOADS = { /* table below */ } satisfies Record<EventType, z.ZodType>
+  // `satisfies`, not a type annotation: EventPayload<T> must keep each schema's inferred type
+  export type EventPayload<T extends EventType> = z.infer<(typeof EVENT_PAYLOADS)[T]>
+  export const MAX_PAYLOAD_BYTES = 1900
+  export function parseEventPayload<T extends EventType>(type: T, payload: unknown): EventPayload<T>
+  // throws ZodError; also throws when the UTF-8 size of JSON.stringify(payload) exceeds
+  // MAX_PAYLOAD_BYTES — below the database's 2048-byte check on `payload::text`, which adds a space
+  // after every `:` and `,`, so nothing TypeScript accepts is rejected by the database
+  ```
+
+  | Type | Payload schema |
+  | --- | --- |
+  | `block.checked_in` | `{ status: 'done'\|'partial'\|'skipped', minutes: int 0–600, note?: string ≤ 1000 chars (the 280-grapheme rule is 5.2), auto?: boolean }` |
+  | `item.result` | `{ result: 'solved'\|'hint'\|'failed'\|'know'\|'unsure'\|'dont_know', mode?: 'recall'\|'redo' }` |
+  | `lesson.completed` | `{ quizScore?: int 0–100 }` |
+  | `exercise.submitted` | `{ kind: non-empty string, grade: 'pass'\|'close'\|'miss' }` |
+  | `prompt.completed` | `{ selfRating?: 1\|2\|3 }` |
+  | `item.skipped`, `item.readded`, `track.paused`, `track.removed`, `track.reset`, `onboarding.completed` | `{}` |
+  | `track.enrolled` | `{ roadmapVariant: id, budgetMinutes: int 10–240 step 5, startDate: LocalDay }` |
+  | `track.updated` | `{ budgetMinutes?, roadmapVariant?, newPerDay?: int ≥ 0 \| null, throttle?: { dueAbove: int ≥ 0, newPerDay: int ≥ 0 }[] \| null, weeklyTemplate?: object \| null, includeBonus?: boolean }` — at least one key |
+  | `track.resumed` | `{ pausedDays: int ≥ 0 }` |
+  | `schedule.changed` | `{ timezone: non-empty string, dayStartsAt: DayStart, effectiveAt: ISO-8601 instant with offset }` |
+  | `settings.changed` | `{ codeLanguage?: 'python'\|'java'\|'go', shareNotesWithAi?: boolean, theme?: 'light'\|'dark'\|'system' }` — at least one key |
+  | `plan.generated` | `{ mode: 'baseline'\|'resume'\|'rebuild', planVersion: int ≥ 1 }` |
+  | `plan.extra_added` | `{ itemIds: non-empty string[] }` |
+  | `plan.ai_proposed` / `ai_applied` / `ai_skipped` | `{ runId: string, outcome: string, planVersion?: int ≥ 1 }` |
+  | `user_item.created` / `retired` / `hidden` | `{ itemType: 'flashcard'\|'exercise'\|'prompt', slug?: string }` |
+  | `roadmap.override_set` / `revoked` | `{ key: string, kind: 'insert_block'\|'extra_week'\|'reorder_topics', params?: object }` |
+  | `roadmap.override_suspended` / `resumed` | `{ keys: string[] }` |
+  | `admin.*` (6 types) | `{ targetUserId?: uuid, from?: string, to?: string }` |
+  | `item.snapshot` | `{ level: int, weak: boolean, topSuccesses: int, dueOn: LocalDay \| null, lapses: int, reps: int, rulesVersion: int ≥ 1 }` |
+
+- Produces SQL (migration):
+
+  ```sql
+  create table public.events (
+    id uuid primary key,                                   -- generated by the client (idempotent retries)
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    actor_id uuid not null,                                -- no FK: audit rows outlive the actor
+    source text not null check (source in ('learner', 'system', 'bot', 'admin')),
+    type text not null check (type ~ '^[a-z_]+\.[a-z_]+$'),
+    occurred_at timestamptz not null default now(),
+    local_day date not null,                               -- computed by the insert trigger, never input
+    track_id text,
+    item_id text,
+    plan_id uuid,                                          -- FK to day_plans arrives in 4.9
+    block_id text,
+    payload jsonb not null default '{}'::jsonb
+      check (jsonb_typeof(payload) = 'object' and octet_length(payload::text) <= 2048),
+    rules_version integer not null default public.rules_version() check (rules_version >= 1)
+  );
+  create index events_user_occurred_idx on public.events (user_id, occurred_at);
+  create index events_plan_idx on public.events (plan_id) where plan_id is not null;
+
+  create table public.event_quota (                        -- internal (§4.5): no learner access
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    local_day date not null,
+    count integer not null default 0,
+    primary key (user_id, local_day)
+  );
+  ```
+
+  Functions (define `rules_version()` before the table):
+  - `public.rules_version() returns integer language sql immutable` → `1` (kept equal to
+    `RULES_VERSION` by `tools/db/sql-sync.test.ts`; M4 bumps both together).
+  - `public.learner_event_types() returns text[] language sql immutable` → the 15 learner types.
+  - `public.local_day(p_at timestamptz, p_timezone text, p_day_starts_at time) returns date
+    language sql stable` → `((p_at at time zone p_timezone) - (p_day_starts_at - time
+    '00:00'))::date` (§5.1).
+  - `public.user_local_day(p_user_id uuid, p_at timestamptz) returns date language sql stable`
+    (security invoker) — the latest `schedule_versions` row with `effective_at <= p_at`, else
+    `Asia/Ho_Chi_Minh` / `04:00`. `revoke execute … from public, anon`.
+  - Trigger **`events_10_prepare`** (`before insert`, security **invoker**): when `current_user =
+    'authenticated'` (a direct or `apply_event` insert — definer functions run as their owner):
+    reject any type not in `learner_event_types()` with `forbidden_event_type` (errcode
+    `42501`), and force `actor_id := auth.uid()`, `source := 'learner'`,
+    `occurred_at := now()`. For every insert: `actor_id` defaults to `user_id` when null, and
+    `local_day := public.user_local_day(new.user_id, new.occurred_at)` (§4.5).
+  - Trigger **`events_20_quota`** (`before insert`, `security definer set search_path = ''`;
+    triggers fire in name order, so it sees the forced `source`): for `source = 'learner'`,
+    `insert into public.event_quota … values (new.user_id, new.local_day, 1) on conflict (user_id,
+    local_day) do update set count = event_quota.count + 1 returning count` and raise
+    `quota_exceeded` (errcode `P0001`) when the count exceeds **500** (§4.5). No `count(*)`.
+  - Trigger **`events_append_only`** (`before update`): raises `events_are_append_only`.
+  - Grants: `revoke all on public.events, public.event_quota from anon, authenticated`;
+    `grant select, insert on public.events to authenticated`. RLS on both; `events` policies:
+    select own; insert check `user_id = (select auth.uid()) and (select public.is_active())`.
+    `event_quota`: **no policies**.
+
+- Produces `tools/db/local-day-parity.ts`: `renderLocalDayParitySql(fixtures): string` (the whole
+  pgTAP file: one `select is(public.local_day('<at>'::timestamptz, '<tz>', '<start>'::time),
+  '<expected>'::date, '<note>');` per fixture, quotes escaped), and a separate CLI
+  `tools/db/local-day-parity-cli.ts` that writes
+  `supabase/tests/database/020-local-day-parity.test.sql` (so importing the module in a test
+  writes nothing); script `"db:fixtures": "tsx tools/db/local-day-parity-cli.ts"`.
+
+- [ ] **Step 1: Failing TypeScript tests.** `lib/domain/events.test.ts`: every type in both
+  lists has a schema and the lists are disjoint except `block.checked_in` (learner check-in and
+  the system's auto check-in); a valid and an invalid sample per table row; an unknown key is
+  rejected (`.strict()`); `track.updated {}` and `settings.changed {}` are rejected; a
+  `block.checked_in` note of 950 three-byte characters (Vietnamese) passes the Zod length rule but
+  is rejected by the byte limit. `tools/db/local-day-parity.test.ts`:
+  the committed SQL file equals `renderLocalDayParitySql(LOCAL_DAY_FIXTURES)` (message: "run
+  `pnpm db:fixtures`"); a note with `'` is escaped. `tools/db/sql-sync.test.ts`: the **last**
+  `create or replace function public.learner_event_types` in `supabase/migrations/*.sql` (sorted)
+  returns exactly `LEARNER_EVENT_TYPES`; the last `public.rules_version()` returns
+  `RULES_VERSION`.
+- [ ] **Step 2: Failing pgTAP** — `030-events.test.sql`:
+  1. an active user's direct insert with `source 'admin'`, a foreign `actor_id` and
+     `occurred_at '2000-01-01'` is stored as `learner`, `actor_id` = the user, `occurred_at =
+     now()`, `local_day = public.local_day(now(), <their tz>, <their start>)`;
+  2. **[RF-1]** with a version `America/St_Johns 04:00` effective in the past the trigger uses it;
+     with no version it uses `Asia/Ho_Chi_Minh 04:00`; `user_local_day` picks the latest version
+     `≤ p_at` among two (before / after the second's `effective_at`);
+  3. an `authenticated` insert of `admin.user_approved` fails with `forbidden_event_type`;
+     inserting for another `user_id` fails (`42501`); a pending user's insert fails (`42501`);
+  4. as `authenticated`, updating or deleting an event fails with `42501` (no privilege — the
+     check happens before any trigger); as `postgres`, an update raises
+     `events_are_append_only`;
+  5. **quota:** 500 learner inserts on one local day succeed, the 501st raises `quota_exceeded`;
+     a `system` event inserted as `postgres` for the same user and day still succeeds and the
+     counter stays 500;
+  6. `authenticated` cannot select or insert `event_quota` (`42501`);
+  7. a payload over 2 KB fails (`23514`);
+  8. deleting the auth user removes their events and quota rows; an `admin.*` event whose
+     `actor_id` is the deleted user but whose `user_id` is someone else survives.
+  Generate `020-local-day-parity.test.sql` with `pnpm db:fixtures` → **[RF-1]** SQL `local_day`
+  equals TypeScript `localDay` on the shared fixtures.
+- [ ] **Step 3: RED** — `pnpm test lib/domain tools/db` and `pnpm test:db`.
+- [ ] **Step 4: Implement** the migration, `rules.ts`, `events.ts`, the generator.
+- [ ] **Step 5: GREEN** — `pnpm db:reset && pnpm test:db`, `pnpm db:types`, `pnpm verify`.
+- [ ] **Step 6: ADR-0030** (learner write quota: definer `BEFORE INSERT` trigger + internal
+  `event_quota`, 500/day, system events uncounted, Upstash only from v1.1).
+- [ ] **Step 7: Commit** — `feat(db): event log with write quota and local_day parity`.
+
+### Task 2.5b: RPCs — `apply_event`, `apply_system_event`, admin functions, apply helpers
+
+**Files:**
+
+- Create: `supabase/migrations/20260925000300_rpc.sql`,
+  `supabase/tests/database/040-apply-event.test.sql`,
+  `supabase/tests/database/041-system-and-admin.test.sql`, `lib/events/ids.ts`,
+  `lib/events/ids.test.ts`, `lib/events/apply.ts`, `lib/events/apply.test.ts`,
+  `docs/adr/0007-event-log-and-apply-event.md`
+- Modify: `lib/i18n/vi.ts` (+ `vi.test.ts` keys), `lib/supabase/database.types.ts`,
+  `docs/adr/README.md`
+
+**Interfaces:**
+
+- Consumes: everything from 2.4 and 2.5.
+- Produces SQL (every function `set search_path = ''`; errors are `raise exception '<code>'`
+  with the errcode shown, so PostgREST returns the code as `message`):
+
+  **`public.apply_event(p_event jsonb, p_changes jsonb default '[]'::jsonb, p_expected jsonb
+  default '{}'::jsonb) returns jsonb`** — `security invoker`; `grant execute` to
+  `authenticated` only (revoke from `public`, `anon`). In order:
+  1. `auth.uid()` null → `not_authenticated` (`42501`); `p_event ? 'user_id'` and it differs from
+     `auth.uid()` → `forbidden` (`42501`) (§4.5);
+  2. non-empty `p_changes` or `p_expected` → `not_implemented` (decision 8);
+  3. `type` not in `learner_event_types()` → `invalid_event`; a learner type other than the seven
+     M2 types (`track.enrolled`, `track.updated`, `track.paused`, `track.resumed`,
+     `track.removed`, `schedule.changed`, `settings.changed`) → `not_implemented`;
+  4. `not is_active()` → `inactive` (`42501`);
+  5. an event with this `id` already exists (visible to the caller: their own) → return
+     `{"outcome": "duplicate", "versions": {}}` without any change (RF-2 groundwork); a concurrent
+     duplicate that loses the race raises `unique_violation` on `events_pkey` at step 6 — catch
+     it and return `duplicate` the same way;
+  6. insert the event (`id`, `user_id = auth.uid()`, `type`, `track_id`, `item_id`, `plan_id`,
+     `block_id`, `payload`, `rules_version` from `p_event`; the trigger forces the rest);
+  7. apply the state change — all in the same transaction, so a failure removes the event too:
+     - `track.enrolled` (needs `track_id`): upsert `user_tracks` (`roadmap_variant`,
+       `budget_minutes`, `start_date` from the payload, `status = 'active'`);
+     - `track.updated`: update only the payload keys present (`budgetMinutes` →
+       `budget_minutes`, `roadmapVariant`, `newPerDay`, `throttle`, `weeklyTemplate`,
+       `includeBonus`); no row → `track_not_enrolled`;
+     - `track.paused` (`active → paused`), `track.resumed` (`paused → active`), `track.removed`
+       (`active | paused → removed`); any other current status → `invalid_transition`;
+     - `schedule.changed`: upsert `schedule_versions (user_id, effective_at, timezone,
+       day_starts_at)` from the payload, on conflict update `timezone`, `day_starts_at` (the
+       whole desired schedule is always sent, so a second change before the day start replaces
+       the first);
+     - `settings.changed`: update `profiles.code_language` / `share_notes_with_ai` for the keys
+       present (`theme` is ignored — decision 7);
+  8. return `{"outcome": "applied", "versions": {}}`.
+
+  **`public.apply_system_event(p_user_id uuid, p_event jsonb, p_changes jsonb default
+  '[]'::jsonb, p_expected jsonb default '{}'::jsonb) returns jsonb`** — `security definer`;
+  `execute` for `service_role` only (revoke from `public`, `anon`, `authenticated`). Non-empty
+  changes → `not_implemented`; `type` must be a system type; in M2 only
+  `onboarding.completed` is implemented (others → `not_implemented`); the target profile must be
+  `active` (`inactive`); an existing event with this `id` **and** `user_id = p_user_id` →
+  `duplicate` (a definer function sees every row, so an `id` owned by another user raises
+  `id_conflict`); insert with `source` =
+  `p_event->>'source'` if in (`system`, `bot`, `admin`) else `system`, `actor_id` =
+  `p_event->>'actor_id'` else `p_user_id`; `onboarding.completed` sets
+  `onboarded_at = coalesce(onboarded_at, now())`; returns `{"outcome", "versions": {}}`.
+
+  **`public.admin_set_status(p_user_id uuid, p_status text) returns jsonb`** and
+  **`public.admin_set_role(p_user_id uuid, p_role text) returns jsonb`** — `security definer`;
+  `execute` for `authenticated` (the function itself checks the caller); `revoke execute … from
+  public, anon` (Supabase's default privileges grant EXECUTE on new functions to `anon`,
+  `authenticated` and `service_role` — every function in this task states its grants
+  explicitly). Not `is_admin()` →
+  `forbidden` (`42501`); `p_user_id = auth.uid()` → `cannot_change_self` (decision 17); unknown
+  user → `not_found`. Status transitions (decision 17): `pending → active | rejected`,
+  `active → suspended`, `suspended | rejected → active`; anything else →
+  `invalid_transition`. `→ active` sets `approved_by = auth.uid()`, `approved_at = now()`. Role:
+  `learner | admin`, same role → `no_change`. Each writes one audit event: `user_id` = target,
+  `actor_id` = the admin, `source = 'admin'`, type `admin.user_approved` / `admin.user_rejected`
+  / `admin.user_suspended` / `admin.role_changed`, payload `{ targetUserId, from, to }`. Returns
+  `{ "from": …, "to": … }`.
+
+  **`public.admin_bootstrap(p_user_id uuid) returns boolean`** — `security definer`, `execute`
+  for `service_role` only (`revoke … from public, anon, authenticated`). Role already `admin`,
+  **whatever the status** → `false`, no event (decision 23: a suspended admin stays suspended).
+  Otherwise role `admin`,
+  status `active`, `approved_at = coalesce(approved_at, now())`, event `admin.bootstrapped`
+  (`source 'system'`, `actor_id` = the user, payload `{ targetUserId, from: <old status>, to:
+  'active' }`) → `true` (§2.5).
+
+- Produces TypeScript:
+
+  ```ts
+  // lib/events/ids.ts — decision 9
+  /** UUIDv5 of `key` in the namespace `requestId` (node:crypto sha1). Deterministic. */
+  export function deriveEventId(requestId: string, key: string): string
+
+  // lib/events/apply.ts — import 'server-only'
+  export type ApplyOutcome = 'applied' | 'duplicate'
+  export type EventErrorCode = 'quota_exceeded' | 'forbidden' | 'inactive' | 'invalid_event'
+    | 'not_implemented' | 'invalid_transition' | 'track_not_enrolled' | 'invalid_timezone'
+    | 'ai_personalization_off' | 'unknown'
+  export class EventError extends Error {
+    readonly code: EventErrorCode
+    readonly userMessage: string       // Vietnamese, from vi.errors
+  }
+  export type EventInput<T extends EventType> = {
+    id: string; type: T; payload: EventPayload<T>
+    trackId?: string; itemId?: string; planId?: string; blockId?: string
+  }
+  export async function applyLearnerEvent<T extends LearnerEventType>(
+    supabase: SupabaseClient<Database>, event: EventInput<T>,
+  ): Promise<ApplyOutcome>
+  export async function applySystemEvent<T extends SystemEventType>(
+    admin: SupabaseClient<Database>, userId: string,
+    event: EventInput<T> & { source?: 'system' | 'bot' | 'admin'; actorId?: string },
+  ): Promise<ApplyOutcome>
+  ```
+
+  Both validate the payload with `parseEventPayload` before the RPC (an invalid payload throws
+  `EventError('invalid_event')` without calling the database), send snake_case keys plus
+  `rules_version: RULES_VERSION`, and map the RPC error `message` to the code (unknown messages
+  → `unknown`). `vi.errors`: `quotaExceeded` = "Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy
+  thử lại vào ngày mai." (§4.5), `saveFailed` = "Không lưu được thay đổi. Bạn thử lại nhé.",
+  `notAllowed` = "Bạn không có quyền thực hiện thao tác này.", `invalidTransition` = "Lộ trình
+  đang ở trạng thái khác. Bạn tải lại trang nhé.", `invalidTimezone` = "Múi giờ không hợp lệ.".
+  Mapping: `quota_exceeded` → `quotaExceeded`; `forbidden`, `inactive` → `notAllowed`;
+  `invalid_transition`, `track_not_enrolled` → `invalidTransition`; `invalid_timezone` →
+  `invalidTimezone`; everything else → `saveFailed`.
+
+- [ ] **Step 1: Failing pgTAP.** `040-apply-event.test.sql`:
+  1. `track.enrolled` for an active user creates the `user_tracks` row and exactly one event
+     (`source learner`, `actor_id` = user);
+  2. **the same event id again** → `outcome duplicate`, still one event, and a changed
+     `budgetMinutes` in the retry does **not** change the row;
+  3. `p_event.user_id` of another user → `forbidden`; `anon` cannot execute (`42501`);
+  4. `admin.user_approved` → `invalid_event`; `item.result` → `not_implemented`; a non-empty
+     `p_changes` → `not_implemented`; a pending user → `inactive`;
+  5. `track.updated {budgetMinutes: 90}` changes only `budget_minutes`; on a track not enrolled →
+     `track_not_enrolled` **and no event row remains**;
+  6. `track.paused` → `paused`; paused again → `invalid_transition`; `track.resumed` → `active`;
+     `track.removed` → `removed`;
+  7. `schedule.changed` inserts a version; a second change with the same `effectiveAt` replaces
+     it (one row); `timezone 'Mars/Base'` → `invalid_timezone` and no event row remains;
+  8. `settings.changed {codeLanguage: 'go'}` updates the profile; `{shareNotesWithAi: true}` →
+     `ai_personalization_off`;
+  9. learner events increment `event_quota` for the user's local day.
+  `041-system-and-admin.test.sql`:
+  1. `authenticated` and `anon` have no execute privilege on `apply_system_event` and
+     `admin_bootstrap` (`has_function_privilege` false); `service_role` has;
+  2. as `service_role`: `onboarding.completed` sets `onboarded_at` and writes a `system` event;
+     repeating the id → `duplicate` and `onboarded_at` unchanged; a learner type →
+     `invalid_event`; a pending user → `inactive`;
+  3. a learner calling `admin_set_status` → `forbidden`; an admin approving a pending user →
+     `active`, `approved_by` = admin, one `admin.user_approved` event with `actor_id` = admin,
+     `source admin`, payload `{targetUserId, from: pending, to: active}`; `pending → suspended` →
+     `invalid_transition`; the admin targeting themselves → `cannot_change_self`; a **suspended**
+     admin → `forbidden`;
+  4. `admin_set_role` → role changed + `admin.role_changed`; same role → `no_change`;
+  5. `admin_bootstrap` on a pending user → `true`, active admin, one `admin.bootstrapped` event;
+     again → `false`, still one event; on a **suspended admin** → `false` and still suspended;
+     `anon` has no execute privilege on any function of this task, `authenticated` none on
+     `apply_system_event` / `admin_bootstrap`;
+  6. admin and system events do not touch `event_quota`.
+- [ ] **Step 2: Failing TypeScript tests.** `lib/events/ids.test.ts`: same inputs → same id;
+  the version nibble is `5` and the variant `8|9|a|b`; different keys → different ids; an invalid
+  `requestId` throws. `lib/events/apply.test.ts` (a fake client whose `rpc` records calls and
+  returns `{ data, error }`): snake_case body with `rules_version: RULES_VERSION`;
+  `applied` / `duplicate` pass through; an error message `quota_exceeded` → `EventError` with
+  `code 'quota_exceeded'` and the §4.5 Vietnamese message; an unknown message → `unknown` +
+  `saveFailed`; an invalid payload throws **before** `rpc` is called; `applySystemEvent` sends
+  `p_user_id` and `source` / `actor_id` when given.
+- [ ] **Step 3: RED → implement → GREEN** (`pnpm db:reset && pnpm test:db`, `pnpm test`).
+- [ ] **Step 4:** `pnpm db:types`; `pnpm verify`.
+- [ ] **Step 5: ADR-0007** (event log + derived state; pure TypeScript domain; `apply_event`
+  security invoker; idempotent client ids; M2 applies state tables, derived tables in 4.9).
+- [ ] **Step 6: Commit** — `feat(db): apply_event, apply_system_event and admin functions`.
+
+### Task 2.6: Supabase clients, proxy, DAL, guards
+
+**Files:**
+
+- Create: `lib/supabase/server.ts`, `lib/supabase/admin.ts`, `lib/supabase/proxy.ts`,
+  `lib/supabase/proxy.test.ts`, `proxy.ts`, `lib/auth/dal.ts`, `lib/auth/dal.test.ts`,
+  `lib/auth/paths.ts`, `lib/auth/paths.test.ts`, `lib/auth/guards.ts`,
+  `tools/guards/server-guards.ts`, `tools/guards/server-guards.test.ts`,
+  `docs/adr/0002-supabase-keys-and-getclaims.md`, `docs/adr/0006-proxy-and-dal.md`,
+  `docs/adr/0019-cache-components-off.md`
+- Modify: `CLAUDE.md` (guard list + `requireOnboarded`), `docs/adr/README.md`
+
+**Interfaces:**
+
+- Consumes: `serverEnv()` (2.1), `Database` types (2.4–2.5b).
+- Produces:
+
+  ```ts
+  // lib/supabase/server.ts — import 'server-only'
+  /** Per-request client with the user's session cookies (RLS applies). */
+  export async function createClient(): Promise<SupabaseClient<Database>>
+  // cookies(): getAll → cookieStore.getAll(); setAll → set each cookie inside try/catch
+  // (Server Components cannot set cookies; proxy.ts refreshes the session).
+
+  // lib/supabase/admin.ts — import 'server-only'
+  /** Secret-key client: bypasses RLS. Only for system, bot and admin writes (§2.1). */
+  export function createAdminClient(): SupabaseClient<Database>
+  // { auth: { persistSession: false, autoRefreshToken: false } }
+
+  // lib/supabase/proxy.ts
+  export function isPublicPath(pathname: string, vercelEnv: string | undefined): boolean
+  export async function updateSession(request: NextRequest): Promise<NextResponse>
+
+  // lib/auth/paths.ts
+  export type HomePath = '/pending' | '/onboarding' | '/today'
+  export function homePathFor(user: Pick<SessionUser, 'status' | 'onboardedAt'>): HomePath
+  export function safeNextPath(next: string | null | undefined): string | null
+
+  // lib/auth/dal.ts — import 'server-only'
+  export type Role = 'learner' | 'admin'
+  export type AccountStatus = 'pending' | 'active' | 'rejected' | 'suspended'
+  export type CodeLanguage = 'python' | 'java' | 'go'
+  export type SessionUser = {
+    id: string; email: string | null; role: Role; status: AccountStatus
+    displayName: string | null; avatarUrl: string | null; codeLanguage: CodeLanguage | null
+    onboardedAt: string | null; aiPersonalization: boolean
+    isAdmin: boolean                 // role === 'admin' && status === 'active'
+  }
+  export const getSessionUser: () => Promise<SessionUser | null>  // React cache(); getClaims() + own profile
+  export async function requireUser(): Promise<SessionUser>        // none → redirect('/sign-in')
+  export async function requireActive(): Promise<SessionUser>      // status ≠ active → redirect('/pending')
+  export async function requireOnboarded(): Promise<SessionUser>   // + !onboardedAt → redirect('/onboarding')
+  export async function requireAdmin(): Promise<SessionUser>       // requireActive + !isAdmin → notFound()
+  export async function requireDevAccess(): Promise<void>          // process.env.VERCEL_ENV === 'production' → requireAdmin()
+
+  // lib/auth/guards.ts
+  /** Explicit marker for handlers that are public on purpose (§2.2). */
+  export function publicRoute(): void
+  export const GUARD_NAMES: readonly string[]
+  // ['requireUser', 'requireActive', 'requireOnboarded', 'requireAdmin', 'requireDevAccess',
+  //  'requireBotToken', 'requireCronSecret', 'publicRoute']
+  ```
+
+**Behaviour:**
+
+- `getSessionUser`: `supabase.auth.getClaims()` (never `getSession()`, §2.1); no claims → `null`;
+  reads the caller's own `profiles` row (RLS); a missing row reads as `status 'pending'`,
+  `role 'learner'` (safe default). Wrapped in React `cache()` so one request reads the profile
+  once (§2.2).
+- `homePathFor`: not active → `/pending`; active without `onboardedAt` → `/onboarding`; else
+  `/today`. `safeNextPath`: only same-origin paths — starts with `/`, not `//`, no `\`, **no
+  character ≤ U+0020 or U+007F** (browsers strip tabs and newlines, turning `/\t/evil.test` into
+  `//evil.test`), `new URL(next, 'http://x').host === 'x'`, not `/sign-in` or `/auth/…` — else
+  `null` (open-redirect guard).
+- `isPublicPath`: exactly `/`, `/sign-in`, `/auth/callback`; plus `/dev` and `/dev/**` when
+  `vercelEnv !== 'production'` (the catalog stays reachable for e2e and previews; 2.8 makes it
+  admin-only in production). The proxy passes `process.env.VERCEL_ENV` and reads the Supabase
+  values through `publicSupabaseEnv()` (2.1), never `serverEnv()`.
+- `updateSession`: `createServerClient` with `getAll` from the request and `setAll(cookies,
+  headers)` writing cookies to the request and a fresh `NextResponse.next({ request })`, and the
+  cache headers onto the response (spike finding); then `await supabase.auth.getClaims()`; no
+  claims and not public → redirect to `/sign-in?next=<pathname + search>`. **No database
+  queries** (§2.2).
+- Root `proxy.ts` (Next 16 — read `node_modules/next/dist/docs` for the `proxy` export and
+  `config.matcher` shape before writing it): calls `updateSession`; matcher covers pages only —
+  excludes `api/`, `_next/static`, `_next/image`, `favicon.ico` and files with an extension.
+
+**Architecture test** — `tools/guards/server-guards.ts` exports
+`guardViolations(file: string, source: string): string[]` (TypeScript compiler API): for a module
+whose first statement is the `'use server'` directive, every exported function (declaration or
+`const` arrow/function) must have as its **first statement** a call — optionally `await`ed — to
+a name in `GUARD_NAMES`; for an `app/**/route.ts` file, the same for exported `GET`, `POST`,
+`PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`. The test covers: a guarded action (0), an unguarded
+action (1), a guard called second (1), an exported arrow function (checked), a non-exported
+helper (ignored), a route handler without a guard (1), `publicRoute()` accepted. It also checks
+every exported async function in `features/*/queries.ts` (§2.2: "every `features/*/queries.ts`
+loader calls the DAL") — a loader without a guard as its first statement is a violation (test
+case). Then it scans every `*.ts`/`*.tsx` under `app`, `features`, `lib`, `components` and
+expects zero violations (§2.2, §7.2).
+
+- [ ] **Step 1: Failing tests** — `paths.test.ts` (`homePathFor` matrix for the four statuses ×
+  onboarded; `safeNextPath('/today')` → `/today`; `'/settings?tab=x'` and the percent-encoded
+  `'/%09/x'` are kept (same origin); `'//evil.test'`, `'https://evil.test'`, `'/\\evil'`,
+  `'/\t/evil.test'`, `'/\n/evil.test'`, `''`, `null`, `'/sign-in'` → `null`); `proxy.test.ts`
+  (`isPublicPath` for `/`, `/sign-in`, `/auth/callback`, `/today`, `/dev/components` in preview vs production,
+  `/sign-in-x`); `dal.test.ts` — mock `@/lib/supabase/server` (fake `auth.getClaims` and a
+  `from('profiles')` chain), `next/navigation` (`redirect`/`notFound` throw tagged errors) and
+  React `cache` (a memoising stand-in): no claims → `null` and `requireUser` redirects
+  `/sign-in`; pending → `requireActive` redirects `/pending`; active, not onboarded →
+  `requireOnboarded` redirects `/onboarding`; active learner → `requireAdmin` → `notFound`;
+  active admin passes and `isAdmin` is true; suspended admin → `requireAdmin` redirects
+  `/pending`; missing profile row → `pending`; `requireUser` + `requireActive` in one request
+  read the profile once; `requireDevAccess` passes outside production and requires an admin in
+  production; `server-guards.test.ts` as above.
+- [ ] **Step 2: RED** — `pnpm test lib/auth lib/supabase tools/guards`.
+- [ ] **Step 3: Implement** the clients, `proxy.ts`, DAL, paths, guards, guard checker.
+- [ ] **Step 4: GREEN** + `pnpm verify`; `pnpm test:e2e` still green (the catalog and `/` stay
+  public). `not-found.spec.ts`: a signed-out visit to an unknown path now redirects to
+  `/sign-in?next=…` — assert that; task 2.7a adds the signed-in 404 case.
+- [ ] **Step 5: ADRs** — 0002 (publishable/secret keys, `getClaims()` on the server, the secret
+  client only in `lib/supabase/admin.ts`), 0006 (`proxy.ts` only refreshes the session and
+  redirects signed-out users; layouts + DAL decide access; every action and handler calls a
+  guard, enforced by the architecture test), 0019 (Cache Components stay off in v1: every screen
+  is per-user and dynamic). `CLAUDE.md` guard list gains `requireOnboarded` and
+  `requireDevAccess` (decision 10).
+- [ ] **Step 6: Commit** — `feat(auth): Supabase clients, session proxy, DAL and guard checks`.
+
+### Task 2.6a: Form and focus-page primitives
+
+**Files:** Create `components/ui/{checkbox,radio-group,native-select}.tsx`,
+`components/patterns/{focus-layout,form-field,form-error-summary,step-indicator,choice-card}.tsx`
+and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/components/registry.tsx`,
+`lib/i18n/vi.ts` (+ key test).
+
+**Interfaces** (token utilities only; the global focus ring; labels from `vi.ts`):
+
+- `Checkbox` (ui) — Radix `Checkbox.Root` + `Indicator` (`Check` icon, `aria-hidden`); 20 px
+  box, `border-border-strong`, checked `bg-primary text-primary-foreground`; a transparent
+  pseudo-element gives a **≥ 44 px hit area** (DESIGN_SYSTEM §5); props = Radix Root props.
+- `RadioGroup`, `RadioGroupItem` (ui) — Radix RadioGroup; same sizing and hit area; the group is
+  a vertical stack with `gap-3`.
+- `NativeSelect` (ui) — a styled native `<select>` (44 px, `border-border-strong`,
+  `rounded-md`, `bg-surface`, `text-base`, `ChevronDown` icon `aria-hidden`, `aria-invalid`
+  styling like Input); props = `ComponentProps<'select'>`. Native, so long lists (≈ 420 time
+  zones) keep the platform picker on phones.
+- `FocusLayout` (pattern) — the frame for pages outside the AppShell (`/`, `/sign-in`,
+  `/pending`, `/onboarding`): skip link, a header with the "Học Đều" wordmark linking to `/` and
+  an optional `headerActions` slot, `main#main` centred with `width: 'narrow' | 'wide'`
+  (`max-w-md` / `max-w-2xl`), page gutters per DESIGN_SYSTEM §5. Props `{ children; width?;
+  headerActions? }`.
+- `FormField` (pattern) — `{ id: string; label: string; description?: string; error?: string;
+  required?: boolean; children: (control: { id: string; 'aria-describedby'?: string;
+  'aria-invalid'?: true; required?: boolean }) => React.ReactNode }`; renders Label, the control,
+  the description (`text-muted-foreground`) and the error (`text-danger`, `CircleAlert` icon +
+  text, `id={`${id}-error`}`); `aria-describedby` joins the description and error ids.
+- `FormErrorSummary` (pattern, client) — `{ title: string; errors: { fieldId: string; message:
+  string }[] }`; nothing when empty; otherwise `role="alert"`, `tabIndex={-1}`, focused when the
+  errors change, each message a link to `#fieldId` (DESIGN_SYSTEM §5 forms).
+- `StepIndicator` (pattern) — `{ steps: readonly string[]; current: number /* 0-based */ }`;
+  visible text "Bước {n}/{total}: {label}" and an `<ol>` of step dots with
+  `aria-current="step"` on the current one (never colour alone: the current dot is larger and
+  the label is text).
+- `ChoiceCard` (pattern) — `{ htmlFor: string; control: React.ReactNode; title: React.ReactNode;
+  description?: React.ReactNode }`; a `<label>` card (≥ 44 px, `border`, `rounded-lg`,
+  `bg-surface`), selected state from the control (`has-data-[state=checked]:border-primary` +
+  `bg-primary-soft`) so it is not colour-only (the control shows the check).
+- `vi.forms`: `required` ("Bắt buộc"), `errorSummaryTitle` ("Vui lòng kiểm tra lại các mục
+  sau"), `step` ("Bước").
+
+- [ ] **Step 1: Failing tests** — each component renders its role/label wiring
+  (`getByRole('checkbox', { name })` via `Label htmlFor`, `radiogroup`/`radio`, `combobox` for
+  the select), keyboard toggling (Space on the checkbox, arrows in the radio group via
+  `userEvent`), FormField's `aria-describedby`/`aria-invalid` and error text, the summary's
+  `role="alert"` + focus + `href="#field"`, StepIndicator's text and `aria-current`, ChoiceCard
+  toggles its checkbox when the card text is clicked, FocusLayout renders `main#main` and the
+  wordmark link.
+- [ ] **Step 2: RED → implement → GREEN** (`pnpm test components`), `pnpm lint`.
+- [ ] **Step 3: Catalog** — a `COMPONENTS.md` entry (entry format) and a `/dev/components`
+  registry entry per component showing every state (checked, invalid, disabled, error summary
+  with two errors, step 2 of 4, …); `pnpm test:e2e` (catalog axe light/dark) green.
+- [ ] **Step 4: Verify** `pnpm verify && pnpm test:e2e`. **Commit** — `feat(ui): checkbox,
+  radio group and native select; form and focus-page patterns`.
+
+### Task 2.7a: Sign-in, OAuth callback, test login, guarded route groups
+
+**Files:**
+
+- Create: `app/(public)/sign-in/page.tsx`, `app/(public)/auth/callback/route.ts`,
+  `app/(account)/{layout.tsx,loading.tsx,error.tsx}`, `app/(account)/pending/page.tsx`
+  (placeholder), `app/(onboarding)/{layout.tsx,loading.tsx,error.tsx}`,
+  `app/(onboarding)/onboarding/page.tsx` (placeholder), `app/(app)/{layout.tsx,loading.tsx,error.tsx}`,
+  `app/(app)/today/page.tsx` (placeholder), `features/auth/{actions.ts,index.ts}`,
+  `features/auth/components/sign-in-panel.tsx` (+ test), `lib/auth/bootstrap.ts` (+ test),
+  `supabase/seed.sql`, `e2e/support/users.ts`, `e2e/support/auth.ts`, `e2e/auth.spec.ts`,
+  `docs/adr/0003-oauth-and-test-login.md`
+- Modify: `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`, `lib/i18n/vi.ts`,
+  `e2e/not-found.spec.ts`, `docs/adr/README.md`
+
+**Interfaces:**
+
+- Consumes: DAL, paths, guards, clients (2.6); `admin_bootstrap` (2.5b); FocusLayout, FormField
+  (2.6a); `serverEnv()` (2.1).
+- Produces:
+
+  ```ts
+  // features/auth/actions.ts — 'use server'; every export starts with its guard
+  export async function signInWithProvider(formData: FormData): Promise<never>
+  //   publicRoute(); provider ∈ {'google','github'}; signInWithOAuth({ provider,
+  //   options: { redirectTo: `${siteUrl}/auth/callback?next=<safe next>` } }) → redirect(data.url)
+  export type TestLoginState = { error: string | null }
+  export async function signInWithTestLogin(prev: TestLoginState, formData: FormData): Promise<TestLoginState>
+  //   publicRoute(); refuses unless serverEnv().authTestLogin (§2.3 — the form is not the only lock);
+  //   signInWithPassword → bootstrapAdminIfListed → redirect(safeNextPath(next) ?? homePathFor(profile))
+  //   where `profile` is read fresh after bootstrapping (not through the cached DAL)
+  export async function signOut(): Promise<never>          // requireUser(); auth.signOut() → redirect('/sign-in')
+
+  // lib/auth/bootstrap.ts — import 'server-only'
+  /** §2.5: a provider-verified e-mail in ADMIN_EMAILS becomes an active admin (decision 23). */
+  export async function bootstrapAdminIfListed(
+    user: { id: string; email: string | null | undefined; emailConfirmedAt: string | null | undefined },
+    deps?: { adminEmails?: readonly string[]; admin?: SupabaseClient<Database> },
+  ): Promise<boolean>
+  ```
+
+- **Route groups** (§2.2): `(public)` no guard — `/sign-in` (signed-in users → `homePathFor`),
+  `/auth/callback`; `(account)` layout `requireUser()`; `(onboarding)` layout `requireActive()`
+  and onboarded users → `/today`; `(app)` layout `requireOnboarded()` → the AppShell (as M1 has
+  it; 2.7b wires sign-out and the title). Each group has `loading.tsx` (LoadingState) and
+  `error.tsx` (ErrorState with retry) (§7.5). Placeholders (decision 13): `/pending`,
+  `/onboarding` and `/today` compose the PageHeader and EmptyState patterns with `vi` copy (2.7b
+  replaces `/pending`, 2.10 `/onboarding`, 5.1 `/today`).
+- **Callback** `GET /auth/callback`: `publicRoute()`; `code` → `exchangeCodeForSession(code)`;
+  failure or no code → `/sign-in?error=oauth`; success → `bootstrapAdminIfListed` with the
+  returned user (`email`, `email_confirmed_at`) → redirect to `safeNextPath(next) ??
+  homePathFor(profile)` (profile read fresh).
+- **Sign-in page** (`FocusLayout`): "Tiếp tục với Google", "Tiếp tục với GitHub" (each a `<form
+  action={signInWithProvider}>` with a hidden `provider` and `next`), an error Banner for
+  `?error=oauth` ("Đăng nhập không thành công. Bạn thử lại nhé."), and — only when
+  `serverEnv().authTestLogin` — a "Đăng nhập thử nghiệm" form (email, password, FormField,
+  `useActionState`; a wrong password shows "Email hoặc mật khẩu không đúng.").
+- **`supabase/seed.sql`** (synthetic users only, password `test-password-123`, the spike's
+  `auth.users` + `auth.identities` inserts): `admin@example.test`
+  (`11111111-1111-4111-8111-111111111111`) set to active admin, `learner@example.test`
+  (`22222222-2222-4222-8222-222222222222`) active, `pending@example.test`
+  (`33333333-3333-4333-8333-333333333333`) pending — after the inserts, `update public.profiles`
+  sets their role/status. Manual local use only (decision 14).
+- **`e2e/support/users.ts`** (secret key from `process.env`, decision 14; `import type` only from
+  `lib/`): `createTestUser(options?: { status?: AccountStatus; role?: Role; onboarded?: boolean;
+  email?: string; name?: string }): Promise<{ id: string; email: string; password: string; name:
+  string }>` (admin `createUser` with `email_confirm: true`, `user_metadata.full_name`, then a
+  profile update; default e-mail `e2e-<uuid>@example.test`, default name "Học viên <4 chars>"),
+  `getProfile(id)`, `setStatus(id, status)`, `deleteTestUser(id)`, `deleteUserByEmail(email)`.
+  **`e2e/support/auth.ts`:** `signIn(page, user, next?)` through the test-login form.
+
+- [ ] **Step 1: Failing unit tests** — `bootstrap.test.ts` (listed + confirmed → calls
+  `admin_bootstrap`, returns its boolean; listed but unconfirmed → `false`, no call; not listed →
+  `false`; case-insensitive match); `sign-in-panel.test.tsx` (both provider buttons; the
+  test-login form only when `testLogin`; the error banner).
+- [ ] **Step 2: Failing e2e** — `e2e/auth.spec.ts` (axe in light and dark on every page it
+  renders):
+  1. signed out, `/today` → `/sign-in?next=%2Ftoday`; the page shows both providers and the
+     test-login form;
+  2. a pending user signs in → `/pending`; an active, not-onboarded user → `/onboarding`; an
+     active onboarded user with `next=/today` → `/today` inside the AppShell;
+  3. a wrong password shows the error and stays on `/sign-in`;
+  4. **bootstrap** (desktop project only; `deleteUserByEmail('bootstrap-admin@example.test')`
+     first): that pending user signs in → lands on `/onboarding`; the profile is an active admin;
+  5. a signed-in user visiting `/sign-in` goes to their home path; a `next` of
+     `//evil.test` is ignored.
+  `not-found.spec.ts` gains the signed-in case (an active onboarded user gets the Vietnamese 404
+  with a link home, axe clean).
+- [ ] **Step 3: RED → implement → GREEN** (`pnpm test`, `pnpm db:reset && pnpm test:e2e`);
+  catalog entry for `SignInPanel`.
+- [ ] **Step 4: ADR-0003** (Google + GitHub only; env-gated test login locked by `lib/env.ts` and
+  the hosted projects' disabled email provider; approval in-app only).
+- [ ] **Step 5: Verify** `pnpm verify:full`. The real Google/GitHub sign-in on a staging preview
+  is an **[owner]** check at the PR stop (decision 4).
+- [ ] **Step 6: Commit** — `feat(auth): sign-in, OAuth callback, test login and guarded route
+  groups`.
+
+### Task 2.7b: Pending screen, landing page, AppShell sign-out
+
+**Files:**
+
+- Create: `app/(public)/page.tsx` (moved from `app/page.tsx`; its test moves alongside),
+  `features/auth/components/{landing.tsx,pending-status.tsx,status-watcher.tsx}` (+ tests),
+  `e2e/account.spec.ts`
+- Modify: `app/(account)/pending/page.tsx` (placeholder → status screen), `app/(app)/layout.tsx`
+  (sign-out), `components/patterns/app-shell/{index.tsx,top-bar.tsx,account-menu.tsx,sidebar.tsx}`
+  (+ tests), `app/dev/app-shell/demo.tsx`, `app/dev/components/registry.tsx`,
+  `docs/design/COMPONENTS.md`, `lib/i18n/vi.ts`, `features/auth/index.ts`, `e2e/smoke.spec.ts`
+
+**Behaviour:**
+
+- **Landing `/`** (`FocusLayout`): h1 "Học Đều", the positioning line ("Nền tảng học tập dẫn dắt
+  bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều."), a "Đăng nhập" link-button to `/sign-in`;
+  signed-in users → `homePathFor` (§2.4).
+- **Pending page:** copy per status — pending "Tài khoản của bạn đang chờ duyệt" + "Quản trị viên
+  sẽ duyệt sớm. Trang này tự chuyển khi tài khoản được duyệt."; rejected "Tài khoản chưa được
+  duyệt"; suspended "Tài khoản đang tạm khoá"; a sign-out button in `headerActions`; active users
+  → `homePathFor`. `StatusWatcher` (client leaf) calls `router.refresh()` every 30 s, on `focus`
+  and on `visibilitychange` to visible, and renders nothing; the server page redirects once the
+  status is `active` ("moves on automatically when approved", §2.4).
+- **AppShell (M1 deferred #5):** drop the `title` prop — `TopBar` derives the title from
+  `usePathname()` via `NAV_ITEMS` + `ADMIN_ITEMS` (fallback "Học Đều"); `onSignOut?: () =>
+  Promise<void>` invoked as `() => void onSignOut()` from `DropdownMenuItem onSelect` (Radix
+  passes a non-serializable Event). The `(app)` layout passes `onSignOut={signOut}`. Update the
+  AppShell tests, the `/dev/app-shell` demo, the catalog entry and `COMPONENTS.md`.
+
+- [ ] **Step 1: Failing unit tests** — `landing.test.tsx`; `pending-status.test.tsx` (copy per
+  status); `status-watcher.test.tsx` (fake timers: refresh after 30 s and on `focus`); AppShell:
+  title from the pathname, sign-out invoked without arguments.
+- [ ] **Step 2: Failing e2e** — `e2e/account.spec.ts` (axe light/dark):
+  1. a pending user on `/pending` sees the pending copy; the admin API sets them `active`; after
+     a `focus` event the page moves to `/onboarding` by itself;
+  2. rejected and suspended users see their copy and can sign out;
+  3. an active onboarded user: the top bar reads "Hôm nay" on `/today` (mobile project);
+     "Đăng xuất" from the account menu → `/sign-in`; `/today` then redirects to sign-in again;
+  4. a signed-in user visiting `/` goes to their home path; `smoke.spec.ts` keeps `/` signed out.
+- [ ] **Step 3: RED → implement → GREEN**; catalog entries for the new components.
+- [ ] **Step 4: Verify** `pnpm verify:full`. **Commit** — `feat(auth): pending screen, landing
+  page and sign-out from the app shell`.
+
+### Task 2.8: Admin approval queue
+
+**Files:**
+
+- Create: `supabase/migrations/20260925000400_admin_list_users.sql`,
+  `supabase/tests/database/050-admin-list-users.test.sql`,
+  `features/admin/{queries.ts,actions.ts,index.ts}`,
+  `features/admin/components/{user-queue.tsx,user-row-actions.tsx}` (+ tests),
+  `app/(admin)/{layout.tsx,loading.tsx,error.tsx}` (§7.5), `app/(admin)/admin/page.tsx` (redirect),
+  `app/(admin)/admin/users/page.tsx`, `e2e/admin.spec.ts`, `docs/adr/0004-sign-up-with-approval.md`
+- Modify: `app/dev/components/page.tsx`, `app/dev/app-shell/page.tsx` (`await
+  requireDevAccess()`), `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`,
+  `lib/i18n/vi.ts`, `lib/supabase/database.types.ts`, `docs/adr/README.md`
+
+**Interfaces:**
+
+- SQL: `public.admin_list_users() returns table (id uuid, email text, display_name text,
+  avatar_url text, role text, status text, created_at timestamptz, approved_at timestamptz,
+  onboarded_at timestamptz)` — `security definer`, `set search_path = ''`, `execute` for
+  `authenticated` (`revoke … from public, anon`); not `is_admin()` → `forbidden`; joins `auth.users` for the e-mail; ordered
+  pending first (oldest first), then everyone else newest first. No notes, no events (§4.5).
+- TypeScript:
+
+  ```ts
+  // features/admin/queries.ts — import 'server-only'
+  export type AdminUserRow = { id: string; email: string | null; displayName: string | null;
+    role: Role; status: AccountStatus; createdAt: string; approvedAt: string | null;
+    onboardedAt: string | null; isSelf: boolean }
+  export async function listUsers(): Promise<AdminUserRow[]>          // requireAdmin() first
+
+  // features/admin/actions.ts — 'use server'
+  export type AdminActionResult = { ok: true; message: string } | { ok: false; message: string }
+  export async function setUserStatus(userId: string, status: 'active' | 'rejected' | 'suspended'): Promise<AdminActionResult>
+  export async function setUserRole(userId: string, role: Role): Promise<AdminActionResult>
+  // requireAdmin(); Zod (uuid, enum); rpc with the admin's own session client (the function
+  // checks is_admin); revalidatePath('/admin/users'); errors → Vietnamese messages
+  ```
+
+- UI (`/admin/users`, AppShell): PageHeader "Người dùng"; Sections "Chờ duyệt (n)", "Đang
+  hoạt động", "Tạm khoá", "Bị từ chối" (EmptyState "Không có tài khoản nào chờ duyệt." for an
+  empty queue); each row: name, e-mail, joined date (`formatDay`), a Badge for admins, and
+  actions — pending: "Duyệt" and "Từ chối"; active: "Tạm khoá", "Đặt làm quản trị" / "Bỏ quyền
+  quản trị"; suspended or rejected: "Kích hoạt lại"; the acting admin's own row shows "Bạn" and
+  no actions (decision 17). "Từ chối", "Tạm khoá" and role changes confirm through
+  `ConfirmDialog`; results are toasts (polite) and the list re-renders. `UserRowActions` takes
+  the two actions as props so the catalog can render it with no-op actions.
+- `/admin` redirects to `/admin/users` (decision 13). `/dev/*` pages call `await
+  requireDevAccess()` (admin-only in production, §2.4).
+
+- [ ] **Step 1: Failing pgTAP** — `050-admin-list-users.test.sql`: a learner → `forbidden`;
+  `anon` has no execute privilege; an admin sees every user with the e-mail from `auth.users`;
+  pending rows first.
+- [ ] **Step 2: Failing unit tests** — `user-queue.test.tsx` (sections, counts, empty state,
+  own row without actions); `user-row-actions.test.tsx` (the buttons per status; confirm dialogs
+  for destructive actions; the action receives the right arguments).
+- [ ] **Step 3: Failing e2e** — `e2e/admin.spec.ts` (an admin created per test):
+  approve a pending user (unique name) → the row moves to "Đang hoạt động" and the DB status is
+  `active`; reject through the confirm dialog → `rejected`; suspend an active user →
+  `suspended`; reactivate; promote to admin → Badge + DB role; a learner visiting `/admin/users`
+  gets the Vietnamese 404; `/admin` redirects to `/admin/users`; axe clean in light and dark,
+  including with the confirm dialog open.
+- [ ] **Step 4: RED → implement → GREEN** (`pnpm db:reset && pnpm test:db`, `pnpm test`,
+  `pnpm test:e2e`); `pnpm db:types`.
+- [ ] **Step 5: ADR-0004** (open sign-up with admin approval; statuses and transitions; no
+  self-actions; in-app status only; bootstrap semantics of decision 23 — a listed e-mail demoted to
+  `learner` is promoted again at its next sign-in, so remove it from `ADMIN_EMAILS` first).
+- [ ] **Step 6: Verify** `pnpm verify:full`. **Commit** — `feat(admin): user approval queue`.
+
+### Task 2.9: Track manifests, loader, projection table
+
+**Files:**
+
+- Create: `content/tracks/dsa/track.yaml`, `content/tracks/english/track.yaml`,
+  `lib/content/schemas/manifest.ts`, `lib/content/tracks.ts`, `lib/content/tracks.test.ts`,
+  `lib/content/__fixtures__/tracks/**` (invalid and draft manifests for tests),
+  `lib/content/weekly-template.ts`, `lib/content/weekly-template.test.ts`,
+  `lib/domain/plan/projections.ts`, `lib/domain/plan/projections.test.ts`,
+  `lib/domain/plan/variant.ts`, `lib/domain/plan/variant.test.ts`
+- Modify: `package.json` (`yaml` 2.9.1 in `dependencies`, decision 12), `next.config.ts`
+  (`outputFileTracingIncludes: { '/**': ['content/tracks/*/track.yaml'] }` — check the key and
+  glob format against the Next 16 docs in `node_modules/next/dist/docs` first; `next start` reads
+  the repo folder, so only a Vercel deployment proves it — owner check in 2.2),
+  `lib/i18n/format.ts` (+ tests), `lib/i18n/vi.ts`
+
+**Manifests** — the §3.4 values; M3 (3.1) adds the full schema (signals, lesson formats, decks
+validation) and tightens the loose parts. `content/tracks/dsa/track.yaml`:
+
+```yaml
+id: dsa
+status: active
+title: { vi: "Cấu trúc dữ liệu & Giải thuật", en: "Data Structures & Algorithms" }
+accent: track-1
+itemTypes: [lesson, problem, prompt, flashcard]
+codeLanguages: [python, java, go]
+srs:
+  intervals: [7, 21, 60]
+  relearnDays: 3
+  masteredAfter: 2
+  byType: { flashcard: { intervals: [1, 3, 7, 14], relearnDays: 1 } }
+review: { recallMinutes: 5, redoFactor: 0.6 }
+topics:   # technical terms stay English (DESIGN_SYSTEM §11); signals arrive in M3
+  - { id: arrays-hashing, title: { vi: "Arrays & Hashing", en: "Arrays & Hashing" }, requires: [] }
+  - { id: two-pointers, title: { vi: "Two Pointers", en: "Two Pointers" }, requires: [arrays-hashing] }
+  - { id: sliding-window, title: { vi: "Sliding Window", en: "Sliding Window" }, requires: [arrays-hashing] }
+  - { id: stack, title: { vi: "Stack", en: "Stack" }, requires: [arrays-hashing] }
+  - { id: binary-search, title: { vi: "Binary Search", en: "Binary Search" }, requires: [arrays-hashing] }
+  - { id: linked-list, title: { vi: "Linked List", en: "Linked List" }, requires: [two-pointers] }
+  - { id: trees, title: { vi: "Trees", en: "Trees" }, requires: [linked-list, binary-search] }
+  - { id: heap, title: { vi: "Heap / Priority Queue", en: "Heap / Priority Queue" }, requires: [trees] }
+  - { id: tries, title: { vi: "Tries", en: "Tries" }, requires: [trees] }
+  - { id: backtracking, title: { vi: "Backtracking", en: "Backtracking" }, requires: [trees] }
+  - { id: graphs, title: { vi: "Graphs", en: "Graphs" }, requires: [trees, backtracking] }
+  - { id: dp-1d, title: { vi: "1-D Dynamic Programming", en: "1-D Dynamic Programming" }, requires: [backtracking] }
+  - { id: dp-2d, title: { vi: "2-D Dynamic Programming", en: "2-D Dynamic Programming" }, requires: [dp-1d] }
+  - { id: intervals, title: { vi: "Intervals", en: "Intervals" }, requires: [heap] }
+  - { id: greedy, title: { vi: "Greedy", en: "Greedy" }, requires: [heap] }
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates:
+  lesson: 25
+  problem: { new: { E: 20, M: 35, H: 50 } }
+  prompt: 10
+roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]
+weeklyTemplate:
+  mon-fri: [{ kind: review, maxMinutes: 15 }, { kind: new }]
+  sat: [{ kind: review }]
+  sun: [{ kind: practice, tag: mock-interview, minutes: 45, fromWeek: 3 }, { kind: recap, count: 3 }]
+```
+
+`content/tracks/english/track.yaml`:
+
+```yaml
+id: english
+status: active
+title: { vi: "Tiếng Anh cho môi trường IT", en: "English for IT workplaces" }
+accent: track-2
+itemTypes: [flashcard, exercise, prompt]
+srs: { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
+defaults:
+  budgetMinutes: 25
+  newPerDay: 8
+  throttle: [{ dueAbove: 40, newPerDay: 4 }, { dueAbove: 60, newPerDay: 0 }]
+estimates: { flashcard: { new: 1.5, review: 0.5 }, exercise: 5, prompt: 10 }
+decks:
+  - id: explaining-code
+    kind: derived
+    from: { track: dsa, itemType: problem }
+    unlock: attempted
+    map:
+      front: { template: "Explain the optimal approach for {problem.title} in English." }
+      back: note.bilingual.en
+      hint: note.bilingual.vi
+roadmaps: [{ id: 10w }]
+weeklyTemplate:
+  mon-fri:
+    - { kind: practice, itemType: exercise, minutes: 5 }
+    - { kind: practice, tag: shadowing, minutes: 3 }
+    - { kind: review }
+    - { kind: new }
+  sat: [{ kind: review }]
+  sun: [{ kind: practice, tag: weekend-task, minutes: 15 }, { kind: review }]
+```
+
+**Interfaces:**
+
+```ts
+// lib/content/schemas/manifest.ts — Zod 4; z.looseObject at the top level (M3 validates the rest)
+export const TRACK_ACCENTS = ['track-1', …, 'track-8'] as const
+export const templateBlockSchema // strict: { kind: 'review'|'new'|'practice'|'recap', maxMinutes?, minutes?, tag?, itemType?, fromWeek?, count? } (positive ints)
+export const weeklyTemplateSchema // z.partialRecord over 'mon-fri'|'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun' → block[]
+  // (Zod 4's z.record with an enum key requires every key; manifests list only some days)
+export const trackManifestSchema  // id (^[a-z][a-z0-9-]{0,31}$), status, title {vi,en}, accent,
+  // itemTypes (non-empty), codeLanguages?, defaults { budgetMinutes 10–240 step 5, newPerDay int|null,
+  // throttle {dueAbove,newPerDay}[] }, roadmaps (non-empty, unique ids, recommendedBelowMinutes?),
+  // weeklyTemplate
+export type TrackManifest = z.infer<typeof trackManifestSchema>
+export type WeeklyTemplate = TrackManifest['weeklyTemplate']
+export type RoadmapRef = TrackManifest['roadmaps'][number]
+
+// lib/content/tracks.ts — import 'server-only'; fs + yaml; parsed once per process
+export function loadTracks(root?: string): readonly TrackManifest[]  // root defaults to <cwd>/content/tracks
+export function activeTracks(root?: string): readonly TrackManifest[] // status === 'active'
+export function getTrack(id: string, root?: string): TrackManifest | null
+// errors name the file: `content/tracks/x/track.yaml: accent: …`
+
+// lib/content/weekly-template.ts (pure text from manifest data; imports lib/i18n)
+export type TemplateDay = { label: string; blocks: string[] }
+export function describeWeeklyTemplate(template: WeeklyTemplate): TemplateDay[]
+export function describeThrottle(defaults: TrackManifest['defaults']): string[]
+
+// lib/domain/plan/projections.ts (§5.11 prototype table — M4 regenerates it)
+export type Projection = { medianWeeks: number; p90Weeks: number }
+export const PROJECTION_TABLE: Readonly<Record<string, Readonly<Record<string,
+  readonly (readonly [budget: number, median: number, p90: number])[]>>>>
+  // dsa: 8w [[45,16.7,18.1],[60,11.6,12.4],[75,9.3,9.7],[90,7.3,7.7],[120,5.6,6.1]]
+  //      10w [[45,22.6,24.1],[60,16.5,17.4],[75,12.7,13.6],[90,10.3,11.1],[120,7.7,8.4]]
+export function projectFinish(trackId: string, variant: string, budgetMinutes: number): Projection | null
+// linear interpolation between rows, clamped at the ends; null when the track/variant has no table
+
+// lib/domain/plan/variant.ts
+export function defaultVariant(roadmaps: readonly { id: string; recommendedBelowMinutes?: number }[],
+  budgetMinutes: number): string
+// the first roadmap whose recommendedBelowMinutes > budget, else the last roadmap (§5.11: 8w < 75 ≤ 10w)
+
+// lib/i18n/format.ts
+export function formatWeeks(weeks: number, fractionDigits?: 0 | 1): string  // '12,4 tuần'
+export function formatFinishEstimate(input: { budgetMinutes: number; variantLabel: string;
+  medianWeeks: number; p90Weeks: number }): string
+// 'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)'
+export function variantLabel(variantId: string): string  // '8w' → '8 tuần'; other ids unchanged
+```
+
+`describeWeeklyTemplate` output (vi), always in the order `mon-fri`, `mon` … `fri`, `sat`, `sun`
+whatever the YAML order: day labels `mon-fri` "Thứ 2 – Thứ 6", `mon`…`fri` "Thứ 2"…"Thứ 6", `sat`
+"Thứ 7", `sun` "Chủ nhật"; blocks: review "Ôn tập" (+ " (tối đa {n} phút)"),
+new "Bài mới", recap "Ôn lại {count} bài", practice "{label} · {formatMinutes(minutes)}" (+ "
+(từ tuần {w})") where the label comes from `vi.template` — `exercise` "Bài tập", `shadowing`
+"Shadowing", `mock-interview` "Phỏng vấn thử", `weekend-task` "Nhiệm vụ cuối tuần", otherwise the
+raw tag. `describeThrottle`: `newPerDay` n → "Tối đa {n} thẻ mới mỗi ngày"; each rule → "Trên
+{dueAbove} thẻ cần ôn: {n} thẻ mới mỗi ngày", or "…: tạm dừng thẻ mới" when n = 0; DSA → `[]`.
+
+- [ ] **Step 1: Failing tests** —
+  - `tracks.test.ts`: both real manifests load; `dsa` roadmaps `['8w', '10w']` with
+    `recommendedBelowMinutes 75`; `english` default budget 25; fixtures: a manifest with
+    `accent: purple` fails naming the file and field; an unknown weekday key fails; a template
+    with only `sat` and `sun` passes (partial record); a `draft`
+    track is excluded by `activeTracks` and returned by `getTrack`; `getTrack('nope')` → `null`.
+  - `weekly-template.test.ts`: DSA → `[{ 'Thứ 2 – Thứ 6', ['Ôn tập (tối đa 15 phút)', 'Bài
+    mới'] }, { 'Thứ 7', ['Ôn tập'] }, { 'Chủ nhật', ['Phỏng vấn thử · 45 phút (từ tuần 3)', 'Ôn
+    lại 3 bài'] }]` (and the same order when the YAML lists `sun` first); English mon-fri → `['Bài tập · 5 phút', 'Shadowing · 3 phút', 'Ôn tập',
+    'Bài mới']`, sun → `['Nhiệm vụ cuối tuần · 15 phút', 'Ôn tập']`; English throttle → three
+    lines ending "tạm dừng thẻ mới"; DSA throttle → `[]`.
+  - `projections.test.ts`: every table row exactly; 67.5 min 8w → median 10.45, p90 11.05
+    (± 1e-9); 30 → the 45 row; 200 → the 120 row; `projectFinish('english', '10w', 25)` → `null`.
+  - `variant.test.ts`: 60 → `8w`, 74 → `8w`, **75 → `10w`**, 120 → `10w`; a single roadmap → its
+    id.
+  - `format.test.ts`: `formatWeeks(12.4)` → `'12,4 tuần'`; `formatWeeks(11.6, 0)` → `'12 tuần'`;
+    `formatFinishEstimate({ budgetMinutes: 60, variantLabel: '8 tuần', medianWeeks: 11.6,
+    p90Weeks: 12.4 })` → `'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần
+    (90 %: ~12,4 tuần)'` (vi-VN decimal comma, §5.11).
+- [ ] **Step 2: RED → implement → GREEN.** The first page that reads the manifests is 2.10; its
+  e2e run (`pnpm build && pnpm start`) proves the files ship with the server build.
+- [ ] **Step 3: Verify** `pnpm verify`. **Commit** — `feat(content): track manifests, loader and
+  simulated-finish table`.
+
+### Task 2.10: Onboarding
+
+**Files:**
+
+- Create: `features/onboarding/{schema.ts,schema.test.ts,queries.ts,actions.ts,actions.test.ts,index.ts}`,
+  `features/onboarding/components/onboarding-wizard.tsx` (+ `.test.tsx`),
+  `lib/content/track-options.ts` (+ test), `features/tracks/index.ts`,
+  `features/tracks/components/{weekly-template-preview.tsx,variant-picker.tsx}` (+ tests),
+  `e2e/onboarding.spec.ts`, `docs/adr/0015-dsa-variant-follows-budget.md`
+- Modify: `app/(onboarding)/onboarding/page.tsx` (placeholder → wizard),
+  `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`, `lib/i18n/vi.ts`,
+  `CLAUDE.md` (index rule below), `docs/adr/README.md`
+
+**Interfaces:**
+
+- Consumes: `activeTracks`, `describeWeeklyTemplate`, `describeThrottle`, `TrackManifest` (2.9);
+  `projectFinish`, `defaultVariant`, `formatFinishEstimate`, `variantLabel` (2.9); `localDay`,
+  `addDays`, `canonicalTimeZone`, `timeZoneOptions`, `DAY_STARTS`, `DEFAULT_SCHEDULE` (2.3);
+  `applyLearnerEvent`, `applySystemEvent`, `deriveEventId` (2.5b); `requireActive`,
+  `createClient`, `createAdminClient` (2.6); ChoiceCard, Checkbox, RadioGroup, NativeSelect,
+  FormField, FormErrorSummary, StepIndicator, FocusLayout (2.6a).
+- Produces:
+
+  ```ts
+  // features/onboarding/schema.ts
+  export const onboardingInputSchema = z.object({
+    requestId: z.uuid(),
+    tracks: z.array(z.object({ trackId, budgetMinutes /* 10–240 step 5 */, roadmapVariant }))
+      .min(1).refine(unique trackIds),
+    startDate: LocalDay, timezone: z.string().min(1), dayStartsAt: DayStart,
+    codeLanguage: z.enum(['python', 'java', 'go']).optional(),
+  }).strict()
+  export type OnboardingInput = z.infer<typeof onboardingInputSchema>
+  export type OnboardingState =
+    | { status: 'idle' }
+    | { status: 'error'; formError: string | null; fieldErrors: Record<string, string> }
+
+  // lib/content/track-options.ts — shared by onboarding (2.10) and settings (2.11)
+  export type TrackOption = { id: string; title: string; accent: string;
+    defaultBudgetMinutes: number; roadmaps: { id: string; recommendedBelowMinutes?: number }[];
+    codeLanguages: CodeLanguage[]; template: TemplateDay[]; throttle: string[] }
+  /** Active tracks as plain, serialisable options (vi titles, template text). No guard: callers
+   *  are guarded loaders. The type is importable by client components (`import type`). */
+  export function loadTrackOptions(): TrackOption[]
+
+  // features/onboarding/queries.ts — import 'server-only'
+  export async function getOnboardingData(): Promise<{ tracks: TrackOption[];
+    timeZones: readonly string[]; now: string; requestId: string }>
+  // requireActive() first; timeZones = timeZoneOptions() computed on the server (the browser's ICU
+  // list may differ, so the client never builds it during render); requestId = crypto.randomUUID()
+  // per render (decision 9)
+
+  // features/onboarding/actions.ts — 'use server'
+  export async function completeOnboarding(prev: OnboardingState, formData: FormData): Promise<OnboardingState>
+
+  // features/tracks/components/weekly-template-preview.tsx (server-compatible, no 'use client')
+  export function WeeklyTemplatePreview(props: { title: string; accent: string;
+    days: TemplateDay[]; throttle: string[] }): React.JSX.Element
+
+  // features/tracks/components/variant-picker.tsx ('use client'; shared with settings)
+  /** RadioGroup of the track's roadmaps (variantLabel) with the simulated finish per choice. */
+  export function VariantPicker(props: { trackId: string; name: string;
+    roadmaps: TrackOption['roadmaps']; budgetMinutes: number; value: string;
+    onValueChange: (id: string) => void }): React.JSX.Element
+  ```
+
+  `features/tracks/index.ts` exports **only client-safe items** — `WeeklyTemplatePreview`,
+  `VariantPicker` and their prop types — because client components in `features/onboarding` and
+  `features/settings` import it; re-exporting a `server-only` module there breaks the client build.
+  `CLAUDE.md` (React / Next.js) gains: "A feature `index.ts` imported by client components must not
+  re-export `server-only` modules; server loaders live in `lib/` or the feature's `queries.ts`."
+
+- **Wizard** (`OnboardingWizard`, client leaf; props `{ tracks: TrackOption[]; timeZones:
+  readonly string[]; now: string; requestId: string; action }` — all from `getOnboardingData()`;
+  the action is passed from the page so the catalog can render it with a no-op) inside
+  `FocusLayout width="wide"`; state kept in the component; a hidden `payload` input carries the
+  JSON of `OnboardingInput` with the `requestId` prop (decision 9).
+  Steps (StepIndicator; "Quay lại" / "Tiếp tục"; per-step validation before moving on; focus
+  moves to the step heading on every step change):
+  1. **Chọn lộ trình** — a ChoiceCard + Checkbox per active track (title, accent chip); at least
+     one ("Chọn ít nhất một lộ trình.").
+  2. **Thời gian mỗi ngày** — a number input per selected track (FormField, `min 10 max 240
+     step 5`, default `defaults.budgetMinutes`), helper "phút mỗi ngày".
+  3. **Phiên bản lộ trình** — only for tracks with more than one roadmap (skipped when none):
+     a `VariantPicker` per such track; the default is `defaultVariant(roadmaps, budget)`
+     and **follows the budget until the learner picks one** (then it sticks); each choice shows
+     `formatFinishEstimate` from `projectFinish` when a projection exists (§5.11, ADR-0015).
+  4. **Lịch học** — start date (`type="date"`, default `localDay(now, schedule)`, min today, max
+     today + 60 days), time zone (NativeSelect over the `timeZones` prop; the first render uses
+     `Asia/Ho_Chi_Minh`, then an effect after mount switches to `canonicalTimeZone(browser zone)`
+     when that is in the list — no hydration mismatch), day start (NativeSelect over
+     `DAY_STARTS`, default `04:00`) with the helper "Học lúc 01:30 vẫn tính cho ngày hôm trước
+     khi ngày mới bắt đầu lúc 04:00." (RF-1 made visible).
+  5. **Ngôn ngữ lập trình** — only when a selected track has `codeLanguages`: RadioGroup Python /
+     Java / Go, default Python.
+  6. **Xem trước tuần học** — `WeeklyTemplatePreview` per selected track (and its throttle lines)
+     + "Bắt đầu học" (submit; pending state keeps focus and blocks a second submit).
+  Server errors render in `FormErrorSummary` at the top (DESIGN_SYSTEM §5) and jump to the step
+  holding the first field in error.
+- **Action** `completeOnboarding`: `requireActive()`; already onboarded → `redirect('/today')`;
+  parse `payload` (bad JSON or schema → `status 'error'` with field errors); check every
+  `trackId` is an active track, each `roadmapVariant` one of its roadmaps, `codeLanguage` allowed
+  by a selected track and required when one has `codeLanguages`; `timezone =
+  canonicalTimeZone(input.timezone)` and `isValidTimeZone`; `today = localDay(now, schedule)`;
+  a past `startDate` becomes `today`, one more than 60 days ahead is an error (decision 22). Then,
+  in this order, with `deriveEventId(requestId, key)`: `schedule.changed` (`effectiveAt` = `now`,
+  decision 5) → `settings.changed {codeLanguage}` when present → `track.enrolled` per track
+  (`trackId`, payload `{ roadmapVariant, budgetMinutes, startDate }`) → `applySystemEvent(admin,
+  user.id, onboarding.completed)` → `redirect('/today')`. An `EventError` returns its
+  `userMessage` as `formError`; a retry after a partial failure re-sends the same ids, so
+  finished steps come back `duplicate` (RF-2 groundwork).
+
+- [ ] **Step 1: Failing unit tests** — `schema.test.ts` (valid input; `dayStartsAt '04:15'`,
+  `'13:00'`; minutes 7, 245, 62; empty tracks; duplicate track ids; an unknown key; a bad
+  `requestId` → errors); `actions.test.ts` (mocks for the DAL, clients and apply helpers: the
+  event order and ids; a past start date sent as today; a start date 61 days ahead → field
+  error; an unknown variant → field error; `Asia/Saigon` stored as `Asia/Ho_Chi_Minh`; an
+  onboarded user is redirected without events; an `EventError('quota_exceeded')` → the §4.5
+  message); `onboarding-wizard.test.tsx` (cannot continue with no track; minutes validation
+  message; **60 → `8 tuần` default, 75 → `10 tuần`**, and a manual pick sticks when the minutes
+  change; the finish text uses the decimal comma; the language step is skipped for English only;
+  a server error state shows the summary and returns to its step; focus lands on the step
+  heading); `weekly-template-preview.test.tsx`; `variant-picker.test.tsx` (labels, finish text
+  per choice, no finish line for a track without a projection); `lib/content/track-options.test.ts`
+  (both active tracks as options with vi titles, DSA code languages, English throttle lines);
+  onboarding e2e step 1 is the proof that the manifests reach the server build locally.
+- [ ] **Step 2: Failing e2e** — `e2e/onboarding.spec.ts` with `test.use({ timezoneId:
+  'Asia/Saigon' })` (decision 6): an active, not-onboarded user signs in → `/onboarding`; picks
+  DSA + English; DSA 60 min → step 3 preselects "8 tuần" and shows "~12 tuần" and "12,4"; back to
+  step 2, DSA 75 → step 3 now preselects "10 tuần"; step 4 preselects `Asia/Ho_Chi_Minh` and
+  `04:00`; Python; the preview lists "Thứ 2 – Thứ 6"; "Bắt đầu học" → `/today`; in the DB:
+  `user_tracks` dsa `10w`/75 and english `10w`/25, one schedule version `Asia/Ho_Chi_Minh 04:00`,
+  `code_language python`, `onboarded_at` set, **exactly five events**; axe clean on steps 1 and 6
+  in light and dark.
+- [ ] **Step 3: RED → implement → GREEN** (`pnpm test`, `pnpm test:e2e`); catalog entries for
+  `OnboardingWizard` (step 1 and an error state), `WeeklyTemplatePreview` and `VariantPicker`.
+- [ ] **Step 4: ADR-0015** (DSA variant follows the budget; simulated finish from the §5.11 table,
+  regenerated in M4).
+- [ ] **Step 5: Verify** `pnpm verify:full`. **Commit** — `feat(onboarding): tracks, minutes,
+  variant, schedule and language in one wizard`.
+
+### Task 2.11: Settings
+
+**Files:**
+
+- Create: `features/settings/{queries.ts,actions.ts,actions.test.ts,index.ts}`,
+  `features/settings/components/{schedule-form.tsx,code-language-form.tsx,track-settings.tsx,add-track-form.tsx,admin-link.tsx}`
+  (+ tests), `app/(app)/settings/page.tsx`, `e2e/settings.spec.ts`
+- Modify: `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`, `lib/i18n/vi.ts`
+
+**Interfaces:**
+
+- Consumes: as 2.10 (`loadTrackOptions`, `TrackOption` from `lib/content/track-options.ts`;
+  `VariantPicker`, `WeeklyTemplatePreview` via `features/tracks` `index.ts`), plus `scheduleAt`,
+  `nextDayStart`, `daysBetween` (2.3) and `ThemeToggle` (M1).
+- Produces:
+
+  ```ts
+  // features/settings/queries.ts — import 'server-only'
+  export type SettingsData = {
+    user: SessionUser
+    schedule: Schedule                       // in force now
+    pendingSchedule: (Schedule & { effectiveAt: string }) | null  // the next version, if any
+    tracks: { option: TrackOption; enrollment: { status: 'active' | 'paused' | 'removed';
+      budgetMinutes: number; roadmapVariant: string; startDate: string } | null }[]
+    now: string
+    requestId: string                        // crypto.randomUUID() per render (decision 9)
+  }
+  export async function getSettingsData(): Promise<SettingsData>        // requireOnboarded() first
+
+  // features/settings/actions.ts — 'use server'; each returns { ok: boolean; message: string;
+  // fieldErrors?: Record<string, string> } and revalidates /settings
+  export async function updateSchedule(prev, formData)     // requestId, timezone, dayStartsAt
+  export async function updateCodeLanguage(prev, formData) // requestId, codeLanguage
+  export async function updateTrack(prev, formData)        // requestId, trackId, budgetMinutes, roadmapVariant
+  export async function enrollTrack(prev, formData)        // requestId, trackId, budgetMinutes, roadmapVariant, startDate
+  export async function setTrackStatus(prev, formData)     // requestId, trackId, to: 'paused'|'active'|'removed'
+  ```
+
+- **Behaviour:**
+  - Schedule: `effectiveAt = nextDayStart(now, scheduleAt(versions, now))` (§5.9); the form shows
+    the pending version when one exists, and after saving "Thay đổi áp dụng từ {ngày} lúc {giờ}
+    (giờ {múi giờ cũ}) — ngày đang học không bị ảnh hưởng." The form's values are compared with
+    `pendingSchedule ?? schedule`: unchanged → no event; switching back to the schedule in force
+    while a change is pending sends `schedule.changed` with the in-force values at the pending
+    version's `effectiveAt`, which replaces the pending row (the upsert in 2.5b).
+  - Tracks: each enrolled track shows its status (Badge), minutes, variant with the simulated
+    finish (`VariantPicker`), the weekly template and throttle **read-only** (release table:
+    editing UI later), and actions — active: "Tạm dừng", "Gỡ lộ trình" (ConfirmDialog); paused:
+    "Tiếp tục", "Gỡ lộ trình"; removed tracks and never-enrolled active tracks appear under "Thêm
+    lộ trình" (minutes, variant, start date = today; re-adding keeps history, §5.9). Resume sends
+    `pausedDays = daysBetween(<local_day of the latest track.paused event for that track>,
+    today)` (read from the user's own events).
+  - Code language: RadioGroup + "Lưu".
+  - Theme: the M1 `ThemeToggle` (client-side, decision 7).
+  - Admins: an "Quản trị" row at the top linking to `/admin` (DESIGN_SYSTEM §5: admin pages
+    reachable on mobile).
+  - Every form: the page's `requestId` prop (decision 9 — never generated in the client),
+    FormField errors, a polite toast on success, the `EventError` message on failure; every
+    successful action calls `revalidatePath('/settings')`, which renders a fresh `requestId`.
+  - Code language: a `null` profile value reads as Python (the default).
+
+- [ ] **Step 1: Failing unit tests** — `actions.test.ts` (mocks: `updateSchedule` computes
+  `effectiveAt` = the next 04:00 in the current zone for a fixed `now`; unchanged values emit
+  nothing; **reverting to the in-force schedule while a change is pending** sends the in-force
+  values at the pending `effectiveAt`; `setTrackStatus` resume computes `pausedDays`; an invalid transition surfaces the
+  Vietnamese message; `enrollTrack` for a removed track re-enrolls); component tests for each
+  form (labels, errors, the pending-schedule notice, the admin row only for admins).
+- [ ] **Step 2: Failing e2e** — `e2e/settings.spec.ts`. Add to `e2e/support/users.ts`
+  `seedLearnerSetup(userId, { schedule?: { timezone; dayStartsAt; effectiveAt }; tracks?: {
+  trackId; roadmapVariant; budgetMinutes; startDate }[] })` (secret-key inserts into
+  `schedule_versions` / `user_tracks`). A user created `onboarded` with a VN 04:00 schedule, DSA
+  8w/60 and English 10w/25:
+  **[RF-1]** change the time zone to `America/Los_Angeles` → the notice appears and the DB holds a
+  version whose `effective_at` equals `nextDayStart(now, VN 04:00)` (± 1 minute of the test's
+  clock); DSA minutes 60 → 90 saved, **then 90 → 45 saved too** (two saves in a row both apply —
+  decision 9); pause English → "Tiếp tục" appears; resume; pause again (a second pause is a new
+  event); code language → Java; an admin sees the "Quản trị" row, a learner does not; axe clean in
+  light and dark.
+- [ ] **Step 3: RED → implement → GREEN**; catalog entries for every settings component.
+- [ ] **Step 4: Verify** `pnpm verify:full`. **Commit** — `feat(settings): schedule, tracks, code
+  language and theme`.
+
+### Task 2.11b: Account deletion and privacy text
+
+**Files:**
+
+- Create: `features/settings/components/delete-account.tsx` (+ test),
+  `supabase/tests/database/060-account-deletion.test.sql`, `e2e/account-deletion.spec.ts`
+- Modify: `features/settings/{actions.ts,index.ts}`, `app/(app)/settings/page.tsx`,
+  `features/auth/components/landing.tsx` (deleted notice), `app/(public)/page.tsx`,
+  `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`, `lib/i18n/vi.ts`
+
+**Behaviour:**
+
+- Settings section "Xoá tài khoản": what is deleted, and the privacy sentence **"Dữ liệu đã xoá
+  vẫn có thể tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."** (§4.6); a destructive button
+  opening `ConfirmDialog` ("Xoá vĩnh viễn").
+- `deleteAccount()` (`'use server'`): `requireUser()` (pending users can delete too, via a later
+  entry point); `createAdminClient().auth.admin.deleteUser(user.id)` — the cascade removes every
+  row (§4.6); then `auth.signOut({ scope: 'local' })` on the session client (clears cookies; the
+  user no longer exists) and `redirect('/?account=deleted')`; the landing page shows a Banner
+  "Tài khoản của bạn đã được xoá." for that parameter.
+
+- [ ] **Step 1: Failing pgTAP** — `060-account-deletion.test.sql`: deleting an `auth.users` row
+  removes the profile, schedule versions, user tracks, events and quota rows; another user's
+  `admin.*` audit event whose `actor_id` is the deleted admin survives.
+- [ ] **Step 2: Failing tests** — `delete-account.test.tsx` (privacy sentence; confirm dialog;
+  the action runs only after confirming); `actions.test.ts` addition (calls `deleteUser` with the
+  DAL user's id, signs out locally, redirects).
+- [ ] **Step 3: Failing e2e** — delete from `/settings` → `/` with the notice; the admin API no
+  longer finds the user; signing in again fails with the sign-in error; axe clean with the dialog
+  open.
+- [ ] **Step 4: RED → implement → GREEN**. **Verify** `pnpm verify:full`. **Commit** —
+  `feat(settings): account deletion with the backup-retention notice`.
+
+### Task 2.2: Staging runbook **[owner steps at the PR stop]**
+
+**Files:** Create `docs/ops/staging.md`; Modify `README.md` (link), `.prettierignore` only if
+needed.
+
+The runbook (no secrets, no project refs) — numbered, checkable steps:
+
+1. **Environments** table: local (Docker, `pnpm db:start`, test login on) · staging = Vercel
+   **Preview** deployments + Supabase project `hoc-deu-staging` · production = task 5.8.
+2. **Supabase staging project:** create `hoc-deu-staging` (region `ap-southeast-1`, Singapore);
+   note the URL, the **publishable** and **secret** keys (never the legacy anon/service_role);
+   Auth → Providers: **email disabled** (second lock on the test login, §2.3); `pnpm exec
+   supabase link --project-ref <ref>` then `pnpm exec supabase db push`;
+   `pnpm exec supabase migration list` shows local = remote. **Never** `db push --include-seed`:
+   `seed.sql` is for the local stack only.
+3. **Auth URLs:** Site URL = the stable preview alias (e.g. the `main` branch URL); redirect
+   allow-list: `https://hoc-deu-*-<vercel-scope>.vercel.app/**` and
+   `http://localhost:3000/**`.
+4. **Google OAuth client** (Google Cloud console, OAuth consent screen "External", testing
+   users = the owner): authorised redirect URI `https://<ref>.supabase.co/auth/v1/callback`;
+   paste the client id/secret into Supabase → Providers → Google. **GitHub OAuth app:** callback
+   URL the same Supabase URL; paste into Providers → GitHub.
+5. **Vercel project** `hoc-deu` from the GitHub repo (claims `hoc-deu.vercel.app`, §9.3), Node
+   22; "Automatically expose System Environment Variables" on (for `VERCEL_BRANCH_URL`,
+   decision 20); Deployment Protection as default. **Preview** environment variables:
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
+   (sensitive), `ADMIN_EMAILS` (the owner's e-mail). **Never** `AUTH_TEST_LOGIN`.
+   `NEXT_PUBLIC_SITE_URL` is a Production variable (5.8).
+6. **Checks** — run them on the preview's **branch URL** (`hoc-deu-git-<branch>-…`): the login
+   cookie that holds the PKCE verifier belongs to one host, and `redirectTo` uses
+   `VERCEL_BRANCH_URL` (decision 20). The branch URL returns 200; "Tiếp tục với Google" and "Tiếp
+   tục với GitHub" both sign in; the owner's account becomes an active admin (bootstrap) and lands
+   on onboarding, whose first step **lists both tracks** (proves `outputFileTracingIncludes`
+   ships the manifests, 2.9); `/admin/users` lists the account; a second Google account lands on
+   `/pending` until approved.
+7. **Rotation / leaks:** rotate a key in Supabase, update Vercel, redeploy; the repo never holds
+   a key.
+
+- [ ] **Step 1:** Write the runbook (`docs/` is outside Prettier: wrap lines at 100 characters by
+  hand, like the other docs); `pnpm verify`. **Commit** —
+  `docs(ops): staging runbook for Supabase, Vercel and OAuth`.
+- [ ] **Step 2 [owner]:** the steps above, at the PR stop; results recorded in the PR.
+
+### M2 finish
+
+1. `pnpm verify:full` green; `git status` clean.
+2. Fresh end-of-milestone review (most capable model) over `main..feat/m2-auth` with the ledger's
+   deferred minors; one fix pass (each fix RED → GREEN); residuals ledgered.
+3. Push, open the PR "M2: auth, onboarding, settings" with the owner checklist (2.2 steps; the
+   real Google and GitHub sign-in on the preview, 2.7a) and the rulings list; CI green (`verify`,
+   `db`, `e2e`, CodeQL). **Stop for the owner's review** — do not merge, do not start M3.
