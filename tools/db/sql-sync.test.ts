@@ -15,15 +15,18 @@ function migrationsSql(): string {
     .join('\n')
 }
 
-/** The `$$ … $$` body of the last `create or replace function public.<name>(…)` in `sql`. */
+/**
+ * The dollar-quoted body of the last `create [or replace] function [public.]<name>(…)` in `sql`,
+ * whatever the dollar-quote tag (`$$`, `$body$`, …).
+ */
 function lastFunctionBody(sql: string, name: string): string {
   const definition = new RegExp(
-    String.raw`create\s+or\s+replace\s+function\s+public\.${name}\s*\([^)]*\)[\s\S]*?\$\$([\s\S]*?)\$\$`,
+    String.raw`create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?${name}\s*\([^)]*\)[\s\S]*?(\$\w*\$)([\s\S]*?)\1`,
     'gi',
   )
-  const body = [...sql.matchAll(definition)].at(-1)?.[1]
+  const body = [...sql.matchAll(definition)].at(-1)?.[2]
   if (body === undefined) {
-    throw new Error(`No "create or replace function public.${name}" in ${MIGRATIONS}`)
+    throw new Error(`No "create function public.${name}" in ${MIGRATIONS}`)
   }
   return body.replace(/--.*$/gm, '')
 }
@@ -51,5 +54,15 @@ describe('SQL and TypeScript stay in sync', () => {
     ].join('\n')
     expect(stringLiterals(lastFunctionBody(sql, 'learner_event_types'))).toEqual(['a.b', 'c.d'])
     expect(() => lastFunctionBody(sql, 'rules_version')).toThrow(/rules_version/)
+  })
+
+  it('reads `create function` without `or replace`, and any dollar-quote tag', () => {
+    const sql = [
+      "create or replace function public.learner_event_types() returns text[] as $$ select array['a.b'] $$;",
+      "create function public.learner_event_types() returns text[]\nlanguage sql as $body$\n  select array['e.f', 'g$$h.i']\n$body$;",
+      'CREATE FUNCTION rules_version() RETURNS integer AS $fn$ select 7 $fn$;',
+    ].join('\n')
+    expect(stringLiterals(lastFunctionBody(sql, 'learner_event_types'))).toEqual(['e.f', 'g$$h.i'])
+    expect(lastFunctionBody(sql, 'rules_version').trim()).toBe('select 7')
   })
 })

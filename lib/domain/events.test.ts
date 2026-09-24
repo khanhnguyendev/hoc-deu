@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { ZodError } from 'zod'
 import {
   EVENT_PAYLOADS,
+  jsonbTextBytes,
   LEARNER_EVENT_TYPES,
   MAX_PAYLOAD_BYTES,
   parseEventPayload,
@@ -212,7 +213,7 @@ describe('parseEventPayload', () => {
     )
   })
 
-  it('rejects a payload whose UTF-8 JSON exceeds MAX_PAYLOAD_BYTES even when Zod accepts it', () => {
+  it('rejects a payload whose jsonb text exceeds MAX_PAYLOAD_BYTES even when Zod accepts it', () => {
     // 950 three-byte characters: within the 1000-character rule, but 2850 bytes of UTF-8.
     const payload = { status: 'done', minutes: 30, note: 'ệ'.repeat(950) }
     expect(EVENT_PAYLOADS['block.checked_in'].safeParse(payload).success).toBe(true)
@@ -224,6 +225,57 @@ describe('parseEventPayload', () => {
     expect(MAX_PAYLOAD_BYTES).toBe(1900)
     const ascii = { status: 'done', minutes: 30, note: 'a'.repeat(1000) }
     expect(parseEventPayload('block.checked_in', ascii)).toEqual(ascii)
+  })
+
+  it('measures the jsonb text, not JSON.stringify: nothing it accepts is rejected by the database', () => {
+    const itemIds = (n: number) => ({ itemIds: Array.from({ length: n }, () => 'dsa:x') })
+    // 235 ids: 1893 bytes of JSON.stringify, but 2128 bytes as payload::text (over 2048).
+    expect(new TextEncoder().encode(JSON.stringify(itemIds(235))).length).toBe(1893)
+    expect(jsonbTextBytes(itemIds(235))).toBe(2128)
+    expect(() => parseEventPayload('plan.extra_added', itemIds(235))).toThrow(ZodError)
+    // 210 ids: 1903 bytes as jsonb text, over the limit; 209 ids: 1894 bytes, accepted — and
+    // 030-events inserts the same payload and checks octet_length(payload::text) = 1894.
+    expect(() => parseEventPayload('plan.extra_added', itemIds(210))).toThrow(/1903/)
+    expect(jsonbTextBytes(itemIds(209))).toBe(1894)
+    expect(parseEventPayload('plan.extra_added', itemIds(209))).toEqual(itemIds(209))
+  })
+
+  it('jsonbTextBytes equals octet_length(payload::text) (values checked in 030-events)', () => {
+    expect(jsonbTextBytes({})).toBe(2)
+    expect(jsonbTextBytes({ a: [1, 2, 3] })).toBe('{"a": [1, 2, 3]}'.length)
+    expect(
+      jsonbTextBytes({
+        budgetMinutes: 60,
+        newPerDay: null,
+        throttle: [
+          { dueAbove: 30, newPerDay: 1 },
+          { dueAbove: 80, newPerDay: 0 },
+        ],
+        weeklyTemplate: { sat: 90, days: ['mon', 'tue'] },
+        includeBonus: true,
+      }),
+    ).toBe(199)
+    // Multi-byte characters, escaped quotes, newline, tab, backslash and an astral character.
+    expect(
+      jsonbTextBytes({ status: 'done', minutes: 30, note: 'Ôn "two pointers"\nxong ệ\t\\ 😀' }),
+    ).toBe(84)
+  })
+
+  it('rejects strings jsonb cannot store: U+0000 and unpaired surrogates', () => {
+    const checkIn = { status: 'done', minutes: 30 }
+    expect(() => parseEventPayload('block.checked_in', { ...checkIn, note: 'a\u0000b' })).toThrow(
+      ZodError,
+    )
+    expect(() => parseEventPayload('block.checked_in', { ...checkIn, note: 'a\ud800b' })).toThrow(
+      ZodError,
+    )
+    expect(() =>
+      parseEventPayload('track.updated', { weeklyTemplate: { 'sat\u0000': 90 } }),
+    ).toThrow(ZodError)
+    expect(parseEventPayload('block.checked_in', { ...checkIn, note: 'xong 😀' })).toEqual({
+      ...checkIn,
+      note: 'xong 😀',
+    })
   })
 
   it('throws on a type it does not know', () => {

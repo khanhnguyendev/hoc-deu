@@ -82,10 +82,11 @@ create table public.events (
   type text not null check (type ~ '^[a-z_]+\.[a-z_]+$'),
   occurred_at timestamptz not null default now(),
   local_day date not null,                               -- computed by the insert trigger, never input
-  track_id text,
-  item_id text,
+  -- Length caps (fix round 1): a learner inserts directly, and the quota caps rows, not bytes.
+  track_id text check (octet_length(track_id) <= 32),   -- the track-id pattern's maximum
+  item_id text check (octet_length(item_id) <= 128),
   plan_id uuid,                                          -- FK to day_plans arrives in 4.9
-  block_id text,
+  block_id text check (octet_length(block_id) <= 128),
   payload jsonb not null default '{}'::jsonb
     check (jsonb_typeof(payload) = 'object' and octet_length(payload::text) <= 2048),
   rules_version integer not null default public.rules_version() check (rules_version >= 1)
@@ -107,19 +108,25 @@ create table public.event_quota (                        -- internal (§4.5): no
 
 -- Security invoker, so current_user is the inserting role: `authenticated` for a direct insert or
 -- apply_event (security invoker), the owner for a SECURITY DEFINER function such as
--- apply_system_event. For `authenticated`: only learner types, and actor_id, source and
--- occurred_at are forced. For every insert: actor_id defaults to user_id, and local_day is
--- computed here — never taken from input.
+-- apply_system_event. For `authenticated`: only their own user_id — checked here, before the quota
+-- trigger touches another user's counter (RLS would reject the row only after both triggers ran,
+-- and a nonexistent user_id would surface as a foreign-key error from event_quota) — and only
+-- learner types; actor_id, source, occurred_at and rules_version are forced. For every insert:
+-- actor_id defaults to user_id, and local_day is computed here — never taken from input.
 create function public.events_prepare() returns trigger
 language plpgsql set search_path = '' as $$
 begin
   if current_user = 'authenticated' then
+    if new.user_id is distinct from auth.uid() then
+      raise exception 'forbidden_user_id' using errcode = '42501';
+    end if;
     if not new.type = any (public.learner_event_types()) then
       raise exception 'forbidden_event_type' using errcode = '42501';
     end if;
     new.actor_id := auth.uid();
     new.source := 'learner';
     new.occurred_at := now();
+    new.rules_version := public.rules_version();
   end if;
   new.actor_id := coalesce(new.actor_id, new.user_id);
   new.local_day := public.user_local_day(new.user_id, new.occurred_at);

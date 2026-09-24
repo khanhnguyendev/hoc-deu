@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(45);
+select plan(54);
 
 select tests.create_user('events-learner@hocdeu.test') as learner \gset
 select tests.create_user('events-other@hocdeu.test') as other \gset
@@ -16,9 +16,11 @@ select tests.create_user('events-size@hocdeu.test') as size \gset
 select tests.create_user('events-deleted@hocdeu.test') as deleted \gset
 
 -- Schedules, as postgres. A user's first version may be backdated; a later one may not (2.4
--- history trigger), so the second version of two_versions starts tomorrow.
+-- history trigger), so the second version of two_versions starts tomorrow. Pacific/Pago_Pago 12:00
+-- runs ~26 h behind the default (Asia/Ho_Chi_Minh 04:00), so the two never give the same local
+-- day at any instant: checks against it cannot pass by accident at some time of day.
 insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at) values
-  (:'learner', now() - interval '30 days', 'Asia/Kolkata', '03:30'),
+  (:'learner', now() - interval '30 days', 'Pacific/Pago_Pago', '12:00'),
   (:'stjohns', '2026-01-01T00:00:00Z', 'America/St_Johns', '04:00'),
   (:'two_versions', now() - interval '30 days', 'Pacific/Pago_Pago', '12:00');
 insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
@@ -43,14 +45,20 @@ select table_privs_are(
   'authenticated has no privilege on event_quota'
 );
 
--- 1. A direct learner insert: source, actor_id and occurred_at are forced; local_day is computed
---    from the user's schedule and never taken from input.
+-- 1. A direct learner insert: source, actor_id, occurred_at and rules_version are forced;
+--    local_day is computed from the user's schedule and never taken from input.
+select isnt(
+  public.local_day(now(), 'Pacific/Pago_Pago', '12:00'),
+  public.local_day(now(), 'Asia/Ho_Chi_Minh', '04:00'),
+  '(Pago_Pago 12:00 and the default never give the same day, so the schedule used is observable)'
+);
 select tests.authenticate_as(:'learner');
 select lives_ok(
   format(
-    $$insert into public.events (id, user_id, actor_id, source, type, occurred_at, local_day)
+    $$insert into public.events
+        (id, user_id, actor_id, source, type, occurred_at, local_day, rules_version)
       values ('00000000-0000-4000-8000-000000000001', %L, %L, 'admin', 'item.skipped',
-              '2000-01-01T00:00:00Z', '1999-12-31')$$,
+              '2000-01-01T00:00:00Z', '1999-12-31', 999)$$,
     :'learner', :'other'
   ),
   'an active user inserts an event directly'
@@ -59,23 +67,16 @@ select results_eq(
   $$select source, actor_id, occurred_at, local_day, rules_version, payload from public.events
     where id = '00000000-0000-4000-8000-000000000001'$$,
   format(
-    $$values ('learner'::text, %L::uuid, now(), public.local_day(now(), 'Asia/Kolkata', '03:30'),
-              1, '{}'::jsonb)$$,
+    $$values ('learner'::text, %L::uuid, now(),
+              public.local_day(now(), 'Pacific/Pago_Pago', '12:00'), 1, '{}'::jsonb)$$,
     :'learner'
   ),
-  'it is stored as learner, by the user, at now(), on their local day, with rules_version 1'
+  'it is stored as learner, by the user, at now(), on their local day, with rules_version 1 (not 999)'
 );
 
--- 2. [RF-1] local_day follows the schedule version in force at occurred_at.
-select tests.authenticate_as(:'stjohns');
-insert into public.events (id, user_id, type)
-values ('00000000-0000-4000-8000-000000000002', auth.uid(), 'item.readded');
-select is(
-  (select local_day from public.events where id = '00000000-0000-4000-8000-000000000002'),
-  public.local_day(now(), 'America/St_Johns', '04:00'),
-  'the trigger uses a version America/St_Johns 04:00 effective in the past'
-);
-
+-- 2. [RF-1] local_day follows the schedule version in force at occurred_at. (Section 1 covers a
+--    learner insert with a version; St_Johns is checked at a fixed instant below, because at now()
+--    it gives the same day as the default for much of the day.)
 select tests.authenticate_as(:'no_schedule');
 insert into public.events (id, user_id, type)
 values ('00000000-0000-4000-8000-000000000003', auth.uid(), 'item.readded');
@@ -104,7 +105,8 @@ select results_eq(
      '2026-09-24T06:00:00Z'::timestamptz, '2026-09-23'::date),
     ('00000000-0000-4000-8000-000000000005'::uuid, 'system'::text,
      '2026-09-24T06:00:00Z'::timestamptz, '2026-09-24'::date)$$,
-  'a system event keeps source and occurred_at; St_Johns 04:00 and the default give their own days'
+  'the trigger uses a version America/St_Johns 04:00 effective in the past (2026-09-23), and '
+  'Asia/Ho_Chi_Minh 04:00 without one (2026-09-24); a system event keeps source and occurred_at'
 );
 select is(
   (select actor_id from public.events where id = '00000000-0000-4000-8000-000000000004'),
@@ -137,10 +139,12 @@ select is(
   public.local_day(now() - interval '31 days', 'Asia/Ho_Chi_Minh', '04:00'),
   'before the first version user_local_day uses Asia/Ho_Chi_Minh 04:00'
 );
+-- two_versions' version in force now is Pago_Pago 12:00, which never matches the default (see the
+-- isnt in section 1), so a leak would show at any time of day.
 select tests.authenticate_as(:'learner');
 select is(
-  public.user_local_day(:'two_versions', now() + interval '2 days'),
-  public.local_day(now() + interval '2 days', 'Asia/Ho_Chi_Minh', '04:00'),
+  public.user_local_day(:'two_versions', now()),
+  public.local_day(now(), 'Asia/Ho_Chi_Minh', '04:00'),
   'user_local_day is security invoker: another user''s versions are invisible to a learner'
 );
 
@@ -165,8 +169,13 @@ select throws_ok(
     $$insert into public.events (id, user_id, type) values (gen_random_uuid(), %L, 'item.skipped')$$,
     :'other'
   ),
-  '42501', 'new row violates row-level security policy for table "events"',
-  'a learner cannot insert an event for another user'
+  '42501', 'forbidden_user_id', 'a learner cannot insert an event for another user'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type)
+    values (gen_random_uuid(), '00000000-0000-4000-8000-00000000dead', 'item.skipped')$$,
+  '42501', 'forbidden_user_id',
+  'a learner inserting for a nonexistent user gets 42501 too (not a foreign-key error)'
 );
 select tests.authenticate_as(:'pending');
 select throws_ok(
@@ -286,7 +295,7 @@ select throws_ok(
   '42501', 'permission denied for table event_quota', 'a learner cannot reset event_quota'
 );
 
--- 7. Payload size: at most 2048 bytes as payload::text; always an object.
+-- 7. Payload size: at most 2048 bytes as payload::text; always an object. Id lengths are capped.
 select tests.authenticate_as(:'size');
 select lives_ok(
   $$insert into public.events (id, user_id, type, payload)
@@ -306,6 +315,70 @@ select throws_ok(
     values (gen_random_uuid(), auth.uid(), 'block.checked_in', '[]')$$,
   '23514', 'new row for relation "events" violates check constraint "events_payload_check"',
   'a payload that is not an object fails'
+);
+
+-- TypeScript's jsonbTextBytes must equal octet_length(payload::text): the same payloads are
+-- measured in lib/domain/events.test.ts (199, 84 and 1894 bytes).
+insert into public.events (id, user_id, type, payload) values
+  ('00000000-0000-4000-8000-00000000000a', auth.uid(), 'track.updated',
+   '{"budgetMinutes":60,"newPerDay":null,"throttle":[{"dueAbove":30,"newPerDay":1},{"dueAbove":80,"newPerDay":0}],"weeklyTemplate":{"sat":90,"days":["mon","tue"]},"includeBonus":true}'),
+  ('00000000-0000-4000-8000-00000000000b', auth.uid(), 'block.checked_in',
+   '{"status":"done","minutes":30,"note":"Ôn \"two pointers\"\nxong ệ\t\\ 😀"}');
+select results_eq(
+  $$select octet_length(payload::text) from public.events
+    where id in ('00000000-0000-4000-8000-00000000000a', '00000000-0000-4000-8000-00000000000b')
+    order by id$$,
+  $$values (199), (84)$$,
+  'payload::text sizes match jsonbTextBytes (nested objects and arrays; escapes and UTF-8)'
+);
+select tests.clear_authentication();
+select lives_ok(
+  format(
+    $$insert into public.events (id, user_id, source, type, payload)
+      values ('00000000-0000-4000-8000-00000000000c', %L, 'system', 'plan.extra_added',
+              jsonb_build_object('itemIds',
+                (select jsonb_agg('dsa:x'::text) from generate_series(1, 209))))$$,
+    :'size'
+  ),
+  'the largest itemIds payload parseEventPayload accepts (209 ids) is accepted'
+);
+select is(
+  (select octet_length(payload::text) from public.events
+    where id = '00000000-0000-4000-8000-00000000000c'),
+  1894,
+  '... and is 1894 bytes as payload::text, as jsonbTextBytes computes'
+);
+
+select tests.authenticate_as(:'size');
+select lives_ok(
+  $$insert into public.events (id, user_id, type, track_id, item_id, block_id)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped',
+            repeat('t', 32), repeat('i', 128), repeat('b', 128))$$,
+  'track_id up to 32 bytes and item_id, block_id up to 128 bytes are accepted'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type, track_id)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped', repeat('t', 33))$$,
+  '23514', 'new row for relation "events" violates check constraint "events_track_id_check"',
+  'a track_id over 32 bytes fails'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type, item_id)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped', repeat('i', 129))$$,
+  '23514', 'new row for relation "events" violates check constraint "events_item_id_check"',
+  'an item_id over 128 bytes fails'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type, block_id)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped', repeat('b', 129))$$,
+  '23514', 'new row for relation "events" violates check constraint "events_block_id_check"',
+  'a block_id over 128 bytes fails'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type, item_id)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped', repeat('ệ', 43))$$,
+  '23514', 'new row for relation "events" violates check constraint "events_item_id_check"',
+  'the limits are bytes: 43 three-byte characters (129 bytes) fail'
 );
 
 -- 8. Deleting the auth user removes their events and quota rows; audit rows they acted in stay.

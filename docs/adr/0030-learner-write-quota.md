@@ -32,10 +32,17 @@ Options considered:
   local day**. No `count(*)`: the upsert takes the row lock for that user-day, which also
   serialises concurrent inserts, and a failed insert rolls its increment back with it.
 - The trigger counts what the log stores: **`events_10_prepare`** fires first (row triggers fire
-  in name order) and, for the `authenticated` role, rejects non-learner types
-  (`forbidden_event_type`, `42501`), forces `source = 'learner'`, `actor_id = auth.uid()` and
-  `occurred_at = now()`, and computes `local_day` from the user's schedule. A learner cannot
-  escape the quota by claiming another source or another day.
+  in name order). For the `authenticated` role it:
+  - rejects a `user_id` other than `auth.uid()` (`forbidden_user_id`, `42501`) before the quota
+    trigger runs, so a learner never locks or probes another user's counter;
+  - rejects non-learner types (`forbidden_event_type`, `42501`);
+  - forces `source = 'learner'`, `actor_id = auth.uid()`, `occurred_at = now()` and
+    `rules_version = rules_version()`.
+
+  For every insert it computes `local_day` from the user's schedule. A learner cannot escape the
+  quota by claiming another source or an arbitrary day.
+- The quota caps rows, so each row is capped in size too: `payload` at 2048 bytes of
+  `payload::text`, `track_id` at 32 bytes, and `item_id` and `block_id` at 128 bytes each.
 - **`event_quota` is internal:** RLS on, **no policies**, no grants to `anon` or
   `authenticated`. Only the definer trigger touches it. It is not backed up and not needed for
   replay; the maintenance cron (task 5.7) deletes rows older than 2 days.
@@ -53,10 +60,21 @@ Options considered:
   development and CI (`030-events.test.sql` checks 500 inserts pass and the 501st fails).
 - Harder: every learner insert takes a row lock on its user-day counter. Only inserts by the same
   user on the same day contend, which is fine at our size.
-- Accepted: the counter is keyed by the insert's `local_day`, so a schedule change can start a
-  new day's counter early (at most once per change, and changes take effect only at the next day
-  start, ADR-0017). A rejected insert that fails after the trigger (an RLS or constraint error)
-  rolls back its increment, but an insert that `on conflict do nothing` skips still counts:
-  the trigger fires before the conflict is found, so a retry path should check the id first
-  (task 2.5b). The limit is per day, not per minute; 500 events of at most 2 KB of payload bound
-  one account to about 1 MB of payload a day.
+- Accepted: the counter is keyed by the insert's `local_day`, and the database does not force a
+  schedule change to wait for the next day start.
+  - The app does wait (ADR-0017), but the history trigger only rejects versions more than
+    5 minutes in the past. A learner who inserts a schedule version directly can make a new
+    time zone and day start take effect at `now() − 5 min`.
+  - The allowed schedules put the day boundary anywhere in a 37-hour window: with
+    Pacific/Pago_Pago and a 12:00 day start, a local day starts 23 h after UTC midnight; with
+    Pacific/Kiritimati and 00:00, 14 h before it. So by switching schedules a learner can reach
+    2–3 local dates at the same instant.
+  - Each date's counter still caps at 500, and only once. The worst case is a one-time burst of
+    about 1000 extra events (dates borrowed from the near future); the long-run average stays
+    500 a day.
+- Accepted: a rejected insert that fails after the trigger (an RLS or constraint error) rolls
+  back its increment, but a row that `on conflict do nothing` skips still counts. The trigger
+  fires before the conflict is found, so a retry path should check the id first (task 2.5b).
+- Accepted: the limit is per day, not per minute. With the size caps above, a row is at most
+  about 2.5 KB (2048 bytes of payload, 288 bytes of ids, the fixed columns and the tuple header),
+  so one account adds at most about 1.3 MB a day, plus the one-time burst above.

@@ -183,18 +183,57 @@ export const EVENT_PAYLOADS = {
 export type EventPayload<T extends EventType> = z.infer<(typeof EVENT_PAYLOADS)[T]>
 
 /**
- * Upper bound on the UTF-8 size of a payload's `JSON.stringify`. The database checks
- * `octet_length(payload::text) <= 2048`, and `jsonb` text adds a space after every `:` and `,`;
- * the margin keeps a payload TypeScript accepts from being rejected there.
+ * Upper bound on a payload's size as the database stores it: the UTF-8 bytes of `payload::text`,
+ * which `jsonbTextBytes` computes. The database checks `octet_length(payload::text) <= 2048`; the
+ * margin covers number formatting (jsonb prints `1e21` as 22 digits), so nothing
+ * `parseEventPayload` accepts is rejected there.
  */
 export const MAX_PAYLOAD_BYTES = 1900
 
 const utf8 = new TextEncoder()
 
+/** Spaces jsonb's text output adds to JSON: one after each key's `:`, one after each `,`. */
+function jsonbSeparatorSpaces(value: unknown): number {
+  const entries: unknown[] = Array.isArray(value)
+    ? value
+    : value !== null && typeof value === 'object'
+      ? Object.values(value)
+      : []
+  const keys = Array.isArray(value) ? 0 : entries.length
+  const commas = Math.max(entries.length - 1, 0)
+  return entries.reduce<number>((sum, entry) => sum + jsonbSeparatorSpaces(entry), keys + commas)
+}
+
+/**
+ * The UTF-8 size of `value` as Postgres prints it from `jsonb` (`payload::text`): the bytes of
+ * `JSON.stringify(value)` plus the spaces jsonb adds after every `:` and `,`. String escapes and
+ * key order do not change the size. `value` must be a JSON-serialisable object or array.
+ */
+export function jsonbTextBytes(value: unknown): number {
+  const json = JSON.stringify(value)
+  return utf8.encode(json).length + jsonbSeparatorSpaces(JSON.parse(json))
+}
+
+/** jsonb rejects `\u0000` and unpaired surrogates in any string, key or value. */
+function hasUnstorableString(value: unknown): boolean {
+  if (typeof value === 'string') return value.includes('\u0000') || !value.isWellFormed()
+  if (Array.isArray(value)) return value.some(hasUnstorableString)
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value).some(
+      ([key, entry]) => hasUnstorableString(key) || hasUnstorableString(entry),
+    )
+  }
+  return false
+}
+
+const payloadError = (payload: unknown, message: string): z.ZodError =>
+  new z.ZodError([{ code: 'custom', path: [], input: payload, message }])
+
 /**
  * Validates `payload` against the schema for `type` and returns the parsed payload. Throws a
- * `ZodError` when the schema rejects it, or when the UTF-8 size of its JSON exceeds
- * `MAX_PAYLOAD_BYTES`.
+ * `ZodError` when the schema rejects it, when a string holds `\u0000` or an unpaired surrogate
+ * (jsonb cannot store them), or when its jsonb text (`jsonbTextBytes`) exceeds
+ * `MAX_PAYLOAD_BYTES` — so nothing it accepts is rejected by the database.
  */
 export function parseEventPayload<T extends EventType>(type: T, payload: unknown): EventPayload<T> {
   if (!Object.hasOwn(EVENT_PAYLOADS, type)) {
@@ -202,16 +241,18 @@ export function parseEventPayload<T extends EventType>(type: T, payload: unknown
   }
   const schema: z.ZodType = EVENT_PAYLOADS[type]
   const parsed = schema.parse(payload) as EventPayload<T>
-  const bytes = utf8.encode(JSON.stringify(parsed)).length
+  if (hasUnstorableString(parsed)) {
+    throw payloadError(
+      payload,
+      `the ${type} payload has a string with U+0000 or an unpaired surrogate, which jsonb cannot store`,
+    )
+  }
+  const bytes = jsonbTextBytes(parsed)
   if (bytes > MAX_PAYLOAD_BYTES) {
-    throw new z.ZodError([
-      {
-        code: 'custom',
-        path: [],
-        input: payload,
-        message: `the ${type} payload is ${bytes} bytes of JSON; at most ${MAX_PAYLOAD_BYTES} are allowed`,
-      },
-    ])
+    throw payloadError(
+      payload,
+      `the ${type} payload is ${bytes} bytes as jsonb text; at most ${MAX_PAYLOAD_BYTES} are allowed`,
+    )
   }
   return parsed
 }
