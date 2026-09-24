@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   formatDay,
   formatDayLong,
+  formatFinishEstimate,
   formatMinutes,
   formatMonth,
   formatMonthShort,
   formatNumber,
+  formatWeeks,
+  variantLabel,
 } from './format'
 
 const originalTz = process.env.TZ
@@ -68,5 +71,39 @@ describe('local-day formatting', () => {
 
   it('rejects anything but YYYY-MM-DD', () => {
     expect(() => formatDay('2026-1-1')).toThrow(/YYYY-MM-DD/)
+  })
+})
+
+describe('formatWeeks', () => {
+  it('defaults to one decimal, vi-VN comma', () => {
+    expect(formatWeeks(12.4)).toBe('12,4 tuần')
+  })
+
+  it('rounds to whole weeks with fractionDigits 0', () => {
+    expect(formatWeeks(11.6, 0)).toBe('12 tuần')
+  })
+})
+
+describe('formatFinishEstimate', () => {
+  it('§5.11 simulated-finish sentence', () => {
+    expect(
+      formatFinishEstimate({
+        budgetMinutes: 60,
+        variantLabel: '8 tuần',
+        medianWeeks: 11.6,
+        p90Weeks: 12.4,
+      }),
+    ).toBe('Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)')
+  })
+})
+
+describe('variantLabel', () => {
+  it('turns a `<n>w` roadmap id into Vietnamese', () => {
+    expect(variantLabel('8w')).toBe('8 tuần')
+    expect(variantLabel('10w')).toBe('10 tuần')
+  })
+
+  it('leaves any other id unchanged', () => {
+    expect(variantLabel('custom')).toBe('custom')
   })
 })

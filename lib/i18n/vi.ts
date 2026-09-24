@@ -144,4 +144,37 @@ export const vi = {
     comingSoonTitle: 'Kế hoạch hôm nay sắp có',
     comingSoonBody: 'Các khối học, check-in và thẻ cần ôn của bạn sẽ hiện ở đây.',
   },
+  /**
+   * `describeWeeklyTemplate` / `describeThrottle` (`lib/content/weekly-template.ts`, platform
+   * design §3.4). `{n}`, `{count}`, `{w}`, `{dueAbove}` are replaced with formatted numbers.
+   */
+  template: {
+    days: {
+      'mon-fri': 'Thứ 2 – Thứ 6',
+      mon: 'Thứ 2',
+      tue: 'Thứ 3',
+      wed: 'Thứ 4',
+      thu: 'Thứ 5',
+      fri: 'Thứ 6',
+      sat: 'Thứ 7',
+      sun: 'Chủ nhật',
+    },
+    review: 'Ôn tập',
+    reviewMax: '(tối đa {n} phút)',
+    newItems: 'Bài mới',
+    recap: 'Ôn lại {count} bài',
+    fromWeek: '(từ tuần {w})',
+    /** Practice-block labels by `tag` or `itemType`; an unlisted key falls back to the raw value. */
+    tags: {
+      exercise: 'Bài tập',
+      shadowing: 'Shadowing',
+      'mock-interview': 'Phỏng vấn thử',
+      'weekend-task': 'Nhiệm vụ cuối tuần',
+    },
+    throttle: {
+      newPerDay: 'Tối đa {n} thẻ mới mỗi ngày',
+      rule: 'Trên {dueAbove} thẻ cần ôn: {n} thẻ mới mỗi ngày',
+      paused: 'Trên {dueAbove} thẻ cần ôn: tạm dừng thẻ mới',
+    },
+  },
 } as const
