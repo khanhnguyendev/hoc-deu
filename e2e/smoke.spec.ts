@@ -1,7 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
+import { expectNoAxeViolations } from './support/axe'
+import { expect, test } from './support/test'
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`home page (${colorScheme})`, () => {
@@ -39,8 +37,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     test('has no WCAG 2.1 AA violations', async ({ page }) => {
       await page.goto('/')
-      const results = await new AxeBuilder({ page }).withTags(WCAG).analyze()
-      expect(results.violations).toEqual([])
+      await expectNoAxeViolations(page)
     })
   })
 }

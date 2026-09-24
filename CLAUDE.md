@@ -21,12 +21,17 @@ pnpm lint           # ESLint (layer, token, style rules) + Prettier check
 pnpm test           # Vitest (*.test.ts in Node, *.test.tsx in jsdom)
 pnpm build          # next build (works offline: fonts are self-hosted in app/fonts)
 pnpm test:e2e       # Playwright + axe
-pnpm verify:full    # verify + e2e
+pnpm db:start       # start the local Supabase stack (db, kong, gotrue, postgrest)
+pnpm db:stop        # stop it
+pnpm db:reset       # re-apply migrations and seed data
+pnpm db:types       # regenerate lib/supabase/database.types.ts from the local schema
+pnpm test:db        # pgTAP tests (supabase test db) — needs pnpm db:start
+pnpm verify:full    # verify + test:db + test:e2e — needs pnpm db:start
 pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
 
-Later milestones add `pnpm test:db`, `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
+Later milestones add `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
 
 ## Component layers (enforced by ESLint — platform design §7.2)
 
@@ -83,6 +88,7 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 ## Safety
 
 - **Never read or commit `.env*`, `docs/credentials/` or any secret.** Never print secrets.
+  `.env.example` is the committed template; every other `.env*` stays unread.
 - Per-user data never goes into the repo; `supabase/seed.sql` holds synthetic users only.
 - **No new dependencies without asking the owner** (approved list: platform design §7.10).
 - Do not pull `v1.1` or `later` features into v1.0 (release scope table, platform design §0).

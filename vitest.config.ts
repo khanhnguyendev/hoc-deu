@@ -5,7 +5,12 @@ const exclude = ['node_modules/**', '.next/**', 'e2e/**']
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { '@': import.meta.dirname } },
+  resolve: {
+    alias: {
+      '@': import.meta.dirname,
+      'server-only': new URL('tools/test/server-only.ts', import.meta.url).pathname,
+    },
+  },
   test: {
     projects: [
       // Pure TypeScript (guards, lib, tools) runs in Node; components (*.test.tsx) run in jsdom.

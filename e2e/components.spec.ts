@@ -1,12 +1,53 @@
 import { readFileSync } from 'node:fs'
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expectNoAxeViolations } from './support/axe'
+import { expect, test } from './support/test'
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 // Entry names straight from the registry source, so a new entry is checked without editing this file.
 const NAMES = [
   ...readFileSync('app/dev/components/registry.tsx', 'utf8').matchAll(/name: '([^']+)'/g),
 ].map((m) => m[1] ?? '')
+
+// M1 deferred #19: an open overlay hides the rest of the page with aria-hidden (focus trapped
+// inside, not `inert`), which axe reports as aria-hidden-focus — scanned as a full page with only
+// that rule disabled, so everything else on the page stays checked.
+const OVERLAYS: { name: string; open: (page: Page) => Promise<void> }[] = [
+  {
+    name: 'Dialog',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Mở hộp thoại' }).click()
+      await expect(page.getByRole('dialog', { name: 'Check-in khối học' })).toBeVisible()
+    },
+  },
+  {
+    name: 'Sheet',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Mở sheet dưới' }).click()
+      await expect(page.getByRole('dialog', { name: 'Bộ lọc' })).toBeVisible()
+    },
+  },
+  {
+    name: 'ConfirmDialog',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Xoá tài khoản' }).click()
+      await expect(page.getByRole('alertdialog', { name: 'Xoá tài khoản?' })).toBeVisible()
+    },
+  },
+  {
+    name: 'DropdownMenu',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Mở menu mẫu' }).click()
+      await expect(page.getByRole('menu')).toBeVisible()
+    },
+  },
+  {
+    name: 'Tooltip',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Thông tin' }).hover()
+      await expect(page.getByRole('tooltip', { name: '24 thẻ đến hạn hôm nay' })).toBeVisible()
+    },
+  },
+]
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`/dev/components (${colorScheme})`, () => {
@@ -18,27 +59,18 @@ for (const colorScheme of ['light', 'dark'] as const) {
       for (const name of NAMES) {
         await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeAttached()
       }
-      const results = await new AxeBuilder({ page }).withTags(WCAG).analyze()
-      expect(results.violations).toEqual([])
+      await expectNoAxeViolations(page)
     })
 
-    // Scoped to the overlay: while a Radix modal is open the rest of the page is aria-hidden with
-    // focus trapped in the overlay (not `inert`), which axe reports as aria-hidden-focus.
-    test('open overlays pass axe', async ({ page }) => {
-      await page.goto('/dev/components')
-      await page.getByRole('button', { name: 'Mở hộp thoại' }).click()
-      await expect(page.getByRole('dialog')).toBeVisible()
-      const dialog = await new AxeBuilder({ page })
-        .include('[role="dialog"]')
-        .withTags(WCAG)
-        .analyze()
-      expect(dialog.violations).toEqual([])
-      await page.keyboard.press('Escape')
-      await page.getByRole('button', { name: 'Mở menu mẫu' }).click()
-      await expect(page.getByRole('menu')).toBeVisible()
-      const menu = await new AxeBuilder({ page }).include('[role="menu"]').withTags(WCAG).analyze()
-      expect(menu.violations).toEqual([])
-    })
+    for (const overlay of OVERLAYS) {
+      test(`${overlay.name} open passes axe (full page, aria-hidden-focus disabled)`, async ({
+        page,
+      }) => {
+        await page.goto('/dev/components')
+        await overlay.open(page)
+        await expectNoAxeViolations(page, { disableRules: ['aria-hidden-focus'] })
+      })
+    }
   })
 }
 

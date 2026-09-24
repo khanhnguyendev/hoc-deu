@@ -1,0 +1,5 @@
+-- Shared pgTAP helpers, included by every test file (`\ir _helpers.psql`) inside its
+-- transaction, so they are rolled back with the test. Tasks 2.4+ add the user/auth helpers.
+create schema if not exists tests;
+grant usage on schema tests to anon, authenticated, service_role;
+create or replace function tests.helpers_loaded() returns boolean language sql as $$ select true $$;
