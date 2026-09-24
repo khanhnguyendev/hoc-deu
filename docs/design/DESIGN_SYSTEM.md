@@ -164,16 +164,18 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
 
 ### 4.1 Fonts
 
-| Role | Family | Loading (next/font/google) | Why |
+| Role | Family | Loading (`next/font/local`, files in `app/fonts/`) | Why |
 | --- | --- | --- | --- |
-| UI, headings, body | **Be Vietnam Pro** | `weight: ['400','500','600','700']`, `subsets: ['latin','vietnamese']`, `display: 'swap'`, CSS variable `--font-be-vietnam-pro` | Designed for Vietnamese: stacked diacritics (ế, ộ, ữ, Ặ) are drawn, not stacked by fallback; clean geometric-humanist forms fit the Swiss style |
-| Code, numbers in tables | **JetBrains Mono** | variable, `subsets: ['latin','vietnamese']`, CSS variable `--font-jetbrains-mono` | Clear `0/O`, `1/l`; has a Vietnamese subset, so Vietnamese code comments render correctly |
+| UI, headings, body | **Be Vietnam Pro** | four static `woff2` files (400/500/600/700) subset to latin + vietnamese, `display: 'swap'`, CSS variable `--font-be-vietnam-pro` | Designed for Vietnamese: stacked diacritics (ế, ộ, ữ, Ặ) are drawn, not stacked by fallback; clean geometric-humanist forms fit the Swiss style |
+| Code, numbers in tables | **JetBrains Mono** | one variable `woff2` subset to latin + vietnamese, CSS variable `--font-jetbrains-mono` | Clear `0/O`, `1/l`; has a Vietnamese subset, so Vietnamese code comments render correctly |
 
 - Considered: Lexend + Source Sans 3 (ui-ux-pro-max's "Corporate Trust" pairing; both have
   Vietnamese subsets). Be Vietnam Pro was chosen for its native Vietnamese design and one-family
   consistency. **Fira Code is not allowed** — it has no Vietnamese subset.
 - Be Vietnam Pro is not variable, so exactly four weights are loaded; do not use 300 or 800.
 - Fallback stacks are in `tokens.css` (`--font-sans`, `--font-mono`).
+- Fonts are self-hosted (platform design §2.1): the build must not need `fonts.googleapis.com`.
+  Both families are under the SIL Open Font License; `app/fonts/*/OFL.txt` ships with the files.
 
 ### 4.2 Type scale (16 px base, mobile-first)
 

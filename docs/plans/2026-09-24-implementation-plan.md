@@ -35,7 +35,12 @@ sections for every task.
   written **at the start of that milestone** from the code that exists by then (component APIs,
   generated DB types, migrations), reviewed by the owner, then executed. Writing step-level code for
   M1–M7 today would describe interfaces that do not exist yet and go stale.
-- **Execution now:** M0 only, then stop for the owner's review.
+- **Execution status:** M0 done (PR #1, merged 2026-09-24). M1: step-level detail in
+  [Part B-M1](#part-b-m1--component-library-step-by-step), written at the start of M1 and reviewed
+  by the owner together with the M1 pull request (the owner asked to stop only once that PR is
+  open).
+- **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
+  (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
 ## Execution methods (approved by the owner, 2026-09-24)
 
@@ -86,7 +91,11 @@ Every task implicitly includes these (values copied from the spec).
   - From 2.1, CI has a `db` job (local Supabase + pgTAP) and the `e2e` job runs against local
     Supabase with the test login, so RLS and quota regressions fail CI.
 - **`main` is protected** from M0 (task 0.10): PRs only, required checks, no force pushes, no
-  deletion, no approving review (self-approval is impossible, ADR-0023).
+  deletion, no approving review (self-approval is impossible, ADR-0023). It does **not** require
+  branches to be up to date before merging — that would stall auto-merging bot PRs in v1.1
+  (owner decision, 2026-09-24).
+- **Offline build:** `next build` needs no network beyond the package registry at install time
+  (fonts self-hosted, task 1.0), because the Routine's Custom network (§6.8) runs `pnpm verify`.
 
 ## Review Focus
 
@@ -134,31 +143,33 @@ Legend: **[owner]** = needs the owner's accounts or clicks; **v1.0 / v1.1** = re
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
+| 1.0 Self-hosted fonts | `app/fonts/be-vietnam-pro/*.woff2` (400/500/600/700) + `OFL.txt`, `app/fonts/jetbrains-mono/*.woff2` (variable) + `OFL.txt`, `app/fonts/README.md` (source, version, subset command); `app/layout.tsx` → `next/font/local`; ESLint bans `next/font/google`; CI `verify` job builds with `fonts.googleapis.com` / `fonts.gstatic.com` blocked in `/etc/hosts`; spec §2.1, §6.8 **Writes ADR-0001, ADR-0032, ADR-0033.** | architecture test: no `next/font/google` import and no Google Fonts host in source; every font file `layout.tsx` references exists; each family folder has `OFL.txt`; ESLint rule test; e2e: no request to a Google Fonts host and the self-hosted face is loaded | `pnpm verify && pnpm test:e2e`; CI build with the hosts blocked |
 | 1.1 shadcn init + React test setup | `components.json` (new-york, `stone`, `radix`, cssVariables), merge `shadcn eject` CSS into `app/globals.css` without changing tokens; add `class-variance-authority`, `lucide-react`, `radix-ui`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`, `@testing-library/user-event`; `vitest.config.ts` react plugin | tokens-sync test still green; a jsdom render smoke test | `pnpm verify` |
+| 1.1a `tokens:sync` | `tools/tokens/sync.ts` + `tsx` (dev, approved §7.10): replaces only the block between `/* tokens:start */` and `/* tokens:end */` in `app/globals.css` with `docs/design/tokens.css`, leaving shadcn CSS intact; script `tokens:sync` = `gen_tokens.py` + sync; CLAUDE.md command list completed (deferred minor #10) | sync replaces the block and keeps the CSS outside it byte-for-byte; idempotent; clear error when markers are missing or duplicated; repo `globals.css` is in sync | `pnpm verify` |
 | 1.2 `lib/i18n/vi.ts` | UI strings (Đóng, Mở menu, …) typed as `const` | key-presence test | `pnpm test` |
 | 1.3 ui: Button, Input, Label, Textarea | `components/ui/*` with cva variants/sizes from DESIGN_SYSTEM §9 | render each variant; disabled/loading; focus ring class; 44 px default size class | `pnpm verify` |
 | 1.4 ui: Card, Badge, Separator, Skeleton, Progress, Tooltip | `components/ui/*` | variants render; Progress `aria-valuenow` | `pnpm verify` |
 | 1.5 ui: Dialog, Sheet, DropdownMenu, Tabs, ToggleGroup, Toast | `components/ui/*`; Toast uses `sonner` (approved) | focus trap + restore; `Esc` closes; labels from `vi.ts` | `pnpm verify` |
 | 1.6 patterns: PageHeader, Section, StatCard, StatusPill, StreakBadge, ProgressRing | `components/patterns/*` | StatusPill renders icon + label for every status (§3.3); ProgressRing value/aria | `pnpm verify` |
-| 1.7 patterns: EmptyState, ErrorState, LoadingState, DataState, ConfirmDialog, DataList, Banner | `components/patterns/*` | DataState renders all 4 states | `pnpm verify` |
+| 1.7 patterns: EmptyState, ErrorState, LoadingState, DataState, ConfirmDialog, DataList, Banner + root pages | `components/patterns/*`; root `app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx` in Vietnamese built from these patterns (deferred minor #8) | DataState renders all 4 states; e2e: an unknown URL shows the Vietnamese 404 with a link home, axe clean | `pnpm verify && pnpm test:e2e` |
 | 1.8 pattern: CalendarHeatmap | `components/patterns/calendar-heatmap/*` | year view ≥ 768 px, month view < 768 px with 44 px cells; dots on active days; arrow-key navigation; table view; legend | `pnpm verify` |
 | 1.9 pattern: AppShell | sidebar ≥ 1024 px, bottom nav < 1024 px, account menu with admin entry (admins), ThemeToggle | nav `aria-current`; admin entry only when `isAdmin` | `pnpm verify` |
-| 1.10 `/dev/components` + catalog guard | `app/dev/components/*`, catalog registry, `docs/design/COMPONENTS.md` entries | Playwright + axe over the catalog in both themes; architecture test: every component file has a COMPONENTS.md entry and a catalog entry | `pnpm verify && pnpm test:e2e` |
+| 1.10 `/dev/components` + catalog guard | `app/dev/components/*` (404 when `VERCEL_ENV=production` until 2.8 makes it admin-only), catalog registry, `docs/design/COMPONENTS.md` entries; allowed-case rule tests for every layer (deferred minor #7) **Writes ADR-0021.** | Playwright + axe over the catalog in both themes; architecture test: every component file has a COMPONENTS.md entry and a catalog entry; dark-mode e2e asserts the light and dark backgrounds differ (deferred minor #9) | `pnpm verify && pnpm test:e2e` |
 
 ### M2 — Auth, onboarding, settings (v1.0)
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
-| 2.1 Supabase local, env, DB CI | `supabase` CLI dev dep, `supabase/config.toml` (Google/GitHub from env; email only when `AUTH_TEST_LOGIN`), `lib/env.ts` (Zod server/client schemas, §2.5 v1.0 vars), scripts `db:start`, `db:reset`, `db:types`, `test:db`, `verify:full` = verify + test:db + test:e2e; CI: new `db` job (`supabase/setup-cli`, `supabase start`, `pnpm test:db`) and the `e2e` job starts local Supabase with `AUTH_TEST_LOGIN=true` | env: missing var fails; `AUTH_TEST_LOGIN=true` + `VERCEL_ENV=production` throws; a first pgTAP smoke test runs in CI | `pnpm verify:full` + CI `db` job green |
+| 2.1 Supabase local, env, DB CI | `supabase` CLI dev dep, `supabase/config.toml` (Google/GitHub from env; email only when `AUTH_TEST_LOGIN`), `lib/env.ts` (Zod server/client schemas, §2.5 v1.0 vars), scripts `db:start`, `db:reset`, `db:types`, `test:db`, `verify:full` = verify + test:db + test:e2e; CI: new `db` job (`supabase/setup-cli`, `supabase start`, `pnpm test:db`) and the `e2e` job starts local Supabase with `AUTH_TEST_LOGIN=true`; CI hygiene (deferred minor #11): `persist-credentials: false` on every checkout, `cancel-in-progress` only for pull requests; revisit Playwright trace artifacts in the public repo now that the test login exists (keep on failure only, or stop uploading) | env: missing var fails; `AUTH_TEST_LOGIN=true` + `VERCEL_ENV=production` throws; a first pgTAP smoke test runs in CI | `pnpm verify:full` + CI `db` job green |
 | 2.2 Staging infra **[owner]** | Supabase **staging** project; Vercel project `hoc-deu` (claims `hoc-deu.vercel.app`) with preview deployments wired to staging env vars; Google and GitHub OAuth apps with staging-preview and local redirect URLs; runbook `docs/ops/staging.md` (no secrets) | preview deploy of `main` loads; Supabase migrations apply to staging | preview URL returns 200 |
-| 2.3 Local day (moved from M4) | `lib/domain/time/localDay.ts`, `lib/domain/time/fixtures.ts` (shared with the SQL parity test) | **[RF-1]** 01:30 with day start 04:00 → previous date; schedule-version lookup by `effective_at`; change applies from the next day start; east/west moves | `pnpm verify` |
-| 2.4 Migration: profiles, schedule_versions, user_tracks | `supabase/migrations/*`, `supabase/tests/database/*.sql` | pgTAP: profile created `pending` on sign-up; column grants; `is_admin`/`is_active`; `admin_*` functions check admin and write audit events; `admin_bootstrap` | `pnpm test:db` |
-| 2.5 Events core | migration: `events`, `event_quota` + `SECURITY DEFINER` quota trigger, `local_day` SQL function, `apply_event` / `apply_system_event` (state-table events only; derived tables in M4); `lib/domain/events.ts` — Zod payload schemas for every event type (§4.4 table) | pgTAP: **[RF-1]** SQL `local_day` equals TypeScript `localDay` on the shared fixtures; forced `actor_id`/`source`; `local_day` computed in DB; 501st learner event → `quota_exceeded`; learners cannot read/write `event_quota` | `pnpm test:db` |
-| 2.6 Supabase clients, proxy, DAL, guards | `lib/supabase/{client,server,proxy,admin}.ts`, `proxy.ts` (matcher: pages only), `lib/auth/dal.ts`, `lib/auth/guards.ts` | DAL returns cached profile; `requireActive` redirects pending; architecture test: every `'use server'` module and route handler calls a guard | `pnpm verify` |
-| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) | e2e with test login: pending user sees `/pending`; admin email becomes active admin; **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
-| 2.8 Admin approval queue | `features/admin/*`, `app/(admin)/admin/users` | e2e: approve/reject/suspend; non-admin gets 404/redirect | `pnpm verify:full` |
+| 2.3 Local day (moved from M4) | `lib/domain/time/localDay.ts`, `lib/domain/time/fixtures.ts` (shared with the SQL parity test) **Writes ADR-0017, ADR-0020.** | **[RF-1]** 01:30 with day start 04:00 → previous date; schedule-version lookup by `effective_at`; change applies from the next day start; east/west moves; `lib/domain` purity architecture test (§7.2, deferred minor #5): imports only `lib/domain` + `zod`, no `node:*`, no date library, no `Date()` / argument-less `new Date()`, no local-time getters, `performance.now()` or `Math.random()`, no `.tsx`; Vitest runs with a fixed non-UTC `TZ` (e.g. `America/St_Johns`) | `pnpm verify` |
+| 2.4 Migration: profiles, schedule_versions, user_tracks | `supabase/migrations/*`, `supabase/tests/database/*.sql` | pgTAP: profile created `pending` on sign-up; column grants; `is_admin`/`is_active`; `admin_*` functions check admin and write audit events; `admin_bootstrap`; layer rule gaps (deferred minor #6): `app/api/**` follows its §7.2 row (no components), `.js`/`.jsx`/`.mjs` files are checked, the `'use client'` rule also covers `app/dev/**` — each with a rule test | `pnpm test:db && pnpm verify` |
+| 2.5 Events core | migration: `events`, `event_quota` + `SECURITY DEFINER` quota trigger, `local_day` SQL function, `apply_event` / `apply_system_event` (state-table events only; derived tables in M4); `lib/domain/events.ts` — Zod payload schemas for every event type (§4.4 table) **Writes ADR-0007, ADR-0030.** | pgTAP: **[RF-1]** SQL `local_day` equals TypeScript `localDay` on the shared fixtures; forced `actor_id`/`source`; `local_day` computed in DB; 501st learner event → `quota_exceeded`; learners cannot read/write `event_quota` | `pnpm test:db` |
+| 2.6 Supabase clients, proxy, DAL, guards | `lib/supabase/{client,server,proxy,admin}.ts`, `proxy.ts` (matcher: pages only), `lib/auth/dal.ts`, `lib/auth/guards.ts` **Writes ADR-0002, ADR-0006, ADR-0019.** | DAL returns cached profile; `requireActive` redirects pending; architecture test: every `'use server'` module and route handler calls a guard | `pnpm verify` |
+| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) **Writes ADR-0003.** | e2e with test login: pending user sees `/pending`; admin email becomes active admin; **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
+| 2.8 Admin approval queue | `features/admin/*`, `app/(admin)/admin/users` **Writes ADR-0004.** | e2e: approve/reject/suspend; non-admin gets 404/redirect; `/dev/components` admin-only in production | `pnpm verify:full` |
 | 2.9 Minimal track manifests + projection table | `content/tracks/{dsa,english}/track.yaml` (manifest fields only), tiny loader `lib/content/tracks.ts`, `lib/domain/plan/projections.ts` seeded with the §5.11 prototype table | loader parses both manifests; projection lookup interpolates and clamps | `pnpm verify` |
-| 2.10 Onboarding | `features/onboarding/*`, `app/(onboarding)/onboarding` — tracks → minutes → DSA variant (default by budget, simulated finish) → start date/timezone/day start → code language → template preview; events `track.enrolled`, `schedule.changed`, `settings.changed`, `onboarding.completed`; uses `localDay` (2.3) | 60 min → 8w default, 75 → 10w; finish text uses vi-VN decimal comma; e2e completes onboarding | `pnpm verify:full` |
+| 2.10 Onboarding | `features/onboarding/*`, `app/(onboarding)/onboarding` — tracks → minutes → DSA variant (default by budget, simulated finish) → start date/timezone/day start → code language → template preview; events `track.enrolled`, `schedule.changed`, `settings.changed`, `onboarding.completed`; uses `localDay` (2.3) **Writes ADR-0015.** | 60 min → 8w default, 75 → 10w; finish text uses vi-VN decimal comma; e2e completes onboarding | `pnpm verify:full` |
 | 2.11 Settings + account deletion | `features/settings/*`, `app/(app)/settings` (template/throttle read-only), delete account + privacy text (90-day backup note); uses `localDay` (2.3) | e2e: change timezone takes effect next day start; deletion cascades (pgTAP) | `pnpm verify:full` |
 
 ### M3 — Track manifests, content loading and validation (v1.0)
@@ -166,12 +177,12 @@ Legend: **[owner]** = needs the owner's accounts or clicks; **v1.0 / v1.1** = re
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
 | 3.1 Content schemas | `lib/content/item-types/{problem,flashcard,lesson,exercise,prompt}.ts`, `lib/content/schemas/{manifest,roadmap}.ts` | valid/invalid fixtures per schema; exercise kinds; premium needs alternative | `pnpm test` |
-| 3.2 `content:build` | `tools/content/build.ts`, `tools/content/allowlist.ts`, MDX safety check, `ids.lock`, `.generated/catalog.json`, MDX import map, report; **`pnpm verify` now starts with `content:build`** and CI runs it | cross-refs; `requires` cycles and order; anchor ≠ practice; solutions/tests required only with a note; reserved `user:` prefix; MDX: `import`/`export`/expressions/`javascript:` rejected; **[RF-3]** IDs/slugs ASCII, titles NFC | `pnpm content:build && pnpm test` |
-| 3.3 MDX pipeline | `next.config.ts` (`@next/mdx`, remark plugins as strings), `mdx-components.tsx` (allow-listed components), shiki at build | lesson renders sections in order; `<Term>` sets `lang="en"`; quiz score | `pnpm verify` |
-| 3.4 Item registry + track pages | `features/items/{registry.ts,<type>/Page.tsx,<type>/Row.tsx}`, `app/(app)/tracks`, `app/(app)/t/[trackId]`, `app/(app)/t/[trackId]/items/[itemId]` | no `switch` on item type outside registry (architecture test); each type renders page and row | `pnpm verify && pnpm test:e2e` |
-| 3.5 `content-verify` M3a | `tools/content-verify/{orchestrator.ts,comparators.ts,validators/,runners/{python,java,go}}`, `.github/workflows/content-verify.yml` (no secrets, no network, in-job path check) | every comparator; timeout; `function` signatures pass; unsupported kinds → `compile-only` | `pnpm content:verify` |
+| 3.2 `content:build` | `tools/content/build.ts`, `tools/content/allowlist.ts`, MDX safety check, `ids.lock`, `.generated/catalog.json`, MDX import map, report; **`pnpm verify` now starts with `content:build`** and CI runs it **Writes ADR-0010.** | cross-refs; `requires` cycles and order; anchor ≠ practice; solutions/tests required only with a note; reserved `user:` prefix; MDX: `import`/`export`/expressions/`javascript:` rejected; **[RF-3]** IDs/slugs ASCII, titles NFC | `pnpm content:build && pnpm test` |
+| 3.3 MDX pipeline | `next.config.ts` (`@next/mdx`, remark plugins as strings), `mdx-components.tsx` (allow-listed components), shiki at build **Writes ADR-0011.** | lesson renders sections in order; `<Term>` sets `lang="en"`; quiz score | `pnpm verify` |
+| 3.4 Item registry + track pages | `features/items/{registry.ts,<type>/Page.tsx,<type>/Row.tsx}`, `app/(app)/tracks`, `app/(app)/t/[trackId]`, `app/(app)/t/[trackId]/items/[itemId]` **Writes ADR-0009.** | no `switch` on item type outside registry (architecture test); each type renders page and row | `pnpm verify && pnpm test:e2e` |
+| 3.5 `content-verify` M3a | `tools/content-verify/{orchestrator.ts,comparators.ts,validators/,runners/{python,java,go}}`, `.github/workflows/content-verify.yml` (no secrets, no network, in-job path check) **Writes ADR-0012.** | every comparator; timeout; `function` signatures pass; unsupported kinds → `compile-only` | `pnpm content:verify` |
 | 3.6 DSA metadata + roadmaps | all ~110 `problem.yaml`, `roadmaps/{10w,8w}.yaml`, prompts (mock interview) | build passes; week sizes; prerequisites order; **owner review before merge** | `pnpm content:build` |
-| 3.7–3.9 DSA W1, W2, W3 content | notes + Python/Java/Go solutions + `tests.yaml` per problem; pattern lessons (arrays-hashing, two-pointers, sliding-window, stack, binary-search) — one task per week | content-verify: `tested` for `function` problems, `compile-only` for 271/155/981; **owner review before merge, including checking every `tests.yaml` example against the LeetCode examples** | `pnpm content:build && pnpm content:verify` |
+| 3.7–3.9 DSA W1, W2, W3 content | notes + Python/Java/Go solutions + `tests.yaml` per problem; pattern lessons (arrays-hashing, two-pointers, sliding-window, stack, binary-search) — one task per week **Writes ADR-0013.** | content-verify: `tested` for `function` problems, `compile-only` for 271/155/981; **owner review before merge, including checking every `tests.yaml` example against the LeetCode examples** | `pnpm content:build && pnpm content:verify` |
 | 3.10 English manifest, roadmap, core decks W1–W10 | `content/tracks/english/**` | build passes; derived deck mapping | `pnpm content:build` |
 | 3.11 English W1–W3 extended cards, exercises, weekend prompts | decks, `exercises/*.yaml`, `prompts/*.yaml` | build passes; exercise `week` set | `pnpm content:build` |
 
@@ -186,13 +197,13 @@ need it first.
 | Task | Files (`lib/domain/…`) | Tests that must exist |
 | --- | --- | --- |
 | 4.1 SRS | `srs/applyResult.ts` | every row of §5.7 table; `byType`; relearn; mastery + `item.readded`; first result per day only |
-| 4.2 Projection + replay | `projection/{project,replay}.ts`, `rules.ts` | replay rebuilds all derived tables; `item.snapshot` handled; `track.reset`; pause shifts due dates |
-| 4.3 Gate + resume | `plan/{gate,resume}.ts` | last *seen* plan only; unseen AI plans ignored; **[RF-5]** > 2 days + closed gate → resume plan without pointer advance |
+| 4.2 Projection + replay | `projection/{project,replay}.ts`, `rules.ts` **Writes ADR-0008.** | replay rebuilds all derived tables; `item.snapshot` handled; `track.reset`; pause shifts due dates |
+| 4.3 Gate + resume | `plan/{gate,resume}.ts` **Writes ADR-0016.** | last *seen* plan only; unseen AI plans ignored; **[RF-5]** > 2 days + closed gate → resume plan without pointer advance |
 | 4.4 Queues | `plan/queues.ts` | roadmap order; core → recap → derived → extended → bonus; drafts/retired excluded; progress-based week; recap-done derivation; exercise picker |
 | 4.5 Budget + throttle | `plan/{budget,throttle}.ts` | fixed blocks reserved; review skip rule + debt cap; first-item vs throttle 0; half-fit; spill; fallback |
 | 4.6 buildPlan + invariants | `plan/buildPlan.ts` + fast-check property tests | planned minutes ≤ budget or budget + largest item; every core item queued once; **[RF-4]** empty catalog/new user/future start → valid empty state |
 | 4.7 Stats | `stats/{streak,weeklySummary,weakTopics}.ts` | streak across schedule change; weak topics ≥ 2 Weak |
-| 4.8 Simulation + projections | `plan/__tests__/simulation.test.ts`, `tools/sim/projections.ts` (`pnpm sim:projections`) | §5.10 thresholds (recalibrated once); projection inputs hash |
+| 4.8 Simulation + projections | `plan/__tests__/simulation.test.ts`, `tools/sim/projections.ts` (`pnpm sim:projections`) **Writes ADR-0014, ADR-0037.** | §5.10 thresholds (recalibrated once); projection inputs hash |
 | 4.9 Derived tables + SQL | migrations: `item_state`, `plan_block_state`, `daily_activity`, `day_plans` (+ `seen_at`, `updated_at`), full `apply_event`, `mark_plan_seen` | pgTAP: **[RF-2]** duplicate event id → one row; version mismatch aborts; RLS on every derived table |
 
 Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
@@ -201,14 +212,14 @@ Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
-| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
-| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
+| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
+| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
 | 5.4 "Học thêm" + off-plan study | `features/today/*` | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
-| 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`) | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
-| 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
-| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), prod OAuth redirect URLs, first production deploy; dogfooding checklist | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
+| 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`) **Writes ADR-0031.** | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
+| 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
+| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
@@ -220,11 +231,11 @@ either W4–W5 notes/lessons written or v1.1 shipped.
 | --- | --- |
 | 6.1 | Upstash rate limits (`lib/rate-limit.ts`, fail-open counter in `ops_metrics`) |
 | 6.2 | Migrations: `bot_settings`, `bot_runs`, `bot_run_users`, `user_items`, `roadmap_overrides`, `content_publish_requests` + RLS + pgTAP |
-| 6.3 | Bot token (hash in DB, rotation UI in `/admin/bot`), `requireBotToken`, kill switch, dry-run |
-| 6.4 | `POST /runs` (plan + publish kinds, cap + `deferredUsers`, lazy timeout, resume mode rule), context endpoint (pseudonyms, sanitisation), `PATCH /runs/{runId}` |
-| 6.5 | `PUT …/plan` (validation + untouched-plan precedence), AI plan rendering, mode badge, AI flag toggle in `/admin/users` |
+| 6.3 | Bot token (hash in DB, rotation UI in `/admin/bot`), `requireBotToken`, kill switch, dry-run | **Writes ADR-0026.**
+| 6.4 | `POST /runs` (plan + publish kinds, cap + `deferredUsers`, lazy timeout, resume mode rule), context endpoint (pseudonyms, sanitisation), `PATCH /runs/{runId}` | **Writes ADR-0027.**
+| 6.5 | `PUT …/plan` (validation + untouched-plan precedence), AI plan rendering, mode badge, AI flag toggle in `/admin/users` | **Writes ADR-0018.**
 | 6.6 | `PUT …/custom-items` + "Mục riêng" tab; `PUT …/overrides` + `effectiveRoadmap` + revoke UI |
-| 6.7 | `GET …/content-signals`, publish requests (admin "Xuất bản", public endpoint), `share_notes_with_ai` |
+| 6.7 | `GET …/content-signals`, publish requests (admin "Xuất bản", public endpoint), `share_notes_with_ai` | **Writes ADR-0024, ADR-0025, ADR-0040.**
 | 6.8 | Contract test suite (§6.10) |
 
 ### M7 — Claude Code Routine in dry-run (v1.1)
@@ -232,9 +243,9 @@ either W4–W5 notes/lessons written or v1.1 shipped.
 | Task | Deliverable |
 | --- | --- |
 | 7.1 | `pnpm bot` CLI (`tools/bot/cli.ts`) sharing `lib/bot/contract.ts` |
-| 7.2 | `bot/ROUTINE_PROMPT.md`, `.claude/settings.json` deny rules |
-| 7.3 | Bot PR workflows: `path-guard`, `bot-content-policy`, `bot-automerge`, stale-PR closer + fixture PR tests; adds `path-guard`, `bot-content-policy`, `content-build` and `content-verify` to the existing `main` ruleset (0.10) |
-| 7.4 **[owner]** | Routine environment (Custom network, API credential, no connectors, schedule 22:30 UTC); fallback workflow (dry-run) |
+| 7.2 | `bot/ROUTINE_PROMPT.md`, `.claude/settings.json` deny rules | **Writes ADR-0022.**
+| 7.3 | Bot PR workflows: `path-guard`, `bot-content-policy`, `bot-automerge`, stale-PR closer + fixture PR tests; adds `path-guard`, `bot-content-policy`, `content-build` and `content-verify` to the existing `main` ruleset (0.10); pins every GitHub Action by commit SHA (deferred minor #11) **Writes ADR-0023, ADR-0035.** |
+| 7.4 **[owner]** | Routine environment (Custom network, API credential, no connectors, schedule 22:30 UTC); fallback workflow (dry-run) | **Writes ADR-0028.**
 | 7.5 | Dry-run acceptance week on real data → `dry_run` off, `content_proposals` on |
 
 ---
