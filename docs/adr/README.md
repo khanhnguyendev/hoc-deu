@@ -20,7 +20,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0012 | Solutions verified in a sandboxed CI job; phased harness | 3.5 |
 | 0013 | One lesson per pattern; notes upgradeable to deep-dives | 3.7–3.9 |
 | 0014 | Simulation-backed SRS parameters per track; mastery | 4.8 |
-| 0015 | DSA variant follows the budget; simulated finish shown | 2.10 |
+| [0015](0015-dsa-variant-follows-budget.md) | DSA variant follows the budget; simulated finish shown | 2.10 |
 | 0016 | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
 | [0017](0017-day-start-and-schedule-versions.md) | Per-user day start; schedule versions effective at the next day start | 2.3 |
 | 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5 |

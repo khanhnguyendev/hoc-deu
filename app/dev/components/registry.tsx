@@ -86,6 +86,11 @@ import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
+import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
+import type { OnboardingState } from '@/features/onboarding/schema'
+import { VariantPicker } from '@/features/tracks/components/variant-picker'
+import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
+import type { TrackOption } from '@/lib/content/track-options'
 import { vi } from '@/lib/i18n/vi'
 
 /**
@@ -342,6 +347,84 @@ const DEMO_ADMIN_USERS: AdminUserRow[] = [
   demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
   demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
 ]
+
+/** The two real tracks as the onboarding loader returns them (`loadTrackOptions()`). */
+const DEMO_TRACKS: TrackOption[] = [
+  {
+    id: 'dsa',
+    title: 'Cấu trúc dữ liệu & Giải thuật',
+    accent: 'track-1',
+    defaultBudgetMinutes: 60,
+    roadmaps: [{ id: '8w', recommendedBelowMinutes: 75 }, { id: '10w' }],
+    codeLanguages: ['python', 'java', 'go'],
+    template: [
+      { label: 'Thứ 2 – Thứ 6', blocks: ['Ôn tập (tối đa 15 phút)', 'Bài mới'] },
+      { label: 'Thứ 7', blocks: ['Ôn tập'] },
+      { label: 'Chủ nhật', blocks: ['Phỏng vấn thử · 45 phút (từ tuần 3)', 'Ôn lại 3 bài'] },
+    ],
+    throttle: [],
+  },
+  {
+    id: 'english',
+    title: 'Tiếng Anh cho môi trường IT',
+    accent: 'track-2',
+    defaultBudgetMinutes: 25,
+    roadmaps: [{ id: '10w' }],
+    codeLanguages: [],
+    template: [
+      {
+        label: 'Thứ 2 – Thứ 6',
+        blocks: ['Bài tập · 5 phút', 'Shadowing · 3 phút', 'Ôn tập', 'Bài mới'],
+      },
+      { label: 'Thứ 7', blocks: ['Ôn tập'] },
+      { label: 'Chủ nhật', blocks: ['Nhiệm vụ cuối tuần · 15 phút', 'Ôn tập'] },
+    ],
+    throttle: [
+      'Tối đa 8 thẻ mới mỗi ngày',
+      'Trên 40 thẻ cần ôn: 4 thẻ mới mỗi ngày',
+      'Trên 60 thẻ cần ôn: tạm dừng thẻ mới',
+    ],
+  },
+]
+const [DEMO_DSA, DEMO_ENGLISH] = DEMO_TRACKS as [TrackOption, TrackOption]
+const DEMO_TIME_ZONES = ['Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Europe/London']
+const DEMO_NOW = `${DEMO_TODAY}T03:00:00.000Z`
+const DEMO_REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
+const DEMO_ONBOARDING_ERROR: OnboardingState = {
+  status: 'error',
+  formError: vi.errors.quotaExceeded,
+  fieldErrors: { startDate: vi.onboarding.errors.startDateTooLate },
+}
+
+/** The onboarding action as a no-op: "Bắt đầu học" returns to the wizard unchanged. */
+const demoCompleteOnboarding = async (): Promise<OnboardingState> => ({ status: 'idle' })
+const demoFailOnboarding = async (): Promise<OnboardingState> => DEMO_ONBOARDING_ERROR
+
+function VariantPickerDemo({
+  track,
+  budgetMinutes,
+}: {
+  track: TrackOption
+  budgetMinutes: number
+}) {
+  const [value, setValue] = useState(track.roadmaps[0]?.id ?? '')
+  return (
+    <div className="flex w-full max-w-xl flex-col gap-2">
+      <p id={`demo-variant-${track.id}`} className="font-medium">
+        {track.title} · {budgetMinutes} phút/ngày
+      </p>
+      <VariantPicker
+        trackId={track.id}
+        name={`demo-variant-${track.id}`}
+        roadmaps={track.roadmaps}
+        budgetMinutes={budgetMinutes}
+        value={value}
+        onValueChange={setValue}
+        aria-labelledby={`demo-variant-${track.id}`}
+      />
+    </div>
+  )
+}
 
 export const CATALOG: Entry[] = [
   {
@@ -1293,6 +1376,80 @@ export const CATALOG: Entry[] = [
           <div className="text-sm text-muted-foreground">
             <StatusWatcher />
             <p>Không hiển thị gì (features/auth/components/status-watcher.tsx).</p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'OnboardingWizard',
+    layer: 'features',
+    file: 'features/onboarding/components/onboarding-wizard.tsx',
+    demos: [
+      {
+        title: 'Bước 1: chọn lộ trình (các bước sau mở khi bấm "Tiếp tục")',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={DEMO_TRACKS}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoCompleteOnboarding}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Lỗi từ máy chủ: tóm tắt ở đầu, quay về bước có lỗi đầu tiên',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={DEMO_TRACKS}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoFailOnboarding}
+              initialState={DEMO_ONBOARDING_ERROR}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VariantPicker',
+    layer: 'features',
+    file: 'features/tracks/components/variant-picker.tsx',
+    demos: [
+      {
+        title: 'DSA với 60 phút/ngày: thời gian hoàn thành mô phỏng cho từng phiên bản',
+        render: () => <VariantPickerDemo track={DEMO_DSA} budgetMinutes={60} />,
+      },
+      {
+        title: 'Lộ trình không có bảng mô phỏng (English): không có dòng hoàn thành',
+        render: () => <VariantPickerDemo track={DEMO_ENGLISH} budgetMinutes={25} />,
+      },
+    ],
+  },
+  {
+    name: 'WeeklyTemplatePreview',
+    layer: 'features',
+    file: 'features/tracks/components/weekly-template-preview.tsx',
+    demos: [
+      {
+        title: 'DSA (không giới hạn thẻ mới) và English (có giới hạn thẻ mới)',
+        render: () => (
+          <div className="grid w-full gap-4 md:grid-cols-2">
+            {DEMO_TRACKS.map((track) => (
+              <WeeklyTemplatePreview
+                key={track.id}
+                title={track.title}
+                accent={track.accent}
+                days={track.template}
+                throttle={track.throttle}
+              />
+            ))}
           </div>
         ),
       },

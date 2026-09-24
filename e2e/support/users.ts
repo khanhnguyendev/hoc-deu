@@ -22,7 +22,17 @@ export type TestUser = { id: string; email: string; password: string; name: stri
 type ProfileRow = Database['public']['Tables']['profiles']['Row']
 export type TestProfile = Pick<
   ProfileRow,
-  'role' | 'status' | 'approved_at' | 'onboarded_at' | 'display_name'
+  'role' | 'status' | 'approved_at' | 'onboarded_at' | 'display_name' | 'code_language'
+>
+type UserTrackRow = Database['public']['Tables']['user_tracks']['Row']
+export type TestUserTrack = Pick<
+  UserTrackRow,
+  'track_id' | 'roadmap_variant' | 'budget_minutes' | 'start_date' | 'status'
+>
+type ScheduleVersionRow = Database['public']['Tables']['schedule_versions']['Row']
+export type TestScheduleVersion = Pick<
+  ScheduleVersionRow,
+  'timezone' | 'day_starts_at' | 'effective_at'
 >
 
 let client: Supabase.SupabaseClient<Database> | undefined
@@ -86,11 +96,45 @@ export async function createTestUser(
 export async function getProfile(id: string): Promise<TestProfile> {
   const { data, error } = await admin()
     .from('profiles')
-    .select('role, status, approved_at, onboarded_at, display_name')
+    .select('role, status, approved_at, onboarded_at, display_name, code_language')
     .eq('id', id)
     .single()
   if (error) throw new Error(`getProfile(${id}) failed: ${error.message}`)
   return data
+}
+
+/** The user's enrolled tracks, by track id. */
+export async function getUserTracks(userId: string): Promise<TestUserTrack[]> {
+  const { data, error } = await admin()
+    .from('user_tracks')
+    .select('track_id, roadmap_variant, budget_minutes, start_date, status')
+    .eq('user_id', userId)
+    .order('track_id')
+  if (error) throw new Error(`getUserTracks(${userId}) failed: ${error.message}`)
+  return data
+}
+
+/** The user's schedule versions, oldest first (`day_starts_at` reads as `HH:MM:SS`). */
+export async function getScheduleVersions(userId: string): Promise<TestScheduleVersion[]> {
+  const { data, error } = await admin()
+    .from('schedule_versions')
+    .select('timezone, day_starts_at, effective_at')
+    .eq('user_id', userId)
+    .order('effective_at')
+  if (error) throw new Error(`getScheduleVersions(${userId}) failed: ${error.message}`)
+  return data
+}
+
+/** How many events the user's log holds. */
+export async function countEvents(userId: string): Promise<number> {
+  const { count, error } = await admin()
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  if (error || count === null) {
+    throw new Error(`countEvents(${userId}) failed: ${error?.message ?? 'no count'}`)
+  }
+  return count
 }
 
 /** Sets the status directly, as the approval queue would (an active user gets `approved_at`). */

@@ -131,13 +131,73 @@ export const vi = {
       description: 'Quản trị viên đã tạm khoá tài khoản này. Bạn hãy liên hệ họ để mở lại.',
     },
   },
-  /** /onboarding until the wizard arrives (task 2.10). */
+  /**
+   * /onboarding, the setup wizard (§2.4, task 2.10). `{minutes}` is a formatted number of
+   * minutes.
+   */
   onboarding: {
     pageTitle: 'Thiết lập lộ trình',
     title: 'Chào mừng bạn đến Học Đều',
-    description: 'Tài khoản của bạn đã được duyệt.',
-    comingSoonTitle: 'Phần thiết lập lộ trình sắp có',
-    comingSoonBody: 'Tại đây bạn sẽ chọn lộ trình, số phút mỗi ngày và lịch học của mình.',
+    description: 'Tài khoản của bạn đã được duyệt. Thiết lập lộ trình học trong vài bước ngắn.',
+    steps: {
+      tracks: 'Chọn lộ trình',
+      minutes: 'Thời gian mỗi ngày',
+      variant: 'Phiên bản lộ trình',
+      schedule: 'Lịch học',
+      language: 'Ngôn ngữ lập trình',
+      preview: 'Xem trước tuần học',
+    },
+    back: 'Quay lại',
+    next: 'Tiếp tục',
+    submit: 'Bắt đầu học',
+    tracks: {
+      description: 'Bạn có thể học nhiều lộ trình cùng lúc.',
+      suggested: '{minutes} phút mỗi ngày',
+    },
+    minutes: {
+      description: 'Chọn số phút bạn có thể học đều đặn mỗi ngày cho từng lộ trình.',
+      helper: 'phút mỗi ngày',
+    },
+    variant: {
+      description:
+        'Phiên bản được gợi ý theo số phút mỗi ngày của bạn. Bạn vẫn có thể chọn phiên bản khác.',
+    },
+    schedule: {
+      description: 'Học Đều tính ngày học theo múi giờ và giờ bắt đầu ngày của bạn.',
+      startDate: 'Ngày bắt đầu',
+      startDateHelper: 'Từ hôm nay đến tối đa 60 ngày tới.',
+      timezone: 'Múi giờ',
+      dayStart: 'Ngày mới bắt đầu lúc',
+      dayStartHelper: 'Học lúc 01:30 vẫn tính cho ngày hôm trước khi ngày mới bắt đầu lúc 04:00.',
+    },
+    language: {
+      description: 'Dùng cho lời giải và code mẫu. Bạn có thể đổi lại trong Cài đặt.',
+      python: 'Python',
+      java: 'Java',
+      go: 'Go',
+    },
+    preview: {
+      description: 'Mỗi tuần học của bạn sẽ theo mẫu này. Kế hoạch mỗi ngày được tạo từ đây.',
+    },
+    /** Field and form errors, in the wizard and from `completeOnboarding`. */
+    errors: {
+      invalid: 'Không đọc được thông tin thiết lập. Bạn tải lại trang rồi thử lại nhé.',
+      noTrack: 'Chọn ít nhất một lộ trình.',
+      duplicateTrack: 'Mỗi lộ trình chỉ được chọn một lần.',
+      unknownTrack: 'Lộ trình này hiện không có. Bạn tải lại trang nhé.',
+      minutes: 'Nhập số phút từ 10 đến 240, bước 5 phút.',
+      variant: 'Chọn một phiên bản có trong lộ trình.',
+      startDate: 'Chọn một ngày bắt đầu hợp lệ.',
+      startDateTooLate: 'Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.',
+      timezone: 'Múi giờ không hợp lệ.',
+      dayStart: 'Chọn giờ từ 00:00 đến 12:00, mỗi 30 phút.',
+      codeLanguage: 'Chọn Python, Java hoặc Go.',
+      codeLanguageUnused: 'Lộ trình bạn chọn không dùng ngôn ngữ lập trình.',
+    },
+  },
+  /** Shared track pieces (`features/tracks`): the weekly template preview. */
+  tracks: {
+    throttleTitle: 'Giới hạn thẻ mới',
   },
   /**
    * /admin/users, the approval queue (§2.4, task 2.8). `{count}`, `{date}` and `{name}` are

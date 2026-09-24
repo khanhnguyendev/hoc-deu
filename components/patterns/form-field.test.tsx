@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Input } from '@/components/ui/input'
-import { FormField } from './form-field'
+import { FormField, FormFieldError } from './form-field'
 
 describe('FormField', () => {
   it('wires the label, description and error to the control', () => {
@@ -42,5 +42,15 @@ describe('FormField', () => {
     )
     const input = screen.getByLabelText(/Số phút/) as HTMLInputElement
     expect(input.required).toBe(true)
+  })
+
+  it('exports the error line for groups, with the icon hidden', () => {
+    const { container } = render(
+      <FormFieldError id="tracks-error">Chọn ít nhất một lộ trình.</FormFieldError>,
+    )
+    const line = screen.getByText('Chọn ít nhất một lộ trình.')
+    expect(line.id).toBe('tracks-error')
+    expect(line.className).toContain('text-danger')
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
   })
 })

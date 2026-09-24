@@ -392,12 +392,16 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/form-field.tsx`
 - **Props:** `id: string`, `label: string`, `description?: string`, `error?: string`,
-  `required?: boolean`, `children: (control) => ReactNode`
+  `required?: boolean`, `children: (control) => ReactNode`; `FormFieldError`: `id?: string`,
+  `children` (the message)
 - **Variants:** —
 - **States:** default, with description, with error (`aria-invalid`, `text-danger` + icon)
 - **Usage:** `<FormField id="email" label="Email" error={err}>{(control) => <Input {...control} />}</FormField>`
+  · a checkbox or radio group (no single control to label) puts `<FormFieldError id={errId}>` under
+  the group and `aria-describedby={errId}` on it (the onboarding wizard)
 - **Accessibility:** label above the field; `aria-describedby` joins the description and error
-  ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"
+  ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"; `FormFieldError` is the
+  same error line (`text-danger` + icon, never colour alone)
 
 ### LoadingState
 
@@ -495,6 +499,64 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** radio group labelled "Giao diện"
 
 ## features
+
+### OnboardingWizard
+
+- **Layer:** feature (`features/onboarding`, client)
+- **File:** `features/onboarding/components/onboarding-wizard.tsx`
+- **Props:** `tracks: TrackOption[]`, `timeZones: readonly string[]` (built on the server), `now:
+  string` (server clock, ISO), `requestId: string` (per render, decision 9), `action: (state,
+  formData) => Promise<OnboardingState>` — all but the action come from `getOnboardingData()`; the
+  action comes in as a prop, so the catalog passes a no-op; `initialState?: OnboardingState` (the
+  catalog's error state)
+- **Variants:** the steps shown follow the selection — "Chọn lộ trình" → "Thời gian mỗi ngày" →
+  "Phiên bản lộ trình" (only for a track with more than one roadmap) → "Lịch học" → "Ngôn ngữ lập
+  trình" (only when a selected track has code languages) → "Xem trước tuần học"
+- **States:** per step: default, field errors (under the field + FormErrorSummary at the top);
+  variant follows the minutes (`defaultVariant`) until the learner picks one, then it sticks
+  (ADR-0015); time zone `Asia/Ho_Chi_Minh` on the server render, then the browser's canonical zone
+  when the list has it (`useSyncExternalStore`, no hydration mismatch); submitting ("Bắt đầu học"
+  busy, "Quay lại" disabled); server error (summary, back to the step of the first field in
+  error; a form error such as the quota stays on the last step)
+- **Usage:** `<FocusLayout width="wide"><PageHeader … /><OnboardingWizard {...await
+  getOnboardingData()} action={completeOnboarding} /></FocusLayout>`
+  (`app/(onboarding)/onboarding/page.tsx`)
+- **Accessibility:** one `<form>` (`noValidate`, checks are the wizard's); StepIndicator "Bước
+  n/total"; each step's h2 takes focus on every step change (not on the first render); the track
+  and language choices are ChoiceCards in a group named by the step heading, with the error line
+  in `aria-describedby`; Enter in a field moves on like "Tiếp tục" (only the last step submits);
+  summary links to a field on another step open that step and focus the field; the submit button
+  keeps focus while busy (`aria-busy`) and ignores a second press
+
+### VariantPicker
+
+- **Layer:** feature (`features/tracks`, client; exported from `features/tracks/index.ts`)
+- **File:** `features/tracks/components/variant-picker.tsx`
+- **Props:** `trackId: string`, `name: string`, `roadmaps: TrackOption['roadmaps']`,
+  `budgetMinutes: number`, `value: string`, `onValueChange: (id) => void`, `aria-labelledby?` /
+  `aria-label?` (the group's name — one is needed)
+- **Variants:** with the simulated finish (a track with a projection table, DSA) · without (English)
+- **States:** each roadmap unselected / selected (ChoiceCard)
+- **Usage:** `<VariantPicker trackId="dsa" name="variant-dsa" roadmaps={track.roadmaps}
+  budgetMinutes={60} value={variant} onValueChange={setVariant} aria-labelledby={headingId} />`
+  (onboarding, settings)
+- **Accessibility:** `radiogroup` of ChoiceCard-wrapped radios (the card is the target, so the
+  group uses `gap-3`); each radio is named "8 tuần" / "10 tuần" followed by its finish line
+  ("Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)", §5.11)
+
+### WeeklyTemplatePreview
+
+- **Layer:** feature (`features/tracks`, server-compatible — no hooks; exported from
+  `features/tracks/index.ts`)
+- **File:** `features/tracks/components/weekly-template-preview.tsx`
+- **Props:** `title: string`, `accent: string` (`track-N`), `days: TemplateDay[]`
+  (`describeWeeklyTemplate`), `throttle: string[]` (`describeThrottle`)
+- **Variants:** with / without the throttle section ("Giới hạn thẻ mới")
+- **States:** static (read-only; editing the template is later, §0)
+- **Usage:** `<WeeklyTemplatePreview title={track.title} accent={track.accent}
+  days={track.template} throttle={track.throttle} />` (onboarding's last step, settings)
+- **Accessibility:** a Card with the track title as h3 and a 4 px track stripe (the title carries
+  the name, never colour alone); days as a `<dl>` (day → list of blocks)
 
 ### UserQueue
 

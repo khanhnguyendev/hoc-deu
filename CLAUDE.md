@@ -81,6 +81,8 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 - Supabase on the server: `createClient()` (`lib/supabase/server.ts`, RLS applies) for everything
   done for a user; `createAdminClient()` (`lib/supabase/admin.ts`, secret key) only for system, bot
   and admin writes. `'use client'` modules never import `lib/env` or `lib/supabase/admin` (ESLint).
+- A feature `index.ts` imported by client components must not re-export `server-only` modules;
+  server loaders live in `lib/` or the feature's `queries.ts`.
 - `lib/domain` is pure TypeScript: no React/Next/Supabase imports, no date library, no
   `Date.now()` / `new Date()` — `now` and `localDay` are parameters.
 

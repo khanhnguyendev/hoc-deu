@@ -12,6 +12,24 @@ type FormFieldControlProps = {
 }
 
 /**
+ * The error line under a field (DESIGN_SYSTEM §5 forms): `text-danger` with an icon, never colour
+ * alone. FormField renders it for its control; a group of checkboxes or radios (no single control
+ * to label) renders it under the group and points the group's `aria-describedby` at its `id`.
+ */
+function FormFieldError({ id, children }: { id?: string; children: React.ReactNode }) {
+  return (
+    <p
+      id={id}
+      data-slot="form-field-error"
+      className="flex items-center gap-1.5 text-sm text-danger"
+    >
+      <CircleAlert aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
+      {children}
+    </p>
+  )
+}
+
+/**
  * Label above the field, helper text below, errors under the field (DESIGN_SYSTEM §5 forms):
  * `aria-describedby` joins the description and error ids, `aria-invalid` is set from `error`.
  */
@@ -58,15 +76,10 @@ function FormField({
           {description}
         </p>
       )}
-      {error && (
-        <p id={errorId} className="flex items-center gap-1.5 text-sm text-danger">
-          <CircleAlert aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
-          {error}
-        </p>
-      )}
+      {error && <FormFieldError id={errorId}>{error}</FormFieldError>}
     </div>
   )
 }
 
-export { FormField }
+export { FormField, FormFieldError }
 export type { FormFieldControlProps }
