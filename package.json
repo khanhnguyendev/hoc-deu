@@ -15,7 +15,9 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0 && prettier --check .",
     "format": "prettier --write .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "verify:full": "pnpm verify && pnpm test:e2e"
   },
   "dependencies": {
     "clsx": "2.1.1",
