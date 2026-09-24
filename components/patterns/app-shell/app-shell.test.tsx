@@ -99,6 +99,14 @@ describe('AppShell navigation', () => {
     expect(screen.getByRole('main').id).toBe('main')
     expect(screen.getByText('Nội dung')).toBeTruthy()
   })
+
+  it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
+    renderShell()
+    const main = screen.getByRole('main')
+    for (const token of ['flex-col', 'gap-6', 'md:gap-8', 'lg:gap-10']) {
+      expect(main.className.split(' ')).toContain(token)
+    }
+  })
 })
 
 describe('AccountMenu', () => {

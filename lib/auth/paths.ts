@@ -39,3 +39,14 @@ export function safeNextPath(next: string | null | undefined): string | null {
   if (pathname === '/auth' || pathname.startsWith('/auth/')) return null
   return next
 }
+
+/**
+ * Where a failed sign-in returns: `/sign-in?error=oauth` (the page shows "Đăng nhập không thành
+ * công"), keeping a safe `next` so another try still ends up where the user was going.
+ */
+export function signInErrorPath(next: string | null | undefined): string {
+  const params = new URLSearchParams({ error: 'oauth' })
+  const safeNext = safeNextPath(next)
+  if (safeNext) params.set('next', safeNext)
+  return `/sign-in?${params}`
+}

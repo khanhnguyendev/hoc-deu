@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountStatus } from './dal'
-import { homePathFor, safeNextPath } from './paths'
+import { homePathFor, safeNextPath, signInErrorPath } from './paths'
 
 describe('homePathFor', () => {
   it.each<[AccountStatus, string | null, string]>([
@@ -49,4 +49,24 @@ describe('safeNextPath (open-redirect guard)', () => {
     expect(safeNextPath(null)).toBeNull()
     expect(safeNextPath(undefined)).toBeNull()
   })
+})
+
+describe('signInErrorPath', () => {
+  it('flags the failed sign-in', () => {
+    expect(signInErrorPath(null)).toBe('/sign-in?error=oauth')
+    expect(signInErrorPath(undefined)).toBe('/sign-in?error=oauth')
+  })
+
+  it('keeps a safe next, encoded', () => {
+    expect(signInErrorPath('/today?block=a&b=1')).toBe(
+      '/sign-in?error=oauth&next=%2Ftoday%3Fblock%3Da%26b%3D1',
+    )
+  })
+
+  it.each(['//evil.test', 'https://evil.test', '/sign-in', ''])(
+    'drops an unsafe next %j',
+    (next) => {
+      expect(signInErrorPath(next)).toBe('/sign-in?error=oauth')
+    },
+  )
 })

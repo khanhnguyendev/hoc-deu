@@ -78,6 +78,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { vi } from '@/lib/i18n/vi'
 
 /**
@@ -1081,5 +1082,40 @@ export const CATALOG: Entry[] = [
     layer: 'patterns',
     file: 'components/patterns/theme-toggle.tsx',
     demos: [{ title: 'Light, dark, system', render: () => <ThemeToggle /> }],
+  },
+  {
+    name: 'SignInPanel',
+    layer: 'features',
+    file: 'features/auth/components/sign-in-panel.tsx',
+    demos: [
+      {
+        title: 'Providers only (production)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <SignInPanel
+              next={null}
+              oauthError={false}
+              testLogin={false}
+              signInWithProvider={async () => {}}
+              signInWithTestLogin={async () => ({ error: null })}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'OAuth error and the test login (submitting shows the wrong-password error)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <SignInPanel
+              next="/today"
+              oauthError
+              testLogin
+              signInWithProvider={async () => {}}
+              signInWithTestLogin={async () => ({ error: vi.auth.wrongCredentials })}
+            />
+          </div>
+        ),
+      },
+    ],
   },
 ]

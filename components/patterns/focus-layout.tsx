@@ -7,8 +7,8 @@ const WIDTH = { narrow: 'max-w-md', wide: 'max-w-2xl' } as const
 
 /**
  * The frame for pages outside the AppShell (`/`, `/sign-in`, `/pending`, `/onboarding`): a skip
- * link, a header with the wordmark and optional actions, and a centred `main#main`
- * (DESIGN_SYSTEM §5 page gutters).
+ * link, a header with the wordmark and optional actions, and a centred `main#main` that stacks the
+ * page's sections with the section spacing (DESIGN_SYSTEM §5 page gutters and section spacing).
  */
 function FocusLayout({
   children,
@@ -37,7 +37,7 @@ function FocusLayout({
         id="main"
         tabIndex={-1}
         className={cn(
-          'mx-auto flex w-full flex-1 flex-col justify-center px-4 py-8 md:px-6 lg:px-8',
+          'mx-auto flex w-full flex-1 flex-col justify-center gap-6 px-4 py-8 md:gap-8 md:px-6 lg:gap-10 lg:px-8',
           WIDTH[width],
         )}
       >

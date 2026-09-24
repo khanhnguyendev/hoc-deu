@@ -7,7 +7,8 @@ import { TopBar } from './top-bar'
 
 /**
  * The signed-in frame (DESIGN_SYSTEM §5): sidebar from 1024 px; top bar + bottom navigation below;
- * a skip link; `main#main` padded so nothing hides behind the bottom navigation.
+ * a skip link; `main#main` padded so nothing hides behind the bottom navigation, stacking the
+ * page's sections with the section spacing (pages carry no classes of their own).
  */
 function AppShell({
   user,
@@ -38,7 +39,7 @@ function AppShell({
           <main
             id="main"
             tabIndex={-1}
-            className="mx-auto w-full max-w-app flex-1 px-4 pt-4 pb-above-bottom-nav md:px-6 md:pt-6 lg:px-8 lg:pt-8 lg:pb-8"
+            className="mx-auto flex w-full max-w-app flex-1 flex-col gap-6 px-4 pt-4 pb-above-bottom-nav md:gap-8 md:px-6 md:pt-6 lg:gap-10 lg:px-8 lg:pt-8 lg:pb-8"
           >
             {children}
           </main>

@@ -39,4 +39,17 @@ describe('FocusLayout', () => {
     )
     expect(screen.getByRole('main').className).toContain('max-w-2xl')
   })
+
+  it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
+    render(
+      <FocusLayout>
+        <p>Tiêu đề</p>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    const main = screen.getByRole('main')
+    for (const token of ['flex-col', 'gap-6', 'md:gap-8', 'lg:gap-10']) {
+      expect(main.className.split(' ')).toContain(token)
+    }
+  })
 })

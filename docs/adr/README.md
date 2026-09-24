@@ -8,7 +8,7 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | --- | --- | --- |
 | [0001](0001-nextjs-on-vercel-hobby.md) | Next.js 16 App Router on Vercel Hobby, non-commercial; offline-safe build with self-hosted fonts | 1.0 |
 | [0002](0002-supabase-keys-and-getclaims.md) | Supabase with publishable/secret keys; `getClaims()` on the server | 2.6 |
-| 0003 | Google + GitHub OAuth only; env-gated test login for local/CI | 2.7 |
+| [0003](0003-oauth-and-test-login.md) | Google + GitHub OAuth only; env-gated test login for local/CI | 2.7a |
 | 0004 | Open sign-up with admin approval | 2.8 |
 | 0005 | Public repository; encrypted backups; security features on | 5.7 |
 | [0006](0006-proxy-and-dal.md) | `proxy.ts` only refreshes the session; access checks in layouts + DAL | 2.6 |

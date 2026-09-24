@@ -249,6 +249,8 @@ from `lib/i18n/vi.ts`.
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
   menu with "Quản trị" for admins only; bottom nav 56 px; `main` and the root scroll padding keep
   content and focus clear of the top bar and bottom nav
+- **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
+  lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
 
 ### Banner
 
@@ -360,10 +362,12 @@ from `lib/i18n/vi.ts`.
   `headerActions?: ReactNode`
 - **Variants:** narrow · wide
 - **States:** static
-- **Usage:** `<FocusLayout width="wide"><SignInForm /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
+- **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
   `/onboarding`)
 - **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
   landmark
+- **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
+  DESIGN_SYSTEM §5)
 
 ### FormErrorSummary
 
@@ -486,4 +490,23 @@ from `lib/i18n/vi.ts`.
 
 ## features
 
-_None yet — M2 adds the first feature components._
+### SignInPanel
+
+- **Layer:** feature (`features/auth`, client)
+- **File:** `features/auth/components/sign-in-panel.tsx`
+- **Props:** `next: string | null` (a path already checked with `safeNextPath`), `oauthError:
+  boolean` (`/sign-in?error=oauth`), `testLogin: boolean` (`serverEnv().authTestLogin`),
+  `signInWithProvider: (formData) => Promise<void>`, `signInWithTestLogin: (state, formData) =>
+  Promise<TestLoginState>` — the server actions come in as props, so the catalog passes no-ops
+- **Variants:** providers only · with the test login (local and CI)
+- **States:** default; OAuth error (danger Banner "Đăng nhập không thành công. Bạn thử lại nhé.");
+  submitting (the pressed button shows its spinner); test-login error ("Email hoặc mật khẩu không
+  đúng.")
+- **Usage:** `<FocusLayout><SignInPanel next={next} oauthError={error === 'oauth'}
+  testLogin={serverEnv().authTestLogin} signInWithProvider={signInWithProvider}
+  signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
+- **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
+  GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
+  form named by its h2 "Đăng nhập thử nghiệm", with labelled, required e-mail and password fields
+  (`autocomplete` username / current-password) and its error in an always-mounted `role="alert"`
+  region, so it is announced when it appears

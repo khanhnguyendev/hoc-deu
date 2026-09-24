@@ -96,4 +96,47 @@ export const vi = {
     errorSummaryTitle: 'Vui lòng kiểm tra lại các mục sau',
     step: 'Bước',
   },
+  /** /sign-in (platform design §2.3, §2.4). */
+  auth: {
+    signInTitle: 'Đăng nhập',
+    signInDescription: 'Dùng tài khoản Google hoặc GitHub để bắt đầu học cùng Học Đều.',
+    continueWithGoogle: 'Tiếp tục với Google',
+    continueWithGitHub: 'Tiếp tục với GitHub',
+    signInFailed: 'Đăng nhập không thành công. Bạn thử lại nhé.',
+    testLoginTitle: 'Đăng nhập thử nghiệm',
+    testLoginDescription: 'Chỉ có trên máy local và CI, với tài khoản thử nghiệm.',
+    email: 'Email',
+    password: 'Mật khẩu',
+    submit: 'Đăng nhập',
+    wrongCredentials: 'Email hoặc mật khẩu không đúng.',
+    testLoginDisabled: 'Đăng nhập thử nghiệm không được bật.',
+  },
+  /** /pending, one entry per status that is not `active` (§2.4). */
+  account: {
+    pending: {
+      title: 'Tài khoản của bạn đang chờ duyệt',
+      description: 'Quản trị viên sẽ duyệt tài khoản của bạn sớm.',
+    },
+    rejected: {
+      title: 'Tài khoản chưa được duyệt',
+      description: 'Quản trị viên chưa duyệt tài khoản này. Nếu có nhầm lẫn, bạn hãy liên hệ họ.',
+    },
+    suspended: {
+      title: 'Tài khoản đang tạm khoá',
+      description: 'Quản trị viên đã tạm khoá tài khoản này. Bạn hãy liên hệ họ để mở lại.',
+    },
+  },
+  /** /onboarding until the wizard arrives (task 2.10). */
+  onboarding: {
+    pageTitle: 'Thiết lập lộ trình',
+    title: 'Chào mừng bạn đến Học Đều',
+    description: 'Tài khoản của bạn đã được duyệt.',
+    comingSoonTitle: 'Phần thiết lập lộ trình sắp có',
+    comingSoonBody: 'Tại đây bạn sẽ chọn lộ trình, số phút mỗi ngày và lịch học của mình.',
+  },
+  /** /today until the dashboard arrives (task 5.1). */
+  today: {
+    comingSoonTitle: 'Kế hoạch hôm nay sắp có',
+    comingSoonBody: 'Các khối học, check-in và thẻ cần ôn của bạn sẽ hiện ở đây.',
+  },
 } as const
