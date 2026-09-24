@@ -69,6 +69,17 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<Dialog><DialogTrigger asChild><Button>…</Button></DialogTrigger><DialogContent>…</DialogContent></Dialog>`
 - **Accessibility:** focus trapped and restored; `Esc` closes; close button "Đóng"; needs a title
 
+### Checkbox
+
+- **Layer:** ui
+- **File:** `components/ui/checkbox.tsx`
+- **Props:** Radix Checkbox.Root props (`checked`, `onCheckedChange`, `disabled`, `aria-invalid`, …)
+- **Variants:** —
+- **States:** unchecked, checked (`bg-primary`), disabled, invalid (`border-danger`)
+- **Usage:** `<Label htmlFor="agree">Đồng ý</Label><Checkbox id="agree" checked={v} onCheckedChange={setV} />`
+- **Accessibility:** `role="checkbox"`, `aria-checked`, Space toggles; 20 px box with a transparent
+  ≥ 44 px hit area (same technique as FilterChip)
+
 ### DropdownMenu
 
 - **Layer:** ui
@@ -101,6 +112,17 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<Label htmlFor="note">Ghi chú</Label>`
 - **Accessibility:** clicking focuses the control; never replace with a placeholder
 
+### NativeSelect
+
+- **Layer:** ui
+- **File:** `components/ui/native-select.tsx`
+- **Props:** select props (`aria-invalid` for errors)
+- **Variants:** —
+- **States:** default, focus-visible, disabled, invalid (`border-danger`)
+- **Usage:** `<Label htmlFor="tz">Múi giờ</Label><NativeSelect id="tz">…</NativeSelect>`
+- **Accessibility:** native `<select>` (role `combobox`), so long lists (≈ 420 time zones) keep the
+  platform picker on phones; always paired with a visible Label
+
 ### Progress
 
 - **Layer:** ui
@@ -110,6 +132,18 @@ from `lib/i18n/vi.ts`.
 - **States:** 0–100 %
 - **Usage:** `<Progress value={40} aria-label="Tiến độ tuần" />`
 - **Accessibility:** `progressbar` with `aria-valuenow`; needs a label
+
+### RadioGroup
+
+- **Layer:** ui
+- **File:** `components/ui/radio-group.tsx`
+- **Props:** Radix RadioGroup props (`value`, `onValueChange`, …); `RadioGroupItem` (`value`,
+  `disabled`, …)
+- **Variants:** —
+- **States:** unchecked, checked (`border-primary` + filled dot), disabled, invalid
+- **Usage:** `<RadioGroup aria-label="Giao diện" value={v} onValueChange={setV}><RadioGroupItem id="x" value="x" /><Label htmlFor="x">…</Label></RadioGroup>`
+- **Accessibility:** `radiogroup`/`radio` roles, roving tabindex, arrow keys move focus; group is a
+  vertical stack (`gap-3`); items are 20 px with a transparent ≥ 44 px hit area
 
 ### Separator
 
@@ -235,6 +269,17 @@ from `lib/i18n/vi.ts`.
   a visible detail line (not a live region — the focused day already announces itself); legend;
   table view ("Xem dạng bảng"); the year view starts scrolled to today
 
+### ChoiceCard
+
+- **Layer:** pattern
+- **File:** `components/patterns/choice-card.tsx`
+- **Props:** `htmlFor: string`, `control: ReactNode`, `title: ReactNode`, `description?: ReactNode`
+- **Variants:** —
+- **States:** unselected, selected (`has-data-[state=checked]:border-primary` + `bg-primary-soft`)
+- **Usage:** `<ChoiceCard htmlFor="dsa" control={<Checkbox id="dsa" .../>} title="DSA" description="…" />`
+- **Accessibility:** a `<label>` card ≥ 44 px; clicking anywhere toggles the control (native label
+  behaviour); selected state is never colour alone — the control itself shows the check
+
 ### ConfirmDialog
 
 - **Layer:** pattern
@@ -302,6 +347,43 @@ from `lib/i18n/vi.ts`.
   area of at least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never
   overlap
 
+### FocusLayout
+
+- **Layer:** pattern
+- **File:** `components/patterns/focus-layout.tsx`
+- **Props:** `children`, `width?: 'narrow' | 'wide'` (`max-w-md` / `max-w-2xl`, default `narrow`),
+  `headerActions?: ReactNode`
+- **Variants:** narrow · wide
+- **States:** static
+- **Usage:** `<FocusLayout width="wide"><SignInForm /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
+  `/onboarding`)
+- **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
+  landmark
+
+### FormErrorSummary
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/form-error-summary.tsx`
+- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`
+- **Variants:** —
+- **States:** empty (renders nothing), has errors
+- **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
+  forms, e.g. onboarding)
+- **Accessibility:** `role="alert"`, focused when the error set changes; each message links to
+  `#fieldId`
+
+### FormField
+
+- **Layer:** pattern
+- **File:** `components/patterns/form-field.tsx`
+- **Props:** `id: string`, `label: string`, `description?: string`, `error?: string`,
+  `required?: boolean`, `children: (control) => ReactNode`
+- **Variants:** —
+- **States:** default, with description, with error (`aria-invalid`, `text-danger` + icon)
+- **Usage:** `<FormField id="email" label="Email" error={err}>{(control) => <Input {...control} />}</FormField>`
+- **Accessibility:** label above the field; `aria-describedby` joins the description and error
+  ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"
+
 ### LoadingState
 
 - **Layer:** pattern
@@ -363,6 +445,19 @@ from `lib/i18n/vi.ts`.
 - **States:** static
 - **Usage:** `<StatusPill status="weak" />`
 - **Accessibility:** colour + icon + label, never colour alone
+
+### StepIndicator
+
+- **Layer:** pattern
+- **File:** `components/patterns/step-indicator.tsx`
+- **Props:** `steps: readonly string[]`, `current: number` (0-based)
+- **Variants:** —
+- **States:** per step: upcoming, current (larger dot)
+- **Usage:** `<StepIndicator steps={['Thông tin', 'Lộ trình', 'Lịch học', 'Xác nhận']} current={1} />`
+  (onboarding wizard)
+- **Accessibility:** visible text "Bước {n}/{total}: {label}"; `<ol>` of step dots,
+  `aria-current="step"` on the current one; never colour alone — the current dot is larger and the
+  label is text
 
 ### StreakBadge
 

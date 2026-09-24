@@ -7,17 +7,22 @@ import type * as React from 'react'
 import { AppShell } from '@/components/patterns/app-shell'
 import { Banner } from '@/components/patterns/banner'
 import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar-heatmap'
+import { ChoiceCard } from '@/components/patterns/choice-card'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
+import { FocusLayout } from '@/components/patterns/focus-layout'
+import { FormErrorSummary } from '@/components/patterns/form-error-summary'
+import { FormField } from '@/components/patterns/form-field'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { PageHeader } from '@/components/patterns/page-header'
 import { ProgressRing } from '@/components/patterns/progress-ring'
 import { Section } from '@/components/patterns/section'
 import { StatCard } from '@/components/patterns/stat-card'
+import { StepIndicator } from '@/components/patterns/step-indicator'
 import { STATUS_PILL, StatusPill, type PillStatus } from '@/components/patterns/status-pill'
 import { StreakBadge } from '@/components/patterns/streak-badge'
 import { ThemeToggle } from '@/components/patterns/theme-toggle'
@@ -32,6 +37,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -54,7 +60,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Progress } from '@/components/ui/progress'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
@@ -70,6 +78,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { vi } from '@/lib/i18n/vi'
 
 /**
  * Every component with its variants and states (platform design §7.7). `file` must match the
@@ -196,6 +205,79 @@ function ConfirmDemo() {
   )
 }
 
+function CheckboxDemo() {
+  const [checked, setChecked] = useState(true)
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        id="demo-checkbox"
+        checked={checked}
+        onCheckedChange={(v) => setChecked(v === true)}
+      />
+      <Label htmlFor="demo-checkbox">Nhận email nhắc học</Label>
+    </div>
+  )
+}
+
+function RadioGroupDemo() {
+  const [value, setValue] = useState('light')
+  return (
+    <RadioGroup aria-label="Giao diện" value={value} onValueChange={setValue}>
+      {(['light', 'dark', 'system'] as const).map((option) => (
+        <div key={option} className="flex items-center gap-2">
+          <RadioGroupItem id={`demo-radio-${option}`} value={option} />
+          <Label htmlFor={`demo-radio-${option}`}>
+            {option === 'light' ? 'Sáng' : option === 'dark' ? 'Tối' : 'Theo hệ thống'}
+          </Label>
+        </div>
+      ))}
+    </RadioGroup>
+  )
+}
+
+function FormFieldDemo() {
+  return (
+    <div className="grid w-full max-w-sm gap-4">
+      <FormField id="demo-form-field" label="Email" description="Dùng để đăng nhập" required>
+        {(control) => <Input {...control} type="email" placeholder="ban@vidu.com" />}
+      </FormField>
+      <FormField
+        id="demo-form-field-error"
+        label="Số phút mỗi ngày"
+        error="Chọn từ 10 đến 240 phút."
+      >
+        {(control) => <Input {...control} inputMode="numeric" defaultValue="5" />}
+      </FormField>
+    </div>
+  )
+}
+
+function ChoiceCardDemo() {
+  const [checked, setChecked] = useState(true)
+  return (
+    <div className="grid w-full max-w-sm gap-3">
+      <ChoiceCard
+        htmlFor="demo-choice-dsa"
+        control={
+          <Checkbox
+            id="demo-choice-dsa"
+            checked={checked}
+            onCheckedChange={(v) => setChecked(v === true)}
+          />
+        }
+        title="DSA"
+        description="Cấu trúc dữ liệu và giải thuật"
+      />
+      <ChoiceCard
+        htmlFor="demo-choice-eng"
+        control={<Checkbox id="demo-choice-eng" checked={false} onCheckedChange={() => {}} />}
+        title="English for IT"
+        description="Từ vựng và giao tiếp kỹ thuật"
+      />
+    </div>
+  )
+}
+
 const PROBLEMS = [
   { id: 'dsa:lc-0001', title: 'Two Sum', status: 'strong' as PillStatus },
   { id: 'dsa:lc-0242', title: 'Valid Anagram', status: 'weak' as PillStatus },
@@ -312,6 +394,33 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'Checkbox',
+    layer: 'ui',
+    file: 'components/ui/checkbox.tsx',
+    demos: [
+      {
+        title: 'Checked, unchecked, disabled, invalid',
+        render: () => (
+          <div className="flex flex-col gap-3">
+            <CheckboxDemo />
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-off" />
+              <Label htmlFor="demo-checkbox-off">Chưa chọn</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-disabled" disabled checked />
+              <Label htmlFor="demo-checkbox-disabled">Đã tắt</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-invalid" aria-invalid />
+              <Label htmlFor="demo-checkbox-invalid">Bắt buộc chọn</Label>
+            </div>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
     name: 'Dialog',
     layer: 'ui',
     file: 'components/ui/dialog.tsx',
@@ -376,6 +485,37 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'NativeSelect',
+    layer: 'ui',
+    file: 'components/ui/native-select.tsx',
+    demos: [
+      {
+        title: 'Default and invalid',
+        render: () => (
+          <div className="grid w-full max-w-sm gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-tz">Múi giờ</Label>
+              <NativeSelect id="demo-select-tz" defaultValue="Asia/Ho_Chi_Minh">
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+                <option value="Asia/Bangkok">Asia/Bangkok</option>
+                <option value="America/St_Johns">America/St_Johns</option>
+              </NativeSelect>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-invalid">Múi giờ</Label>
+              <NativeSelect id="demo-select-invalid" aria-invalid defaultValue="">
+                <option value="" disabled>
+                  Chọn múi giờ
+                </option>
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+              </NativeSelect>
+            </div>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
     name: 'Progress',
     layer: 'ui',
     file: 'components/ui/progress.tsx',
@@ -394,6 +534,12 @@ export const CATALOG: Entry[] = [
         ),
       },
     ],
+  },
+  {
+    name: 'RadioGroup',
+    layer: 'ui',
+    file: 'components/ui/radio-group.tsx',
+    demos: [{ title: 'Vertical stack of options', render: () => <RadioGroupDemo /> }],
   },
   {
     name: 'Separator',
@@ -615,6 +761,12 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'ChoiceCard',
+    layer: 'patterns',
+    file: 'components/patterns/choice-card.tsx',
+    demos: [{ title: 'Selected and unselected', render: () => <ChoiceCardDemo /> }],
+  },
+  {
     name: 'ConfirmDialog',
     layer: 'patterns',
     file: 'components/patterns/confirm-dialog.tsx',
@@ -724,6 +876,50 @@ export const CATALOG: Entry[] = [
         render: () => <FilterChipDemo />,
       },
     ],
+  },
+  {
+    name: 'FocusLayout',
+    layer: 'patterns',
+    file: 'components/patterns/focus-layout.tsx',
+    demos: [
+      {
+        title: 'Wordmark, skip link, centred main (narrow)',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout>
+              <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FormErrorSummary',
+    layer: 'patterns',
+    file: 'components/patterns/form-error-summary.tsx',
+    demos: [
+      {
+        title: 'Two errors',
+        render: () => (
+          <div className="w-full max-w-sm">
+            <FormErrorSummary
+              title={vi.forms.errorSummaryTitle}
+              errors={[
+                { fieldId: 'demo-form-field-error', message: 'Chọn từ 10 đến 240 phút.' },
+                { fieldId: 'demo-select-invalid', message: 'Chọn một múi giờ hợp lệ.' },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FormField',
+    layer: 'patterns',
+    file: 'components/patterns/form-field.tsx',
+    demos: [{ title: 'Required, description and error', render: () => <FormFieldDemo /> }],
   },
   {
     name: 'LoadingState',
@@ -837,6 +1033,19 @@ export const CATALOG: Entry[] = [
             <StatusPill status="weak" size="md" />
             <StatusPill status="mastered" size="md" />
           </>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'StepIndicator',
+    layer: 'patterns',
+    file: 'components/patterns/step-indicator.tsx',
+    demos: [
+      {
+        title: 'Step 2 of 4',
+        render: () => (
+          <StepIndicator steps={['Thông tin', 'Lộ trình', 'Lịch học', 'Xác nhận']} current={1} />
         ),
       },
     ],

@@ -90,4 +90,10 @@ export const vi = {
     catalogTitle: 'Thư viện thành phần',
     catalogNav: 'Danh mục thành phần',
   },
+  /** Form and focus-page primitives (DESIGN_SYSTEM §5 forms). */
+  forms: {
+    required: 'Bắt buộc',
+    errorSummaryTitle: 'Vui lòng kiểm tra lại các mục sau',
+    step: 'Bước',
+  },
 } as const

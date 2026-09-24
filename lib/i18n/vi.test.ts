@@ -61,6 +61,9 @@ const USED = [
   'errors.notAllowed',
   'errors.invalidTransition',
   'errors.invalidTimezone',
+  'forms.required',
+  'forms.errorSummaryTitle',
+  'forms.step',
 ]
 
 function lookup(path: string): unknown {
