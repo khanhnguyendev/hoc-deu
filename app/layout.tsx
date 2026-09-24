@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from 'next'
+import type { Metadata } from 'next'
 import { ThemeProvider } from 'next-themes'
 import { mono, sans } from './fonts/fonts'
 import './globals.css'
@@ -8,12 +8,13 @@ export const metadata: Metadata = {
   description: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
 }
 
-// `cover` lets the bottom navigation pad for the home indicator (env(safe-area-inset-bottom)).
-export const viewport: Viewport = { viewportFit: 'cover' }
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html
+      lang="vi" // Scroll padding keeps keyboard focus clear of the AppShell's top bar and bottom navigation.
+      className={`${sans.variable} ${mono.variable} scroll-pt-16 scroll-pb-above-bottom-nav lg:scroll-pt-0 lg:scroll-pb-0`}
+      suppressHydrationWarning
+    >
       <body>
         <ThemeProvider
           attribute="class"

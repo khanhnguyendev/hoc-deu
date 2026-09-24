@@ -74,6 +74,11 @@ describe('EmptyState', () => {
 })
 
 describe('ErrorState and LoadingState', () => {
+  it('is announced as an alert when it appears', () => {
+    render(<ErrorState />)
+    expect(screen.getByRole('alert').textContent).toContain('Không tải được dữ liệu')
+  })
+
   it('uses the default title and hides retry without a handler', () => {
     render(<ErrorState />)
     expect(screen.getByText('Không tải được dữ liệu')).toBeTruthy()

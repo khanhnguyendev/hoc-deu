@@ -26,7 +26,8 @@ function ProgressRing({
   tone?: 'primary' | 'track'
   size?: 'sm' | 'md' | 'lg'
 }) {
-  const clamped = Math.round(Math.min(100, Math.max(0, value)))
+  // Non-finite (0/0 for a brand-new learner) shows as 0 %, never full or NaN.
+  const clamped = Number.isFinite(value) ? Math.round(Math.min(100, Math.max(0, value))) : 0
   return (
     <div
       data-slot="progress-ring"

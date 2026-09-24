@@ -312,7 +312,7 @@ data-driven components render loading / empty / error through the `LoadingState`
 | **Banners** (pattern) | Paused roadmap and throttle use `warning-soft`; red admin warnings use `danger-soft`; always icon + one sentence + one action. |
 | **EmptyState / ErrorState / LoadingState** (patterns) | Empty: icon, one line of what happened, one action. Error: what failed + "Thử lại". Loading: skeletons shaped like the content (no spinners for whole pages). |
 | **Toast** (ui) | Bottom-centre on mobile, bottom-right on desktop; 4 s; polite live region; never the only feedback for a failed save. |
-| **Navigation** (pattern) | Bottom nav / sidebar per §5; the active item uses `primary` icon + label and `primary-soft` background; `aria-current="page"`. |
+| **Navigation** (pattern) | Bottom nav / sidebar per §5; the active item uses `primary` icon + label, `primary-soft` background, a semibold label and a 4 px `primary` indicator bar (never colour alone, WCAG 1.4.1); `aria-current="page"`. |
 
 ## 10. Accessibility checklist (WCAG 2.1 AA)
 

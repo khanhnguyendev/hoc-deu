@@ -38,7 +38,7 @@ function AppShell({
           <main
             id="main"
             tabIndex={-1}
-            className="mx-auto w-full max-w-app flex-1 px-4 pt-4 pb-bottom-nav md:px-6 md:pt-6 lg:px-8 lg:pt-8 lg:pb-8"
+            className="mx-auto w-full max-w-app flex-1 px-4 pt-4 pb-above-bottom-nav md:px-6 md:pt-6 lg:px-8 lg:pt-8 lg:pb-8"
           >
             {children}
           </main>

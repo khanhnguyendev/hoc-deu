@@ -43,6 +43,12 @@ describe('CalendarHeatmap — year view', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toMatch(/^3 tháng 2, 2026/)
   })
 
+  it('does not repeat the focused cell through a live region', () => {
+    const { container } = setup()
+    const line = container.querySelector('[data-slot="heatmap-detail"]')
+    expect(line?.getAttribute('aria-live')).toBeNull()
+  })
+
   it('shows a dot on every active day and only there', () => {
     const { year } = setup()
     expect(year.querySelectorAll('[data-dot]')).toHaveLength(3)

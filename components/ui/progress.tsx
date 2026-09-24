@@ -12,7 +12,8 @@ type ProgressProps = Omit<React.ComponentProps<typeof ProgressPrimitive.Root>, '
 }
 
 function Progress({ className, value, tone = 'primary', ...props }: ProgressProps) {
-  const clamped = Math.min(100, Math.max(0, value))
+  // Non-finite (0/0 for a brand-new learner) shows as empty, never full.
+  const clamped = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0
   return (
     <ProgressPrimitive.Root
       data-slot="progress"

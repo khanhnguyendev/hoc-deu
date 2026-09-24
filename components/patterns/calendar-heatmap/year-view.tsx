@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { formatMonthShort } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -32,6 +32,13 @@ export function YearView({
   const first = columns[0]?.[0] ?? today
   const [focusDay, setFocusDay] = useState(today)
   const grid = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+
+  // Start at the newest weeks: today sits at the right end of a grid wider than most screens.
+  useEffect(() => {
+    const element = scroller.current
+    if (element) element.scrollLeft = element.scrollWidth
+  }, [])
 
   function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, day: string) {
     let next: string | undefined
@@ -46,7 +53,7 @@ export function YearView({
   }
 
   return (
-    <div data-view="year" className="hidden overflow-x-auto pb-2 md:block">
+    <div ref={scroller} data-view="year" className="hidden overflow-x-auto pb-2 md:block">
       <div className="inline-flex flex-col gap-1">
         <div aria-hidden="true" className="ml-7 grid auto-cols-max grid-flow-col gap-0.75">
           {columns.map((column, i) => {

@@ -19,6 +19,13 @@ describe('Progress', () => {
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(expected)
   })
 
+  it('shows an empty bar, not a full one, for a non-finite value (0/0 for a new learner)', () => {
+    const { container } = render(<Progress value={Number.NaN} aria-label="Tiến độ" />)
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('0')
+    const indicator = container.querySelector<HTMLElement>('[data-slot="progress-indicator"]')
+    expect(indicator?.style.getPropertyValue('--progress-remaining')).toBe('100%')
+  })
+
   it('uses the track accent when asked', () => {
     const { container } = render(<Progress value={10} tone="track" aria-label="DSA" />)
     const indicator = container.querySelector('[data-slot="progress-indicator"]')

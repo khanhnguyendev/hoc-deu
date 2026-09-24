@@ -59,6 +59,18 @@ describe('AppShell navigation', () => {
     }
   })
 
+  it('marks the current item with weight and an indicator bar, not colour alone', () => {
+    state.pathname = '/review'
+    renderShell()
+    for (const nav of screen.getAllByRole('navigation', { name: 'Điều hướng chính' })) {
+      for (const link of within(nav).getAllByRole('link')) {
+        const current = link.getAttribute('aria-current') === 'page'
+        expect(link.className.includes('font-semibold'), link.textContent ?? '').toBe(current)
+        expect(link.className.includes('before:bg-primary'), link.textContent ?? '').toBe(current)
+      }
+    }
+  })
+
   it('lists admin links in the sidebar only for admins', () => {
     const { unmount } = renderShell(false)
     expect(screen.queryByRole('link', { name: 'Người dùng' })).toBeNull()

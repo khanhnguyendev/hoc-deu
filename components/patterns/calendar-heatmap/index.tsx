@@ -31,14 +31,11 @@ function CalendarHeatmap({
   const [active, setActive] = useState<string | null>(null)
 
   return (
-    <div data-slot="calendar-heatmap" className="flex flex-col gap-3">
+    <div data-slot="calendar-heatmap" className="flex w-full min-w-0 flex-col gap-3">
       <YearView minutesByDay={minutesByDay} today={today} label={label} onActive={setActive} />
       <MonthView minutesByDay={minutesByDay} today={today} label={label} onActive={setActive} />
-      <p
-        data-slot="heatmap-detail"
-        aria-live="polite"
-        className="min-h-6 text-sm text-muted-foreground"
-      >
+      {/* Not a live region: each focused or tapped day already announces its own label. */}
+      <p data-slot="heatmap-detail" className="min-h-6 text-sm text-muted-foreground">
         {active
           ? `${formatDayLong(active)}: ${formatMinutes(minutesByDay.get(active) ?? 0)}`
           : vi.heatmap.pickDay}

@@ -64,6 +64,13 @@ describe('ProgressRing', () => {
     expect(ring.querySelector('.stroke-track')).not.toBeNull()
   })
 
+  it('shows 0% for a non-finite value (0/0 for a new learner)', () => {
+    render(<ProgressRing value={Number.NaN} label="Tổng" />)
+    const ring = screen.getByRole('progressbar')
+    expect(ring.getAttribute('aria-valuenow')).toBe('0')
+    expect(ring.textContent).toBe('0%')
+  })
+
   it.each([
     [150, '100'],
     [-1, '0'],

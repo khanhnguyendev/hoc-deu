@@ -167,7 +167,8 @@ from `lib/i18n/vi.ts`.
 - **Layer:** ui
 - **File:** `components/ui/toaster.tsx`
 - **Props:** none; `toast(message)` re-exported from sonner
-- **Variants:** bottom-centre (< 768 px) · bottom-right (≥ 768 px)
+- **Variants:** bottom-centre (< 768 px) · bottom-right (≥ 768 px); lifted above the bottom
+  navigation below 1024 px
 - **States:** hidden, showing (4 s)
 - **Usage:** mount `<Toaster />` once; `toast('Đã lưu')`
 - **Accessibility:** polite live region labelled "Thông báo"; never the only feedback for a failed
@@ -205,8 +206,10 @@ from `lib/i18n/vi.ts`.
 - **Variants:** sidebar (≥ 1024 px, collapsible 240 → 64 px) · top bar + bottom nav (< 1024 px)
 - **States:** current route (`aria-current="page"`, `primary-soft`), collapsed, admin / learner
 - **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} title="Hôm nay">…</AppShell>`
-- **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; account menu with
-  "Quản trị" for admins only; bottom nav 56 px + safe area
+- **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
+  marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
+  menu with "Quản trị" for admins only; bottom nav 56 px; `main` and the root scroll padding keep
+  content and focus clear of the top bar and bottom nav
 
 ### Banner
 
@@ -228,7 +231,8 @@ from `lib/i18n/vi.ts`.
 - **States:** levels 0–4, active-day dots, today ring, focused/selected day, table open
 - **Usage:** `<CalendarHeatmap days={activity} today={localDay} label="Lịch học" />`
 - **Accessibility:** roving focus with arrows/Home/End; each day labelled with date + minutes;
-  live detail line; legend; table view ("Xem dạng bảng")
+  a visible detail line (not a live region — the focused day already announces itself); legend;
+  table view ("Xem dạng bảng"); the year view starts scrolled to today
 
 ### ConfirmDialog
 
@@ -281,7 +285,8 @@ from `lib/i18n/vi.ts`.
 - **Variants:** inline · page (route and global error boundaries)
 - **States:** with / without retry
 - **Usage:** `<ErrorState onRetry={retry} />`
-- **Accessibility:** what failed + "Thử lại"; no exclamation marks
+- **Accessibility:** `role="alert"`, so it is announced when it replaces loading content; what
+  failed + "Thử lại"; no exclamation marks
 
 ### LoadingState
 

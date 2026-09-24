@@ -24,6 +24,7 @@ function ErrorState({
     <StateFrame layout={layout}>
       <div
         data-slot="error-state"
+        role="alert"
         className={cn(
           'flex w-full flex-col items-center gap-3 rounded-lg border border-border bg-danger-soft px-4 py-10 text-center text-danger-soft-foreground',
           className,

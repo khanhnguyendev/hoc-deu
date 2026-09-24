@@ -1845,7 +1845,8 @@ then the PR. The owner reviews this section together with the M1 pull request.
    without an `as` cast (the style rule rejects anything but a plain object literal).
 6. **CalendarHeatmap tooltip:** each cell carries an `aria-label` and a native `title` (hover), and a
    polite live "detail line" under the grid follows focus, hover and taps — instead of 371
-   positioned tooltip elements that would need inline positioning styles.
+   positioned tooltip elements that would need inline positioning styles. *(Final review: the detail line is visible but not a live region —
+   each focused day already announces its label.)*
 7. **`/dev/components` in production:** 404 when `VERCEL_ENV === 'production'` until task 2.8 makes
    it admin-only (there is no auth in M1).
 8. **Vitest projects:** `*.test.ts` runs in `node`, `*.test.tsx` in `jsdom` with a setup file
@@ -2420,8 +2421,8 @@ describe('syncTokens', () => {
 
 **Files:** `components/patterns/app-shell/{index.tsx,sidebar.tsx,bottom-nav.tsx,top-bar.tsx,account-menu.tsx,nav-items.ts}`,
 `components/patterns/theme-toggle.tsx` + tests; `docs/design/assets/gen_tokens.py` →
-`tokens.css` → `pnpm tokens:sync` (decision 4); `app/layout.tsx` (`viewport: { viewportFit:
-'cover' }`).
+`tokens.css` → `pnpm tokens:sync` (decision 4). *(Final review: no `viewport-fit=cover` — the
+browser keeps content in the safe areas; root scroll padding keeps focus clear of the bars.)*
 
 **Interfaces:**
 

@@ -21,8 +21,10 @@ export function SidebarLink({
       href={item.href}
       aria-current={current ? 'page' : undefined}
       className={cn(
-        'flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-muted hover:text-foreground',
-        current && 'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary',
+        'relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-muted hover:text-foreground',
+        // Weight and a bar mark the current page, so it never relies on colour alone.
+        current &&
+          'bg-primary-soft font-semibold text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary hover:bg-primary-soft hover:text-primary',
         collapsed && 'justify-center px-0',
       )}
     >
