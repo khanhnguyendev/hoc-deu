@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, ShieldCheck } from 'lucide-react'
+import { LogOut, ShieldCheck, User } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -15,12 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { vi } from '@/lib/i18n/vi'
-
-/** The given name comes last in Vietnamese names: "Nguyễn Văn An" → "A". */
-function initial(name: string): string {
-  const given = name.trim().split(/\s+/).at(-1) ?? ''
-  return given.charAt(0).toLocaleUpperCase('vi-VN')
-}
+import { initial } from './initial'
 
 /** Name, theme, "Quản trị" (admins only) and "Đăng xuất" (DESIGN_SYSTEM §5). */
 export function AccountMenu({
@@ -41,7 +36,7 @@ export function AccountMenu({
             aria-hidden="true"
             className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary-soft-foreground"
           >
-            {initial(name)}
+            {initial(name) ?? <User strokeWidth={1.75} className="size-5" />}
           </span>
         </Button>
       </DropdownMenuTrigger>

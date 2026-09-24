@@ -117,6 +117,19 @@ describe('AccountMenu', () => {
   })
 })
 
+describe('AccountMenu avatar', () => {
+  it('shows an icon instead of an empty avatar for an empty name', () => {
+    render(
+      <AppShell user={{ name: '' }} isAdmin={false} title="Hôm nay">
+        <p>Nội dung</p>
+      </AppShell>,
+    )
+    for (const trigger of screen.getAllByRole('button', { name: /^Tài khoản/ })) {
+      expect(trigger.querySelector('svg.lucide-user')).not.toBeNull()
+    }
+  })
+})
+
 describe('ThemeToggle', () => {
   it('sets the chosen theme', async () => {
     render(<ThemeToggle />)
