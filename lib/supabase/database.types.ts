@@ -3,13 +3,149 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          ai_personalization: boolean
+          approved_at: string | null
+          approved_by: string | null
+          avatar_url: string | null
+          bot_ref: string
+          code_language: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          onboarded_at: string | null
+          role: string
+          share_notes_with_ai: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_personalization?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          avatar_url?: string | null
+          bot_ref?: string
+          code_language?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          onboarded_at?: string | null
+          role?: string
+          share_notes_with_ai?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_personalization?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          avatar_url?: string | null
+          bot_ref?: string
+          code_language?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          onboarded_at?: string | null
+          role?: string
+          share_notes_with_ai?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      schedule_versions: {
+        Row: {
+          created_at: string
+          day_starts_at: string
+          effective_at: string
+          timezone: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_starts_at?: string
+          effective_at: string
+          timezone?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day_starts_at?: string
+          effective_at?: string
+          timezone?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'schedule_versions_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      user_tracks: {
+        Row: {
+          budget_minutes: number
+          created_at: string
+          include_bonus: boolean
+          new_per_day: number | null
+          roadmap_variant: string
+          start_date: string
+          status: string
+          throttle: Json | null
+          track_id: string
+          updated_at: string
+          user_id: string
+          weekly_template: Json | null
+        }
+        Insert: {
+          budget_minutes: number
+          created_at?: string
+          include_bonus?: boolean
+          new_per_day?: number | null
+          roadmap_variant: string
+          start_date: string
+          status?: string
+          throttle?: Json | null
+          track_id: string
+          updated_at?: string
+          user_id: string
+          weekly_template?: Json | null
+        }
+        Update: {
+          budget_minutes?: number
+          created_at?: string
+          include_bonus?: boolean
+          new_per_day?: number | null
+          roadmap_variant?: string
+          start_date?: string
+          status?: string
+          throttle?: Json | null
+          track_id?: string
+          updated_at?: string
+          user_id?: string
+          weekly_template?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_tracks_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_active: { Args: never; Returns: boolean }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

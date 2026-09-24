@@ -39,6 +39,14 @@ belonged to.
   (`ensurePlan` then just returns the existing plan for that date); moving east can skip a date
   entirely (the gate rule uses the last **seen** plan, not the calendar, and the streak ignores a
   single date skipped by a schedule change) — platform design §5.9, "Timezone change".
+- **The database enforces the history rule too** (owner review MF3, task 2.4), because
+  `apply_event` is callable directly with any `effectiveAt` and `authenticated` may update
+  versions: the `schedule_versions_guard_history` trigger, for every role, rejects a version more
+  than 5 minutes in the past unless it is the user's first (`schedule_backdated`), and rejects an
+  update or delete of a version already in force (`schedule_in_force`) — except the
+  account-deletion cascade, which runs once the profile is gone (§4.6). A pending (future) version
+  may still be updated or deleted, but not moved into the past. `nextDayStart` in the server is
+  the normal path; the trigger is the backstop.
 
 ## Consequences
 
