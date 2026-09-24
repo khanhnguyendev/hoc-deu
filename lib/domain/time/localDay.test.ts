@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCAL_DAY_FIXTURES } from './fixtures'
 import {
   addDays,
@@ -19,6 +19,32 @@ describe('localDay', () => {
   it.each(LOCAL_DAY_FIXTURES)('$note: $at in $timezone (day start $dayStartsAt)', (fixture) => {
     const schedule: Schedule = { timezone: fixture.timezone, dayStartsAt: fixture.dayStartsAt }
     expect(localDay(new Date(fixture.at), schedule)).toBe(fixture.expected)
+  })
+})
+
+describe('localDay formatter reuse', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('creates at most one Intl.DateTimeFormat per time zone, however often it is called', () => {
+    const created = vi.spyOn(Intl, 'DateTimeFormat')
+    const at = new Date('2026-09-24T03:00:00Z')
+    const expected = localDay(at, { timezone: 'Atlantic/Azores', dayStartsAt: '04:00' })
+    for (let i = 0; i < 5; i += 1) {
+      expect(localDay(at, { timezone: 'Atlantic/Azores', dayStartsAt: '04:00' })).toBe(expected)
+    }
+    // nextDayStart calls localDay once per 15-minute step of its scan.
+    nextDayStart(at, { timezone: 'Atlantic/Azores', dayStartsAt: '04:00' })
+    expect(created.mock.calls.length).toBeLessThanOrEqual(1)
+  })
+
+  it('shares the formatter of a legacy alias and its canonical zone, with the same results', () => {
+    const at = new Date('2026-09-24T21:00:00Z')
+    localDay(at, { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })
+    const created = vi.spyOn(Intl, 'DateTimeFormat')
+    expect(localDay(at, { timezone: 'Asia/Saigon', dayStartsAt: '04:00' })).toBe('2026-09-25')
+    expect(created).not.toHaveBeenCalled()
   })
 })
 

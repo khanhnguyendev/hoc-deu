@@ -44,22 +44,38 @@ function requirePart(parts: readonly Intl.DateTimeFormatPart[], type: string): n
 }
 
 /**
+ * One formatter per canonical time zone: constructing an `Intl.DateTimeFormat` costs far more than
+ * formatting with it, and `nextDayStart` calls `localDay` once per 15-minute step. A cache, not a
+ * clock read — a formatter's output depends only on its arguments, so `localDay` stays pure.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  const zone = canonicalTimeZone(timeZone)
+  let formatter = formatters.get(zone)
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    formatters.set(zone, formatter)
+  }
+  return formatter
+}
+
+/**
  * The wall-clock reading of `instant` in `timeZone`, reinterpreted as a UTC instant (§5.1
  * algorithm notes). This is not `instant` itself — it is the "same digits, UTC" trick that lets
  * calendar arithmetic run entirely in `Date.UTC` integer math.
  */
 function wallClockAsUtcMs(instant: Date, timeZone: string): number {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: canonicalTimeZone(timeZone),
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  const parts = formatter.formatToParts(instant)
+  const parts = formatterFor(timeZone).formatToParts(instant)
   return Date.UTC(
     requirePart(parts, 'year'),
     requirePart(parts, 'month') - 1,
