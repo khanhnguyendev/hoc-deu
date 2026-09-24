@@ -19,10 +19,15 @@ function FormErrorSummary({
   className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  // A content key, not the array reference: a consumer that recomputes `errors` each render
+  // (e.g. from validation run on every keystroke) must not steal focus back unless the actual
+  // errors changed.
+  const errorsKey = errors.map((error) => `${error.fieldId}:${error.message}`).join('|')
 
   useEffect(() => {
     if (errors.length > 0) ref.current?.focus()
-  }, [errors])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focus only on content change (errorsKey), not identity.
+  }, [errorsKey])
 
   if (errors.length === 0) return null
 

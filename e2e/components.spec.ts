@@ -99,6 +99,8 @@ test.describe('theme toggle on a phone', () => {
 
   test('each option stays on one line and the page never scrolls sideways', async ({ page }) => {
     await page.goto('/dev/components')
+    // Two instances render on this page: the catalog header's own ThemeToggle and the
+    // ThemeToggle entry's demo — either is representative for this layout check.
     const group = page.getByRole('radiogroup', { name: 'Giao diện' }).first()
     const heights = await group
       .getByRole('radio')
@@ -109,6 +111,30 @@ test.describe('theme toggle on a phone', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
     expect(overflow).toBe(0)
+  })
+})
+
+test.describe('RadioGroup keyboard selection', () => {
+  test('ArrowDown moves selection to the next item, ArrowUp moves it back', async ({ page }) => {
+    await page.goto('/dev/components')
+    const group = page.getByRole('radiogroup', { name: 'Mức độ ưu tiên' })
+    const low = group.getByRole('radio', { name: 'Thấp' })
+    const medium = group.getByRole('radio', { name: 'Vừa' })
+
+    await expect(low).toHaveAttribute('aria-checked', 'true')
+    await low.focus()
+    // Radix defers the roving-focus move to a macrotask and tracks "was this an arrow key" via a
+    // keydown/keyup pair on document; a zero-delay key tap can release before that deferred move
+    // runs. A short delay between keydown and keyup mimics an actual key press.
+    await page.keyboard.press('ArrowDown', { delay: 50 })
+    await expect(medium).toHaveAttribute('aria-checked', 'true')
+    await expect(low).toHaveAttribute('aria-checked', 'false')
+    await expect(medium).toBeFocused()
+
+    await page.keyboard.press('ArrowUp', { delay: 50 })
+    await expect(low).toHaveAttribute('aria-checked', 'true')
+    await expect(medium).toHaveAttribute('aria-checked', 'false')
+    await expect(low).toBeFocused()
   })
 })
 

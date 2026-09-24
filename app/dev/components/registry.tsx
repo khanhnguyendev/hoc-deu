@@ -219,16 +219,20 @@ function CheckboxDemo() {
   )
 }
 
+const PRIORITY_LABEL = { low: 'Thấp', medium: 'Vừa', high: 'Cao' } as const
+
 function RadioGroupDemo() {
-  const [value, setValue] = useState('light')
+  const [value, setValue] = useState<keyof typeof PRIORITY_LABEL>('low')
   return (
-    <RadioGroup aria-label="Giao diện" value={value} onValueChange={setValue}>
-      {(['light', 'dark', 'system'] as const).map((option) => (
+    <RadioGroup
+      aria-label="Mức độ ưu tiên"
+      value={value}
+      onValueChange={(next) => setValue(next as keyof typeof PRIORITY_LABEL)}
+    >
+      {(Object.keys(PRIORITY_LABEL) as (keyof typeof PRIORITY_LABEL)[]).map((option) => (
         <div key={option} className="flex items-center gap-2">
-          <RadioGroupItem id={`demo-radio-${option}`} value={option} />
-          <Label htmlFor={`demo-radio-${option}`}>
-            {option === 'light' ? 'Sáng' : option === 'dark' ? 'Tối' : 'Theo hệ thống'}
-          </Label>
+          <RadioGroupItem id={`demo-radio-${option}`} value={option} disabled={option === 'high'} />
+          <Label htmlFor={`demo-radio-${option}`}>{PRIORITY_LABEL[option]}</Label>
         </div>
       ))}
     </RadioGroup>
@@ -490,7 +494,7 @@ export const CATALOG: Entry[] = [
     file: 'components/ui/native-select.tsx',
     demos: [
       {
-        title: 'Default and invalid',
+        title: 'Default, invalid, disabled',
         render: () => (
           <div className="grid w-full max-w-sm gap-4">
             <div className="grid gap-2">
@@ -507,6 +511,12 @@ export const CATALOG: Entry[] = [
                 <option value="" disabled>
                   Chọn múi giờ
                 </option>
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+              </NativeSelect>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-disabled">Múi giờ (khoá)</Label>
+              <NativeSelect id="demo-select-disabled" disabled defaultValue="Asia/Ho_Chi_Minh">
                 <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
               </NativeSelect>
             </div>
@@ -539,7 +549,7 @@ export const CATALOG: Entry[] = [
     name: 'RadioGroup',
     layer: 'ui',
     file: 'components/ui/radio-group.tsx',
-    demos: [{ title: 'Vertical stack of options', render: () => <RadioGroupDemo /> }],
+    demos: [{ title: 'Vertical stack of options, one disabled', render: () => <RadioGroupDemo /> }],
   },
   {
     name: 'Separator',
@@ -888,6 +898,16 @@ export const CATALOG: Entry[] = [
           <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
             <FocusLayout>
               <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+      {
+        title: 'Wide, with header actions',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout width="wide" headerActions={<Button variant="outline">Trợ giúp</Button>}>
+              <p className="text-center text-sm text-muted-foreground">Nội dung trang rộng.</p>
             </FocusLayout>
           </div>
         ),

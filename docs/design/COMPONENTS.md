@@ -58,6 +58,18 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<Card><CardHeader><CardTitle>…</CardTitle></CardHeader><CardContent>…</CardContent></Card>`
 - **Accessibility:** title is a heading; interactive cards wrap a link or button
 
+### Checkbox
+
+- **Layer:** ui
+- **File:** `components/ui/checkbox.tsx`
+- **Props:** Radix Checkbox.Root props (`checked`, `onCheckedChange`, `disabled`, `aria-invalid`, …)
+- **Variants:** —
+- **States:** unchecked, checked (`bg-primary`), disabled, invalid (`border-danger`)
+- **Usage:** `<Label htmlFor="agree">Đồng ý</Label><Checkbox id="agree" checked={v} onCheckedChange={setV} />`
+- **Accessibility:** `role="checkbox"`, `aria-checked`, Space toggles; 20 px box with a transparent
+  ≥ 44 px hit area (same technique as FilterChip) — stacking two or more bare checkboxes needs the
+  same `gap-8` spacing as RadioGroup (below) so the transparent hit areas don't overlap
+
 ### Dialog
 
 - **Layer:** ui
@@ -68,17 +80,6 @@ from `lib/i18n/vi.ts`.
 - **States:** closed, open (enter 300 ms, exit 150 ms; instant under reduced motion)
 - **Usage:** `<Dialog><DialogTrigger asChild><Button>…</Button></DialogTrigger><DialogContent>…</DialogContent></Dialog>`
 - **Accessibility:** focus trapped and restored; `Esc` closes; close button "Đóng"; needs a title
-
-### Checkbox
-
-- **Layer:** ui
-- **File:** `components/ui/checkbox.tsx`
-- **Props:** Radix Checkbox.Root props (`checked`, `onCheckedChange`, `disabled`, `aria-invalid`, …)
-- **Variants:** —
-- **States:** unchecked, checked (`bg-primary`), disabled, invalid (`border-danger`)
-- **Usage:** `<Label htmlFor="agree">Đồng ý</Label><Checkbox id="agree" checked={v} onCheckedChange={setV} />`
-- **Accessibility:** `role="checkbox"`, `aria-checked`, Space toggles; 20 px box with a transparent
-  ≥ 44 px hit area (same technique as FilterChip)
 
 ### DropdownMenu
 
@@ -141,9 +142,13 @@ from `lib/i18n/vi.ts`.
   `disabled`, …)
 - **Variants:** —
 - **States:** unchecked, checked (`border-primary` + filled dot), disabled, invalid
-- **Usage:** `<RadioGroup aria-label="Giao diện" value={v} onValueChange={setV}><RadioGroupItem id="x" value="x" /><Label htmlFor="x">…</Label></RadioGroup>`
-- **Accessibility:** `radiogroup`/`radio` roles, roving tabindex, arrow keys move focus; group is a
-  vertical stack (`gap-3`); items are 20 px with a transparent ≥ 44 px hit area
+- **Usage:** `<RadioGroup aria-label="Ưu tiên" value={v} onValueChange={setV}><RadioGroupItem id="x" value="x" /><Label htmlFor="x">…</Label></RadioGroup>`
+- **Accessibility:** `radiogroup`/`radio` roles, roving tabindex, arrow keys move focus; items are
+  20 px with a transparent ≥ 44 px hit area (`before:-inset-3`, 12 px each side), so the default
+  stack is `gap-8` (32 px): 12 + 12 px of hit-area overreach + 8 px clearance = 32 px, keeping
+  adjacent 44 px hit areas from overlapping (DESIGN_SYSTEM §5, same math as FilterChip) — a
+  consumer that wraps each item in a ChoiceCard (the card is the target, not the bare radio)
+  overrides the gap with `className` (`tailwind-merge`)
 
 ### Separator
 

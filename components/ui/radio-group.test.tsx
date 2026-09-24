@@ -52,11 +52,12 @@ describe('RadioGroup', () => {
     expect(document.activeElement).toBe(dark)
   })
 
-  it('is 20 px with a transparent 44 px hit area, stacked with gap-3', () => {
+  it('is 20 px with a transparent 44 px hit area, stacked with gap-8 so hit areas never overlap', () => {
     render(<Example />)
     const light = screen.getByRole('radio', { name: 'Sáng' })
     expect(light.className).toContain('size-5')
     expect(light.className).toContain('before:-inset-3')
-    expect(screen.getByRole('radiogroup').className).toContain('gap-3')
+    // 12 px hit-area overreach on each side of the gap + 8 px clearance = 32 px (gap-8).
+    expect(screen.getByRole('radiogroup').className).toContain('gap-8')
   })
 })
