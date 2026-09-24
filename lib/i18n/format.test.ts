@@ -25,6 +25,23 @@ describe('formatMinutes', () => {
   })
 })
 
+describe('formatMinutes with real-world values', () => {
+  it.each([
+    [12.5, '12,5 phút'],
+    [75.5, '1 giờ 15,5 phút'],
+    [60_000, '1.000 giờ'],
+  ])('%s → %s (vi-VN digits)', (minutes, text) => {
+    expect(formatMinutes(minutes)).toBe(text)
+  })
+
+  it.each([Number.NaN, undefined, null, -5, Number.POSITIVE_INFINITY])(
+    'falls back to 0 phút for %s (RF-4)',
+    (minutes) => {
+      expect(formatMinutes(minutes)).toBe('0 phút')
+    },
+  )
+})
+
 describe('formatNumber', () => {
   it('uses the Vietnamese decimal comma and thousands dot', () => {
     expect(formatNumber(12.4)).toBe('12,4')
