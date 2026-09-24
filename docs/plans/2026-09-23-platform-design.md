@@ -2197,7 +2197,8 @@ pnpm bot <command>
 - **Runtime:** `next` 16.3, `react` / `react-dom` 19.3, `@supabase/supabase-js`, `@supabase/ssr`,
   `zod` 4, `@upstash/redis`, `@upstash/ratelimit`, `@next/mdx`, `@mdx-js/loader`,
   `@mdx-js/react`, `remark-frontmatter`, `remark-gfm`, `class-variance-authority`, `clsx`,
-  `tailwind-merge`, `radix-ui` (via shadcn), `lucide-react`, `next-themes`, `server-only`.
+  `tailwind-merge`, `radix-ui` (via shadcn), `lucide-react`, `next-themes`, `sonner` (shadcn's
+  toast; approved 2026-09-24), `server-only`.
   No date library: `lib/domain` and the UI use the built-in `Intl` API (`DateTimeFormat`,
   `RelativeTimeFormat` with `vi-VN`).
 - **Dev:** `typescript` 6.0.x, `tailwindcss` 4 + `@tailwindcss/postcss`, `tw-animate-css`,
