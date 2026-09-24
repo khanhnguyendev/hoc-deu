@@ -61,6 +61,8 @@ const USED = [
   'errors.notAllowed',
   'errors.invalidTransition',
   'errors.invalidTimezone',
+  'errors.tooManyTracks',
+  'errors.tooManyPendingSchedules',
   'forms.required',
   'forms.errorSummaryTitle',
   'forms.step',

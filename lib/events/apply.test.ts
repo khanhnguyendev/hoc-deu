@@ -122,11 +122,34 @@ describe('applyLearnerEvent', () => {
     ['id_conflict', copy.errors.saveFailed],
     ['schedule_backdated', copy.errors.saveFailed],
     ['schedule_in_force', copy.errors.saveFailed],
+    ['too_many_tracks', copy.errors.tooManyTracks],
+    ['too_many_pending_schedules', copy.errors.tooManyPendingSchedules],
   ])('maps the RPC error %s to its code and message', async (code, userMessage) => {
     const { client } = fakeClient(failed(code))
     const error = await eventError(applyLearnerEvent(client, ENROLLED))
     expect(error.code).toBe(code)
     expect(error.userMessage).toBe(userMessage)
+  })
+
+  it('maps the state-table caps (ruling R14) to their own Vietnamese messages', async () => {
+    const tracks = await eventError(
+      applyLearnerEvent(fakeClient(failed('too_many_tracks')).client, ENROLLED),
+    )
+    expect(tracks.userMessage).toBe('Bạn đã đạt số lộ trình tối đa.')
+    const schedules = await eventError(
+      applyLearnerEvent(fakeClient(failed('too_many_pending_schedules')).client, {
+        id: EVENT_ID,
+        type: 'schedule.changed',
+        payload: {
+          timezone: 'Asia/Ho_Chi_Minh',
+          dayStartsAt: '05:00',
+          effectiveAt: '2026-09-25T21:00:00.000Z',
+        },
+      }),
+    )
+    expect(schedules.userMessage).toBe(
+      'Đã có một thay đổi lịch đang chờ áp dụng. Bạn tải lại trang nhé.',
+    )
   })
 
   it.each([

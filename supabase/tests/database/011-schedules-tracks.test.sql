@@ -3,12 +3,13 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(49);
+select plan(69);
 
 select tests.create_user('learner@hocdeu.test') as learner \gset
 select tests.create_user('other@hocdeu.test') as other \gset
 select tests.create_user('pending@hocdeu.test', 'pending') as pending \gset
 select tests.create_user('history@hocdeu.test') as history \gset
+select tests.create_user('tracks@hocdeu.test') as tracks \gset
 
 -- 1. schedule_versions RLS: insert own while active; read own only.
 select tests.authenticate_as(:'learner');
@@ -98,14 +99,18 @@ select lives_ok(
 
 -- 3. Time zones are validated against pg_timezone_names (decision 6).
 select throws_ok(
-  $$insert into public.schedule_versions (user_id, effective_at, timezone)
-    values (auth.uid(), now() + interval '3 days', 'Mars/Base')$$,
-  'P0001', 'invalid_timezone', 'an unknown time zone raises invalid_timezone'
-);
-select throws_ok(
   $$update public.schedule_versions set timezone = 'Mars/Base'
     where effective_at = now() + interval '2 days'$$,
   'P0001', 'invalid_timezone', 'an update to an unknown time zone raises invalid_timezone'
+);
+-- The learner's two pending versions go (as postgres), so the inserts below stay under the cap (§3b).
+select tests.clear_authentication();
+delete from public.schedule_versions where user_id = :'learner' and effective_at > now();
+select tests.authenticate_as(:'learner');
+select throws_ok(
+  $$insert into public.schedule_versions (user_id, effective_at, timezone)
+    values (auth.uid(), now() + interval '3 days', 'Mars/Base')$$,
+  'P0001', 'invalid_timezone', 'an unknown time zone raises invalid_timezone'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, timezone)
@@ -116,6 +121,64 @@ select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, timezone)
     values (auth.uid(), now() + interval '4 days', 'Asia/Ho_Chi_Minh')$$,
   'Asia/Ho_Chi_Minh is accepted'
+);
+select results_eq(
+  $$select a.attname::text collate "default" from pg_catalog.pg_trigger t
+    join pg_catalog.pg_attribute a on a.attrelid = t.tgrelid and a.attnum = any (t.tgattr)
+    where t.tgrelid = 'public.schedule_versions'::regclass and t.tgname = 'check_timezone'$$,
+  $$values ('timezone'::text)$$,
+  'the time-zone check fires on update of timezone only'
+);
+
+-- 3b. At most 2 pending (future) versions per user (ruling R14); upserting one is not a new one.
+select throws_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    values (auth.uid(), now() + interval '5 days')$$,
+  'P0001', 'too_many_pending_schedules', 'a third pending version raises too_many_pending_schedules'
+);
+select lives_ok(
+  $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
+    values (auth.uid(), now() + interval '4 days', '06:00')
+    on conflict (user_id, effective_at) do update set day_starts_at = excluded.day_starts_at$$,
+  'an upsert of a pending version at the cap is not a new version'
+);
+select is(
+  (select count(*)::int from public.schedule_versions where effective_at > now()),
+  2,
+  '... and the learner still has 2 pending versions'
+);
+select tests.authenticate_as(:'other');
+select throws_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    select auth.uid(), now() + g * interval '1 day' from generate_series(1, 3) g$$,
+  'P0001', 'too_many_pending_schedules', 'one statement inserting 3 pending versions raises'
+);
+select lives_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    select auth.uid(), now() + g * interval '1 day' from generate_series(1, 2) g$$,
+  'the cap is per user: another user inserts 2 pending versions'
+);
+
+-- 3c. authenticated may change only a pending version's timezone and day_starts_at, and never
+--     delete a version (no grant: 42501 before any trigger runs).
+select tests.authenticate_as(:'learner');
+select throws_ok(
+  $$update public.schedule_versions set effective_at = now() + interval '6 days'
+    where effective_at = now() + interval '4 days'$$,
+  '42501', 'permission denied for table schedule_versions',
+  'authenticated cannot update effective_at'
+);
+select throws_ok(
+  format(
+    $$update public.schedule_versions set user_id = %L where effective_at = now() + interval '4 days'$$,
+    :'other'
+  ),
+  '42501', 'permission denied for table schedule_versions', 'authenticated cannot update user_id'
+);
+select throws_ok(
+  $$delete from public.schedule_versions where effective_at = now() + interval '4 days'$$,
+  '42501', 'permission denied for table schedule_versions',
+  'authenticated cannot delete a version, not even a pending one'
 );
 
 -- 4. user_tracks: insert and update own while active; checks; no delete.
@@ -153,6 +216,31 @@ select throws_ok(
 select throws_ok(
   $$update public.user_tracks set status = 'deleted' where track_id = 'dsa'$$,
   '23514', null, 'status deleted is not a track status'
+);
+select throws_ok(
+  $$update public.user_tracks set throttle = jsonb_build_array(repeat('x', 2100))
+    where track_id = 'dsa'$$,
+  '23514',
+  'new row for relation "user_tracks" violates check constraint "throttle_size"',
+  'a throttle over 2048 bytes is rejected'
+);
+select throws_ok(
+  $$update public.user_tracks set weekly_template = jsonb_build_object('mon', repeat('x', 2100))
+    where track_id = 'dsa'$$,
+  '23514',
+  'new row for relation "user_tracks" violates check constraint "weekly_template_size"',
+  'a weekly_template over 2048 bytes is rejected'
+);
+select lives_ok(
+  $$update public.user_tracks
+    set throttle = jsonb_build_array(repeat('x', 2000)),
+        weekly_template = jsonb_build_object('mon', repeat('x', 1990))
+    where track_id = 'dsa'$$,
+  'a throttle and a weekly_template of about 2000 bytes are allowed'
+);
+select throws_ok(
+  $$update public.user_tracks set throttle = '{"a": 1}' where track_id = 'dsa'$$,
+  '23514', null, 'a throttle that is not an array is still rejected'
 );
 select throws_ok(
   $$insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
@@ -194,6 +282,54 @@ select is(
   (select budget_minutes from public.user_tracks where user_id = :'other'),
   45,
   '... but changes nothing'
+);
+
+-- 4b. At most 16 tracks per user (ruling R14), counted per row, also within one statement;
+--     re-enrolling an existing track (upsert) is not a new track.
+select tests.authenticate_as(:'tracks');
+select throws_ok(
+  $$insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
+    select auth.uid(), 't' || g, '10w', current_date, 60 from generate_series(1, 17) g$$,
+  'P0001', 'too_many_tracks', 'one statement inserting 17 tracks raises too_many_tracks'
+);
+select lives_ok(
+  $$insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
+    select auth.uid(), 't' || g, '10w', current_date, 60 from generate_series(1, 16) g$$,
+  '16 tracks are allowed'
+);
+select throws_ok(
+  $$insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
+    values (auth.uid(), 't17', '10w', current_date, 60)$$,
+  'P0001', 'too_many_tracks', 'a 17th track raises too_many_tracks'
+);
+select lives_ok(
+  $$insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
+    values (auth.uid(), 't16', '12w', current_date, 90)
+    on conflict (user_id, track_id) do update set
+      roadmap_variant = excluded.roadmap_variant, budget_minutes = excluded.budget_minutes$$,
+  'an upsert of an existing track at the cap is not a new track'
+);
+select throws_ok(
+  $$select public.apply_event(jsonb_build_object(
+      'id', gen_random_uuid(), 'type', 'track.enrolled', 'track_id', 't17',
+      'payload', jsonb_build_object(
+        'roadmapVariant', '10w', 'budgetMinutes', 60, 'startDate', current_date)))$$,
+  'P0001', 'too_many_tracks', 'apply_event track.enrolled for a 17th track raises too_many_tracks'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select count(*)::int, count(*) filter (where track_id = 't16' and budget_minutes = 90)::int
+      from public.user_tracks where user_id = %L$$,
+    :'tracks'
+  ),
+  $$values (16, 1)$$,
+  '... the user keeps 16 tracks, the upsert changed its track'
+);
+select is(
+  (select count(*)::int from public.events where user_id = :'tracks'),
+  0,
+  '... and the rejected apply_event left no event'
 );
 
 -- 5. Deleting the auth user cascades through profiles to versions and tracks (§4.6), even past

@@ -66,7 +66,13 @@ create table public.user_tracks (
   include_bonus boolean not null default false,  -- §5.3
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  primary key (user_id, track_id)
+  primary key (user_id, track_id),
+  -- Ruling R14: learners write this table directly, so the JSON is capped like an event payload
+  -- (ADR-0030). M4 readers still Zod-validate both and fall back to the track defaults (ADR-0007).
+  constraint throttle_size check (throttle is null or octet_length(throttle::text) <= 2048),
+  constraint weekly_template_size check (
+    weekly_template is null or octet_length(weekly_template::text) <= 2048
+  )
 );
 
 create trigger set_updated_at before update on public.profiles
@@ -155,7 +161,7 @@ begin
   return new;
 end $$;
 
-create trigger check_timezone before insert or update on public.schedule_versions
+create trigger check_timezone before insert or update of timezone on public.schedule_versions
   for each row execute function public.schedule_versions_check_timezone();
 
 -- Owner review MF3: past days are never rewritten (§5.9) — enforced here for every role, because
@@ -198,6 +204,65 @@ end $$;
 create trigger guard_history before insert or update or delete on public.schedule_versions
   for each row execute function public.schedule_versions_guard_history();
 
+-- Ruling R14: learners insert into user_tracks and schedule_versions directly (their grants allow
+-- it; apply_event is SECURITY INVOKER), and the event quota (ADR-0030) bounds only `events`. So
+-- rows are capped here, for every role: at most 16 tracks per user (`too_many_tracks`) and at most
+-- 2 pending versions — effective_at > now() — per user (`too_many_pending_schedules`).
+-- - The row an upsert (`on conflict … do update`) would update is not counted: BEFORE INSERT fires
+--   for the insert half too, and re-enrolling a track or replacing a pending version adds no row.
+-- - A transaction-scoped advisory lock per user and table serialises concurrent inserts, so two
+--   cannot both pass the count (each count, after the lock, sees the other's committed row).
+-- - A row for another user is left to RLS, which rejects it after this trigger: a learner never
+--   takes another user's lock.
+-- - The version cap bounds pending versions only; versions already in force are bounded by the
+--   history guard's rules, not by a count (ADR-0007).
+-- Trigger names sort after check_timezone and guard_history, so their errors come first.
+create function public.user_tracks_limit_rows() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if current_user = 'authenticated' and new.user_id is distinct from (select auth.uid()) then
+    return new;
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('user_tracks:' || new.user_id::text, 0)
+  );
+  if (
+    select count(*) from public.user_tracks t
+    where t.user_id = new.user_id and t.track_id <> new.track_id
+  ) >= 16 then
+    raise exception 'too_many_tracks';
+  end if;
+  return new;
+end $$;
+
+create trigger limit_rows before insert on public.user_tracks
+  for each row execute function public.user_tracks_limit_rows();
+
+create function public.schedule_versions_limit_pending() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if new.effective_at <= now() then
+    return new;
+  end if;
+  if current_user = 'authenticated' and new.user_id is distinct from (select auth.uid()) then
+    return new;
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('schedule_versions:' || new.user_id::text, 0)
+  );
+  if (
+    select count(*) from public.schedule_versions v
+    where v.user_id = new.user_id and v.effective_at > now()
+      and v.effective_at <> new.effective_at
+  ) >= 2 then
+    raise exception 'too_many_pending_schedules';
+  end if;
+  return new;
+end $$;
+
+create trigger limit_pending before insert on public.schedule_versions
+  for each row execute function public.schedule_versions_limit_pending();
+
 -- ---------------------------------------------------------------------------------------------
 -- Function privileges: only the RLS helpers are callable, and only by signed-in users
 -- ---------------------------------------------------------------------------------------------
@@ -207,7 +272,9 @@ revoke execute on function
   public.handle_new_user(),
   public.profiles_guard_share_notes(),
   public.schedule_versions_check_timezone(),
-  public.schedule_versions_guard_history()
+  public.schedule_versions_guard_history(),
+  public.user_tracks_limit_rows(),
+  public.schedule_versions_limit_pending()
 from public, anon, authenticated;
 
 revoke execute on function public.is_active(), public.is_admin() from public, anon;

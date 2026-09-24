@@ -77,4 +77,8 @@ Options considered:
   fires before the conflict is found, so a retry path should check the id first (task 2.5b).
 - Accepted: the limit is per day, not per minute. With the size caps above, a row is at most
   about 2.5 KB (2048 bytes of payload, 288 bytes of ids, the fixed columns and the tuple header),
-  so one account adds at most about 1.3 MB a day, plus the one-time burst above.
+  so one account adds at most about 1.3 MB a day **to `events`**, plus the one-time burst above.
+- The quota bounds `events` only. The state tables a learner can write directly are bounded by
+  their own caps (ADR-0007, ruling R14): `user_tracks` at 16 rows per user with `throttle` and
+  `weekly_template` at 2048 bytes each, and `schedule_versions` at 2 pending versions per user.
+  Schedule versions already in force are not counted (ADR-0007 lists this open item).

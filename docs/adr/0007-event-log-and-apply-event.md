@@ -29,6 +29,14 @@ Options considered:
   (`profiles`, `schedule_versions`, `user_tracks`) and derived tables (`item_state`,
   `plan_block_state`, `daily_activity`, from 4.9) are projections that replay can rebuild.
   Payloads are Zod-validated per type (`lib/domain/events.ts`, ADR-0030 for the size limit).
+- **The learner-writable state tables are bounded by the database itself** (ruling R14), because
+  a learner can write them directly (see Consequences) and the write quota counts only `events`:
+  `user_tracks` holds at most **16 rows per user** (`too_many_tracks`), and its `throttle` and
+  `weekly_template` at most **2048 bytes** each (`throttle_size`, `weekly_template_size`);
+  `schedule_versions` holds at most **2 pending versions** (`effective_at > now()`) per user
+  (`too_many_pending_schedules`). The row an upsert would update is not counted, so re-enrolling a
+  track or replacing a pending schedule change always works; a per-user advisory lock makes the
+  counts hold under concurrency. `lib/events/apply.ts` maps both codes to Vietnamese messages.
 - **The domain is pure TypeScript** (`lib/domain`: no React, Next, Supabase, date library or
   clock reads). The server loads state, computes the new derived rows in TypeScript and sends
   them with the event.
@@ -68,7 +76,19 @@ Options considered:
   `apply_event`; the derived rows sent in `p_changes` are only as honest as the learner's own
   client (see below).
 - Accepted: because `apply_event` runs as the learner, a learner could write their own rows
-  directly with their JWT. That only affects their own self-reported data; the drift check (§4.7)
-  catches it, and the write quota (ADR-0030) bounds it.
+  directly with their JWT. That only affects their own self-reported data, and the drift check
+  (§4.7) catches it. What bounds it:
+  - the write quota (ADR-0030) bounds **only `events`** — 500 learner events per local day;
+  - the state-table caps above bound `user_tracks` (16 rows of at most about 4 KB of JSON each)
+    and the **pending** `schedule_versions`;
+  - they do **not** bound versions already in force: the history guard lets a later version be
+    effective up to 5 minutes in the past, and nothing counts those, so a learner who inserts
+    rows directly can grow their own schedule history (tens of bytes a row) at the rate they can
+    send requests. Recorded as an open item of the M2 final review (ruling R14 follow-up).
+- **Rule for M4 readers** (the plan generator, §5): never trust a state-table value because the
+  app wrote it — a learner may have written it directly. Check `user_tracks.track_id` against the
+  content catalog (skip a track that is not in it), and Zod-validate `throttle` and
+  `weekly_template` before use, falling back to the track's defaults when either is missing or
+  invalid. `schedule_versions` needs no such check: its columns are checked by the database.
 - Accepted: `id_conflict` tells a caller that some other event uses a given id. Ids are random
   UUIDs, so this reveals nothing useful.

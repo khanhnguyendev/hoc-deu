@@ -84,6 +84,9 @@ export const vi = {
     notAllowed: 'Bạn không có quyền thực hiện thao tác này.',
     invalidTransition: 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.',
     invalidTimezone: 'Múi giờ không hợp lệ.',
+    /** Ruling R14: the database caps tracks (16) and pending schedule versions (2) per user. */
+    tooManyTracks: 'Bạn đã đạt số lộ trình tối đa.',
+    tooManyPendingSchedules: 'Đã có một thay đổi lịch đang chờ áp dụng. Bạn tải lại trang nhé.',
   },
   /** The component catalog at /dev/components (dev and preview only). */
   dev: {

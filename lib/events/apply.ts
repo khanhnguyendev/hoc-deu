@@ -36,6 +36,8 @@ export type EventErrorCode =
   | 'id_conflict'
   | 'schedule_backdated'
   | 'schedule_in_force'
+  | 'too_many_tracks'
+  | 'too_many_pending_schedules'
   | 'unknown'
 
 const USER_MESSAGES = {
@@ -51,6 +53,8 @@ const USER_MESSAGES = {
   id_conflict: vi.errors.saveFailed,
   schedule_backdated: vi.errors.saveFailed,
   schedule_in_force: vi.errors.saveFailed,
+  too_many_tracks: vi.errors.tooManyTracks,
+  too_many_pending_schedules: vi.errors.tooManyPendingSchedules,
   unknown: vi.errors.saveFailed,
 } as const satisfies Record<EventErrorCode, string>
 
