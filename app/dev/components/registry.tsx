@@ -92,6 +92,7 @@ import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
 import { AdminLink } from '@/features/settings/components/admin-link'
 import { CodeLanguageForm } from '@/features/settings/components/code-language-form'
+import { DeleteAccount } from '@/features/settings/components/delete-account'
 import { ScheduleForm } from '@/features/settings/components/schedule-form'
 import { TrackBudgetFields } from '@/features/settings/components/track-budget-fields'
 import { TrackSettings } from '@/features/settings/components/track-settings'
@@ -414,6 +415,10 @@ const demoSettingsFailure: SettingsAction = async () => ({
   ok: false,
   message: vi.settings.errors.fields,
   fieldErrors: { budgetMinutes: vi.onboarding.errors.minutes },
+})
+const demoDeleteAccountFailure: SettingsAction = async () => ({
+  ok: false,
+  message: vi.settings.deleteAccount.failed,
 })
 const DEMO_VN_SCHEDULE = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
 const DEMO_SETTINGS_TRACKS: SettingsTrack[] = [
@@ -1358,6 +1363,14 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Với thông báo đã xoá tài khoản (?account=deleted)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <Landing deleted />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -1703,6 +1716,29 @@ export const CATALOG: Entry[] = [
               requestId={DEMO_REQUEST_ID}
               updateCodeLanguage={demoSettingsSave}
             />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'DeleteAccount',
+    layer: 'features',
+    file: 'features/settings/components/delete-account.tsx',
+    demos: [
+      {
+        title: 'Mặc định (bấm "Xoá vĩnh viễn" để mở hộp thoại xác nhận)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <DeleteAccount deleteAccount={demoSettingsSave} />
+          </div>
+        ),
+      },
+      {
+        title: 'Xoá thất bại',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <DeleteAccount deleteAccount={demoDeleteAccountFailure} />
           </div>
         ),
       },

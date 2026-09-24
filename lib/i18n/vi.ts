@@ -115,6 +115,8 @@ export const vi = {
   landing: {
     positioning: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
     signIn: 'Đăng nhập',
+    /** `?account=deleted` (§4.6): shown after a successful account deletion. */
+    deletedBanner: 'Tài khoản của bạn đã được xoá.',
   },
   /** /pending, one entry per status that is not `active` (§2.4). */
   account: {
@@ -273,6 +275,19 @@ export const vi = {
     theme: {
       title: 'Giao diện',
       description: 'Lựa chọn được lưu trên thiết bị này.',
+    },
+    /** "Xoá tài khoản" (§4.6). */
+    deleteAccount: {
+      title: 'Xoá tài khoản',
+      description: 'Toàn bộ lịch học, lộ trình và hoạt động học tập của bạn sẽ bị xoá vĩnh viễn.',
+      privacy: 'Dữ liệu đã xoá vẫn có thể tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày.',
+      confirm: 'Xoá vĩnh viễn',
+      confirmDialog: {
+        title: 'Xoá tài khoản vĩnh viễn?',
+        description:
+          'Toàn bộ lịch học, lộ trình và hoạt động học tập của bạn sẽ bị xoá vĩnh viễn và không thể khôi phục. Dữ liệu đã xoá vẫn có thể tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày.',
+      },
+      failed: 'Không xoá được tài khoản. Bạn thử lại nhé.',
     },
     errors: {
       invalid: 'Không đọc được yêu cầu. Bạn tải lại trang rồi thử lại nhé.',

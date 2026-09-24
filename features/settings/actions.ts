@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireOnboarded } from '@/lib/auth/dal'
+import { redirect } from 'next/navigation'
+import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
 import {
   daysBetween,
@@ -14,6 +15,7 @@ import { canonicalTimeZone, isValidTimeZone } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId } from '@/lib/events/ids'
 import { vi } from '@/lib/i18n/vi'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
 import { pendingNotice, sameSchedule, scheduleState } from './schedule'
@@ -290,4 +292,25 @@ export async function setTrackStatus(
       }),
     withTitle(copy.tracks.resumed, title),
   )
+}
+
+/**
+ * "Xoá tài khoản" (§4.6): deletes the `auth.users` row through the admin API, which cascades to
+ * every one of the account's own rows (the database enforces this — the cascade also removes
+ * tables that do not exist yet, such as `bot_run_users`). Guarded by `requireUser`, not
+ * `requireOnboarded`: a pending, rejected or suspended account may delete itself too, from a
+ * later entry point (§4.6). On success, signs out locally (cookies only — the user no longer
+ * exists to revoke a session for) and returns to the landing page with the deleted notice.
+ * `redirect()` is the function's last statement, outside any try/catch (it works by throwing).
+ * Takes no arguments (assignable to `SettingsAction`: fewer parameters is fine) — there is no
+ * form data to read.
+ */
+export async function deleteAccount(): Promise<SettingsResult> {
+  const user = await requireUser()
+  const { error } = await createAdminClient().auth.admin.deleteUser(user.id)
+  if (error) return { ok: false, message: copy.deleteAccount.failed }
+
+  const supabase = await createClient()
+  await supabase.auth.signOut({ scope: 'local' })
+  redirect('/?account=deleted')
 }

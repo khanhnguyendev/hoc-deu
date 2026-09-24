@@ -196,6 +196,16 @@ export async function deleteTestUser(id: string): Promise<void> {
   if (error && error.status !== 404) throw new Error(`deleteUser(${id}) failed: ${error.message}`)
 }
 
+/** Whether the admin API still finds this `auth.users` row (§4.6: after a self-deletion). */
+export async function userExists(id: string): Promise<boolean> {
+  const { data, error } = await admin().auth.admin.getUserById(id)
+  if (error) {
+    if (error.status === 404) return false
+    throw new Error(`getUserById(${id}) failed: ${error.message}`)
+  }
+  return data.user !== null
+}
+
 /** Deletes the user with this e-mail if one exists (a fixed address left by an earlier run). */
 export async function deleteUserByEmail(email: string): Promise<void> {
   const wanted = email.toLowerCase()

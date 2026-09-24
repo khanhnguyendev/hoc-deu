@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { deriveEventId } from '@/lib/events/ids'
+import type { SettingsAction } from './schema'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
 const USER_ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
@@ -28,6 +29,8 @@ const fake = vi.hoisted(() => ({
   pausedDays: {} as Record<string, string>,
   /** Throw this from the apply call with this event type. */
   failOn: null as { type: string; error: Error } | null,
+  /** `deleteAccount`: what the admin API's `deleteUser` returns. */
+  deleteUserResult: { error: null as { message: string } | null },
   calls: [] as unknown[][],
 }))
 
@@ -36,13 +39,45 @@ vi.mock('next/cache', () => ({
     fake.calls.push(['revalidatePath', path])
   },
 }))
+vi.mock('next/navigation', () => ({
+  redirect: (to: string) => {
+    fake.calls.push(['redirect', to])
+    throw new Error(`REDIRECT:${to}`)
+  },
+}))
 vi.mock('@/lib/auth/dal', () => ({
   requireOnboarded: async () => {
     fake.calls.push(['requireOnboarded'])
     return fake.user
   },
+  requireUser: async () => {
+    fake.calls.push(['requireUser'])
+    return fake.user
+  },
 }))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ client: 'user' }) }))
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({
+    client: 'user',
+    auth: {
+      signOut: async (options: unknown) => {
+        fake.calls.push(['signOut', options])
+        return { error: null }
+      },
+    },
+  }),
+}))
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: () => ({
+    auth: {
+      admin: {
+        deleteUser: async (userId: string) => {
+          fake.calls.push(['deleteUser', userId])
+          return fake.deleteUserResult
+        },
+      },
+    },
+  }),
+}))
 vi.mock('./reads', () => ({
   readScheduleVersions: async (_client: unknown, userId: string) => {
     fake.calls.push(['readScheduleVersions', userId])
@@ -70,8 +105,14 @@ vi.mock('@/lib/events/apply', async (importOriginal) => {
 })
 
 const { EventError } = await import('@/lib/events/apply')
-const { enrollTrack, setTrackStatus, updateCodeLanguage, updateSchedule, updateTrack } =
-  await import('./actions')
+const {
+  deleteAccount,
+  enrollTrack,
+  setTrackStatus,
+  updateCodeLanguage,
+  updateSchedule,
+  updateTrack,
+} = await import('./actions')
 
 const id = (key: string) => deriveEventId(REQUEST_ID, key)
 const form = (fields: Record<string, string>) => {
@@ -106,6 +147,7 @@ beforeEach(() => {
   ]
   fake.pausedDays = {}
   fake.failOn = null
+  fake.deleteUserResult = { error: null }
   fake.calls = []
 })
 afterEach(() => {
@@ -546,5 +588,28 @@ describe('setTrackStatus — pause, resume, remove', () => {
       message: 'Không đọc được yêu cầu. Bạn tải lại trang rồi thử lại nhé.',
     })
     expect(events()).toEqual([])
+  })
+})
+
+describe('deleteAccount — §4.6', () => {
+  // Assignable to SettingsAction (fewer parameters is fine): called the same way
+  // useSettingsAction calls every other settings action.
+  const run: SettingsAction = deleteAccount
+
+  it('guards with requireUser (pending users may delete too), deletes, signs out locally, redirects', async () => {
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    expect(fake.calls).toEqual([
+      ['requireUser'],
+      ['deleteUser', USER_ID],
+      ['signOut', { scope: 'local' }],
+      ['redirect', '/?account=deleted'],
+    ])
+  })
+
+  it('returns a failure message instead of signing out or redirecting when the admin API errors', async () => {
+    fake.deleteUserResult = { error: { message: 'boom' } }
+    const result = await run(null, new FormData())
+    expect(result).toEqual({ ok: false, message: 'Không xoá được tài khoản. Bạn thử lại nhé.' })
+    expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
   })
 })

@@ -6,6 +6,8 @@ import {
   AddTrackForm,
   AdminLink,
   CodeLanguageForm,
+  deleteAccount,
+  DeleteAccount,
   enrollTrack,
   getSettingsData,
   ScheduleForm,
@@ -67,6 +69,9 @@ export default async function SettingsPage() {
       </Section>
       <Section title={copy.theme.title} description={copy.theme.description}>
         <ThemeToggle />
+      </Section>
+      <Section title={copy.deleteAccount.title} description={copy.deleteAccount.description}>
+        <DeleteAccount deleteAccount={deleteAccount} />
       </Section>
     </>
   )

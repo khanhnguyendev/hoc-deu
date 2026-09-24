@@ -629,11 +629,13 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** feature (`features/auth`)
 - **File:** `features/auth/components/landing.tsx`
-- **Props:** none
-- **Variants:** none
+- **Props:** `deleted?: boolean` (default `false`; `?account=deleted`, §4.6)
+- **Variants:** default · deleted (an info Banner "Tài khoản của bạn đã được xoá." above the
+  wordmark)
 - **States:** static
-- **Usage:** `<FocusLayout><Landing /></FocusLayout>` (`app/(public)/page.tsx`, signed-out only —
-  a signed-in visitor is redirected to `homePathFor(user)` before this renders)
+- **Usage:** `<FocusLayout><Landing deleted={params.account === 'deleted'} /></FocusLayout>`
+  (`app/(public)/page.tsx`, signed-out only — a signed-in visitor is redirected to
+  `homePathFor(user)` before this renders)
 - **Accessibility:** one h1 ("Học Đều"); "Đăng nhập" is a link styled as a button (`buttonVariants`)
   to `/sign-in`
 
@@ -791,3 +793,19 @@ from `lib/i18n/vi.ts`.
   updateCodeLanguage={updateCodeLanguage} />`
 - **Accessibility:** a `form` and a radiogroup both named "Ngôn ngữ lập trình"; Python / Java /
   Go as ChoiceCard radios (the card is the target, `gap-3`)
+
+### DeleteAccount
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/delete-account.tsx`
+- **Props:** `deleteAccount: SettingsAction` — the action comes in as a prop, so the catalog
+  passes a no-op; "what is deleted" is the Section's own description, above this (§4.6)
+- **Variants:** —
+- **States:** idle; confirming (destructive ConfirmDialog "Xoá tài khoản vĩnh viễn?", restating the
+  consequences and the privacy sentence); a successful delete redirects away (`/?account=deleted`),
+  so it is never seen here; failed (danger Banner under `role="alert"`, the dialog closes)
+- **Usage:** `<DeleteAccount deleteAccount={deleteAccount} />` (`app/(app)/settings/page.tsx`,
+  the last Section)
+- **Accessibility:** an info Banner states the backup-retention notice: "Dữ liệu đã xoá vẫn có thể
+  tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."; "Xoá vĩnh viễn" is destructive and asks
+  first, like TrackSettings' "Gỡ lộ trình"
