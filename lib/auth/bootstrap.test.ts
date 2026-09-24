@@ -43,7 +43,7 @@ describe('bootstrapAdminIfListed (§2.5, decision 23)', () => {
     })
   })
 
-  it('returns false when admin_bootstrap leaves an already-processed profile alone', async () => {
+  it('returns false when admin_bootstrap refuses (a processed profile, or an active admin exists)', async () => {
     const { admin, rpc } = fakeAdmin({ data: false, error: null })
     const promoted = await bootstrapAdminIfListed(user('owner@example.test', CONFIRMED), {
       adminEmails: ['owner@example.test'],

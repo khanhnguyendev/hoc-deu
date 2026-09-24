@@ -33,9 +33,10 @@ test run from production.
      **provider-verified** (`email_confirmed_at` set) and in `ADMIN_EMAILS` (exact match after
      trimming and lower-casing), the secret-key client calls `admin_bootstrap(user_id)`. That
      function promotes only a **never-processed** profile — learner, pending, `approved_at` null —
-     to an active admin and records `admin.bootstrapped`; for any other profile it is a no-op
-     (decision 23). So a rejection, suspension or demotion by an admin is never overridden by the
-     env list, and removing an address demotes no one.
+     and only while **no active admin exists**, to an active admin and records
+     `admin.bootstrapped`; otherwise it is a no-op (decision 23, ADR-0004). So a rejection,
+     suspension or demotion by an admin is never overridden by the env list — not even after the
+     listed account deletes itself and signs up again — and removing an address demotes no one.
   2. **Where next:** the `next` parameter if `safeNextPath()` accepts it (same-origin path, never
      `/sign-in` or `/auth/…`), else the home path from the profile **read fresh** through the
      session client — not the request-cached DAL, which may predate the bootstrap: `/pending`

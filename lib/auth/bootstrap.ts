@@ -12,9 +12,12 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase()
  * Runs on every sign-in (OAuth callback, test login). Only a **confirmed** e-mail counts — an
  * unverified address proves nothing about who owns it. The match is exact after trimming and
  * lower-casing. `admin_bootstrap` (secret key) then promotes only a never-processed profile
- * (learner, pending, `approved_at` null) and is a no-op for any other, so a rejection, suspension
- * or demotion by an admin is never overridden by the env list; removing an address demotes no one.
- * Returns whether the profile was promoted; throws when the call fails.
+ * (learner, pending, `approved_at` null), and only while no active admin exists (ruling R13); for
+ * anything else it is a no-op. So a rejection, suspension or demotion by an admin is never
+ * overridden by the env list — not even when the listed account deletes itself and signs up again
+ * — and removing an address demotes no one. With no active admin left, a listed e-mail is the
+ * automatic break-glass (ADR-0004). Returns whether the profile was promoted; throws when the call
+ * fails.
  */
 export async function bootstrapAdminIfListed(
   user: {

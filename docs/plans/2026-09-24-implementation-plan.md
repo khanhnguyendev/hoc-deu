@@ -2599,12 +2599,17 @@ with its verification command green.
 21. **`CRON_SECRET` is optional** in `lib/env.ts` until task 5.7 adds the cron route.
 22. **Onboarding ranges:** minutes per track 10–240 in steps of 5; a start date in the past becomes
     today, a future start date may be at most 60 days ahead.
-23. **Bootstrap touches only a never-processed profile** (owner review MF1): `admin_bootstrap`
-    promotes only when `role = 'learner' AND status = 'pending' AND approved_at IS NULL`; for any
-    other profile it is a no-op. So a suspended admin stays suspended, a demoted listed admin stays a
-    learner, and a rejected listed e-mail stays rejected — an admin decision is never overridden by
-    the env list. If no active admin remains, the runbook's break-glass SQL restores one (2.2,
-    ADR-0004).
+23. **Bootstrap touches only a never-processed profile, and only while no active admin exists**
+    (owner review MF1; final review I-1, ruling R13): `admin_bootstrap` promotes only when
+    `role = 'learner' AND status = 'pending' AND approved_at IS NULL` **and** no profile has
+    `role = 'admin' AND status = 'active'` (checked under a transaction-scoped advisory lock, so two
+    concurrent bootstraps cannot both pass); otherwise it is a no-op with no event. So a suspended
+    admin stays suspended, a demoted listed admin stays a learner, and a rejected listed e-mail stays
+    rejected — an admin decision is never overridden by the env list, not even after the listed
+    account deletes itself and signs up again with a fresh, never-processed profile. If no active
+    admin remains, the next sign-in of a listed e-mail is the automatic break-glass (so
+    `ADMIN_EMAILS` holds only the owner's e-mail); the runbook's break-glass SQL remains for an
+    owner account that is not listed (2.2, ADR-0004).
 24. **Task 2.7 is split** into **2.7a** (sign-in, OAuth callback, test login, bootstrap, seed, the
     guarded route groups with `loading.tsx` / `error.tsx` and placeholders) and **2.7b** (pending
     screen, landing page, AppShell sign-out and title — M1 deferred #5). The shared track pieces

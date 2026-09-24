@@ -8,8 +8,8 @@ owner's, done once and re-used by every later PR.
 
 See also: `docs/adr/0003-oauth-and-test-login.md` (OAuth and test-login design), decision 20
 (`docs/plans/2026-09-24-implementation-plan.md`, site URL on previews), decision 23 (admin
-bootstrap only touches a never-processed profile) and platform design §2.5 (environment
-variables and admin bootstrap).
+bootstrap only touches a never-processed profile, and only while no active admin exists) and
+platform design §2.5 (environment variables and admin bootstrap).
 
 ## 1. Environments
 
@@ -80,7 +80,10 @@ first when a staging sign-in ends up on the wrong page (§6a below).
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
    - `SUPABASE_SECRET_KEY` (mark **Sensitive**)
-   - `ADMIN_EMAILS` (the owner's e-mail)
+   - `ADMIN_EMAILS` — **only the owner's e-mail**. While no active admin exists, any listed
+     e-mail becomes an active admin on its next sign-in (the automatic break-glass, decision 23,
+     ADR-0004), so every address here is trusted as much as the owner. Another admin is made in
+     `/admin/users`, never by listing them.
 
    **Never** set `AUTH_TEST_LOGIN` on Vercel, in any environment — `lib/env.ts` throws at startup
    if it is `true` while `VERCEL_ENV=production`, and staging must not carry it either.
@@ -106,10 +109,11 @@ on the hash URL exchanges its code against the wrong host and always ends at
    ends at `/sign-in?error=oauth` — the expected failure, because the PKCE cookie is per-host.
    Always share and test the branch URL, never a hash URL.
 5. The owner's account (its e-mail listed in `ADMIN_EMAILS`) becomes an active admin on first
-   sign-in (bootstrap, decision 23) and lands on `/onboarding`; its first step **lists both
-   tracks** — this proves `next.config.ts`'s `outputFileTracingIncludes` shipped
-   `content/tracks/*/track.yaml` into the deployed function (only a real Vercel deployment
-   proves this; `next start` reads the repo directly and would pass even if this were missing).
+   sign-in — the fresh staging project has no active admin yet (bootstrap, decision 23) — and
+   lands on `/onboarding`; its first step **lists both tracks** — this proves `next.config.ts`'s
+   `outputFileTracingIncludes` shipped `content/tracks/*/track.yaml` into the deployed function
+   (only a real Vercel deployment proves this; `next start` reads the repo directly and would
+   pass even if this were missing).
 6. `/admin/users` lists the account.
 7. A second Google (or GitHub) account signs in and lands on `/pending` until an admin approves
    it in `/admin/users`.
@@ -131,6 +135,11 @@ Run both against the linked staging project (§2) and confirm `migration list` s
 remote at the same version before the next PR is opened against staging.
 
 ## 8. Break glass — no active admin left (decision 23, ADR-0004)
+
+While no active admin exists, the owner's listed e-mail is the automatic break-glass: its next
+sign-in bootstraps it, if its profile was never processed (e.g. a new account after the last
+admin deleted theirs). Use the SQL below when the account to restore already has a processed
+profile (suspended, rejected or demoted) or is not in `ADMIN_EMAILS`.
 
 First confirm no active admin remains:
 

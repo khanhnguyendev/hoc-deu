@@ -187,20 +187,33 @@ test.describe('already signed in', () => {
 // ADMIN_EMAILS lists one address per scenario (playwright.config.ts). Fixed addresses cannot be
 // created by the desktop and mobile projects at once, so these run on desktop only, and each
 // first removes a user an interrupted earlier run may have left behind.
+// Bootstrap promotes only while no active admin exists (ruling R13), and an active admin always
+// exists here: the seed has one, and parallel specs create their own. Removing them all would race
+// those specs, so the promotion itself is checked in pgTAP (041-system-and-admin) and the order
+// "bootstrap, then read the profile" in lib/auth/sign-in.test.ts; these scenarios check refusals.
 test.describe('admin bootstrap (§2.5, decision 23)', () => {
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'fixed e-mail addresses: desktop only')
   })
 
-  test('a listed, never-processed pending user becomes an active admin', async ({ page }) => {
+  test('a listed, never-processed pending user stays pending while an active admin exists', async ({
+    page,
+  }) => {
+    // This test's own admin, so an active admin exists whatever else the database holds.
+    await user({ status: 'active', role: 'admin' })
     const email = 'bootstrap-admin@example.test'
     await deleteUserByEmail(email)
-    const admin = await user({ email, status: 'pending' })
-    await signIn(page, admin)
-    await expectPath(page, '/onboarding')
-    const profile = await getProfile(admin.id)
-    expect(profile).toMatchObject({ role: 'admin', status: 'active' })
-    expect(profile.approved_at).not.toBeNull()
+    const listed = await user({ email, status: 'pending' })
+    await signIn(page, listed)
+    await expectPath(page, '/pending')
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Tài khoản của bạn đang chờ duyệt' }),
+    ).toBeVisible()
+    expect(await getProfile(listed.id)).toMatchObject({
+      role: 'learner',
+      status: 'pending',
+      approved_at: null,
+    })
     await expectNoAxeViolationsInBothThemes(page)
   })
 

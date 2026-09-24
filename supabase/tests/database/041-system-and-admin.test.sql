@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(65);
+select plan(72);
 
 select tests.create_user('system-onboarding@hocdeu.test') as onboarding \gset
 select tests.create_user('system-other@hocdeu.test') as sys_other \gset
@@ -375,9 +375,81 @@ select is(
   'two role changes, two audit events'
 );
 
--- 5. admin_bootstrap (decision 23): only a never-processed profile is promoted.
+-- 5. admin_bootstrap (decision 23, ruling R13): only a never-processed profile, and only while no
+--    active admin exists — so the env list never overrides an admin decision, not even after the
+--    listed account deletes itself and signs up again with a fresh, never-processed profile.
+-- 5a. While an active admin exists (this file's :admin; the seed and e2e users may add more),
+--     every bootstrap is refused.
 select tests.authenticate_as_service_role();
-select is(public.admin_bootstrap(:'boot_new'), true, 'bootstrap of a never-processed user');
+select is(
+  public.admin_bootstrap(:'boot_new'),
+  false,
+  'bootstrap of a never-processed user is refused while another active admin exists'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select role, status, approved_at from public.profiles where id = %L$$, :'boot_new'
+  ),
+  $$values ('learner'::text, 'pending'::text, null::timestamptz)$$,
+  '... who stays a never-processed pending learner'
+);
+select is(
+  (select count(*)::int from public.events where user_id = :'boot_new'), 0, '... with no event'
+);
+-- I-1: a suspended listed admin deletes their account (requireUser allows it) and signs in again.
+select tests.create_user('boot-recreated@hocdeu.test', 'suspended', 'admin') as boot_old \gset
+delete from auth.users where id = :'boot_old';
+select tests.create_user('boot-recreated@hocdeu.test', null, null) as boot_recreated \gset
+select tests.authenticate_as_service_role();
+select is(
+  public.admin_bootstrap(:'boot_recreated'),
+  false,
+  'a suspended admin who deleted the account and signed up again is refused while an active admin exists'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select role, status, approved_at from public.profiles where id = %L$$, :'boot_recreated'
+  ),
+  $$values ('learner'::text, 'pending'::text, null::timestamptz)$$,
+  '... and the new profile stays a never-processed pending learner'
+);
+
+-- 5b. No active admin left (every one suspended here; the transaction rolls it back).
+update public.profiles set status = 'suspended' where role = 'admin' and status = 'active';
+select is(
+  (select count(*)::int from public.profiles where role = 'admin' and status = 'active'),
+  0,
+  '(no active admin remains)'
+);
+select tests.authenticate_as_service_role();
+select is(
+  public.admin_bootstrap(:'boot_suspended'), false, 'bootstrap of a suspended admin returns false'
+);
+select is(
+  public.admin_bootstrap(:'boot_demoted'),
+  false,
+  'bootstrap of a demoted admin (learner, active, approved_at set) returns false'
+);
+select is(
+  public.admin_bootstrap(:'boot_rejected'), false, 'bootstrap of a rejected learner returns false'
+);
+select is(
+  public.admin_bootstrap(:'boot_processed'),
+  false,
+  'bootstrap of a pending learner with approved_at set returns false'
+);
+select is(
+  public.admin_bootstrap('41000000-0000-4000-8000-00000000dead'),
+  false,
+  'bootstrap of an unknown user returns false'
+);
+select is(
+  public.admin_bootstrap(:'boot_new'),
+  true,
+  'bootstrap of a never-processed user while no active admin exists'
+);
 select tests.clear_authentication();
 select results_eq(
   format(
@@ -401,25 +473,9 @@ select results_eq(
 select tests.authenticate_as_service_role();
 select is(public.admin_bootstrap(:'boot_new'), false, 'bootstrap again returns false');
 select is(
-  public.admin_bootstrap(:'boot_suspended'), false, 'bootstrap of a suspended admin returns false'
-);
-select is(
-  public.admin_bootstrap(:'boot_demoted'),
+  public.admin_bootstrap(:'boot_recreated'),
   false,
-  'bootstrap of a demoted admin (learner, active, approved_at set) returns false'
-);
-select is(
-  public.admin_bootstrap(:'boot_rejected'), false, 'bootstrap of a rejected learner returns false'
-);
-select is(
-  public.admin_bootstrap(:'boot_processed'),
-  false,
-  'bootstrap of a pending learner with approved_at set returns false'
-);
-select is(
-  public.admin_bootstrap('41000000-0000-4000-8000-00000000dead'),
-  false,
-  'bootstrap of an unknown user returns false'
+  'a second never-processed user is refused: the bootstrapped admin is active now'
 );
 select tests.clear_authentication();
 select is(
@@ -429,19 +485,21 @@ select is(
 );
 select set_eq(
   format(
-    $$select id, role, status from public.profiles where id in (%L, %L, %L, %L)$$,
-    :'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed'
+    $$select id, role, status from public.profiles where id in (%L, %L, %L, %L, %L)$$,
+    :'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed', :'boot_recreated'
   ),
   format(
     $$values (%L::uuid, 'admin'::text, 'suspended'::text), (%L, 'learner', 'active'),
-             (%L, 'learner', 'rejected'), (%L, 'learner', 'pending')$$,
-    :'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed'
+             (%L, 'learner', 'rejected'), (%L, 'learner', 'pending'), (%L, 'learner', 'pending')$$,
+    :'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed', :'boot_recreated'
   ),
-  'the suspended admin stays suspended, the demoted admin a learner, the rejected learner rejected'
+  'the suspended admin stays suspended, the demoted admin a learner, the rejected learner '
+  'rejected, and the second never-processed user pending'
 );
 select is(
   (select count(*)::int from public.events
-    where user_id in (:'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed')),
+    where user_id in (:'boot_suspended', :'boot_demoted', :'boot_rejected', :'boot_processed',
+                      :'boot_recreated')),
   0,
   '... and none of them got an event'
 );

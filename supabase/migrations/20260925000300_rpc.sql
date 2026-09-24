@@ -390,12 +390,21 @@ begin
 end $$;
 
 -- §2.5: the auth callback calls this with the secret key for an e-mail in ADMIN_EMAILS. It
--- promotes only a never-processed profile (decision 23, owner review MF1), so an admin decision —
--- a suspension, a demotion, a rejection — is never overridden by the env list. One conditional
--- update: of two concurrent calls, the second finds the row already changed and returns false.
+-- promotes only a never-processed profile (decision 23, owner review MF1) and only while no
+-- active admin exists (ruling R13), so an admin decision — a suspension, a demotion, a rejection —
+-- is never overridden by the env list: not even after the listed account deletes itself and signs
+-- up again with a fresh, never-processed profile. With no active admin left, a listed e-mail is
+-- the automatic break-glass (ADR-0004). Otherwise it returns false and writes no event.
+-- The transaction-scoped advisory lock serialises bootstraps: of two concurrent calls (two listed
+-- e-mails, or one e-mail twice), the second waits, then sees the first one's active admin.
 create function public.admin_bootstrap(p_user_id uuid) returns boolean
 language plpgsql security definer set search_path = '' as $$
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('admin_bootstrap', 0));
+  if exists (select 1 from public.profiles p where p.role = 'admin' and p.status = 'active') then
+    return false;
+  end if;
+
   update public.profiles p
   set role = 'admin', status = 'active', approved_at = now()
   where p.id = p_user_id
