@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Button } from './button'
 
@@ -54,6 +54,33 @@ describe('Button', () => {
     const link = screen.getByRole('link', { name: 'Hôm nay' })
     expect(link.className).toContain('h-11')
     expect(link.hasAttribute('type')).toBe(false)
+  })
+
+  it.each([
+    ['disabled', { disabled: true }],
+    ['loading', { loading: true }],
+  ] as const)('a %s asChild link is aria-disabled, not a tab stop and does not navigate', (_, props) => {
+    render(
+      <Button asChild {...props}>
+        <a href="/today">Hôm nay</a>
+      </Button>,
+    )
+    const link = screen.getByRole('link', { name: 'Hôm nay' })
+    expect(link.getAttribute('aria-disabled')).toBe('true')
+    expect(link.tabIndex).toBe(-1)
+    // fireEvent returns false when the default action (navigation) was prevented.
+    expect(fireEvent.click(link)).toBe(false)
+  })
+
+  it('an enabled asChild link stays a normal link', () => {
+    render(
+      <Button asChild>
+        <a href="/today">Hôm nay</a>
+      </Button>,
+    )
+    const link = screen.getByRole('link', { name: 'Hôm nay' })
+    expect(link.hasAttribute('aria-disabled')).toBe(false)
+    expect(fireEvent.click(link)).toBe(true)
   })
 
   it.each(VARIANTS)('keeps the global focus ring for %s', (variant) => {

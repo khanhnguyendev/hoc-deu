@@ -53,13 +53,25 @@ function Button({
   const classes = cn(buttonVariants({ variant: resolvedVariant, size: resolvedSize }), className)
 
   if (asChild) {
+    // A link can't be `disabled`: mark it aria-disabled, drop it from the tab order and swallow
+    // clicks so it never navigates (next/link skips navigation when the default is prevented).
+    const inert = disabled || loading
     return (
       <Slot.Root
         data-slot="button"
         data-variant={resolvedVariant}
         data-size={resolvedSize}
-        className={classes}
+        className={cn(classes, inert && 'pointer-events-none opacity-50')}
         {...props}
+        {...(inert && {
+          'aria-disabled': true,
+          'aria-busy': loading || undefined,
+          tabIndex: -1,
+          onClick: (event: React.MouseEvent) => {
+            event.preventDefault()
+            event.stopPropagation()
+          },
+        })}
       >
         {children}
       </Slot.Root>
