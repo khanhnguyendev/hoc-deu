@@ -100,3 +100,20 @@ test.describe('catalog width', () => {
     })
   }
 })
+
+test.describe('AppShell on a short desktop window', () => {
+  test.use({ viewport: { width: 1280, height: 420 } })
+
+  test('the account menu stays reachable and the sidebar nav scrolls', async ({ page }) => {
+    await page.goto('/dev/app-shell')
+    const account = page.locator('aside').getByRole('button', { name: /^Tài khoản/ })
+    const box = await account.boundingBox()
+    const height = await page.evaluate(() => window.innerHeight)
+    expect(box && box.y + box.height).toBeLessThanOrEqual(height)
+    const last = page.locator('aside').getByRole('link', { name: 'Nội dung' })
+    await last.scrollIntoViewIfNeeded()
+    await expect(last).toBeInViewport()
+    await account.click()
+    await expect(page.getByRole('menuitem', { name: 'Đăng xuất' })).toBeVisible()
+  })
+})

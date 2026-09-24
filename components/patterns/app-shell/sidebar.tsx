@@ -47,7 +47,8 @@ export function Sidebar({
           <ToggleIcon aria-hidden="true" strokeWidth={1.75} />
         </Button>
       </div>
-      <nav aria-label={vi.nav.main} className="flex flex-1 flex-col gap-3">
+      {/* The nav scrolls on short windows so the account menu below it stays reachable. */}
+      <nav aria-label={vi.nav.main} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         <ul role="list" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
