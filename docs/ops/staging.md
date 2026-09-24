@@ -16,12 +16,15 @@ platform design §2.5 (environment variables and admin bootstrap).
 | Environment | Where | Auth |
 | --- | --- | --- |
 | Local | Docker (`pnpm db:start`), `next dev` | Test login on (`AUTH_TEST_LOGIN=true`) |
-| Staging | Vercel **Preview** deployments + Supabase project `hoc-deu-staging` | Google/GitHub OAuth only — hosted e-mail provider disabled |
-| Production | Vercel **Production** deployment + a separate Supabase project | Google/GitHub OAuth only (task 5.8) |
+| Staging | Vercel **Preview** deployments — every branch, `main` included — + Supabase project `hoc-deu-staging` | Google/GitHub OAuth only — hosted e-mail provider disabled |
+| Production | Vercel **Production** deployment + a separate Supabase project — none until task 5.8 (§5 step 2) | Google/GitHub OAuth only (task 5.8) |
 
 ## 2. Create the Supabase staging project
 
-1. Create a project named `hoc-deu-staging` in region `ap-southeast-1` (Singapore).
+1. Create a project named `hoc-deu-staging` in region `ap-southeast-1` (Singapore), on
+   Postgres **16 or later** (Supabase's default, 17, is right; local runs 17 —
+   `supabase/config.toml`). The migrations call `pg_input_is_valid`, which Postgres 15 lacks, so
+   `db push` fails on an older project.
 2. Note the project URL and the **publishable** and **secret** keys (Settings → API) — never the
    legacy `anon` / `service_role` keys; the app reads `sb_publishable_…` and `sb_secret_…`.
 3. Auth → Providers: **disable Email.** This is the second lock on the test login (ADR-0003):
@@ -43,7 +46,9 @@ platform design §2.5 (environment variables and admin bootstrap).
 
 In the staging project's Auth → URL Configuration:
 
-- **Site URL:** the stable preview alias (e.g. the `main`-branch Vercel URL).
+- **Site URL:** the stable preview alias of the `main` branch,
+  `https://hoc-deu-git-main-<vercel-scope>.vercel.app` — `main` builds as a Preview until task 5.8
+  (§5 step 2), so this alias always serves the latest `main` with the staging variables.
 - **Redirect allow-list:**
   - `https://hoc-deu-*-<vercel-scope>.vercel.app/**`
   - `http://localhost:3000/**`
@@ -73,10 +78,18 @@ first when a staging sign-in ends up on the wrong page (§6a below).
 
 1. Import the GitHub repo as a Vercel project named `hoc-deu` (claims `hoc-deu.vercel.app`,
    platform design §9.3). Node version 22.
-2. Settings → General: turn on "Automatically expose System Environment Variables" — the app
+2. Settings → Git → **Production Branch: `production`** — a placeholder name; no such branch
+   exists. Until task 5.8, every push to `main` then builds as a **Preview** with the staging
+   variables below, like every other branch. Why: with `main` as the production branch, each
+   merge would build a Production deployment, which has no environment variables yet;
+   `instrumentation-node.ts` validates the server environment at startup and exits, so
+   `hoc-deu.vercel.app` would return 500. With the placeholder, `hoc-deu.vercel.app` serves no
+   deployment until 5.8 sets the Production Branch back to `main` together with the production
+   variables.
+3. Settings → General: turn on "Automatically expose System Environment Variables" — the app
    reads `VERCEL_ENV` and `VERCEL_BRANCH_URL` at runtime (decision 20, `lib/env.ts`).
-3. Deployment Protection: leave at its default.
-4. Settings → Environment Variables, scoped to **Preview**:
+4. Deployment Protection: leave at its default.
+5. Settings → Environment Variables, scoped to **Preview**:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
    - `SUPABASE_SECRET_KEY` (mark **Sensitive**)
@@ -118,9 +131,9 @@ on the hash URL exchanges its code against the wrong host and always ends at
 7. A second Google (or GitHub) account signs in and lands on `/pending` until an admin approves
    it in `/admin/users`.
 8. **(§6c)** While signed out, load the branch URL and confirm prefetches of `/` and `/dev/*`
-   behave — including Next's segment-prefetch requests (`…/.segments/….segment.rsc`) — rather than
-   erroring or redirect-looping; the proxy's public-path check must treat these the same as the
-   pages they prefetch.
+   behave — including Next's segment-prefetch requests (`/page.segments/….segment.rsc`, e.g.
+   `/sign-in.segments/….segment.rsc`) — rather than erroring or redirect-looping; the proxy's
+   public-path check must treat these the same as the pages they prefetch.
 
 ## 7. Migrations after merging (owner review SF6)
 
