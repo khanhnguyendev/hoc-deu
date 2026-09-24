@@ -73,8 +73,14 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 
 - **Server Components by default.** `'use client'` only on interactive leaf components — never on
   `page.tsx` or `layout.tsx`. Browser APIs (`window`, `localStorage`, …) only in client components.
-- Every server action and route handler calls a guard first (`requireUser`, `requireActive`,
-  `requireAdmin`, `requireBotToken`, `requireCronSecret` or `publicRoute()`).
+- Every server action, route handler and `features/*/queries.ts` loader calls a guard first
+  (`requireUser`, `requireActive`, `requireOnboarded`, `requireAdmin`, `requireDevAccess`,
+  `requireBotToken`, `requireCronSecret` or `publicRoute()`) — enforced by
+  `tools/guards/server-guards.ts` (ADR-0006). Guards `redirect()` / `notFound()` by throwing: never
+  call them inside `try`/`catch`.
+- Supabase on the server: `createClient()` (`lib/supabase/server.ts`, RLS applies) for everything
+  done for a user; `createAdminClient()` (`lib/supabase/admin.ts`, secret key) only for system, bot
+  and admin writes. `'use client'` modules never import `lib/env` or `lib/supabase/admin` (ESLint).
 - `lib/domain` is pure TypeScript: no React/Next/Supabase imports, no date library, no
   `Date.now()` / `new Date()` — `now` and `localDay` are parameters.
 

@@ -13,7 +13,12 @@ const MESSAGES = {
   uiInPages: 'Pages compose features and patterns, not ui primitives.',
   componentsInApi: 'Route handlers are thin adapters: lib/* and feature index.ts, no components.',
   domain: 'lib/domain is pure: only lib/domain and zod.',
+  clientSecrets: 'Client modules must not import server configuration or the secret-key client.',
 }
+
+// Owner review SF7: `lib/env` is deliberately not `server-only` (decision 11), so the lint rule is
+// what keeps it — and the secret-key client — out of `'use client'` modules.
+const SERVER_ONLY_TARGETS = ['lib/env', 'lib/supabase/admin']
 
 const under = (p, dir) => p === dir || p.startsWith(`${dir}/`)
 const stripIndex = (p) =>
@@ -77,10 +82,14 @@ const imports = {
   },
   create(context) {
     const file = path.relative(context.cwd, context.filename).split(path.sep).join('/')
+    const [first] = context.sourceCode.ast.body
+    const clientModule = first?.type === 'ExpressionStatement' && first.directive === 'use client'
     const check = (source) => {
       if (source?.type !== 'Literal' || typeof source.value !== 'string') return
       const to = target(source.value, file)
-      const message = to === null ? null : violation(file, to)
+      if (to === null) return
+      const clientSecret = clientModule && SERVER_ONLY_TARGETS.some((dir) => under(to, dir))
+      const message = clientSecret ? MESSAGES.clientSecrets : violation(file, to)
       if (message !== null)
         context.report({ node: source, message: `'${source.value}': ${message}` })
     }
