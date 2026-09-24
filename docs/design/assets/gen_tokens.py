@@ -108,6 +108,20 @@ css = f'''/*
 :root {{ --track: var(--track-1); --track-soft: var(--track-1-soft); --track-foreground: var(--track-on-solid); }}
 {accent_rules}
 
+/* Tailwind's default theme is cleared for every namespace these tokens own, so only token
+   utilities exist: a raw `bg-red-500`, `shadow-lg`, `text-5xl` or `font-serif` is an unknown class. */
+@theme {{
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --text-shadow-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --ease-*: initial;
+}}
+
 @theme inline {{
 {chr(10).join(theme_inline)}
 }}

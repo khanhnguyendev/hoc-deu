@@ -1,3 +1,6 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
 /*
  * Học Đều — design token spec (gate 2).
  * GENERATED from docs/design/DESIGN_SYSTEM.md §3 values; M0 copies this into app/globals.css
