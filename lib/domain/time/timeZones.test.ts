@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest'
+import { canonicalTimeZone, isValidTimeZone, timeZoneOptions } from './timeZones'
+
+describe('canonicalTimeZone', () => {
+  it('maps CLDR legacy aliases to their IANA name', () => {
+    expect(canonicalTimeZone('Asia/Saigon')).toBe('Asia/Ho_Chi_Minh')
+    expect(canonicalTimeZone('Asia/Calcutta')).toBe('Asia/Kolkata')
+    expect(canonicalTimeZone('Asia/Katmandu')).toBe('Asia/Kathmandu')
+    expect(canonicalTimeZone('Asia/Rangoon')).toBe('Asia/Yangon')
+    expect(canonicalTimeZone('Europe/Kiev')).toBe('Europe/Kyiv')
+    expect(canonicalTimeZone('Atlantic/Faeroe')).toBe('Atlantic/Faroe')
+    expect(canonicalTimeZone('America/Godthab')).toBe('America/Nuuk')
+    expect(canonicalTimeZone('Pacific/Enderbury')).toBe('Pacific/Kanton')
+    expect(canonicalTimeZone('Pacific/Truk')).toBe('Pacific/Chuuk')
+    expect(canonicalTimeZone('Pacific/Ponape')).toBe('Pacific/Pohnpei')
+    expect(canonicalTimeZone('America/Buenos_Aires')).toBe('America/Argentina/Buenos_Aires')
+  })
+
+  it('returns an IANA name unchanged', () => {
+    expect(canonicalTimeZone('Asia/Ho_Chi_Minh')).toBe('Asia/Ho_Chi_Minh')
+    expect(canonicalTimeZone('America/New_York')).toBe('America/New_York')
+  })
+})
+
+describe('isValidTimeZone', () => {
+  it('accepts a valid IANA name and a valid legacy alias', () => {
+    expect(isValidTimeZone('Asia/Ho_Chi_Minh')).toBe(true)
+    expect(isValidTimeZone('Asia/Saigon')).toBe(true)
+  })
+
+  it('rejects an unknown identifier', () => {
+    expect(isValidTimeZone('Mars/Base')).toBe(false)
+  })
+})
+
+describe('timeZoneOptions', () => {
+  const options = timeZoneOptions()
+
+  it('includes canonical IANA names', () => {
+    expect(options).toContain('Asia/Ho_Chi_Minh')
+    expect(options).toContain('Asia/Kolkata')
+  })
+
+  it('excludes legacy aliases', () => {
+    expect(options).not.toContain('Asia/Saigon')
+    expect(options).not.toContain('Asia/Calcutta')
+  })
+
+  it('is sorted and duplicate-free', () => {
+    expect(options).toEqual([...new Set(options)].sort())
+  })
+})

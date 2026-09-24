@@ -22,10 +22,10 @@ ADR-NNNN**). Until then the decision is recorded in the platform design only.
 | 0014 | Simulation-backed SRS parameters per track; mastery | 4.8 |
 | 0015 | DSA variant follows the budget; simulated finish shown | 2.10 |
 | 0016 | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
-| 0017 | Per-user day start; schedule versions effective at the next day start | 2.3 |
+| [0017](0017-day-start-and-schedule-versions.md) | Per-user day start; schedule versions effective at the next day start | 2.3 |
 | 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5 |
 | 0019 | Cache Components off in v1 | 2.6 |
-| 0020 | Intl-only time handling in `lib/domain`; no date library | 2.3 |
+| [0020](0020-intl-only-time.md) | Intl-only time handling in `lib/domain`; no date library | 2.3 |
 | [0021](0021-layer-rules-and-guards.md) | Layer rules via an in-repo ESLint rule + architecture tests; token guard | 1.10 |
 | 0022 | Daily bot: two loops, app code off-limits; weekly code Routine is future work | 7.2 |
 | 0023 | Auto-merge `claude/content-*` without an approving review (self-approval impossible) | 7.3 |
