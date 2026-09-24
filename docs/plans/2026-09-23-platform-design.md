@@ -2,8 +2,8 @@
 
 - **Date:** 2026-09-23
 - **Gate:** 1 of 3 (design doc → design system → implementation plan)
-- **Status:** all sections **approved** (2026-09-24) · final consistency pass done · awaiting the
-  owner's end-to-end review
+- **Status:** **APPROVED** (2026-09-24) after the owner's end-to-end review · next: gate 2
+  (design system)
 - **Owner:** khanhnguyendev
 - **Repo (planned):** `github.com/khanhnguyendev/hoc-deu` (public)
 
@@ -49,9 +49,11 @@ freezes.
   decks and W4–W10 core cards (Q5).
 - **v1.1 — M6–M7, the AI layer:** admin bot controls and the bot API (M6); the Routine in dry-run,
   then live after the acceptance week (M7, §6.10).
-- **Hard content constraint:** before the first learner reaches **roadmap week 4** of any track,
-  either the W4–W5 notes and pattern lessons have been written (manually), or v1.1 has shipped so
-  the content loop can fill them. `/admin` and `/admin/content` show a **red warning** for every
+- **Hard content constraint:** before the first learner reaches **roadmap week 4** of any track:
+  - the `content-verify` harness phases **M3b and M3c** are done (W4 brings linked lists and design
+    problems such as 146 LRU Cache); **and**
+  - either the W4–W5 notes and pattern lessons have been written (manually), or v1.1 has shipped so
+    the content loop can fill them. `/admin` and `/admin/content` show a **red warning** for every
   week that an active learner will reach within 14 days while its notes or lessons are missing.
 - **Rollout:**
   1. v1.0 dogfooding — the owner is the only learner for 1–2 weeks;
@@ -71,7 +73,8 @@ data model may exist (columns, defaults) but no UI or job is built.
 | Settings: tracks, minutes, DSA variant, timezone, day start, code language, theme, delete account | v1.0 | §2.4, §4.6 |
 | Light + dark mode, theme toggle | v1.0 | §2.3, §7.7 |
 | Track plugin system: manifests, roadmaps, `content:build`, MDX safety, `ids.lock`, item registry (5 types) | v1.0 | §3 |
-| Launch content (Q5) and `content-verify` harness M3a/b/c | v1.0 | §3.7 |
+| Launch content (Q5) and `content-verify` harness **M3a** (W1–W3 design-class problems 271, 155, 981 ship `compile-only`) | v1.0 | §3.7 |
+| `content-verify` harness M3b + M3c | before week 4 (§0 constraint) | §3.7 |
 | Baseline plan engine: gate rule with `seen_at`, stale-plan resume, default weekly templates, throttle with defaults, review cap + debt, recap, mock interview, "Học thêm" | v1.0 | §5.2–§5.9 |
 | Spaced repetition incl. relearn, mastery, `srs.byType` | v1.0 | §5.7 |
 | Check-in (one-tap, sheet, auto check-in), item results, review modes (recall/redo), review page | v1.0 | §5.5 |
@@ -80,8 +83,9 @@ data model may exist (columns, defaults) but no UI or job is built.
 | Event log, derived state, replay (incl. reserved `item.snapshot`), `rules_version`, learner write quota | v1.0 | §4 |
 | Simulation test + projection table | v1.0 | §5.10, §5.11 |
 | Admin overview + warnings (DB size, backups, content coverage red warning), `/admin/content` (coverage, verification, drafts list) | v1.0 | §2.4, §8.4 |
-| Incremental backups + restore test; daily maintenance cron (DB size, stale-run sweep once v1.1 exists) | v1.0 | §2.3 |
-| Upstash rate limits for OAuth callback, account deletion, admin actions | v1.0 | §2.3 |
+| Simple backups: full daily encrypted dump + weekly restore test | v1.0 | §2.3 |
+| Incremental, derived-free backup chain | when the DB exceeds 100 MB | §2.3 |
+| Daily maintenance cron (DB size, quota-table pruning; bot and publish sweeps once v1.1 exists) | v1.0 | §2.3 |
 | Component library, `/dev/components`, token guard, axe checks | v1.0 | §7 |
 | CI: `ci`, `content-build`, `content-verify`; privacy text and account deletion | v1.0 | §4.6, §6.6 |
 | AI flag toggle in admin, "AI-personalized" mode badge | v1.1 | §6 |
@@ -94,7 +98,7 @@ data model may exist (columns, defaults) but no UI or job is built.
 | Routine, `pnpm bot` CLI, GitHub Actions fallback runner | v1.1 | §6.7–§6.9 |
 | Content PR loop: `content-signals`, `path-guard`, `bot-content-policy`, auto-merge, stale-PR closer | v1.1 | §6.6 |
 | Publish flow: publish requests, publish runs, "Xuất bản", "Chạy ngay", public publish-requests endpoint (v1.0 publishes drafts with a one-line edit) | v1.1 | §6.6 |
-| Upstash rate limit for the bot API | v1.1 | §2.3 |
+| Upstash rate limits (bot API, OAuth callback, account deletion, admin actions). v1.0 runs without them — sign-up is gated by manual approval | v1.1 | §2.3 |
 | Editing UI for weekly templates and throttle thresholds (v1.0 uses defaults; columns exist) | later | §4.1, §5.4, §5.5 |
 | `include_bonus` toggle (default false) | later | §5.3 |
 | Event compaction job (trigger: 350 MB warning) | later | §4.7 |
@@ -179,7 +183,7 @@ Browser ──► proxy.ts  (Supabase session refresh; signed-out → /sign-in. 
    │       ├──► Server Components  (read with the user's JWT; RLS applies) ──► Supabase Postgres
    │       └──► Server actions: DAL → Zod → lib/domain (pure TS) → rpc apply_event ──┘
    │       (learner write quota: BEFORE INSERT trigger on events, §4.5)
-   │  Upstash rate limit: bot API, OAuth callback, deletion, export, admin (fails open)
+   │  Upstash rate limit (v1.1): bot API, OAuth callback, deletion, admin (fails open)
    │
 content/** ──► pnpm content:build (Zod + cross-reference + MDX safety) ──► generated catalog (bundled)
 
@@ -191,9 +195,9 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
 
 - **Stack:** Next.js 16 App Router on Vercel Hobby (Node runtime, Fluid compute), TypeScript strict,
   pnpm, Tailwind CSS v4, shadcn/ui, MDX via `@next/mdx`, Zod, Supabase (Postgres + Auth + RLS) via
-  `@supabase/ssr`, Upstash Redis (rate limits for the bot API, OAuth callback, account deletion,
-  admin actions and — when built — data export; learner writes use a Postgres quota), Vitest,
-  Playwright + axe, GitHub Actions.
+  `@supabase/ssr`, Upstash Redis (from v1.1: rate limits for the bot API, OAuth callback, account
+  deletion, admin actions and — when built — data export; learner writes use a Postgres quota),
+  Vitest, Playwright + axe, GitHub Actions.
 - **Version pins (from research, 2026-09-23):** TypeScript 6.0.x (typescript-eslint does not
   support TS 7), ESLint 9.39.x (Next's ESLint plugins declare ≤ 9), Node 22.12+ (Vitest 5 and
   supabase-js require it). `next-mdx-remote` is archived — not used.
@@ -244,27 +248,39 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   the email provider disabled.
 - **Today's plan** is created on first visit by an idempotent `ensurePlan` (§5.4). No cron job for
   baseline plans.
-- **Baseline vs AI plan precedence:** `day_plans.source` is `baseline | ai`. If a baseline plan
-  exists with zero checked-in blocks, the bot's AI plan replaces it (`version + 1`); once any block
-  is checked in, the existing plan stays and the bot records `skipped_plan_in_use`. `ensurePlan`
-  and `apply_system_event` implement this atomically under one advisory lock (§4.4).
+- **Baseline vs AI plan precedence (v1.1):** `day_plans.source` is `baseline | ai`. The bot's AI
+  plan may replace a baseline plan only if the plan is **untouched** — no block check-in **and**
+  no event carrying its `plan_id` (`item.result`, `lesson.completed`, `exercise.submitted`,
+  `prompt.completed`, `item.skipped`, `plan.extra_added`). Early risers in Vietnam (04:00–05:30)
+  and far-west users can be mid-item with results recorded but nothing checked in; their plan is
+  not touched. Otherwise the bot records `skipped_plan_in_use`. A replacement keeps the plan's
+  `seen_at` and bumps `version`. `ensurePlan` and `apply_system_event` implement this atomically
+  under one advisory lock (§4.4).
 - **Day boundary:** per-user `day_starts_at` (default 04:00 local). The local date, gate rule,
   streak and `ensurePlan` all use it through one `localDay()` function (§5.1). The bot runs after
   the rollover (§6.8).
 - **Cache Components** stay off in v1 (every screen is per-user and dynamic). Recorded as an ADR.
 - **URLs are English; all UI text is Vietnamese** (technical terms stay English). Strings live in
   `lib/i18n/vi.ts` — no i18n library.
-- **Backups (incremental, derived-free):**
-  - A daily GitHub Actions job at 22:00 UTC (05:00 Asia/Ho_Chi_Minh) runs as a dedicated read-only
-    role `backup_reader`.
+- **Backups — v1.0 (simple):** a daily GitHub Actions job at 22:00 UTC (05:00 Asia/Ho_Chi_Minh)
+  runs a full `pg_dump` as a dedicated read-only role `backup_reader`, encrypted with `age` (same
+  recipients, environment, artifact retention and public-artifact caution as below), plus the
+  weekly restore test (restore the latest dump into a Postgres service container, run the same
+  checks). At 1–10 learners the database is small (~35–80 MB), so daily full dumps cost
+  ~1–2.5 GB/month of egress. `/admin` warns at **100 MB: switch to the incremental chain** (a
+  daily full dump would then cost ~3 GB/month).
+- **Backups — incremental, derived-free chain (when the DB exceeds 100 MB):**
+  - Same daily job and `backup_reader` role.
   - **Derived tables** (`item_state`, `plan_block_state`, `daily_activity`) are **never backed
     up** — they are rebuilt by replaying events.
   - **Weekly full** (Sunday): every non-derived table, including all of `events`.
   - **Daily incremental** (Monday–Saturday): the small state tables (`profiles`,
-    `schedule_versions`, `user_tracks`, `day_plans`, `user_items`, `roadmap_overrides`,
-    `content_publish_requests`, bot tables) in full, plus `COPY` of events with `occurred_at`
-    after the previous backup's watermark (1-hour overlap; duplicates are removed by event `id` on
-    restore). Each artifact carries a small manifest: watermark, row counts and aggregate
+    `schedule_versions`, `user_tracks`, `user_items`, `roadmap_overrides`,
+    `content_publish_requests`, bot tables) in full; `COPY` of events with `occurred_at` after the
+    previous backup's watermark; and `COPY` of `day_plans` rows with `updated_at` after the
+    watermark (`day_plans` is mutable and grows ~55 MB/year at 100 learners, so it is incremental
+    too). 1-hour overlap; duplicates are resolved by `id` on restore (latest `updated_at` wins for
+    plans). Each artifact carries a small manifest: watermark, row counts and aggregate
     checksums (no personal data).
   - Encrypted with `age` for two recipients: the owner's offline key and a separate restore-test
     key.
@@ -282,7 +298,8 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   - `/admin` shows the latest backup and restore-test status, read from the public GitHub API.
   - Anyone signed in to GitHub can download artifacts of a public repo — that is why every
     artifact is encrypted before upload.
-  - Egress at 100 daily learners: ~0.5 GB/month (full daily dumps would be ~9 GB, §8).
+  - Egress at 100 daily learners by month 12: ~1.3 GB/month, dominated by the weekly fulls (full
+    daily dumps would be ~9 GB, §8).
 - **Daily maintenance cron** (`/api/cron/maintenance`, Vercel cron once a day): requires
   `Authorization: Bearer CRON_SECRET`; **idempotent** and tolerant of Hobby's imprecise timing
   (it may run anywhere in its hour, and running twice or skipping a day is harmless). It marks
@@ -290,14 +307,19 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   publish requests, clears `pr_url` of publish requests whose PR was closed unmerged (public GitHub
   API), and records DB size in `ops_metrics`. It never generates plans. It is the guaranteed sweep;
   the same housekeeping also happens lazily on read where noted (§6.2, §6.6). The event compaction
-  job (§4.7) will be added here only when needed.
-- **Rate limits (Upstash, sliding window, fail open):** bot API 120 / 10 min per token; OAuth
-  callback 20 / 10 min per IP; account deletion 3 / day per user; admin actions 60 / min per admin;
-  data export (when built) 5 / day per user. Fail-open events are counted in `ops_metrics`.
+  job (§4.7) will be added here only when needed. It also deletes `event_quota` rows older than
+  2 days (§4.5).
+- **Rate limits (Upstash, from v1.1; sliding window, fail open):** bot API 120 / 10 min per token;
+  OAuth callback 20 / 10 min per IP; account deletion 3 / day per user; admin actions 60 / min per
+  admin; data export (when built) 5 / day per user. Fail-open events are counted in `ops_metrics`.
+  v1.0 has no Upstash: sign-up is gated by manual approval, and learner writes are capped by the
+  Postgres quota (§4.5).
 - **`/api/health`** returns only `200 {"ok":true}` or `503 {"ok":false}` (cheap DB query). No
   versions or dependency details.
 
 ### 2.4 Route map
+
+Every row is v1.0 unless marked **(v1.1)**.
 
 | Route | Access | Purpose |
 | --- | --- | --- |
@@ -309,21 +331,23 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
 | `/today?block=<id>` | active | Opens the check-in sheet for a block (deep-linkable, back button works) |
 | `/review` (`?track=`) | active | Cross-track review queue, Weak items first |
 | `/tracks` | active | My tracks and available tracks |
-| `/t/[trackId]` | active | Track overview: roadmap weeks, progress, topics/decks, weak items; a "Mục riêng" tab lists the learner's custom items for the track (study, hide) whenever they have any — even with the AI flag off |
+| `/t/[trackId]` | active | Track overview: roadmap weeks, progress, topics/decks, weak items; **(v1.1)** a "Mục riêng" tab lists the learner's custom items for the track (study, hide) whenever they have any — even with the AI flag off |
 | `/t/[trackId]/items/[itemId]` | active | **One route for every item type**, rendered via the item-type registry (§3.2) — including the user's own `user:` items (RLS-scoped) |
 | `/progress` | active | Calendar heatmap + weekly summary |
 | `/settings` | active | Tracks, minutes, DSA variant (with the simulated finish), timezone, day start, code language, theme, delete account; the weekly template and throttle are shown read-only (editing UI: later). v1.1 adds notes sharing and, for AI users, "Điều chỉnh lộ trình bởi AI" (revoke overrides) |
 | `/admin` | admin | Overview and warnings: DB size ≥ 350 MB (warn) / ≥ 450 MB (critical), last backup and restore-test age, **red: weeks reached within 14 days without notes or lessons**, Upstash fail-open count, deferred AI users and bot health (v1.1) |
-| `/admin/users` | admin | Approval queue, role, suspend, AI flag |
-| `/admin/bot` | admin | Kill switch, dry-run, content proposals, per-run cap + deferred-users warning, token rotation, run log with content PR links |
+| `/admin/users` | admin | Approval queue, role, suspend; **(v1.1)** AI flag control |
+| `/admin/bot` **(v1.1)** | admin | Kill switch, dry-run, content proposals, per-run cap + deferred-users warning, token rotation, run log with content PR links |
 | `/admin/content` | admin | Catalog stats, verification counts, coverage by week with a **red warning** for weeks an active learner will reach within 14 days without notes or lessons, draft tracks, drafts awaiting publish ("Xuất bản" button in v1.1, §6.6) |
 | `/dev/components` | dev + preview; admin-only in prod | Component catalog |
-| `/api/bot/v1/*` | bot token | Bot contract (§6) |
+| `/api/bot/v1/*` **(v1.1)** | bot token | Bot contract (§6) |
 | `/api/health` | public | ok / fail |
 | `/api/cron/maintenance` | `CRON_SECRET` | Daily housekeeping (§2.3) |
-| `/api/content/publish-requests` | public | Targets (item IDs, or `<itemId>#note`) with a pending admin publish request (used by the `bot-content-policy` CI check); nothing else |
+| `/api/content/publish-requests` **(v1.1)** | public | Targets (item IDs, or `<itemId>#note`) with a pending admin publish request (used by the `bot-content-policy` CI check); nothing else |
 
 ### 2.5 Environment variables and admin bootstrap
+
+Every variable is v1.0 unless marked **(v1.1)**.
 
 | Variable | Where | Purpose |
 | --- | --- | --- |
@@ -331,16 +355,16 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel, public | Browser key (RLS applies) |
 | `NEXT_PUBLIC_SITE_URL` | Vercel, public | Canonical site URL (OAuth redirects, absolute links) |
 | `SUPABASE_SECRET_KEY` | Vercel, server | `sb_secret_…` for `lib/supabase/admin.ts` (system, bot and admin writes) |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Vercel, server | Rate limits |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` **(v1.1)** | Vercel, server | Rate limits |
 | `ADMIN_EMAILS` | Vercel, server | Comma-separated bootstrap admin emails |
-| `BOT_API_ENABLED` | Vercel, server | Hard kill switch for the bot API |
-| `BOT_REF_SECRET` | Vercel, server | HMAC key for per-run user refs (§6.3) |
-| `ROUTINE_FIRE_URL`, `ROUTINE_FIRE_TOKEN` | Vercel, server | "Chạy ngay" trigger (§6.3) |
+| `BOT_API_ENABLED` **(v1.1)** | Vercel, server | Hard kill switch for the bot API |
+| `BOT_REF_SECRET` **(v1.1)** | Vercel, server | HMAC key for per-run user refs (§6.3) |
+| `ROUTINE_FIRE_URL`, `ROUTINE_FIRE_TOKEN` **(v1.1)** | Vercel, server | "Chạy ngay" trigger (§6.3) |
 | `CRON_SECRET` | Vercel, server | Maintenance cron auth |
 | `AUTH_TEST_LOGIN` | local / CI only | Test login; startup fails if set in production |
 | `SUPABASE_BACKUP_DB_URL`, `BACKUP_RESTORE_KEY` (+ `BACKUP_AGE_RECIPIENTS` as a variable) | GitHub env `backup` | Backups and restore test (§2.3) |
-| `CLAUDE_CODE_OAUTH_TOKEN`, `BOT_API_TOKEN` | GitHub env `bot` | Fallback runner (§6.9) |
-| Bot token as an API credential | Routine environment | Routine → bot API (§6.3) |
+| `CLAUDE_CODE_OAUTH_TOKEN`, `BOT_API_TOKEN` **(v1.1)** | GitHub env `bot` | Fallback runner (§6.9) |
+| Bot token as an API credential **(v1.1)** | Routine environment | Routine → bot API (§6.3) |
 
 **Admin bootstrap:** on each sign-in the auth callback (server) compares the provider-verified email
 with `ADMIN_EMAILS`. On a match, if the profile is not yet an admin, it calls
@@ -574,7 +598,9 @@ alternatives:                           # required when premium: true (at least 
 - **Problem note** (`note.mdx`): key idea · complexity · `<Solution />` (3-language tabs, hidden
   until revealed; code comes from the solution files, syntax-highlighted at build time) ·
   `<Bilingual vi en />` one-liner (becomes the derived "Explaining code" card) · verification badge
-  (`tested` / `compile-only`).
+  (`tested` / `compile-only`). A **bot-written** note's badge reads **"tested (bot tests)"** until it
+  is published: the same bot wrote the solution and `tests.yaml`, so passing proves consistency,
+  not correctness.
 - **Deep-dive:** a lesson with `format: deep-dive, about: dsa:lc-XXXX`. The catalog builds a
   reverse lookup problem → deep-dive; the problem page shows the link. Adding one = adding one file.
 
@@ -684,10 +710,13 @@ Runs first in `pnpm verify` and in the build.
   `unordered-nested`, `float{tolerance}`, `in-place{arg}`, `validator{name}`.
 - **Validators** (e.g. `topological-order`) live in `tools/content-verify/validators/`, outside
   `content/**`. A new validator is a normal code PR; the bot cannot add executable check code.
-- **Phases** (inside M3):
-  - M3a: numbers, strings, arrays, nested arrays
-  - M3b: linked lists, trees, graph nodes, random-pointer lists
-  - M3c: design-class problems as operation sequences
+- **Phases:**
+  - M3a (v1.0, inside M3): numbers, strings, arrays, nested arrays. The W1–W3 design-class
+    problems (271, 155, 981) ship `compile-only`.
+  - M3b: linked lists, trees, graph nodes, random-pointer lists — before any learner reaches
+    week 4 (§0).
+  - M3c: design-class problems as operation sequences — before week 4 as well (146 LRU Cache is
+    a W4 problem).
 - Until a problem's signature is supported it falls back to **compile-only** (Python syntax check,
   `javac`, `go vet`) plus a signature check. The harness decides `verification: tested |
   compile-only`; CI prints the counts (e.g. `tested 27 · compile-only 3`).
@@ -770,8 +799,9 @@ All in the `public` schema with RLS on.
   (recap blocks)
 - `roadmap_weeks` jsonb (per-track week snapshot); `rationale` (AI only); `bot_run_id`;
   `rules_version`
-- `seen_at` — set on the first render of `/today` for this plan (§5.2); the gate only considers
-  seen plans
+- `seen_at` — set when `/today` first renders this plan in the browser (§5.2); the gate only
+  considers seen plans; kept when an AI plan replaces a baseline plan
+- `updated_at` — maintained by a trigger; used by the incremental backup (§2.3)
 
 **`item_state`** (derived)
 
@@ -786,6 +816,13 @@ All in the `public` schema with RLS on.
 
 - PK `(plan_id, block_id)`; `user_id` (copied in for RLS)
 - `status` done / partial / skipped; `minutes`; `note`; `auto` bool; `checked_in_at`
+
+**`event_quota`** (internal — §4.5)
+
+- PK `(user_id, local_day)`; `count` int
+- RLS on with **no policies and no grants to `authenticated`**: learners can neither read nor write
+  it. Only the `SECURITY DEFINER` quota trigger touches it. Not backed up and not needed for
+  replay; the maintenance cron deletes rows older than 2 days.
 
 **`user_items`** (per-user custom items, AI users only — §5.12, §6.4.4)
 
@@ -808,7 +845,6 @@ All in the `public` schema with RLS on.
 
 - PK `(user_id, local_day)`
 - `minutes_by_track` jsonb, `items_done`, `completed` bool
-- `learner_events` int — counter maintained by the events quota trigger (§4.5)
 - **`completed` = at least one block checked in as `done` or `partial` on that local day.**
   Used by the gate rule (§5.2) and the streak (§5.7). Item results alone do not set it
   (but see off-plan study, §5.9).
@@ -860,6 +896,7 @@ All in the `public` schema with RLS on.
     readers `admin_user_overview()`, `admin_content_coverage()`, `admin_activity_stats()`.
 - **Indexes:**
   - `events (user_id, occurred_at)`
+  - `events (plan_id) where plan_id is not null` (the untouched-plan check, §2.3)
   - `item_state (user_id, due_on)`
   - `daily_activity (user_id, local_day)` (the PK)
   - implied unique indexes: `events (id)`, `day_plans (user_id, plan_date)`,
@@ -927,7 +964,8 @@ All in the `public` schema with RLS on.
   transaction; a version mismatch aborts. The server action then reloads, recomputes and
   retries (max 3).
 - Both `apply_event` and `apply_system_event` take `pg_advisory_xact_lock(user, plan_date)` for
-  plan-related events, instead of `SELECT … FOR UPDATE` (which would need an UPDATE grant on
+  plan-related events — every event that carries a `plan_id`, so a learner's item result and the
+  bot's replacement check cannot interleave — instead of `SELECT … FOR UPDATE` (which would need an UPDATE grant on
   `day_plans` for `authenticated`).
 
 ### 4.5 RLS and write rules
@@ -940,13 +978,15 @@ All in the `public` schema with RLS on.
   `source = 'learner'`, and **computes `local_day` in the database** from `schedule_versions`
   (`(occurred_at at time zone tz − day_starts_at)::date`) — never taken from input. A parity test
   runs the same fixtures through the SQL function and TypeScript `localDay()`.
-- **Learner write quota** — a `BEFORE INSERT` trigger on `events`, so direct inserts cannot bypass
-  it: for learner events it increments `daily_activity.learner_events` for `(user_id, local_day)`
-  with an upsert (`… on conflict do update set learner_events = learner_events + 1 returning`,
-  which also serializes concurrent inserts for that user-day) and raises `quota_exceeded` above
-  **500 per local day**. No `count(*)`. `apply_event` turns it into a friendly message:
-  "Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai." System, bot and admin
-  events are not counted.
+- **Learner write quota** — a `BEFORE INSERT` trigger on `events`, declared `SECURITY DEFINER`,
+  so direct inserts cannot bypass it: for learner events it increments `event_quota.count` for
+  `(user_id, local_day)` with an upsert (`… on conflict do update set count = count + 1
+  returning`, which also serializes concurrent inserts for that user-day) and raises
+  `quota_exceeded` above **500 per local day**. No `count(*)`. The counter lives in `event_quota`,
+  which learners cannot read or write — not in `daily_activity`, which is learner-writable and
+  which `apply_event` upserts. `apply_event` turns the error into a friendly message: "Bạn đã ghi
+  nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai." System, bot and admin events are
+  not counted.
 - **`profiles`:** read own row. Created with status `pending` by a trigger on `auth.users`; users
   cannot insert. `onboarded_at` is set only through `apply_system_event('onboarding.completed')`. Users can update only `display_name`, `avatar_url`, `code_language`,
   `share_notes_with_ai` (column-level grants; `share_notes_with_ai` is only settable while
@@ -1024,10 +1064,13 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
 
 ### 5.2 Gate rule
 
-- **Seen plans.** `day_plans.seen_at` is set the first time `/today` renders that plan
-  (`mark_plan_seen(plan_id)`: idempotent `seen_at = coalesce(seen_at, now())`, checks
-  `auth.uid()`). Baseline plans are created on a visit, so they are seen immediately; AI plans are
-  pre-created by the bot and may never be seen.
+- **Seen plans.** `day_plans.seen_at` is set only when `/today` has rendered the plan **in the
+  browser**: a small client component `<MarkPlanSeen planId>` calls the `markPlanSeen` server
+  action from `useEffect` after mount (`mark_plan_seen(plan_id)`: idempotent
+  `seen_at = coalesce(seen_at, now())`, checks `auth.uid()`). `ensurePlan` never marks plans seen —
+  it is also called by "Học thêm" and settings rebuilds — and a Next.js prefetch never runs
+  effects, so it cannot mark a plan seen either. AI plans are pre-created by the bot and may never
+  be seen.
 - **Last planned day** = the most recent `day_plans` row with `plan_date < today` **and
   `seen_at` not null**. An unseen AI plan for a past date is simply ignored. This keeps AI users
   and baseline users on the same rule: skipping a day never closes the gate on a plan the user
@@ -1083,14 +1126,15 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
 
 `ensurePlan(user, localDay)`:
 
-1. If a plan exists for `localDay` → return it (idempotent) and mark it seen.
+1. If a plan exists for `localDay` → return it (idempotent).
 2. If `localDay < start_date` for every track → return "Bắt đầu vào {date}".
 3. If the gate is closed → return the paused state (§5.2), with the "Học tiếp hôm nay" offer when
    the last seen plan is more than 2 local days old.
 4. Otherwise `buildPlan(ctx)` → `apply_system_event('plan.generated')` with
-   `insert … on conflict (user_id, plan_date) do nothing` → re-read, mark seen, return.
-5. AI users: if the bot already wrote today's AI plan, step 1 returns it. If a baseline plan is
-   created first, the bot may replace it only while it has zero check-ins (§6).
+   `insert … on conflict (user_id, plan_date) do nothing` → re-read, return. (Marking seen happens
+   in the browser, §5.2.)
+5. AI users (v1.1): if the bot already wrote today's AI plan, step 1 returns it. If a baseline plan
+   is created first, the bot may replace it only while it is **untouched** (§2.3).
 
 **Default weekly templates** (`minutes` = fixed block length, `maxMinutes` = cap). Stored per
 user in `user_tracks.weekly_template`; v1.0 always uses these defaults and the editing UI comes
@@ -1156,8 +1200,8 @@ quick recall 5 min, redo ×0.6 of new; lesson 25; card 1.5 new / 0.5 review; exe
 shadowing 3; prompt 10 (mock interview 45, weekend task 15).
 Could-have: calibrate estimates per user from check-in minutes.
 
-**Settings changes** (budget, template, tracks) apply to today's plan only if it has zero
-check-ins: the plan is rebuilt with `version + 1`. **For AI users the rebuilt plan is a baseline
+**Settings changes** (budget, template, tracks) apply to today's plan only if it is **untouched**
+(no check-in and no event carrying its `plan_id`, §2.3): the plan is rebuilt with `version + 1`. **For AI users the rebuilt plan is a baseline
 plan** (`source` changes to `baseline`); the bot does not re-run that day. Otherwise changes apply
 from the next plan.
 
@@ -1202,7 +1246,8 @@ from the next plan.
 - **English Sunday:** the active prompt with `tag: weekend-task` and `week` = the current roadmap
   week (e.g. "record a 1-minute stand-up update"), then reviews.
 - **Shadowing (English weekdays):** renders 3 example sentences from today's new cards to read
-  aloud; completion only.
+  aloud; when today has no new cards (e.g. the throttle is at 0), it uses the most recently
+  introduced cards instead. Completion only.
 - **Exercise (English weekdays):** the next not-yet-introduced active exercise whose `week` is the
   current roadmap week (file order); when none is left, the introduced exercise with the worst last
   grade, oldest first. AI users' custom exercises can be placed here by overrides or AI
@@ -1277,7 +1322,7 @@ Level `L` is 1…N (N = number of intervals); the interval for level L is `inter
 | **Off-plan study while the gate is closed** | Attached to the last seen (paused) plan's `extra` block → reopens the gate; the next plan comes the next local day. |
 | **Timezone change** | Recorded as a new `schedule_versions` row effective at the **next day start** in the old timezone. Moving west can repeat a local date → `ensurePlan` returns the existing plan. Moving east can skip a date → the gate uses the last seen *plan*, not the calendar; the streak ignores a single date skipped by a schedule change. |
 | **Day-start change** | Same mechanism as timezone changes. |
-| **Adding a track mid-way** | Starts at the first item of the chosen variant; included today if today's plan has zero check-ins, otherwise from the next plan. |
+| **Adding a track mid-way** | Starts at the first item of the chosen variant; included today if today's plan is untouched (§2.3), otherwise from the next plan. |
 | **Removing a track** | Excluded from plans, due lists, weak areas and summaries. History is kept; re-adding resumes from the introduced set. "Bắt đầu lại" emits `track.reset`, which clears that track's derived rows (events stay; replay honors the reset). |
 | **Switching 10w ↔ 8w** | Introduced set is kept; queue follows the new order. |
 | **Content added / reordered** | Not-introduced items flow into the queue in roadmap order; the roadmap week (core-based) does not move back. |
@@ -1670,8 +1715,8 @@ Validation (any failure → `invalid` with `details`, logged, nothing written):
 6. `rationale` is plain text (markup stripped), ≤ 280 chars.
 
 Then `apply_system_event('plan.ai_proposed')` applies the §2.3 precedence rule atomically under
-the advisory lock: no plan → insert; baseline with zero check-ins → replace (`version + 1`);
-otherwise → `skipped_plan_in_use`.
+the advisory lock: no plan → insert; **untouched** baseline plan (no check-in and no event carrying
+its `plan_id`) → replace (`version + 1`, `seen_at` kept); otherwise → `skipped_plan_in_use`.
 
 #### 6.4.4 `PUT /runs/{runId}/users/{userRef}/custom-items` — per-user items
 
@@ -1810,7 +1855,10 @@ loop.
        returns targets only).
 - **No approving review is required** — see ADR below. Owner PRs follow the same checks.
 - **Publishing (should-have): "Publish" button.** `/admin/content` lists draft items (bot or not)
-  with a link to the merged PR.
+  with a link to the merged PR. For a bot-written note the admin **publish checklist** includes:
+  the `tests.yaml` examples match the LeetCode examples; the explanation and complexity are
+  correct; the bilingual one-liner reads naturally. Publishing turns the badge from "tested (bot
+  tests)" into "tested".
   - "Xuất bản" records a `content_publish_requests` row (target = item ID or `<itemId>#note`).
     **Creating requests is admin-only**; the app holds **no GitHub write token**.
   - A **publish run** (§6.2) — started by "Chạy ngay" (the Routine's `/fire` trigger) or by the next
@@ -1866,9 +1914,10 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
   per account"). Routines are a research preview — limits may change (§9).
 - **Target date:** each user's current local day at run time. For far-west users (e.g. UTC−7,
   where 22:30 UTC is mid-afternoon) the AI plan arrives after their day has started: if they have
-  already checked in, the bot records `skipped_plan_in_use`; if not, their baseline plan — even one
-  they have already opened — is replaced (§2.3 precedence) and the page shows the AI plan on the
-  next load. Accepted v1 limitation (ADR-0028).
+  any activity on their plan (a check-in or any event carrying its `plan_id`), the bot records
+  `skipped_plan_in_use`; if the plan is untouched — even if already opened — it is replaced (§2.3
+  precedence, `seen_at` kept) and the page shows the AI plan on the next load. Accepted v1
+  limitation (ADR-0028).
 - **Repository:** only `hoc-deu`, cloned fresh from `main` each run.
 - **Setup script:** `corepack enable && pnpm install --frozen-lockfile` (cached by the environment).
 - **Network:** access level **Custom**, allowed domain `hoc-deu.vercel.app`, plus the default list
@@ -1911,8 +1960,11 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
   lifecycle (pending → `pr_url` → merged; closed PR → retry).
 - Property tests: any accepted override set keeps every core item in the queue exactly once and
   keeps the budget invariant (§5.12).
-- pgTAP: `apply_system_event` precedence under a concurrent check-in; RLS on `user_items` and
-  `roadmap_overrides` (owner read-only, no writes from `authenticated`).
+- pgTAP: `apply_system_event` precedence — a plan with an `item.result` (or any other event
+  carrying its `plan_id`) but no check-in is **not** replaced; an untouched plan is replaced and
+  keeps `seen_at`; a concurrent item result and replacement serialize on the advisory lock. RLS on
+  `user_items` and `roadmap_overrides` (owner read-only, no writes from `authenticated`) and on
+  `event_quota` (no access at all).
 - Workflow tests: a fixture PR from a `claude/content-*` branch touching `lib/` fails
   `path-guard`; a fork PR named `claude/content-x` never gets auto-merge enabled; a new bot lesson
   marked `active` fails `bot-content-policy`; a draft→active flip without a publish request fails
@@ -2199,12 +2251,12 @@ size; Vercel and Supabase dashboards show the rest).
 | **Vercel** deployments · 100/day | 2–5/day | 2–5/day | 2–5/day | Dev pushes + ≤ 1 bot content PR + publish PRs |
 | **Vercel** cron · daily only | 1 job | 1 job | 1 job | Maintenance only (§8.4) |
 | **Supabase** DB size · 500 MB (read-only above) | ~35 MB | ~80 MB | ~530 MB/yr raw → **~330 MB with compaction** | Needs §8.4 before ~month 10 at 100 DAU |
-| **Supabase** egress · 5 GB/mo | < 0.1 GB | ~0.2 GB | ~1.6 GB app + backups | Daily full dumps would exceed the limit → incremental backups (§8.4) |
+| **Supabase** egress · 5 GB/mo | ~1 GB (v1.0 daily full dumps) | ~2.6 GB (v1.0 daily full dumps at ~80 MB) | ~1.6 GB app + ~1.3 GB incremental chain (month 12) ≈ 2.9 GB (58 %) | Switch to the incremental chain at 100 MB (§2.3); daily full dumps at 300 MB would be ~9 GB |
 | **Supabase** Auth MAU · 50,000 | 1 | 10 | 100 | |
 | **Supabase** projects · 2 active | 2 of 2 | 2 of 2 | 2 of 2 | prod + staging (previews); no spare |
 | **Supabase** pausing · ~1 week inactive | at risk | low | none | Daily backup + bot keep prod active; staging may pause (restorable) |
-| **Upstash** commands · 500 K/mo | < 1 K | ~2 K | ~8 K (2 %) | Only if learner writes are **not** rate-limited in Upstash (§8.4); otherwise ~315 K (63 %) |
-| **Upstash** data · 256 MB | ~0 | ~0 | < 1 MB | Rate-limit keys only |
+| **Upstash** commands · 500 K/mo | 0 (v1.0) | ~2 K (v1.1) | ~8 K (2 %, v1.1) | Learner writes are never rate-limited in Upstash (§8.4); otherwise ~315 K (63 %) |
+| **Upstash** data · 256 MB | 0 (v1.0) | ~0 | < 1 MB | Rate-limit keys only |
 | **GitHub Actions** (public repo) · standard runners free | ~1,100 min/mo | same | ~1,400 min/mo | Would even fit the 2,000-min private allowance |
 | **GitHub Actions** artifact storage | ~0.5 GB | ~1 GB | ~3 GB | **Verify in M0** whether public-repo artifact storage is unlimited; if not, keep 14 daily + 8 weekly |
 | **Claude Code Routine** runs · Pro 5 / Max 15 / day | 1–2/day | 1–2/day | 1–3/day | 1 plan run + occasional publish runs; usage counts against the owner's subscription |
@@ -2229,20 +2281,27 @@ size; Vercel and Supabase dashboards show the rest).
    - restore chain = latest weekly full + every daily since; weekly fulls are kept at least as long
      as any daily that depends on them; the weekly restore test restores the **full chain** and
      rebuilds derived tables by replay (details in §2.3);
-   - egress at 100 users: ~0.5 GB/month instead of ~9 GB. Encryption and storage stay as approved.
+   - `day_plans` is backed up incrementally by `updated_at` as well (it is mutable and grows);
+   - egress at 100 users: ~1.3 GB/month by month 12 (weekly fulls dominate) instead of ~9 GB.
+     Encryption and storage stay as approved.
+   - **Rollout:** v1.0 starts with simple daily full dumps; the chain is switched on when the
+     database exceeds 100 MB (§2.3).
 2. **Learner write quotas in Postgres, not Upstash** (amends §2.1 / §6.2): at most 500 learner
-   events per user per local day, enforced by a `BEFORE INSERT` trigger on `events` using a
-   counter on `daily_activity` (no `count(*)`); `apply_event` shows a friendly error (§4.5).
-   Upstash rate-limits only the bot API, the OAuth callback, account deletion, admin actions and
-   (when built) data export.
+   events per user per local day, enforced by a `SECURITY DEFINER` `BEFORE INSERT` trigger on
+   `events` using a counter in the internal `event_quota` table, which learners cannot read or
+   write (no `count(*)`); `apply_event` shows a friendly error (§4.5). From v1.1, Upstash
+   rate-limits only the bot API, the OAuth callback, account deletion, admin actions and (when
+   built) data export.
 3. **Daily maintenance cron** (Vercel Hobby allows one daily job; `/api/cron/maintenance`,
    protected by `CRON_SECRET`, idempotent, tolerant of imprecise timing): sweeps timed-out bot
-   runs, prunes `bot_run_users.detail` older than 30 days, marks merged publish requests, records
-   DB size. No plan generation happens in cron — plans stay lazy.
+   runs, prunes `bot_run_users.detail` older than 30 days, marks merged publish requests, deletes
+   `event_quota` rows older than 2 days, records DB size. No plan generation happens in cron —
+   plans stay lazy.
 4. **Event compaction after 180 days** (amends §4.7) — **design approved, implementation
    deferred:** `item.snapshot` is reserved and replay handles it in M4; the compaction job is built
    only when the 350 MB DB-size warning fires (ADR-0031).
-5. **Admin warnings** (`/admin`): DB size ≥ 350 MB (warn) / ≥ 450 MB (critical); last backup and
+5. **Admin warnings** (`/admin`): DB size ≥ 100 MB (switch backups to the incremental chain),
+   ≥ 350 MB (warn) / ≥ 450 MB (critical); last backup and
    restore test age; red warning for weeks reached within 14 days without notes or lessons (§0);
    deferred AI users (v1.1); Upstash errors (fail-open count).
 
@@ -2282,7 +2341,7 @@ warning fires around month 8).
 | R13 | Content volume (110 notes × 3 languages, 14 lessons, ~300 cards) delays launch or leaves learners at week 4 without notes | High | Medium | Phased content (W1–W3 first); hard constraint: W4–W5 written manually or v1.1 shipped before any learner reaches week 4, with a red admin warning (§0); v1.1 content loop |
 | R14 | Single maintainer; no second reviewer possible | High | Medium | CI as the gate, ADRs, `CLAUDE.md`, small reviewable commits |
 | R15 | Supabase free project pauses (dev phase) | Medium | Low | Daily backup and bot activity; documented restore steps |
-| R16 | GitHub disables scheduled workflows after 60 days of inactivity | Low | Medium | Daily bot PRs keep the repo active; admin shows staleness |
+| R16 | GitHub disables scheduled workflows (backups) after 60 days of repo inactivity | Low | Medium | In v1.0 there are no bot PRs, so the real mitigation is the **backup-age warning in `/admin`** (a stale backup means the workflow stopped); from v1.1 daily bot PRs also keep the repo active |
 | R17 | Routine moved to a Team/Enterprise plan: token must be an env var | Not applicable today (owner on Max) | Medium | Kept as a note: stay on Pro/Max API credentials; otherwise rotate often |
 | R18 | Dependency churn (TypeScript 7, ESLint 10 not yet supported by the toolchain) | Medium | Low | Version pins, Dependabot proposals merged manually |
 | R19 | Accessibility regressions | Medium | Medium | axe on `/dev/components` and key flows in CI |
@@ -2313,7 +2372,7 @@ template; each ADR is written in the milestone that implements it.
 | 0015 | DSA variant follows the budget; simulated finish shown | §5.11 |
 | 0016 | Gate rule on the last **seen** plan; stale-plan resume | §5.2, §5.8 |
 | 0017 | Per-user day start; schedule versions effective at the next day start | §5.1, §5.9 |
-| 0018 | Baseline vs AI plan precedence (zero check-ins) | §2.3 |
+| 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | §2.3 |
 | 0019 | Cache Components off in v1 | §2.3 |
 | 0020 | Intl-only time handling in `lib/domain`; no date library | §7.2 |
 | 0021 | Layer rules via built-in ESLint + architecture tests; token guard | §7.2, §7.3 |
@@ -2324,8 +2383,8 @@ template; each ADR is written in the milestone that implements it.
 | 0026 | Bot token hash in the database, rotated from admin | §6.3 |
 | 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | §6.2 |
 | 0028 | Far-west time-zone limitation accepted for v1 | §6.8 |
-| 0029 | Incremental, derived-free backups; restore chain; chain restore test | §2.3, §8.4 |
-| 0030 | Learner write quota via `BEFORE INSERT` trigger; Upstash for bot/auth/admin only | §4.5, §8.4 |
+| 0029 | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | §2.3, §8.4 |
+| 0030 | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | §4.5, §8.4 |
 | 0031 | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | §4.7, §8.4 |
 | 0032 | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | §2.1 |
 | 0033 | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | §9.3 |
@@ -2333,7 +2392,9 @@ template; each ADR is written in the milestone that implements it.
 | 0035 | One content PR per plan run; stale bot PRs closed after 7 days | §6.6, §6.11 |
 | 0036 | No offline queue in v1; a future queue needs a clamped client timestamp | §4.1 |
 | 0037 | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | §5.11, §6.6 |
-| 0038 | Release boundary v1.0 / v1.1 / later, week-4 content constraint, dogfooding rollout | §0 |
+| 0038 | Release boundary v1.0 / v1.1 / later, week-4 content + harness constraint, dogfooding rollout | §0 |
+| 0039 | `seen_at` set only by a browser-side effect on `/today` (never by `ensurePlan` or prefetch) | §5.2 |
+| 0040 | Bot-written notes show "tested (bot tests)" until an admin publishes them via the checklist | §3.5, §6.6 |
 
 ### 9.3 Resolved items and remaining checks
 
