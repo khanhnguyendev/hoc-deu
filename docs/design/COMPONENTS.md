@@ -227,7 +227,8 @@ from `lib/i18n/vi.ts`.
 - **File:** `components/patterns/calendar-heatmap/index.tsx`
 - **Props:** `days: { day: string; minutes: number }[]` (local days), `today: string`,
   `label: string`
-- **Variants:** year view (≥ 768 px, 12 px cells) · month view (< 768 px, 44 px cells)
+- **Variants:** year view (≥ 1024 px with a fine pointer, 12 px cells) · month view (below
+  1024 px or on touch screens, 44 px cells)
 - **States:** levels 0–4, active-day dots, today ring, focused/selected day, table open
 - **Usage:** `<CalendarHeatmap days={activity} today={localDay} label="Lịch học" />`
 - **Accessibility:** roving focus with arrows/Home/End; each day labelled with date + minutes;

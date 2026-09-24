@@ -11,8 +11,9 @@ import { YearView } from './year-view'
 type HeatmapDay = { day: string; minutes: number }
 
 /**
- * Study minutes per local day (DESIGN_SYSTEM §3.4): a year view from 768 px, a month view below,
- * the legend, a live detail line that follows focus, hover and taps, and a table fallback. The
+ * Study minutes per local day (DESIGN_SYSTEM §3.4): a year view from 1024 px with a fine pointer,
+ * a month view below that or on touch screens,
+ * the legend, a detail line that follows focus, hover and taps, and a table fallback. The
  * caller passes `today` (the learner's local day); the pattern never reads the clock.
  */
 function CalendarHeatmap({

@@ -584,7 +584,7 @@ export const CATALOG: Entry[] = [
     file: 'components/patterns/calendar-heatmap/index.tsx',
     demos: [
       {
-        title: 'Year view (≥ 768 px) and month view (< 768 px)',
+        title: 'Year view (≥ 1024 px, mouse) and month view (below, or touch)',
         render: () => <CalendarHeatmap days={DEMO_DAYS} today={DEMO_TODAY} label="Lịch học mẫu" />,
       },
     ],

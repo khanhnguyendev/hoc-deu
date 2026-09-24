@@ -16,7 +16,10 @@ const KEY_STEP: Record<string, number> = {
   ArrowDown: 1,
 }
 
-/** ≥ 768 px: 7 rows × 53 weeks of 12 px cells with roving focus (DESIGN_SYSTEM §3.4). */
+/**
+ * ≥ 1024 px with a fine pointer (mouse, trackpad): 7 rows × 53 weeks of 12 px cells with roving
+ * focus (DESIGN_SYSTEM §3.4). Touch screens always get the month view.
+ */
 export function YearView({
   minutesByDay,
   today,
@@ -53,7 +56,11 @@ export function YearView({
   }
 
   return (
-    <div ref={scroller} data-view="year" className="hidden overflow-x-auto pb-2 md:block">
+    <div
+      ref={scroller}
+      data-view="year"
+      className="hidden overflow-x-auto pb-2 lg:pointer-fine:block"
+    >
       <div className="inline-flex flex-col gap-1">
         <div aria-hidden="true" className="ml-7 grid auto-cols-max grid-flow-col gap-0.75">
           {columns.map((column, i) => {

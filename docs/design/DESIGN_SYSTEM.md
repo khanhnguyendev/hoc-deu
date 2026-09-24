@@ -147,11 +147,13 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
   pair of adjacent levels is ≥ 1.6:1.
   - Every active day (level ≥ 1) also shows a small centred dot (`foreground` at 40 % opacity on
     light levels, `background` on dark levels), so "studied" never depends on colour alone.
-  - **≥ 768 px — year view:** 7 rows × 53 weeks, 12 px cells with 3 px gaps; each cell is
-    focusable with arrow-key navigation and shows date + minutes in a tooltip on hover and focus.
-  - **< 768 px — month view:** a 7-column month grid with **44 × 44 px** day cells (day number
-    inside, colour level behind it), previous/next month buttons plus horizontal swipe; tapping a
-    day shows its date and minutes. The year view is desktop-only.
+  - **≥ 1024 px with a fine pointer (mouse, trackpad) — year view:** 7 rows × 53 weeks, 12 px
+    cells with 3 px gaps, opening scrolled to today; each cell is focusable with arrow-key
+    navigation and shows date + minutes (native hover title, and a detail line under the grid).
+  - **Below 1024 px or on any touch screen — month view:** a 7-column month grid with
+    **44 × 44 px** day cells (day number inside, colour level behind it), previous/next month
+    buttons plus horizontal swipe; tapping a day shows its date and minutes. 12 px year cells are
+    too small for fingers, so tablets always get the month view (owner, 2026-09-24).
   - Both views keep the legend (minute ranges), the dots and the accessible table view ("Xem dạng
     bảng") — ui-ux-pro-max chart guidance: heatmaps need labels and a table fallback.
   - Today's cell has a 2 px `ring` outline.
@@ -308,7 +310,7 @@ data-driven components render loading / empty / error through the `LoadingState`
 | **FlashcardViewer** (feature) | Term (`text-lg`, `lang="en"`) → "Xem nghĩa" → meaning, usage, example, pronunciation hint → three grade buttons "Biết" / "Chưa chắc" / "Không biết" (keyboard 1 / 2 / 3). The card stays in place; only content cross-fades. |
 | **Code tabs / Solution** (feature) | Python / Java / Go tabs (remembers the user's language), `font-mono text-sm`, `surface-muted` background, horizontal scroll, never wrapped. Solutions are hidden behind "Xem lời giải". Results stay self-reported (platform design §5.5): if the solution was revealed before grading, the grade buttons **preselect** "Cần gợi ý" as a nudge, and the learner can still choose any grade. |
 | **ProgressRing, StatCard, StreakBadge** (patterns) | Numbers in `font-mono` with tabular figures; the ring uses `ring-track` for track progress and `primary` for overall. Streak shows the number + `Flame` + "ngày liên tiếp". |
-| **CalendarHeatmap** (pattern) | §3.4. Year view (7 rows × weeks, 12 px cells) at ≥ 768 px; month view (7 columns × 44 px day cells, prev/next + swipe) below 768 px; legend, activity dots and table fallback in both. |
+| **CalendarHeatmap** (pattern) | §3.4. Year view (7 rows × weeks, 12 px cells) at ≥ 1024 px with a fine pointer; month view (7 columns × 44 px day cells, prev/next + swipe) below 1024 px or on touch screens; legend, activity dots and table fallback in both. |
 | **Banners** (pattern) | Paused roadmap and throttle use `warning-soft`; red admin warnings use `danger-soft`; always icon + one sentence + one action. |
 | **EmptyState / ErrorState / LoadingState** (patterns) | Empty: icon, one line of what happened, one action. Error: what failed + "Thử lại". Loading: skeletons shaped like the content (no spinners for whole pages). |
 | **Toast** (ui) | Bottom-centre on mobile, bottom-right on desktop; 4 s; polite live region; never the only feedback for a failed save. |

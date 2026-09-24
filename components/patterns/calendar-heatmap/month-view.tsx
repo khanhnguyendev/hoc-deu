@@ -12,7 +12,10 @@ import { CELL, levelFor, ON_CELL } from './levels'
 
 const SWIPE_PX = 40
 
-/** < 768 px: one month of 44 px day cells, previous/next buttons and swipe (DESIGN_SYSTEM §3.4). */
+/**
+ * Below 1024 px or on a touch screen: one month of 44 px day cells, previous/next buttons and
+ * swipe (DESIGN_SYSTEM §3.4).
+ */
 export function MonthView({
   minutesByDay,
   today,
@@ -37,7 +40,7 @@ export function MonthView({
   }
 
   return (
-    <div data-view="month" className="flex flex-col gap-3 md:hidden">
+    <div data-view="month" className="flex flex-col gap-3 lg:pointer-fine:hidden">
       <div className="flex items-center justify-between gap-2">
         <Button
           variant="ghost"

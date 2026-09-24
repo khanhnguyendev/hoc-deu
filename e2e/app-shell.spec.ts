@@ -56,14 +56,30 @@ for (const width of [768, 900, 1024]) {
   test.describe(`AppShell at ${width} px`, () => {
     test.use({ viewport: { width, height: 800 } })
 
-    test('the heatmap year view shows today and the page never scrolls sideways', async ({
+    test('the heatmap shows the month view below 1024 px, else the year view at today', async ({
       page,
     }) => {
       await page.goto('/dev/app-shell')
-      const scroller = await rect(page, '[data-view="year"]')
-      const today = await rect(page, '[data-view="year"] [aria-current="date"]')
-      expect(today.left).toBeGreaterThanOrEqual(scroller.left)
-      expect(today.right).toBeLessThanOrEqual(scroller.right)
+      const year = page.locator('[data-view="year"]')
+      const month = page.locator('[data-view="month"]')
+      const yearMode = await page.evaluate(
+        () => window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches,
+      )
+      expect(yearMode).toBe(
+        width >= 1024 &&
+          !(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)),
+      )
+      if (yearMode) {
+        await expect(year).toBeVisible()
+        await expect(month).toBeHidden()
+        const scroller = await rect(page, '[data-view="year"]')
+        const today = await rect(page, '[data-view="year"] [aria-current="date"]')
+        expect(today.left).toBeGreaterThanOrEqual(scroller.left)
+        expect(today.right).toBeLessThanOrEqual(scroller.right)
+      } else {
+        await expect(month).toBeVisible()
+        await expect(year).toBeHidden()
+      }
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       )
@@ -115,5 +131,16 @@ test.describe('AppShell on a short desktop window', () => {
     await expect(last).toBeInViewport()
     await account.click()
     await expect(page.getByRole('menuitem', { name: 'Đăng xuất' })).toBeVisible()
+  })
+})
+
+test.describe('heatmap on a large touch screen', () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true, isMobile: true })
+
+  test('uses the month view: 12 px year cells are too small for fingers', async ({ page }) => {
+    await page.goto('/dev/app-shell')
+    expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true)
+    await expect(page.locator('[data-view="month"]')).toBeVisible()
+    await expect(page.locator('[data-view="year"]')).toBeHidden()
   })
 })
