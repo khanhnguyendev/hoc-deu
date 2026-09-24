@@ -1814,3 +1814,671 @@ their own PRs (ADR-0023).
 
 Run superpowers:requesting-code-review for the branch, address findings, then **stop and hand the
 PR to the owner**. Do not merge; do not start M1.
+
+---
+
+## Part B-M1 — Component library, step by step
+
+Written at the start of M1 (2026-09-24) from the code merged in M0 and a throwaway spike
+(`shadcn` 4.21 registry, Vitest 5 + jsdom, font subsetting). Executed natively
+(superpowers:executing-plans) on `feat/m1-components`, then one fresh end-of-milestone review,
+then the PR. The owner reviews this section together with the M1 pull request.
+
+**Decisions taken while writing (each is a ledger ruling):**
+
+1. **Component bodies are written during execution, not here.** This part fixes files,
+   interfaces (props, variants, exported names), the tests that must fail first, and the code for
+   infrastructure (fonts, test setup, `tokens:sync`, CI). Components are adapted from the shadcn
+   new-york v4 sources and normalized to tokens under TDD. The plan's author is also the executor,
+   so spelling every component body out twice buys nothing.
+2. **No `shadcn add`.** shadcn 4.21 installs an unapproved `cn` package with caret versions and
+   imports `cn` from it. `components.json` is written by hand; approved dependencies are installed
+   with `--save-exact`; `cn` comes from `@/lib/utils`.
+3. **Nothing to eject.** The new-york registry does not use `shadcn/tailwind.css`, and
+   `tokens.css` already defines every variable shadcn expects, so `app/globals.css` stays
+   imports + token block (1.1a adds the markers).
+4. **Two layout tokens** are added through `gen_tokens.py`: `--spacing-safe-bottom`
+   (`env(safe-area-inset-bottom, 0px)`) and `--spacing-bottom-nav` (56 px + the safe area), because
+   the bottom navigation needs `env()` and arbitrary values are banned (task 1.9).
+5. **CSS custom properties in `style` are typed** by augmenting `React.CSSProperties` with
+   `` `--${string}` `` keys (`lib/react-css.d.ts`), so `style={{ '--progress': v }}` type-checks
+   without an `as` cast (the style rule rejects anything but a plain object literal).
+6. **CalendarHeatmap tooltip:** each cell carries an `aria-label` and a native `title` (hover), and a
+   polite live "detail line" under the grid follows focus, hover and taps — instead of 371
+   positioned tooltip elements that would need inline positioning styles.
+7. **`/dev/components` in production:** 404 when `VERCEL_ENV === 'production'` until task 2.8 makes
+   it admin-only (there is no auth in M1).
+8. **Vitest projects:** `*.test.ts` runs in `node`, `*.test.tsx` in `jsdom` with a setup file
+   (Testing Library cleanup + the browser APIs Radix needs that jsdom lacks).
+
+**Branch:** `git checkout -b feat/m1-components` from `main` after PR #1 merged (done, with the
+plan/spec updates as its first commit).
+
+### Task 1.0: Self-hosted fonts
+
+**Files:**
+
+- Create: `app/fonts/be-vietnam-pro/be-vietnam-pro-{400,500,600,700}.woff2`,
+  `app/fonts/be-vietnam-pro/OFL.txt`, `app/fonts/jetbrains-mono/jetbrains-mono-variable.woff2`,
+  `app/fonts/jetbrains-mono/OFL.txt`, `app/fonts/README.md`, `app/fonts/fonts.ts`,
+  `tools/guards/offline-build.test.ts`, `docs/adr/0001-nextjs-on-vercel-hobby.md`,
+  `docs/adr/0032-tooling-pins.md`, `docs/adr/0033-license-split.md`
+- Modify: `app/layout.tsx`, `eslint.config.mjs`, `tools/guards/eslint-rules.test.ts`,
+  `e2e/smoke.spec.ts`, `.github/workflows/ci.yml`, `README.md`, `docs/adr/README.md`
+
+**Interfaces:**
+
+- Produces: `sans` and `mono` (`next/font/local` results) from `app/fonts/fonts.ts`; the CSS
+  variables stay `--font-be-vietnam-pro` and `--font-jetbrains-mono`, so `tokens.css` is unchanged.
+
+- [ ] **Step 1: Write the failing tests**
+
+`tools/guards/offline-build.test.ts`:
+
+```ts
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+/** The build must work offline (platform design §2.1, §6.8): fonts are self-hosted. */
+const SOURCE_DIRS = ['app', 'components', 'features', 'lib']
+const SOURCE = /\.(?:[cm]?[jt]sx?|css)$/
+// Split so this file does not match itself.
+const BANNED = ['next/font/' + 'google', 'fonts.' + 'googleapis.com', 'fonts.' + 'gstatic.com']
+const FONTS = 'app/fonts'
+
+function files(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name)
+    if (statSync(path).isDirectory()) return files(path)
+    return SOURCE.test(name) ? [path] : []
+  })
+}
+
+describe('offline build (platform design §2.1)', () => {
+  it('never loads fonts from Google', () => {
+    const hits = SOURCE_DIRS.flatMap(files).flatMap((file) => {
+      const text = readFileSync(file, 'utf8')
+      return BANNED.filter((needle) => text.includes(needle)).map((needle) => `${file}: ${needle}`)
+    })
+    expect(hits).toEqual([])
+  })
+
+  it('ships every font file the loaders reference, as woff2', () => {
+    const loaders = readFileSync(join(FONTS, 'fonts.ts'), 'utf8')
+    const paths = [...loaders.matchAll(/path: '\.\/([^']+)'/g)].map((m) => join(FONTS, m[1] ?? ''))
+    expect(paths).toHaveLength(5)
+    for (const path of paths) {
+      expect(readFileSync(path).subarray(0, 4).toString('latin1'), path).toBe('wOF2')
+    }
+  })
+
+  it('ships the OFL license next to every font family', () => {
+    const families = readdirSync(FONTS).filter((d) => statSync(join(FONTS, d)).isDirectory())
+    expect(families.sort()).toEqual(['be-vietnam-pro', 'jetbrains-mono'])
+    for (const family of families) {
+      expect(readFileSync(join(FONTS, family, 'OFL.txt'), 'utf8')).toContain(
+        'SIL Open Font License',
+      )
+    }
+  })
+})
+```
+
+Add to `tools/guards/eslint-rules.test.ts` (inside `describe('layer rules …')`):
+
+```ts
+  it('bans next/font/google (the build must work offline)', async () => {
+    const ids = await ruleIds(
+      "import { Inter } from 'next/font/google'\nexport const f = Inter\n",
+      'app/fonts/fonts.ts',
+    )
+    expect(ids).toContain('no-restricted-imports')
+  })
+```
+
+Add to `e2e/smoke.spec.ts` (inside the per-scheme `describe`) — a regression guard: it passes
+before and after, because `next/font/google` also self-hosts at build time; the build-time
+guarantee comes from the architecture test and the CI step:
+
+```ts
+    test('loads only self-hosted fonts', async ({ page }) => {
+      const hosts: string[] = []
+      page.on('request', (request) => hosts.push(new URL(request.url()).hostname))
+      await page.goto('/')
+      const loaded = await page.evaluate(async () => {
+        await document.fonts.ready
+        return [...document.fonts].filter((face) => face.status === 'loaded').length
+      })
+      expect(loaded).toBeGreaterThan(0)
+      expect(hosts.filter((h) => /(?:googleapis|gstatic)\.com$/.test(h))).toEqual([])
+    })
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `pnpm test tools/guards`
+Expected: FAIL — `never loads fonts from Google` lists `app/layout.tsx: next/font/google`; the font
+file and license tests fail (no `app/fonts`); the ESLint test fails (no rule).
+
+- [ ] **Step 3: Add the font files**
+
+Source: `github.com/google/fonts` at a pinned commit (record the SHA in `app/fonts/README.md`):
+`ofl/bevietnampro/BeVietnamPro-{Regular,Medium,SemiBold,Bold}.ttf`,
+`ofl/jetbrainsmono/JetBrainsMono[wght].ttf` and each folder's `OFL.txt` (no Reserved Font Name is
+declared, so subsetting is allowed). Subset to Google's `latin` + `vietnamese` ranges in a
+throwaway virtualenv (`pip install fonttools brotli` — a local tool, not a project dependency):
+
+```bash
+U='U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD,U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB'
+for w in Regular:400 Medium:500 SemiBold:600 Bold:700; do
+  pyftsubset "BeVietnamPro-${w%%:*}.ttf" --unicodes="$U" --layout-features='*' --flavor=woff2 \
+    --output-file="app/fonts/be-vietnam-pro/be-vietnam-pro-${w##*:}.woff2"
+done
+pyftsubset 'JetBrainsMono[wght].ttf' --unicodes="$U" --layout-features='*' --flavor=woff2 \
+  --output-file=app/fonts/jetbrains-mono/jetbrains-mono-variable.woff2
+```
+
+`app/fonts/README.md` records: source repo + commit, font versions (Be Vietnam Pro 1.002,
+JetBrains Mono 2.211), license (SIL OFL 1.1, `OFL.txt` per folder), the subset command above, and
+"never switch back to `next/font/google` — the build must work offline (platform design §2.1)".
+
+- [ ] **Step 4: Load them with `next/font/local`**
+
+`app/fonts/fonts.ts`:
+
+```ts
+import localFont from 'next/font/local'
+
+// Self-hosted so `next build` needs no network (platform design §2.1). Files: see README.md.
+export const sans = localFont({
+  src: [
+    { path: './be-vietnam-pro/be-vietnam-pro-400.woff2', weight: '400', style: 'normal' },
+    { path: './be-vietnam-pro/be-vietnam-pro-500.woff2', weight: '500', style: 'normal' },
+    { path: './be-vietnam-pro/be-vietnam-pro-600.woff2', weight: '600', style: 'normal' },
+    { path: './be-vietnam-pro/be-vietnam-pro-700.woff2', weight: '700', style: 'normal' },
+  ],
+  variable: '--font-be-vietnam-pro',
+  display: 'swap',
+})
+
+export const mono = localFont({
+  src: [{ path: './jetbrains-mono/jetbrains-mono-variable.woff2', weight: '100 800', style: 'normal' }],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+})
+```
+
+`app/layout.tsx`: replace the `next/font/google` import and the two loader calls with
+`import { mono, sans } from './fonts/fonts'`.
+
+`eslint.config.mjs`: a block for `**/*.{ts,tsx,js,jsx,mjs}` (before the `lib/domain` block, which
+already bans `next/*`) with `no-restricted-imports` → `paths: [{ name: 'next/font/google', message:
+'Fonts are self-hosted (app/fonts, next/font/local): the build must work offline (platform design
+§2.1).' }]`.
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `pnpm test && pnpm test:e2e`
+Expected: all unit tests pass; 10 e2e runs pass (8 + the new font test × 2 projects).
+
+- [ ] **Step 6: Block Google Fonts in CI, record the decision**
+
+`.github/workflows/ci.yml`, `verify` job, before `pnpm verify`:
+
+```yaml
+      - name: Block Google Fonts — the build must work offline (platform design §2.1)
+        run: echo "0.0.0.0 fonts.googleapis.com fonts.gstatic.com" | sudo tee -a /etc/hosts
+```
+
+Write ADR-0001 (Next.js 16 App Router on Vercel Hobby, non-commercial; offline-safe build with
+self-hosted fonts), ADR-0032 (tooling pins, including Dependabot ignoring TypeScript/ESLint minors)
+and ADR-0033 (license split; fonts under OFL 1.1 in `app/fonts`). `README.md` license section:
+one line on the fonts' OFL. `docs/adr/README.md`: link the three files.
+
+- [ ] **Step 7: Verify and commit**
+
+Run: `pnpm verify` — Expected: green.
+
+```bash
+git add app/fonts app/layout.tsx eslint.config.mjs tools/guards e2e/smoke.spec.ts \
+  .github/workflows/ci.yml README.md docs/adr
+git commit -m "feat(fonts): self-host Be Vietnam Pro and JetBrains Mono for an offline build"
+```
+
+### Task 1.1: shadcn configuration and React test setup
+
+**Files:**
+
+- Create: `components.json`, `tools/test/setup-dom.ts`, `app/page.test.tsx`
+- Modify: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` (only if pnpm asks about a new
+  build script), `vitest.config.ts`
+
+**Interfaces:**
+
+- Produces: runtime deps `radix-ui`, `class-variance-authority`, `lucide-react`; dev deps
+  `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`, `@testing-library/user-event` (all
+  §7.10, exact versions). `*.test.tsx` files run in jsdom with automatic cleanup.
+
+- [ ] **Step 1: Write the failing test** — `app/page.test.tsx`:
+
+```tsx
+import { render, screen } from '@testing-library/react'
+import { expect, it } from 'vitest'
+import Home from './page'
+
+it('renders the home page heading in jsdom', () => {
+  render(<Home />)
+  expect(screen.getByRole('heading', { level: 1, name: 'Học Đều' })).toBeTruthy()
+})
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `pnpm test app/page.test.tsx`
+Expected: FAIL — `@testing-library/react` cannot be resolved (or `document is not defined`).
+
+- [ ] **Step 3: Install and configure**
+
+```bash
+pnpm add --save-exact radix-ui class-variance-authority lucide-react
+pnpm add -D --save-exact @vitejs/plugin-react jsdom @testing-library/react @testing-library/user-event
+```
+
+`components.json` (hand-written; never run `shadcn add` — decision 2):
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": { "config": "", "css": "app/globals.css", "baseColor": "stone", "cssVariables": true, "prefix": "" },
+  "iconLibrary": "lucide",
+  "aliases": { "components": "@/components", "utils": "@/lib/utils", "ui": "@/components/ui", "lib": "@/lib", "hooks": "@/hooks" }
+}
+```
+
+`vitest.config.ts`:
+
+```ts
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vitest/config'
+
+const exclude = ['node_modules/**', '.next/**', 'e2e/**']
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: { alias: { '@': import.meta.dirname } },
+  test: {
+    projects: [
+      { extends: true, test: { name: 'node', environment: 'node', include: ['**/*.test.ts'], exclude } },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['**/*.test.tsx'],
+          exclude,
+          setupFiles: ['tools/test/setup-dom.ts'],
+        },
+      },
+    ],
+  },
+})
+```
+
+`tools/test/setup-dom.ts`: `afterEach(cleanup)`; polyfill what Radix needs and jsdom lacks —
+`ResizeObserver` (no-op class), `window.matchMedia` (returns `matches: false`),
+`Element.prototype.{hasPointerCapture,setPointerCapture,releasePointerCapture,scrollIntoView}`
+— each only when missing.
+
+- [ ] **Step 4: Run the tests** — `pnpm test` — Expected: all pass (node + dom projects).
+
+- [ ] **Step 5: Verify and commit** — `pnpm verify` green;
+  `git commit -m "build(ui): configure shadcn/ui and a jsdom test project"`.
+
+### Task 1.1a: `tokens:sync`
+
+**Files:**
+
+- Create: `tools/tokens/sync.ts`, `tools/tokens/cli.ts`, `tools/tokens/sync.test.ts`
+- Modify: `app/globals.css` (markers), `package.json` (`tsx` dev dep, `tokens:sync` script),
+  `pnpm-workspace.yaml` (`esbuild: false` under `allowBuilds` — `tsx` works without esbuild's
+  install script, verified in the spike), `CLAUDE.md` (commands; token workflow)
+
+**Interfaces:**
+
+- Produces: `syncTokens(globals: string, tokens: string): string` and the markers
+  `/* tokens:start */` … `/* tokens:end */`; `pnpm tokens:sync` = regenerate `tokens.css` from
+  `palette.py`, then replace only the marked block.
+
+- [ ] **Step 1: Write the failing tests** — `tools/tokens/sync.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { END, START, syncTokens } from './sync'
+
+const globals = (body: string) =>
+  `@import "tailwindcss";\n\n${START}\n${body}\n${END}\n\n/* shadcn extras */\n.x { color: var(--primary); }\n`
+
+describe('syncTokens', () => {
+  it('replaces only the token block', () => {
+    const out = syncTokens(globals(':root { --a: 1; }'), ':root { --a: 2; }\n')
+    expect(out).toBe(globals(':root { --a: 2; }'))
+  })
+
+  it('is idempotent', () => {
+    const once = syncTokens(globals('old'), 'new')
+    expect(syncTokens(once, 'new')).toBe(once)
+  })
+
+  it.each([
+    ['missing start', `x\n${END}\n`],
+    ['missing end', `${START}\nx\n`],
+    ['duplicated start', `${START}\n${START}\nx\n${END}\n`],
+    ['end before start', `${END}\nx\n${START}\n`],
+  ])('fails clearly on %s', (_, css) => {
+    expect(() => syncTokens(css, 'new')).toThrow(/tokens:start|tokens:end/)
+  })
+
+  it('keeps the repository in sync', () => {
+    const repo = readFileSync('app/globals.css', 'utf8')
+    expect(syncTokens(repo, readFileSync('docs/design/tokens.css', 'utf8'))).toBe(repo)
+  })
+})
+```
+
+- [ ] **Step 2: Run to verify they fail** — `pnpm test tools/tokens` — Expected: FAIL, `./sync`
+  not found.
+
+- [ ] **Step 3: Implement** — `sync.ts` exports `START = '/* tokens:start — generated from
+  docs/design/tokens.css by pnpm tokens:sync; do not edit by hand */'`, `END = '/* tokens:end */'`
+  and `syncTokens` (exactly one of each marker, start before end, block replaced with
+  `\n${tokens.trim()}\n`). `cli.ts` reads both files, writes `app/globals.css`, prints
+  `tokens synced`. Wrap the existing token block in `app/globals.css` with the markers.
+  `pnpm add -D --save-exact tsx`; script
+  `"tokens:sync": "python3 docs/design/assets/gen_tokens.py && tsx tools/tokens/cli.ts"`.
+
+- [ ] **Step 4: Run to verify they pass** — `pnpm test && pnpm tokens:sync && git diff --exit-code app/globals.css`
+  — Expected: tests pass; sync leaves `globals.css` unchanged.
+
+- [ ] **Step 5: CLAUDE.md** — command list gains `pnpm typecheck`, `pnpm lint`, `pnpm build`,
+  `pnpm tokens:sync`; "To change a token" becomes: edit `palette.py`, run `pnpm tokens:sync`.
+
+- [ ] **Step 6: Verify and commit** — `pnpm verify`;
+  `git commit -m "feat(tokens): tokens:sync regenerates only the token block"`.
+
+### Task 1.2: `lib/i18n` — Vietnamese strings and formatters
+
+**Files:** Create `lib/i18n/vi.ts`, `lib/i18n/vi.test.ts`, `lib/i18n/format.ts`,
+`lib/i18n/format.test.ts`.
+
+**Interfaces:**
+
+- Produces: `vi` (`as const`) with groups `common` (close "Đóng", openMenu "Mở menu", loading
+  "Đang tải…", retry "Thử lại", cancel "Huỷ", confirm "Xác nhận", skipToContent "Bỏ qua đến nội
+  dung", notifications "Thông báo", showTable "Xem dạng bảng", hideTable "Ẩn bảng", previous,
+  next, …), `nav` (today "Hôm nay", review "Ôn tập", roadmap "Lộ trình", progress "Tiến độ",
+  settings "Cài đặt", admin "Quản trị", account "Tài khoản", signOut "Đăng xuất", collapse "Thu
+  gọn", expand "Mở rộng"), `theme` (light "Sáng", dark "Tối", system "Theo hệ thống", label
+  "Giao diện"), `status` (§3.3: notStarted "Chưa học", weak "Yếu", ok "Ổn", strong "Vững",
+  mastered "Thành thạo", skipped "Đã bỏ qua"), `block` (done "Xong", partial "Một phần", skipped
+  "Bỏ qua"), `streak` (suffix "ngày liên tiếp"), `heatmap` (legend ranges, "phút", weekday
+  abbreviations T2…CN), `states` (errorTitle "Không tải được dữ liệu", notFoundTitle "Không tìm
+  thấy trang", notFoundBody, backHome "Về trang chủ", globalErrorTitle).
+- Produces: `formatMinutes(n)` ("45 phút", "1 giờ", "1 giờ 15 phút"), `formatNumber(n)` (vi-VN,
+  decimal comma), `formatDay(isoDay)` and `formatDayLong(isoDay)` for `YYYY-MM-DD` local days
+  (formatted in UTC so the day never shifts), `formatMonth(isoDay)`.
+
+- [ ] **Step 1: Failing tests** — `vi.test.ts`: every key the M1 components use exists and is a
+  non-empty string; **[RF-3]** every string equals its NFC form; no string has leading/trailing
+  spaces. `format.test.ts`: the examples above, `formatNumber(12.4) === '12,4'`, `formatDay` of
+  `2026-01-01` is the same day in every `TZ`.
+- [ ] **Step 2: RED** — `pnpm test lib/i18n` — modules missing.
+- [ ] **Step 3: Implement.** **Step 4: GREEN.**
+- [ ] **Step 5: Commit** — `git commit -m "feat(i18n): Vietnamese UI strings and formatters"`.
+
+### Task 1.3: ui — Button, Input, Label, Textarea
+
+**Files:** Create `components/ui/{button,input,label,textarea}.tsx` and colocated `*.test.tsx`;
+`lib/react-css.d.ts` (decision 5).
+
+**Interfaces:**
+
+- `Button` — props `ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?:
+  boolean; loading?: boolean }`; variants `primary` (default) | `secondary` | `outline` | `ghost` |
+  `destructive` | `link`; sizes `sm` (h-9, desktop only) | `md` (h-11, default) | `lg` (h-12) |
+  `icon` (size-11). `loading`: `aria-busy`, disabled, spinner (`Loader2`, `aria-hidden`), children
+  kept (invisible) so the width does not change. Renders `data-variant` / `data-size`. Exports
+  `buttonVariants` for link-styled buttons in patterns.
+- `Input`, `Textarea` — 44 px (`h-11`; textarea `min-h-24`), `border-border-strong`,
+  `rounded-md`, `bg-surface`, `text-base` (no iOS zoom), `placeholder:text-subtle-foreground`,
+  `aria-invalid:border-danger`.
+- `Label` — Radix Label, `text-sm font-medium`.
+- Focus: the global `:focus-visible` ring from `tokens.css`; components never set `outline-none`.
+
+- [ ] **Step 1: Failing tests** — each Button variant and size renders its data attributes and
+  classes (`h-11` default); disabled; loading keeps children, sets `aria-busy`, is disabled, spinner
+  `aria-hidden`; `asChild` renders an `<a>` with the button classes; no `outline-none` anywhere;
+  `Input`/`Textarea` found via `getByLabelText` with `Label htmlFor`; `aria-invalid` passes through.
+- [ ] **Step 2: RED** — `pnpm test components/ui`. **Step 3: Implement.** **Step 4: GREEN** +
+  `pnpm lint` (token rules pass on every class).
+- [ ] **Step 5: Commit** — `feat(ui): Button, Input, Label and Textarea`.
+
+### Task 1.4: ui — Card, Badge, Separator, Skeleton, Progress, Tooltip
+
+**Files:** `components/ui/{card,badge,separator,skeleton,progress,tooltip}.tsx` + tests.
+
+**Interfaces:**
+
+- `Card`, `CardHeader`, `CardTitle` (`text-xl font-semibold`), `CardDescription`, `CardAction`,
+  `CardContent`, `CardFooter`; `Card` prop `interactive?: boolean` (`hover:shadow-sm`). Padding
+  per DESIGN_SYSTEM §5 (`p-4 md:p-5 lg:p-6`).
+- `Badge` — `tone`: `neutral` | `primary` | `success` | `warning` | `danger` | `track` |
+  `outline`; `rounded-sm text-xs font-medium`; `asChild`.
+- `Separator` (Radix), `Skeleton` (`animate-pulse bg-surface-sunken`, `aria-hidden`).
+- `Progress` (Radix) — `value` clamped to 0–100, `tone`: `primary` | `track`; the indicator moves
+  with a transform driven by `style={{ '--progress-remaining': … }}` (opacity/transform only, §7).
+- `Tooltip`, `TooltipTrigger`, `TooltipContent`, `TooltipProvider` (Radix;
+  `bg-foreground text-background`, `text-xs`).
+
+- [ ] **Step 1: Failing tests** — Card slots render; each Badge tone sets `data-tone`; Progress
+  exposes `role="progressbar"` with `aria-valuenow="40"` and clamps 140 → 100; Skeleton is
+  `aria-hidden`; Tooltip content appears on keyboard focus of the trigger.
+- [ ] **Steps 2–4:** RED, implement, GREEN (+ `pnpm lint`).
+- [ ] **Step 5: Commit** — `feat(ui): Card, Badge, Separator, Skeleton, Progress and Tooltip`.
+
+### Task 1.5: ui — Dialog, Sheet, DropdownMenu, Tabs, ToggleGroup, Toaster
+
+**Files:** `components/ui/{dialog,sheet,dropdown-menu,tabs,toggle-group,toaster}.tsx` + tests;
+`pnpm add --save-exact sonner`.
+
+**Interfaces:**
+
+- `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton?`, close button labelled
+  `vi.common.close`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`,
+  `DialogClose`. Scrim `bg-background/50` (DESIGN_SYSTEM §6); content `rounded-xl bg-surface
+  shadow-md`, centred with `inset-x-4 top-1/2 mx-auto max-w-lg -translate-y-1/2`; enter
+  `duration-(--duration-slow) ease-enter`, exit `duration-(--duration-exit) ease-exit`.
+- `Sheet` family — Radix Dialog with `side`: `bottom` (default, mobile) | `right` | `left` |
+  `top`; bottom sheet `rounded-t-xl max-h-4/5 overflow-y-auto`.
+- `DropdownMenu` family — `Trigger`, `Content`, `Item` (`variant`: `default` | `destructive`),
+  `Label`, `Separator`, `Group`, `RadioGroup`, `RadioItem`; items `min-h-11` (44 px targets).
+- `Tabs` family — list `bg-surface-muted`, triggers `min-h-11`, active `bg-surface`.
+- `ToggleGroup`, `ToggleGroupItem` — segmented control (`min-h-11`; on: `bg-primary-soft
+  text-primary-soft-foreground`).
+- `Toaster` ('use client', `sonner`): 4 s, bottom-centre below 768 px and bottom-right above,
+  `containerAriaLabel={vi.common.notifications}`, theme from `next-themes`, colours through CSS
+  custom properties only; re-exports `toast`.
+
+- [ ] **Step 1: Failing tests** — Dialog: opens from its trigger, focus moves inside, Tab stays
+  inside, `Esc` closes and focus returns to the trigger, close button named "Đóng"; Sheet: same +
+  `data-side`; DropdownMenu: opens with Enter, items are `menuitem`s, `Esc` closes; Tabs: ArrowRight
+  activates the next tab; ToggleGroup: single choice, `aria-checked` moves; Toaster: `toast('Đã
+  lưu')` shows the text in a region labelled "Thông báo".
+- [ ] **Steps 2–4:** RED, implement, GREEN (+ `pnpm lint`).
+- [ ] **Step 5: Commit** — `feat(ui): Dialog, Sheet, DropdownMenu, Tabs, ToggleGroup and Toaster`.
+
+### Task 1.6: patterns — PageHeader, Section, StatCard, StatusPill, StreakBadge, ProgressRing
+
+**Files:** `components/patterns/{page-header,section,stat-card,status-pill,streak-badge,progress-ring}.tsx`
++ tests.
+
+**Interfaces:**
+
+- `PageHeader({ title, description?, actions? })` — `h1` `text-2xl md:text-3xl font-semibold`;
+  actions right on ≥ 768 px, stacked below on mobile.
+- `Section({ title, description?, actions?, children })` — `section` labelled by its `h2`.
+- `StatCard({ label, value, hint?, icon? })` — value `font-mono tabular-nums`.
+- `StatusPill({ status, size? })` — `status`: `not-started` | `weak` | `ok` | `strong` |
+  `mastered` | `skipped` | `block-done` | `block-partial` | `block-skipped`; colours, lucide icon
+  and label exactly as DESIGN_SYSTEM §3.3; `size`: `sm` (h-6) | `md` (h-8, filter chips); icon
+  `aria-hidden`, label visible. Exports `STATUS_PILL` (the mapping) for the catalog.
+- `StreakBadge({ days })` — `Flame` + number (`font-mono tabular-nums`) + "ngày liên tiếp".
+- `ProgressRing({ value, label, tone?, size? })` — SVG, `role="progressbar"`, `aria-valuenow`,
+  `aria-label={label}`; `tone`: `primary` | `track` (`stroke-primary` / `stroke-track` on a
+  `stroke-surface-sunken` track); the arc via the SVG `strokeDashoffset` attribute.
+
+- [ ] **Step 1: Failing tests** — StatusPill renders the §3.3 icon (lucide class) and Vietnamese
+  label for **every** status; PageHeader renders one `h1` and the actions; Section is a region
+  named by its title; StreakBadge text "12 ngày liên tiếp"; ProgressRing clamps and exposes
+  `aria-valuenow`; StatCard prints the value.
+- [ ] **Steps 2–4:** RED, implement, GREEN (+ `pnpm lint`).
+- [ ] **Step 5: Commit** — `feat(patterns): headers, stats, status pills and progress ring`.
+
+### Task 1.7: patterns — states, ConfirmDialog, DataList, Banner + root error pages
+
+**Files:** `components/patterns/{empty-state,error-state,loading-state,data-state,confirm-dialog,data-list,banner}.tsx`
++ tests; `app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`; `e2e/not-found.spec.ts`.
+
+**Interfaces:**
+
+- `EmptyState({ icon, title, description?, action? })` — `action`: `{ label, href }` (renders a
+  `next/link` styled with `buttonVariants`) or `{ label, onClick }` — so pages (which may not import
+  `components/ui` or use `className`) can still offer the next step.
+- `ErrorState({ title?, description?, onRetry? })` — default title `vi.states.errorTitle`, retry
+  button "Thử lại".
+- `LoadingState({ variant?: 'list' | 'card' | 'page', rows? })` — skeletons shaped like content;
+  `role="status"` with an `sr-only` "Đang tải…".
+- `type DataState<T>` (§7.5) and `DataState({ state, loading?, empty, children })` — `children:
+  (data: T) => ReactNode`; `error` renders `ErrorState` with `state.retry`.
+- `ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, tone?, pending?,
+  onConfirm })` ('use client').
+- `DataList({ items, getKey, renderItem, empty })` — `ul` rows `min-h-11`, dividers, `empty` when
+  the list is empty.
+- `Banner({ tone: 'warning' | 'danger' | 'info', children, action? })` — icon + one sentence + one
+  action (DESIGN_SYSTEM §9).
+- Root pages (deferred minor #8): `not-found.tsx` → `EmptyState` "Không tìm thấy trang" with "Về
+  trang chủ" → `/`; `error.tsx` ('use client', Next 16 `retry` prop) → `ErrorState`;
+  `global-error.tsx` → its own `<html lang="vi"><body>`, imports `./globals.css` and the fonts,
+  `ErrorState`.
+
+- [ ] **Step 1: Failing tests** — DataState renders each of the four states (loading → status,
+  empty → the given node, error → "Thử lại" calls `retry`, ready → children with data);
+  EmptyState with `href` renders a link; ConfirmDialog calls `onConfirm` and disables while
+  `pending`; DataList renders rows or `empty`; Banner renders its tone icon and action; e2e: an
+  unknown URL returns 404 with the Vietnamese heading and a link to `/`, axe clean.
+- [ ] **Steps 2–4:** RED (`pnpm test components/patterns && pnpm test:e2e e2e/not-found.spec.ts`),
+  implement, GREEN.
+- [ ] **Step 5: Commit** — `feat(patterns): loading, empty and error states; root error pages`.
+
+### Task 1.8: pattern — CalendarHeatmap
+
+**Files:** `components/patterns/calendar-heatmap/{index.tsx,year-view.tsx,month-view.tsx,legend.tsx,table-view.tsx,levels.ts,dates.ts}`
++ `levels.test.ts`, `dates.test.ts`, `calendar-heatmap.test.tsx`.
+
+**Interfaces:**
+
+- `CalendarHeatmap({ days, today, label })` ('use client') — `days: { day: string; minutes:
+  number }[]` (`YYYY-MM-DD` local days from the caller; the pattern never reads the clock),
+  `today: string`.
+- `levelFor(minutes)` → 0 (0) | 1 (1–15) | 2 (16–40) | 3 (41–75) | 4 (> 75); `bg-heat-N`; dots on
+  levels ≥ 1 (`bg-foreground/40` on light levels, `bg-background/70` on dark levels — per theme as
+  in `preview.html`); today `ring-2 ring-ring`.
+- Date helpers in `dates.ts` (UTC arithmetic on `YYYY-MM-DD`; weeks start Monday) — the pattern
+  may not import `lib/domain`.
+- **Year view** (`hidden md:block`): 7 rows × up to 53 week columns ending at `today`, `size-3`
+  cells; roving `tabIndex`: Arrow Left/Right = ∓7 days, Up/Down = ∓1 day, Home/End; each cell
+  `aria-label` "3 tháng 2, 2026: 45 phút" and `title` (hover).
+- **Month view** (`md:hidden`): 7 columns of `size-11` (44 px) day buttons with the day number;
+  previous/next month buttons; horizontal swipe (pointer delta ≥ 40 px); tap selects a day.
+- Detail line (`aria-live="polite"`) follows focus, hover and taps (decision 6); legend with the
+  five ranges; "Xem dạng bảng" toggles a table of active days (date, minutes).
+
+- [ ] **Step 1: Failing tests** — `levelFor` boundaries (0, 1, 15, 16, 40, 41, 75, 76); date
+  helpers (week start, month grid, ±days across month/year ends); year view: last column ends at
+  today, today has `aria-current="date"`, ArrowLeft moves focus 7 days back and updates the detail
+  line, only active days have dots; month view: cells `size-11`, prev/next and a swipe change the
+  month heading, tapping a day shows its minutes; legend has 5 items; the table lists active days.
+- [ ] **Steps 2–4:** RED, implement, GREEN (+ `pnpm lint`).
+- [ ] **Step 5: Commit** — `feat(patterns): CalendarHeatmap with year, month and table views`.
+
+### Task 1.9: pattern — AppShell (+ ThemeToggle, layout tokens)
+
+**Files:** `components/patterns/app-shell/{index.tsx,sidebar.tsx,bottom-nav.tsx,top-bar.tsx,account-menu.tsx,nav-items.ts}`,
+`components/patterns/theme-toggle.tsx` + tests; `docs/design/assets/gen_tokens.py` →
+`tokens.css` → `pnpm tokens:sync` (decision 4); `app/layout.tsx` (`viewport: { viewportFit:
+'cover' }`).
+
+**Interfaces:**
+
+- `AppShell({ user: { name }, isAdmin, title, onSignOut?, children })` ('use client' leaf parts
+  only): skip link "Bỏ qua đến nội dung" → `#main`; **< 1024 px** sticky top bar (title + account
+  menu) and a bottom nav (`h-14 pb-safe-bottom`, 5 items, 24 px icons + label); `main` gets
+  `pb-bottom-nav lg:pb-0`; **≥ 1024 px** sidebar `w-60`, collapsible to `w-16` (toggle with
+  `aria-expanded`), admin links (Quản trị, Người dùng, Nội dung) only when `isAdmin`; content
+  `max-w-app`.
+- `NAV_ITEMS`: Hôm nay `/today` (`Sun`), Ôn tập `/review` (`RotateCcw`), Lộ trình `/tracks`
+  (`Map`), Tiến độ `/progress` (`BarChart3`), Cài đặt `/settings` (`Settings`); active item
+  (pathname match via `usePathname`) gets `aria-current="page"`, `text-primary` and
+  `bg-primary-soft`.
+- `AccountMenu` — name, theme radio group (Sáng / Tối / Theo hệ thống), "Quản trị" → `/admin`
+  only when `isAdmin`, "Đăng xuất" → `onSignOut`.
+- `ThemeToggle` — `ToggleGroup` of the three themes (`next-themes`), reused by settings (M2).
+
+- [ ] **Step 1: Failing tests** (mock `next/navigation` and `next-themes`) — 5 nav items in both
+  navs; `aria-current="page"` on the active one only; admin entry in the account menu and admin
+  links in the sidebar only when `isAdmin`; collapse toggles `aria-expanded`; choosing "Tối" calls
+  `setTheme('dark')`; the skip link targets `#main`.
+- [ ] **Steps 2–4:** RED, implement, GREEN (+ `pnpm lint`, tokens-sync tests).
+- [ ] **Step 5: Commit** — `feat(patterns): AppShell with sidebar, bottom nav and account menu`.
+
+### Task 1.10: `/dev/components`, catalog guard, rule and theme tests
+
+**Files:** `app/dev/components/{page.tsx,registry.tsx,demos/*.tsx}`, `docs/design/COMPONENTS.md`,
+`tools/guards/component-catalog.test.ts`, `e2e/components.spec.ts`, `e2e/smoke.spec.ts`,
+`tools/guards/eslint-rules.test.ts`, `docs/adr/0021-layer-rules-and-guards.md`.
+
+**Interfaces:**
+
+- `CATALOG: { name, layer: 'ui' | 'patterns' | 'features', file, demos: { title, render }[] }[]`
+  in `registry.tsx`; the page renders a two-pane layout (entry list + demos with every variant
+  and state) and a `ThemeToggle`; `notFound()` when `VERCEL_ENV === 'production'` (decision 7).
+- A **component file** is `components/{ui,patterns}/*.tsx`, `components/patterns/<name>/index.tsx`
+  or `features/*/components/**/*.tsx`, excluding `*.test.tsx`; files beside a pattern's
+  `index.tsx` are its internals.
+
+- [ ] **Step 1: Failing tests** — `component-catalog.test.ts`: every component file has a
+  `COMPONENTS.md` entry whose `File:` line names it and a `CATALOG` entry with the same `file`
+  (read as text, no React import in node), and every catalog `file` exists; `eslint-rules.test.ts`
+  (deferred minor #7): allowed cases for every layer — patterns → ui, features → ui/patterns/lib,
+  a feature's own files, app → a feature's `index.ts` and patterns, `lib` → `lib`, `tools` →
+  `lib`, `app/dev` → ui; `e2e/components.spec.ts`: every catalog entry's heading is visible and axe
+  finds no violations in light and dark (desktop and mobile projects); `e2e/smoke.spec.ts`
+  (deferred minor #9): the painted background differs between light and dark.
+- [ ] **Steps 2–4:** RED, implement (catalog entries for every component from 1.3–1.9), GREEN.
+- [ ] **Step 5: ADR-0021** — layer rules via the in-repo `layers/imports` rule, style/token rules,
+  architecture tests (catalog, offline build, tokens sync); link it in `docs/adr/README.md`.
+- [ ] **Step 6: Verify and commit** — `pnpm verify && pnpm test:e2e`;
+  `feat(dev): component catalog with axe checks and catalog guard`.
+
+### M1 finish
+
+1. `pnpm verify:full` green; `git status` clean.
+2. Fresh end-of-milestone review (most capable model) over `main..feat/m1-components`; one fix pass
+   (each fix RED → GREEN, suite green); minors ledgered.
+3. Push, open the PR "M1: component library + /dev/components", CI green (`verify` with Google
+   Fonts blocked, `e2e`, CodeQL). **Stop for the owner's review** — do not merge, do not start M2.
