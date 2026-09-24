@@ -90,7 +90,8 @@ function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+      // DOM order = visual order at every width (WCAG 2.4.3): stacked on phones, a row from sm.
+      className={cn('flex flex-col gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     />
   )

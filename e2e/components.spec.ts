@@ -41,3 +41,23 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+test.describe('dialog footer on a phone', () => {
+  test.use({ viewport: { width: 390, height: 800 } })
+
+  test('tab order follows the visual order of the footer buttons (WCAG 2.4.3)', async ({
+    page,
+  }) => {
+    await page.goto('/dev/components')
+    await page.getByRole('button', { name: 'Mở hộp thoại' }).click()
+    const boxes = await page
+      .locator('[data-slot="dialog-footer"] button')
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))
+    expect(boxes.length).toBeGreaterThan(1)
+    for (let i = 1; i < boxes.length; i++) {
+      const [a, b] = [boxes[i - 1]!, boxes[i]!]
+      const later = b.top > a.top + 1 || (Math.abs(b.top - a.top) <= 1 && b.left > a.left)
+      expect(later, `button ${i} is placed before button ${i - 1}`).toBe(true)
+    }
+  })
+})
