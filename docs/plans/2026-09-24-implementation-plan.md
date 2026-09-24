@@ -2508,7 +2508,12 @@ Written at the start of M2 (2026-09-24) from the code merged in M0–M1 (PR #1, 
 throwaway spike of the Supabase tooling (CLI, `config.toml`, seed users, pgTAP, keys — findings in
 task 2.1). Executed **subagent-driven** (superpowers:subagent-driven-development): a fresh
 implementer and a fresh reviewer per task, then one whole-branch review on the most capable model,
-then the PR. The owner reviews this section before execution starts.
+then the PR. **Owner review (2026-09-24): approved** with three must-fix and five should-fix changes,
+applied below (MF1 bootstrap only never-processed profiles — decision 23; MF2 schema invariants
+test — 2.1 and every migration task; MF3 schedule history enforced in the database — 2.4; SF4
+`id_conflict` in `apply_event` — 2.5b; SF5 `db` as a required check — M2 finish; SF6 staging
+`db push` after merging a migration — 2.2; SF7 no `lib/env` / `lib/supabase/admin` in client
+modules — 2.6; SF8 `Asia/Saigon` in the parity fixtures — 2.3).
 
 **Branch:** `feat/m2-auth` from `main` at `c2a9583` (M1 merged); this section is its first commit.
 
@@ -2594,11 +2599,12 @@ with its verification command green.
 21. **`CRON_SECRET` is optional** in `lib/env.ts` until task 5.7 adds the cron route.
 22. **Onboarding ranges:** minutes per track 10–240 in steps of 5; a start date in the past becomes
     today, a future start date may be at most 60 days ahead.
-23. **Bootstrap never overrides an admin decision about an admin:** `admin_bootstrap` is a no-op
-    for any profile whose role is already `admin`, whatever its status (§2.5: "if the profile is not
-    yet an admin"), so a suspended admin stays suspended. A listed e-mail whose role was changed to
-    `learner` is promoted again at the next sign-in — to demote a listed admin, remove the e-mail
-    from `ADMIN_EMAILS` first (ADR-0004).
+23. **Bootstrap touches only a never-processed profile** (owner review MF1): `admin_bootstrap`
+    promotes only when `role = 'learner' AND status = 'pending' AND approved_at IS NULL`; for any
+    other profile it is a no-op. So a suspended admin stays suspended, a demoted listed admin stays a
+    learner, and a rejected listed e-mail stays rejected — an admin decision is never overridden by
+    the env list. If no active admin remains, the runbook's break-glass SQL restores one (2.2,
+    ADR-0004).
 24. **Task 2.7 is split** into **2.7a** (sign-in, OAuth callback, test login, bootstrap, seed, the
     guarded route groups with `loading.tsx` / `error.tsx` and placeholders) and **2.7b** (pending
     screen, landing page, AppShell sign-out and title — M1 deferred #5). The shared track pieces
@@ -2647,6 +2653,7 @@ secrets.
 
 - Create: `supabase/config.toml` (from `pnpm exec supabase init`, then the edits below),
   `supabase/tests/database/_helpers.psql`, `supabase/tests/database/000-smoke.test.sql`,
+  `supabase/tests/database/001-schema-invariants.test.sql`,
   `lib/env.ts`, `lib/env.test.ts`, `instrumentation.ts`, `.env.example`, `tools/test/server-only.ts`,
   `lib/supabase/database.types.ts` (generated), `tools/db/local-env.ts`,
   `tools/db/local-env.test.ts`, `e2e/support/test.ts`, `e2e/support/axe.ts`
@@ -2779,6 +2786,29 @@ secrets.
   the generated file, add `lib/supabase/database.types.ts` to `globalIgnores` in
   `eslint.config.mjs` (generated code) rather than editing it.
 
+- [ ] **Step 4b: Schema invariants (owner review MF2).** `001-schema-invariants.test.sql` checks
+  the whole `public` schema on every run, so every later migration is covered automatically:
+  1. every table (`relkind` `r`, `p`) has RLS enabled (`relrowsecurity`);
+  2. every view has `security_invoker=true` in `reloptions` (§4.3);
+  3. `anon` holds **no** privilege on any table, view or sequence in `public` (checked with
+     `has_table_privilege` / `has_any_column_privilege` / `has_sequence_privilege` over `pg_class`);
+  4. every `SECURITY DEFINER` function in `public` has a `search_path=` entry in `proconfig`, an
+     explicit ACL (`proacl` not null — null means PUBLIC may execute) with no PUBLIC entry
+     (`aclexplode(proacl)` grantee `0`), and no EXECUTE for `anon`;
+  5. `anon` has EXECUTE on **no** function in `public`;
+  6. the set of `public` functions `authenticated` may EXECUTE (`has_function_privilege`,
+     excluding extension-owned functions via `pg_depend` `deptype = 'e'`) **equals** an explicit
+     allowlist kept at the top of the file (`set_eq`), with the comment "a migration that adds a
+     function `authenticated` may call adds it here, in the same commit". In 2.1 the allowlist is
+     empty (nothing exists yet, every check passes vacuously); 2.4, 2.5, 2.5b and 2.8 extend it.
+     The final M2 list: `is_active`, `is_admin`, `local_day`, `user_local_day`,
+     `learner_event_types`, `rules_version` (called as the invoker by policies, column defaults
+     and the events trigger), `apply_event`, `admin_set_status`, `admin_set_role`,
+     `admin_list_users`.
+  Prove it bites before relying on it: in a scratch migration (not committed) create a table
+  without RLS and a function granted to `anon`, run `pnpm test:db`, see both checks fail, delete
+  the scratch file, `pnpm db:reset`.
+
 - [ ] **Step 5: `lib/env.ts` test-first.** `lib/env.test.ts` (node) — each must fail first:
   1. a complete valid source parses; `ADMIN_EMAILS=' A@X.com, ,b@y.com '` →
      `['a@x.com', 'b@y.com']`; unset `ADMIN_EMAILS` → `[]`;
@@ -2841,7 +2871,9 @@ secrets.
       ...localSupabaseEnv(),
       NEXT_PUBLIC_SITE_URL: `http://localhost:${PORT}`,
       AUTH_TEST_LOGIN: 'true',
-      ADMIN_EMAILS: 'bootstrap-admin@example.test',
+      // One listed address per bootstrap scenario, so the scenarios never race (2.7a).
+      ADMIN_EMAILS:
+        'bootstrap-admin@example.test,bootstrap-rejected@example.test,bootstrap-demoted@example.test',
       E2E_STACK_READY: '1',
     })
   }
@@ -2971,6 +3003,8 @@ this list:
 | at (UTC) | timezone | day start | expected | note |
 | --- | --- | --- | --- | --- |
 | 2026-09-24T18:30:00Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-24 | RF-1: 01:30 counts for the previous day |
+| 2026-09-24T18:30:00Z | Asia/Saigon | 04:00 | 2026-09-24 | legacy alias (ICU's name for VN) — SF8 |
+| 2026-09-24T21:00:00Z | Asia/Saigon | 04:00 | 2026-09-25 | legacy alias at the day start — SF8 |
 | 2026-09-24T21:00:00Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-25 | the day start itself is the new day |
 | 2026-09-24T20:59:59Z | Asia/Ho_Chi_Minh | 04:00 | 2026-09-24 | one second before the day start |
 | 2026-09-24T17:00:00Z | Asia/Ho_Chi_Minh | 00:00 | 2026-09-25 | midnight day start |
@@ -3057,7 +3091,9 @@ Two commits: first the M1 hygiene (deferred #6, #21), then the migration.
 - Commit 2 — Create: `supabase/migrations/20260925000100_profiles_schedules_tracks.sql`,
   `supabase/tests/database/010-profiles.test.sql`,
   `supabase/tests/database/011-schedules-tracks.test.sql`; Modify:
-  `supabase/tests/database/_helpers.psql`, `lib/supabase/database.types.ts` (`pnpm db:types`)
+  `supabase/tests/database/_helpers.psql`, `supabase/tests/database/001-schema-invariants.test.sql`
+  (allowlist), `lib/supabase/database.types.ts` (`pnpm db:types`),
+  `docs/adr/0017-day-start-and-schedule-versions.md`
 
 **Commit 1 — layer-rule gaps (M1 deferred #6) and doc drift (#21), rule tests first:**
 
@@ -3077,7 +3113,18 @@ Two commits: first the M1 hygiene (deferred #6, #21), then the migration.
 - Commit: `chore(lint): layer rules cover app/api, .mjs files and app/dev pages`.
 
 **Commit 2 — schema.** Write the migration exactly with these definitions (the contract later
-tasks rely on); add comments where a rule comes from the spec.
+tasks rely on); add comments where a rule comes from the spec. It starts by removing Supabase's
+default grants for everything created later in `public` (MF2 — each object then grants exactly
+what it needs):
+
+```sql
+alter default privileges in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
+alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
+```
+
+Every function below states its grants explicitly; the schema-invariants allowlist (2.1) gains
+`is_active` and `is_admin` in this commit.
 
 ```sql
 -- §4.1, §4.5. Every table: RLS on, deny by default; Supabase's default grants are revoked.
@@ -3153,6 +3200,16 @@ Plus, in the same migration:
 - **`public.schedule_versions_check_timezone()`** — `before insert or update on
   schedule_versions`: raises `invalid_timezone` unless `new.timezone` is in `pg_timezone_names`
   (decision 6).
+- **`public.schedule_versions_guard_history()`** (owner review MF3; `apply_event` is callable
+  directly with any `effectiveAt`, and `authenticated` may update versions) — `before insert or
+  update or delete on schedule_versions`, for every role:
+  - insert (also the insert half of an upsert): allowed when `new.effective_at >= now() -
+    interval '5 minutes'` **or** the user has no version yet (their first); otherwise raises
+    `schedule_backdated`;
+  - update: raises `schedule_in_force` when `old.effective_at <= now()` (past days are never
+    rewritten, §5.9); a pending future version may be updated;
+  - delete: raises `schedule_in_force` when `old.effective_at <= now()` — **except** when the
+    user's profile no longer exists (the account-deletion cascade, §4.6, must still work).
 - **Grants** (Supabase grants everything to `anon`/`authenticated` by default — revoke first):
 
   ```sql
@@ -3223,13 +3280,22 @@ plan(n); … select * from finish(); rollback;`):**
 4. an active user inserts and updates their own `user_tracks` row; `budget_minutes` 7, 245 and 62
    fail; `status = 'deleted'` fails; `track_id = 'DSA'` fails; another user's row is invisible and
    an update of it changes nothing; `delete` fails (`42501`);
-5. deleting the `auth.users` row removes the profile, schedule versions and tracks (cascade).
+5. deleting the `auth.users` row removes the profile, schedule versions and tracks (cascade) —
+   including an in-force version;
+6. **history (MF3):** a user's first version may be backdated; a second version with
+   `effective_at = now() - interval '1 hour'` raises `schedule_backdated` (as `authenticated` and
+   as `postgres`); a pending version at `now() + interval '1 day'` inserts and then updates; an
+   update of the in-force version raises `schedule_in_force`; a direct delete of the in-force
+   version (as `postgres`) raises `schedule_in_force`.
 
 - [ ] **Step 1:** Commit 1 (rule tests RED → GREEN, `pnpm lint && pnpm test`).
 - [ ] **Step 2:** Write the two pgTAP files and the helpers; `pnpm test:db` → RED (tables missing).
 - [ ] **Step 3:** Write the migration; `pnpm db:reset && pnpm test:db` → GREEN.
 - [ ] **Step 4:** `pnpm db:types`; `pnpm verify`.
-- [ ] **Step 5: Commit** — `feat(db): profiles, schedule versions and user tracks with RLS`.
+- [ ] **Step 5:** ADR-0017 (written in 2.3) gains one paragraph: the database enforces the
+  history rule too (`schedule_versions_guard_history`, MF3), because `apply_event` is callable
+  directly.
+- [ ] **Step 6: Commit** — `feat(db): profiles, schedule versions and user tracks with RLS`.
 
 ### Task 2.5: Events core — log, quota, `local_day`, payload schemas
 
@@ -3349,6 +3415,10 @@ plan(n); … select * from finish(); rollback;`):**
     local_day) do update set count = event_quota.count + 1 returning count` and raise
     `quota_exceeded` (errcode `P0001`) when the count exceeds **500** (§4.5). No `count(*)`.
   - Trigger **`events_append_only`** (`before update`): raises `events_are_append_only`.
+  - Function grants: `local_day`, `user_local_day`, `learner_event_types`, `rules_version` →
+    `grant execute … to authenticated, service_role` (the events trigger and the column default run
+    as the invoker); trigger functions get no grants. Add the four names to the schema-invariants
+    allowlist (2.1).
   - Grants: `revoke all on public.events, public.event_quota from anon, authenticated`;
     `grant select, insert on public.events to authenticated`. RLS on both; `events` policies:
     select own; insert check `user_id = (select auth.uid()) and (select public.is_active())`.
@@ -3378,7 +3448,9 @@ plan(n); … select * from finish(); rollback;`):**
      now()`, `local_day = public.local_day(now(), <their tz>, <their start>)`;
   2. **[RF-1]** with a version `America/St_Johns 04:00` effective in the past the trigger uses it;
      with no version it uses `Asia/Ho_Chi_Minh 04:00`; `user_local_day` picks the latest version
-     `≤ p_at` among two (before / after the second's `effective_at`);
+     `≤ p_at` among two — the first backdated, the second at `now() + interval '1 day'` (the
+     history trigger forbids a backdated second version), queried at `now()` and at
+     `now() + interval '2 days'`;
   3. an `authenticated` insert of `admin.user_approved` fails with `forbidden_event_type`;
      inserting for another `user_id` fails (`42501`); a pending user's insert fails (`42501`);
   4. as `authenticated`, updating or deleting an event fails with `42501` (no privilege — the
@@ -3416,7 +3488,8 @@ plan(n); … select * from finish(); rollback;`):**
 
 - Consumes: everything from 2.4 and 2.5.
 - Produces SQL (every function `set search_path = ''`; errors are `raise exception '<code>'`
-  with the errcode shown, so PostgREST returns the code as `message`):
+  with the errcode shown, so PostgREST returns the code as `message`). The schema-invariants
+  allowlist (2.1) gains `apply_event`, `admin_set_status`, `admin_set_role`:
 
   **`public.apply_event(p_event jsonb, p_changes jsonb default '[]'::jsonb, p_expected jsonb
   default '{}'::jsonb) returns jsonb`** — `security invoker`; `grant execute` to
@@ -3431,7 +3504,9 @@ plan(n); … select * from finish(); rollback;`):**
   5. an event with this `id` already exists (visible to the caller: their own) → return
      `{"outcome": "duplicate", "versions": {}}` without any change (RF-2 groundwork); a concurrent
      duplicate that loses the race raises `unique_violation` on `events_pkey` at step 6 — catch
-     it and return `duplicate` the same way;
+     it, and return `duplicate` only if the existing event is now visible as the caller's own;
+     otherwise (another user's id) raise `id_conflict` — the same rule as `apply_system_event`
+     (owner review SF4);
   6. insert the event (`id`, `user_id = auth.uid()`, `type`, `track_id`, `item_id`, `plan_id`,
      `block_id`, `payload`, `rules_version` from `p_event`; the trigger forces the rest);
   7. apply the state change — all in the same transaction, so a failure removes the event too:
@@ -3478,10 +3553,10 @@ plan(n); … select * from finish(); rollback;`):**
   `{ "from": …, "to": … }`.
 
   **`public.admin_bootstrap(p_user_id uuid) returns boolean`** — `security definer`, `execute`
-  for `service_role` only (`revoke … from public, anon, authenticated`). Role already `admin`,
-  **whatever the status** → `false`, no event (decision 23: a suspended admin stays suspended).
-  Otherwise role `admin`,
-  status `active`, `approved_at = coalesce(approved_at, now())`, event `admin.bootstrapped`
+  for `service_role` only (`revoke … from public, anon, authenticated`). Unless the profile is
+  **never processed** — `role = 'learner' AND status = 'pending' AND approved_at IS NULL` — it
+  returns `false` and writes nothing (decision 23). Otherwise role `admin`,
+  status `active`, `approved_at = now()`, event `admin.bootstrapped`
   (`source 'system'`, `actor_id` = the user, payload `{ targetUserId, from: <old status>, to:
   'active' }`) → `true` (§2.5).
 
@@ -3496,7 +3571,8 @@ plan(n); … select * from finish(); rollback;`):**
   export type ApplyOutcome = 'applied' | 'duplicate'
   export type EventErrorCode = 'quota_exceeded' | 'forbidden' | 'inactive' | 'invalid_event'
     | 'not_implemented' | 'invalid_transition' | 'track_not_enrolled' | 'invalid_timezone'
-    | 'ai_personalization_off' | 'unknown'
+    | 'ai_personalization_off' | 'id_conflict' | 'schedule_backdated' | 'schedule_in_force'
+    | 'unknown'
   export class EventError extends Error {
     readonly code: EventErrorCode
     readonly userMessage: string       // Vietnamese, from vi.errors
@@ -3529,7 +3605,8 @@ plan(n); … select * from finish(); rollback;`):**
   1. `track.enrolled` for an active user creates the `user_tracks` row and exactly one event
      (`source learner`, `actor_id` = user);
   2. **the same event id again** → `outcome duplicate`, still one event, and a changed
-     `budgetMinutes` in the retry does **not** change the row;
+     `budgetMinutes` in the retry does **not** change the row; an id already used by **another
+     user's** event → `id_conflict`, no row changed;
   3. `p_event.user_id` of another user → `forbidden`; `anon` cannot execute (`42501`);
   4. `admin.user_approved` → `invalid_event`; `item.result` → `not_implemented`; a non-empty
      `p_changes` → `not_implemented`; a pending user → `inactive`;
@@ -3554,8 +3631,10 @@ plan(n); … select * from finish(); rollback;`):**
      `invalid_transition`; the admin targeting themselves → `cannot_change_self`; a **suspended**
      admin → `forbidden`;
   4. `admin_set_role` → role changed + `admin.role_changed`; same role → `no_change`;
-  5. `admin_bootstrap` on a pending user → `true`, active admin, one `admin.bootstrapped` event;
-     again → `false`, still one event; on a **suspended admin** → `false` and still suspended;
+  5. `admin_bootstrap` on a never-processed pending user → `true`, active admin, one
+     `admin.bootstrapped` event; again → `false`, still one event; `false` with no change and no
+     event for: a **suspended admin** (stays suspended), a **demoted admin** (learner, active,
+     `approved_at` set — stays learner), a **rejected** learner (stays rejected);
      `anon` has no execute privilege on any function of this task, `authenticated` none on
      `apply_system_event` / `admin_bootstrap`;
   6. admin and system events do not touch `event_quota`.
@@ -3583,7 +3662,8 @@ plan(n); … select * from finish(); rollback;`):**
   `tools/guards/server-guards.ts`, `tools/guards/server-guards.test.ts`,
   `docs/adr/0002-supabase-keys-and-getclaims.md`, `docs/adr/0006-proxy-and-dal.md`,
   `docs/adr/0019-cache-components-off.md`
-- Modify: `CLAUDE.md` (guard list + `requireOnboarded`), `docs/adr/README.md`
+- Modify: `CLAUDE.md` (guard list + `requireOnboarded`), `docs/adr/README.md`,
+  `tools/eslint/layer-imports.mjs`, `tools/guards/eslint-rules.test.ts`
 
 **Interfaces:**
 
@@ -3672,6 +3752,13 @@ every exported async function in `features/*/queries.ts` (§2.2: "every `feature
 loader calls the DAL") — a loader without a guard as its first statement is a violation (test
 case). Then it scans every `*.ts`/`*.tsx` under `app`, `features`, `lib`, `components` and
 expects zero violations (§2.2, §7.2).
+
+**Client-module rule (owner review SF7):** `layers/imports` also reports any import that
+resolves to `lib/env` or `lib/supabase/admin` from a module whose first statement is the
+`'use client'` directive (message: "Client modules must not import server configuration or the
+secret-key client."). Rule tests: a `'use client'` file under `features/x/components/` importing
+`@/lib/env` (error) and `../../../lib/supabase/admin` (error); the same imports without the
+directive (allowed by this rule); a `'use client'` file importing `@/lib/utils` (allowed).
 
 - [ ] **Step 1: Failing tests** — `paths.test.ts` (`homePathFor` matrix for the four statuses ×
   onboarded; `safeNextPath('/today')` → `/today`; `'/settings?tab=x'` and the percent-encoded
@@ -3838,8 +3925,12 @@ and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/compone
   2. a pending user signs in → `/pending`; an active, not-onboarded user → `/onboarding`; an
      active onboarded user with `next=/today` → `/today` inside the AppShell;
   3. a wrong password shows the error and stays on `/sign-in`;
-  4. **bootstrap** (desktop project only; `deleteUserByEmail('bootstrap-admin@example.test')`
-     first): that pending user signs in → lands on `/onboarding`; the profile is an active admin;
+  4. **bootstrap** (desktop project only; each scenario first `deleteUserByEmail(<its address>)`):
+     a never-processed pending `bootstrap-admin@example.test` signs in → lands on `/onboarding`
+     as an active admin; a **rejected** `bootstrap-rejected@example.test` signs in → stays on
+     `/pending` with the rejected copy, still `learner`/`rejected`; a **demoted**
+     `bootstrap-demoted@example.test` (learner, active, `approved_at` set, onboarded) signs in →
+     `/today`, still `learner` (decision 23);
   5. a signed-in user visiting `/sign-in` goes to their home path; a `next` of
      `//evil.test` is ignored.
   `not-found.spec.ts` gains the signed-in case (an active onboarded user gets the Vietnamese 404
@@ -3915,7 +4006,8 @@ and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/compone
 - SQL: `public.admin_list_users() returns table (id uuid, email text, display_name text,
   avatar_url text, role text, status text, created_at timestamptz, approved_at timestamptz,
   onboarded_at timestamptz)` — `security definer`, `set search_path = ''`, `execute` for
-  `authenticated` (`revoke … from public, anon`); not `is_admin()` → `forbidden`; joins `auth.users` for the e-mail; ordered
+  `authenticated` (`revoke … from public, anon`; added to the schema-invariants allowlist); not
+  `is_admin()` → `forbidden`; joins `auth.users` for the e-mail; ordered
   pending first (oldest first), then everyone else newest first. No notes, no events (§4.5).
 - TypeScript:
 
@@ -3960,8 +4052,9 @@ and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/compone
 - [ ] **Step 4: RED → implement → GREEN** (`pnpm db:reset && pnpm test:db`, `pnpm test`,
   `pnpm test:e2e`); `pnpm db:types`.
 - [ ] **Step 5: ADR-0004** (open sign-up with admin approval; statuses and transitions; no
-  self-actions; in-app status only; bootstrap semantics of decision 23 — a listed e-mail demoted to
-  `learner` is promoted again at its next sign-in, so remove it from `ADMIN_EMAILS` first).
+  self-actions; in-app status only; bootstrap only for never-processed profiles — decision 23 —
+  so the env list never overrides an admin decision; the break-glass SQL in `docs/ops/staging.md`
+  for the case where no active admin remains).
 - [ ] **Step 6: Verify** `pnpm verify:full`. **Commit** — `feat(admin): user approval queue`.
 
 ### Task 2.9: Track manifests, loader, projection table
@@ -4431,7 +4524,27 @@ The runbook (no secrets, no project refs) — numbered, checkable steps:
    on onboarding, whose first step **lists both tracks** (proves `outputFileTracingIncludes`
    ships the manifests, 2.9); `/admin/users` lists the account; a second Google account lands on
    `/pending` until approved.
-7. **Rotation / leaks:** rotate a key in Supabase, update Vercel, redeploy; the repo never holds
+7. **Migrations (owner review SF6):** after merging any PR that adds a migration, run
+   `pnpm exec supabase db push` against staging (linked project) and check `migration list` —
+   until task 5.8 automates it.
+8. **Break glass — no active admin left** (decision 23, ADR-0004): in the Supabase SQL editor
+   (runs as `postgres`), with the owner's e-mail:
+
+   ```sql
+   -- Restore one admin when no active admin remains. Leaves an audit event.
+   with target as (select id from auth.users where email = '<owner e-mail>')
+   update public.profiles p
+      set role = 'admin', status = 'active', approved_at = coalesce(p.approved_at, now())
+     from target where p.id = target.id;
+   insert into public.events (id, user_id, actor_id, source, type, payload)
+   select gen_random_uuid(), id, id, 'system', 'admin.bootstrapped',
+          jsonb_build_object('targetUserId', id, 'to', 'active')
+     from auth.users where email = '<owner e-mail>';
+   ```
+
+   Check first that no active admin exists (`select count(*) from public.profiles where role =
+   'admin' and status = 'active'`), and afterwards that the account can open `/admin/users`.
+9. **Rotation / leaks:** rotate a key in Supabase, update Vercel, redeploy; the repo never holds
    a key.
 
 - [ ] **Step 1:** Write the runbook (`docs/` is outside Prettier: wrap lines at 100 characters by
@@ -4446,4 +4559,6 @@ The runbook (no secrets, no project refs) — numbered, checkable steps:
    deferred minors; one fix pass (each fix RED → GREEN); residuals ledgered.
 3. Push, open the PR "M2: auth, onboarding, settings" with the owner checklist (2.2 steps; the
    real Google and GitHub sign-in on the preview, 2.7a) and the rulings list; CI green (`verify`,
-   `db`, `e2e`, CodeQL). **Stop for the owner's review** — do not merge, do not start M3.
+   `db`, `e2e`, CodeQL). Once the `db` job has reported on the PR, add `db` to the `main`
+   ruleset's required status checks (owner review SF5; `verify` and `e2e` stay) and confirm it in
+   the PR. **Stop for the owner's review** — do not merge, do not start M3.
