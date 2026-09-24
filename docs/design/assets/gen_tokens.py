@@ -147,6 +147,12 @@ css = f'''/*
   --container-prose: 72ch;  /* lessons, notes */
   --container-app: 80rem;   /* dashboard max width */
 
+  /* Bottom navigation (< 1024 px): 56 px plus the home-indicator inset (0 unless the page opts into
+     viewport-fit=cover); `above-bottom-nav` adds a 12 px gap for scroll padding and toasts */
+  --spacing-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --spacing-bottom-nav: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  --spacing-above-bottom-nav: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+
   /* Motion — easing curves (durations below are plain custom properties) */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
@@ -187,7 +193,9 @@ for name, t, dark in (('Light', P.LIGHT, False), ('Dark', P.DARK, True)):
     for r in rows:
         rep.append(f'| {r[0]} | {r[1]:.2f} | {r[2]} | {"pass" if r[3] else "FAIL"} |')
     rep.append('')
-open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'contrast.md'), 'w').write('\n'.join(rep))
+# Written only on request (`--report`), so `pnpm tokens:sync` leaves no stray file behind.
+if '--report' in sys.argv:
+    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'contrast.md'), 'w').write('\n'.join(rep))
 
 # token tables (markdown) for §3
 def token_table(keys):

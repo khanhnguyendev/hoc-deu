@@ -12,4 +12,12 @@ describe('.github/dependabot.yml', () => {
     expect(entry).toContain('version-update:semver-major')
     expect(entry).toContain('version-update:semver-minor')
   })
+
+  it('ignores major updates of @types/node (pinned to Node 22)', () => {
+    const entry = config
+      .slice(config.indexOf("dependency-name: '@types/node'"))
+      .split('- dependency-name')[0]
+    expect(config).toContain("dependency-name: '@types/node'")
+    expect(entry).toContain('version-update:semver-major')
+  })
 })

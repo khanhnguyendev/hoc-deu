@@ -297,6 +297,12 @@
   --container-prose: 72ch;  /* lessons, notes */
   --container-app: 80rem;   /* dashboard max width */
 
+  /* Bottom navigation (< 1024 px): 56 px plus the home-indicator inset (0 unless the page opts into
+     viewport-fit=cover); `above-bottom-nav` adds a 12 px gap for scroll padding and toasts */
+  --spacing-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --spacing-bottom-nav: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  --spacing-above-bottom-nav: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+
   /* Motion — easing curves (durations below are plain custom properties) */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);

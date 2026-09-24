@@ -16,10 +16,14 @@ keys, `getClaims()` never `getSession()` on the server) · Vitest 5 · Playwrigh
 ```bash
 pnpm dev            # dev server
 pnpm verify         # typecheck → lint (ESLint + Prettier) → unit tests → build — must be green
-pnpm test           # Vitest
+pnpm typecheck      # next typegen + tsc
+pnpm lint           # ESLint (layer, token, style rules) + Prettier check
+pnpm test           # Vitest (*.test.ts in Node, *.test.tsx in jsdom)
+pnpm build          # next build (works offline: fonts are self-hosted in app/fonts)
 pnpm test:e2e       # Playwright + axe
 pnpm verify:full    # verify + e2e
 pnpm format         # Prettier write
+pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
 
 Later milestones add `pnpm test:db`, `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
@@ -56,9 +60,9 @@ utilities (`bg-surface`, `bg-background/50`, `text-muted-foreground`, `bg-track`
 `duration-(--duration-fast)`). Tailwind's default colours, fonts, text sizes, radii, shadows and
 easings are cleared, so `bg-red-500` or `shadow-lg` is an unknown class. `style` props may only set
 CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token guard
-(`tools/guards`) fail the build otherwise. To change a token: edit
-`docs/design/assets/palette.py`, run `python3 docs/design/assets/gen_tokens.py`, regenerate
-`app/globals.css`.
+(`tools/guards`) fail the build otherwise. To change a token: edit `docs/design/assets/palette.py`
+(or `gen_tokens.py`), run `pnpm tokens:sync` — it rewrites only the block between
+`/* tokens:start */` and `/* tokens:end */` in `app/globals.css`, so CSS outside it survives.
 
 ## React / Next.js
 

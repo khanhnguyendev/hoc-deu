@@ -198,6 +198,13 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   `@supabase/ssr`, Upstash Redis (from v1.1: rate limits for the bot API, OAuth callback, account
   deletion, admin actions and — when built — data export; learner writes use a Postgres quota),
   Vitest, Playwright + axe, GitHub Actions.
+- **Fonts are self-hosted** (owner decision, 2026-09-24): Be Vietnam Pro (400/500/600/700) and
+  JetBrains Mono, subset to latin + vietnamese, committed as `woff2` under `app/fonts/` with their
+  OFL license files and loaded with `next/font/local`. **`next build` needs no network** beyond the
+  package registry at install time — the Routine's Custom network (§6.8) does not allow
+  `fonts.googleapis.com`, and the bot runs `pnpm verify` before every content PR. `next/font/google`
+  is banned by ESLint and an architecture test, and CI builds with the Google Fonts hosts blocked
+  (ADR-0001).
 - **Version pins (from research, 2026-09-23):** TypeScript 6.0.x (typescript-eslint does not
   support TS 7), ESLint 9.39.x (Next's ESLint plugins declare ≤ 9), Node 22.12+ (Vitest 5 and
   supabase-js require it). `next-mdx-remote` is archived — not used.
@@ -1921,7 +1928,9 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
 - **Repository:** only `hoc-deu`, cloned fresh from `main` each run.
 - **Setup script:** `corepack enable && pnpm install --frozen-lockfile` (cached by the environment).
 - **Network:** access level **Custom**, allowed domain `hoc-deu.vercel.app`, plus the default list
-  (package registries). Vercel is not on the Trusted list.
+  (package registries). Vercel is not on the Trusted list. The build is offline-safe (§2.1: fonts
+  self-hosted, no `next/font/google`, code highlighting bundled at build time), so `pnpm verify`
+  runs inside this network; CI proves it by building with the Google Fonts hosts blocked.
 - **Credentials:** API credential for `hoc-deu.vercel.app` (§6.3). **Connectors:** all removed.
 - **Repo guardrails** (defence in depth): committed `.claude/settings.json` deny rules for edits
   outside `content/**` and for `git push` to anything but `claude/content-*`; the required checks in
@@ -2062,10 +2071,15 @@ Each layer may only import from the layers above it.
 
 **Enforcement — no new dependencies needed:**
 
-- ESLint flat config: built-in `no-restricted-imports` with per-folder `files` globs encodes the
-  table above.
+- ESLint flat config: an in-repo rule, `layers/imports` (`tools/eslint/layer-imports.mjs`),
+  resolves every import — `@/` alias, relative, re-export and `import()` — to a repo path and
+  checks it against the table above, so `../` cannot skip a layer and a feature may import its
+  own files (changed in the M0 review: the built-in `no-restricted-imports` could not see relative
+  paths or the importer's own feature). Built-in `no-restricted-imports` keeps the package bans
+  for `lib/domain`.
 - ESLint `no-restricted-syntax`: no `className` prop in `app/**` (except `app/layout.tsx`, which
-  sets the font classes on `<html>`/`<body>`); no `'use client'` in `page.tsx` / `layout.tsx`.
+  sets the font classes on `<html>`/`<body>`); no `'use client'` in `page.tsx` / `layout.tsx`;
+  `style` props hold only CSS custom properties (§7.3).
 - Architecture tests (`tools/guards/*.test.ts`, Vitest):
   - every `'use server'` module (repo-wide) and every route handler calls a guard (§2.2: DAL
     functions, `requireBotToken`, `requireCronSecret`, or the explicit `publicRoute()` marker);
@@ -2079,25 +2093,31 @@ Each layer may only import from the layers above it.
 
 ### 7.3 Guard against hard-coded visual values
 
-Two complementary checks; both run in `pnpm verify`.
+Three complementary checks; all run in `pnpm verify`.
 
 1. **ESLint `eslint-plugin-better-tailwindcss`** (supports Tailwind v4 and ESLint 9; new dev
    dependency — approved with this spec):
    - `no-restricted-classes`:
      - bans arbitrary values — `p-[13px]`, `text-[#fff]`, `grid-cols-[1fr_2fr]` (pattern
        `\[[^\]]*\](?!:)`, so arbitrary *variants* like `data-[state=open]:` are still allowed);
-     - bans raw palette classes — `(bg|text|border|ring|fill|stroke|outline|decoration|from|via|to|shadow)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}`
-       and `(bg|text|border)-(black|white)`, with a message pointing to the semantic tokens.
+     - bans raw palette classes and raw `black`/`white` on every colour utility (including side,
+       offset, inset, drop-shadow, `fill`/`stroke` and opacity forms such as `bg-black/50`), with a
+       message pointing to the semantic tokens;
+     - bans the important modifier (`!p-4`, `p-4!`), arbitrary breakpoints (`max-[600px]:`) and
+       raw `duration-*` / `delay-*` numbers (use `duration-(--duration-fast)`).
    - `no-unknown-classes` with `entryPoint: app/globals.css`, so only classes backed by tokens
-     exist (`bg-surface`, `text-muted-foreground`, `bg-accent`, `rounded-card`, …).
+     exist (`bg-surface`, `text-muted-foreground`, `bg-track`, `rounded-lg`, …). `tokens.css`
+     clears Tailwind's default colour, font, text, radius, shadow and easing namespaces, so
+     `shadow-lg`, `text-5xl` or `font-serif` are unknown classes.
    - `no-conflicting-classes`.
 2. **Token guard test** (`tools/guards/token-guard.test.ts`) scans `components/**`,
    `features/**` and `app/**` (except `app/globals.css`) and fails on:
-   - hex colors (`#[0-9a-fA-F]{3,8}\b`), `rgb(`, `rgba(`, `hsl(`, `oklch(`;
-   - numeric `px` / `rem` / `ms` literals inside `style` props;
+   - hex colours where a value starts (`'#fff'`, `: #1C1917`; not `href="#note"`, `#217` in text
+     or `&#160;`), `rgb(`, `rgba(`, `hsl(`, `oklch(`, `lab(`, `lch(`, CSS `color(<space> …)`;
    - any `.css` file other than `app/globals.css`, inline `<style>`, `!important`.
-   - `style` is allowed only for CSS custom properties that carry data (e.g.
-     `style={{ '--progress': value }}`), never for colors or sizes.
+3. **`style` props** (ESLint `no-restricted-syntax` on the JSX AST): allowed only for CSS custom
+   properties that carry data (e.g. `style={{ '--progress': value }}`) — no other keys, no
+   spreads, no style objects passed by reference.
    - Exceptions live in `tools/guards/token-guard.allow.ts`, one entry per file with a reason;
      empty by default.
 
@@ -2357,7 +2377,7 @@ template; each ADR is written in the milestone that implements it.
 
 | ADR | Decision | Section |
 | --- | --- | --- |
-| 0001 | Next.js 16 App Router on Vercel Hobby, non-commercial | §2 |
+| 0001 | Next.js 16 App Router on Vercel Hobby, non-commercial; offline-safe build with self-hosted fonts | §2, §2.1, §6.8 |
 | 0002 | Supabase with publishable/secret keys; `getClaims()` on the server | §2.1 |
 | 0003 | Google + GitHub OAuth only; env-gated test login for local/CI | §0.1, §2.3 |
 | 0004 | Open sign-up with admin approval | §0.1 |
@@ -2377,7 +2397,7 @@ template; each ADR is written in the milestone that implements it.
 | 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | §2.3 |
 | 0019 | Cache Components off in v1 | §2.3 |
 | 0020 | Intl-only time handling in `lib/domain`; no date library | §7.2 |
-| 0021 | Layer rules via built-in ESLint + architecture tests; token guard | §7.2, §7.3 |
+| 0021 | Layer rules via an in-repo ESLint rule + architecture tests; token guard | §7.2, §7.3 |
 | 0022 | Daily bot: two loops, app code off-limits; weekly code Routine is future work | §6.1 |
 | 0023 | Auto-merge `claude/content-*` without an approving review (self-approval impossible) | §6.6, §6.11 |
 | 0024 | Content PRs only from the Routine; publishing via admin requests; no GitHub token in the app | §6.6, §6.9 |

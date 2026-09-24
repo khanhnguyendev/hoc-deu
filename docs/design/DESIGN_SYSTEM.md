@@ -1,7 +1,8 @@
 # Học Đều — Design System
 
 - **Gate:** 2 of 3 (design doc → **design system** → implementation plan)
-- **Status:** APPROVED (2026-09-24) after the owner's review
+- **Status:** APPROVED (2026-09-24) after the owner's review; M1-review amendments approved the same
+  day (§14)
 - **Source of truth for values:** [`tokens.css`](./tokens.css) (generated, contrast-checked). M0 copies
   it into `app/globals.css`; nothing else in the codebase may hold a visual value (platform design
   §7.3).
@@ -147,11 +148,13 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
   pair of adjacent levels is ≥ 1.6:1.
   - Every active day (level ≥ 1) also shows a small centred dot (`foreground` at 40 % opacity on
     light levels, `background` on dark levels), so "studied" never depends on colour alone.
-  - **≥ 768 px — year view:** 7 rows × 53 weeks, 12 px cells with 3 px gaps; each cell is
-    focusable with arrow-key navigation and shows date + minutes in a tooltip on hover and focus.
-  - **< 768 px — month view:** a 7-column month grid with **44 × 44 px** day cells (day number
-    inside, colour level behind it), previous/next month buttons plus horizontal swipe; tapping a
-    day shows its date and minutes. The year view is desktop-only.
+  - **≥ 1024 px with a fine pointer (mouse, trackpad) — year view:** 7 rows × 53 weeks, 12 px
+    cells with 3 px gaps, opening scrolled to today; each cell is focusable with arrow-key
+    navigation and shows date + minutes (native hover title, and a detail line under the grid).
+  - **Below 1024 px or on any touch screen — month view:** a 7-column month grid with
+    **44 × 44 px** day cells (day number inside, colour level behind it), previous/next month
+    buttons plus horizontal swipe; tapping a day shows its date and minutes. 12 px year cells are
+    too small for fingers, so tablets always get the month view (owner, 2026-09-24).
   - Both views keep the legend (minute ranges), the dots and the accessible table view ("Xem dạng
     bảng") — ui-ux-pro-max chart guidance: heatmaps need labels and a table fallback.
   - Today's cell has a 2 px `ring` outline.
@@ -164,16 +167,18 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
 
 ### 4.1 Fonts
 
-| Role | Family | Loading (next/font/google) | Why |
+| Role | Family | Loading (`next/font/local`, files in `app/fonts/`) | Why |
 | --- | --- | --- | --- |
-| UI, headings, body | **Be Vietnam Pro** | `weight: ['400','500','600','700']`, `subsets: ['latin','vietnamese']`, `display: 'swap'`, CSS variable `--font-be-vietnam-pro` | Designed for Vietnamese: stacked diacritics (ế, ộ, ữ, Ặ) are drawn, not stacked by fallback; clean geometric-humanist forms fit the Swiss style |
-| Code, numbers in tables | **JetBrains Mono** | variable, `subsets: ['latin','vietnamese']`, CSS variable `--font-jetbrains-mono` | Clear `0/O`, `1/l`; has a Vietnamese subset, so Vietnamese code comments render correctly |
+| UI, headings, body | **Be Vietnam Pro** | four static `woff2` files (400/500/600/700) subset to latin + vietnamese, `display: 'swap'`, CSS variable `--font-be-vietnam-pro` | Designed for Vietnamese: stacked diacritics (ế, ộ, ữ, Ặ) are drawn, not stacked by fallback; clean geometric-humanist forms fit the Swiss style |
+| Code, numbers in tables | **JetBrains Mono** | one variable `woff2` subset to latin + vietnamese, CSS variable `--font-jetbrains-mono` | Clear `0/O`, `1/l`; has a Vietnamese subset, so Vietnamese code comments render correctly |
 
 - Considered: Lexend + Source Sans 3 (ui-ux-pro-max's "Corporate Trust" pairing; both have
   Vietnamese subsets). Be Vietnam Pro was chosen for its native Vietnamese design and one-family
   consistency. **Fira Code is not allowed** — it has no Vietnamese subset.
 - Be Vietnam Pro is not variable, so exactly four weights are loaded; do not use 300 or 800.
 - Fallback stacks are in `tokens.css` (`--font-sans`, `--font-mono`).
+- Fonts are self-hosted (platform design §2.1): the build must not need `fonts.googleapis.com`.
+  Both families are under the SIL Open Font License; `app/fonts/*/OFL.txt` ships with the files.
 
 ### 4.2 Type scale (16 px base, mobile-first)
 
@@ -223,8 +228,11 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
 - **App shell:**
   - **< 1024 px:** top bar (page title + **account menu** on the avatar) and a **bottom
     navigation** with 5 items — Hôm nay, Ôn tập, Lộ trình, Tiến độ, Cài đặt — icon + label, 56 px
-    tall plus the safe-area inset (`env(safe-area-inset-bottom)`); page content gets matching
-    bottom padding so nothing hides behind it.
+    tall. Pages do **not** set `viewport-fit=cover`, so the browser keeps every page clear of
+    notches and the home indicator (`--spacing-safe-bottom` stays 0 until a PWA opts in). Page
+    content, the root scroll padding and toasts keep **68 px clearance**
+    (`--spacing-above-bottom-nav`: the 56 px bar + 12 px), so content, focus rings and toasts never
+    hide behind it; the 56 px sticky top bar gets 64 px of top scroll padding.
   - **Account menu** (all sizes): name, theme toggle, "Quản trị" (**admins only**, links to
     `/admin`), "Đăng xuất". Admins also get a "Quản trị" row at the top of Cài đặt, so admin pages
     are reachable on mobile even though the bottom nav has no admin item.
@@ -236,6 +244,9 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
   2/3 column, stats in a 1/3 column.
 - **Touch targets:** ≥ 44 × 44 px for anything tappable (buttons, list rows, pills that act,
   month-view heatmap cells); ≥ 8 px between adjacent targets.
+  - **Chips that act** (FilterChip) keep a **32 px visual height with a hit area of at least
+    44 px** — a transparent region 8 px above and below the chip — and sit **≥ 8 px apart** in a
+    row and 20 px between rows, so hit areas never overlap (owner, 2026-09-24; e2e-tested).
 - **Forms:** one column; label above field; helper text below; errors under the field
   (`text-danger`, icon + message), plus a summary at the top of long forms (onboarding).
 
@@ -299,18 +310,18 @@ data-driven components render loading / empty / error through the `LoadingState`
 | **Button** (ui) | Variants `primary`, `secondary` (`surface-muted`), `outline` (`border-strong`), `ghost`, `destructive`, `link`. Sizes `sm` 36 px (desktop only), `md` 44 px (default), `lg` 48 px. Loading shows a spinner and keeps the width. One `primary` per view. |
 | **Input / Select / Textarea** (ui) | 44 px tall, `border-strong`, `rounded-md`, label always visible (no placeholder-as-label), error below. |
 | **Card** (ui) | `bg-surface`, `border`, `rounded-lg`, padding per §5. Clickable cards get `hover:shadow-sm` and a visible focus ring. |
-| **StatusPill** (pattern) | Colours, icon and label from §3.3; `text-xs` weight 500, `rounded-full`, 24 px tall (not tappable) or 32 px (filter chips). |
+| **StatusPill** (pattern) | Colours, icon and label from §3.3; `text-xs` weight 500, `rounded-full`, 24 px tall (not tappable). Filter chips use **FilterChip**: the same pill at 32 px with a 44 px hit area and `aria-pressed` (§5). |
 | **PageHeader, Section** (patterns) | Title `text-2xl md:text-3xl`, optional description in `muted-foreground`, actions on the right (stack below on mobile). |
 | **PlanBlockCard** (feature) | 4 px track stripe on the left (`bg-track`), block kind + estimated minutes, item rows, and a full-width **one-tap check-in** button (`primary`, 48 px) at the bottom. Checked-in state collapses the button into a status row (done / partial / skipped) with "Sửa". |
 | **CheckInSheet** (feature) | Bottom sheet on mobile, dialog on desktop: status segmented control (Xong / Một phần / Bỏ qua), minutes stepper (pre-filled), optional note. Focus moves to the sheet title; `Esc` closes; the result is announced in a polite live region. |
 | **FlashcardViewer** (feature) | Term (`text-lg`, `lang="en"`) → "Xem nghĩa" → meaning, usage, example, pronunciation hint → three grade buttons "Biết" / "Chưa chắc" / "Không biết" (keyboard 1 / 2 / 3). The card stays in place; only content cross-fades. |
 | **Code tabs / Solution** (feature) | Python / Java / Go tabs (remembers the user's language), `font-mono text-sm`, `surface-muted` background, horizontal scroll, never wrapped. Solutions are hidden behind "Xem lời giải". Results stay self-reported (platform design §5.5): if the solution was revealed before grading, the grade buttons **preselect** "Cần gợi ý" as a nudge, and the learner can still choose any grade. |
 | **ProgressRing, StatCard, StreakBadge** (patterns) | Numbers in `font-mono` with tabular figures; the ring uses `ring-track` for track progress and `primary` for overall. Streak shows the number + `Flame` + "ngày liên tiếp". |
-| **CalendarHeatmap** (pattern) | §3.4. Year view (7 rows × weeks, 12 px cells) at ≥ 768 px; month view (7 columns × 44 px day cells, prev/next + swipe) below 768 px; legend, activity dots and table fallback in both. |
+| **CalendarHeatmap** (pattern) | §3.4. Year view (7 rows × weeks, 12 px cells) at ≥ 1024 px with a fine pointer; month view (7 columns × 44 px day cells, prev/next + swipe) below 1024 px or on touch screens; legend, activity dots and table fallback in both. |
 | **Banners** (pattern) | Paused roadmap and throttle use `warning-soft`; red admin warnings use `danger-soft`; always icon + one sentence + one action. |
 | **EmptyState / ErrorState / LoadingState** (patterns) | Empty: icon, one line of what happened, one action. Error: what failed + "Thử lại". Loading: skeletons shaped like the content (no spinners for whole pages). |
 | **Toast** (ui) | Bottom-centre on mobile, bottom-right on desktop; 4 s; polite live region; never the only feedback for a failed save. |
-| **Navigation** (pattern) | Bottom nav / sidebar per §5; the active item uses `primary` icon + label and `primary-soft` background; `aria-current="page"`. |
+| **Navigation** (pattern) | Bottom nav / sidebar per §5; the active item uses `primary` icon + label, `primary-soft` background, a semibold label and a 4 px `primary` indicator bar (never colour alone, WCAG 1.4.1); `aria-current="page"`. |
 
 ## 10. Accessibility checklist (WCAG 2.1 AA)
 
@@ -363,6 +374,18 @@ data-driven components render loading / empty / error through the `LoadingState`
   `ring-track` (not `bg-accent`), because shadcn/ui already uses `accent` for hover surfaces. The
   mechanism is unchanged: a manifest names `track-1`…`track-8`, components render
   `data-accent="track-N"`.
+
+
+## 14. M1-review amendments (approved by the owner, 2026-09-24)
+
+- **Navigation current state:** `primary` icon + label and `primary-soft` background **plus** a
+  semibold label and a 4 px `primary` indicator bar — never colour alone (WCAG 1.4.1) (§9).
+- **No `viewport-fit=cover`;** a **68 px bottom-nav clearance** token,
+  `--spacing-above-bottom-nav`, in `tokens.css` (generated by `gen_tokens.py`, synced with
+  `pnpm tokens:sync`) (§5).
+- **Filter chips:** 32 px visual, hit area of at least 44 px, ≥ 8 px apart (§5, FilterChip).
+- **Heatmap:** year view only from 1024 px with a fine pointer; month view below that and on touch
+  screens (§3.4).
 
 ---
 

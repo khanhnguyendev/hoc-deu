@@ -109,6 +109,23 @@ export default defineConfig([
     rules: { 'no-restricted-syntax': syntax() },
   },
   {
+    files: ['**/*.{ts,tsx,js,jsx,mjs}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'next/font/google',
+              message:
+                'Fonts are self-hosted (app/fonts, next/font/local): the build must work offline (platform design §2.1).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['lib/domain/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [DOMAIN_PACKAGES] }],
@@ -141,6 +158,11 @@ export default defineConfig([
           "Pages and layouts are Server Components; put 'use client' in an interactive leaf component.",
       }),
     },
+  },
+  {
+    // global-error replaces the root layout: it is a Client Component that sets the font classes.
+    files: ['app/global-error.tsx'],
+    rules: { 'no-restricted-syntax': syntax() },
   },
   {
     files: ['app/layout.tsx'],

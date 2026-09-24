@@ -28,3 +28,6 @@ Contributor and agent rules live in [CLAUDE.md](CLAUDE.md).
 - **Code:** [MIT](LICENSE).
 - **Learning content** (everything under `content/`): [CC BY-NC-SA 4.0](content/LICENSE) —
   share and adapt with attribution, non-commercially, under the same license.
+- **Fonts** (`app/fonts/`): Be Vietnam Pro and JetBrains Mono under the
+  [SIL Open Font License 1.1](app/fonts/be-vietnam-pro/OFL.txt), self-hosted so the build works
+  offline.
