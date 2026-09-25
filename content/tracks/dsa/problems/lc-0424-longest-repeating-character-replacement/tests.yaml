@@ -1,0 +1,11 @@
+signature:
+  { kind: function, name: characterReplacement, params: { s: string, k: int }, returns: int }
+compare: exact
+cases:
+  - { name: example-1, input: { s: 'ABAB', k: 2 }, expected: 4 }
+  - { name: example-2, input: { s: 'AABABBA', k: 1 }, expected: 4 }
+  - { name: single-character, input: { s: 'A', k: 0 }, expected: 1 }
+  - { name: k-zero, input: { s: 'AABBBA', k: 0 }, expected: 3 }
+  - { name: k-equals-length, input: { s: 'ABCD', k: 4 }, expected: 4 }
+  - { name: all-same, input: { s: 'AAAA', k: 2 }, expected: 4 }
+  - { name: best-window-in-the-middle, input: { s: 'ABCBBBCA', k: 1 }, expected: 5 }
