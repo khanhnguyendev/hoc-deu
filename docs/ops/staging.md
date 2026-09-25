@@ -11,6 +11,18 @@ See also: `docs/adr/0003-oauth-and-test-login.md` (OAuth and test-login design),
 bootstrap only touches a never-processed profile, and only while no active admin exists) and
 platform design §2.5 (environment variables and admin bootstrap).
 
+## Current state (2026-09-25, M2 ruling R18)
+
+- **No separate staging project yet.** Previews — `main` included — use the **production**
+  Supabase project `hoc-deu` (owner decision 2026-09-25) until a staging project exists (the Free
+  plan allows two active projects); read "the staging project" below as `hoc-deu` until then.
+- The placeholder production branch `production` **exists** on GitHub, pinned at M1 (`c2a9583`),
+  and `hoc-deu.vercel.app` serves that M1 deployment until task 5.8 (§5 steps 2 and 6).
+- Preview URLs sit behind Vercel's standard deployment protection: sign in to Vercel to open them.
+- The image bucket `content-images` exists in `hoc-deu` (public read, owner-only writes; created
+  by the owner in the dashboard — implementation plan Part B-M3, OD3). Its runbook,
+  `docs/ops/content-images.md`, arrives with task 3.3b.
+
 ## 1. Environments
 
 | Environment | Where | Auth |
@@ -78,17 +90,23 @@ first when a staging sign-in ends up on the wrong page (§6a below).
 
 1. Import the GitHub repo as a Vercel project named `hoc-deu` (claims `hoc-deu.vercel.app`,
    platform design §9.3). Node version 22.
-2. Settings → Git → **Production Branch: `production`** — a placeholder name; no such branch
-   exists. Until task 5.8, every push to `main` then builds as a **Preview** with the staging
-   variables below, like every other branch. Why: with `main` as the production branch, each
-   merge would build a Production deployment, which has no environment variables yet;
-   `instrumentation-node.ts` validates the server environment at startup and exits, so
-   `hoc-deu.vercel.app` would return 500. With the placeholder, `hoc-deu.vercel.app` serves no
-   deployment until 5.8 sets the Production Branch back to `main` together with the production
+2. Settings → Git → **Production Branch: `production`** — a placeholder branch that must
+   **exist** on GitHub: Vercel rejects a production branch that does not exist. `production` was
+   created on 2026-09-25, pinned at M1 (`c2a9583`), and nothing is ever pushed to it. Until task
+   5.8, every push to `main` then builds as a **Preview** with the staging variables below, like
+   every other branch. Why: with `main` as the production branch, each merge would build a
+   Production deployment, which has no environment variables yet; `instrumentation-node.ts`
+   validates the server environment at startup and exits, so `hoc-deu.vercel.app` would return
+   500. Task 5.8 sets the Production Branch back to `main` together with the production
    variables.
+
+   Vercel promotes a project's **first** deployment to production whatever the Production Branch
+   says, so after connecting the repo, redeploy the `production` branch to production (done
+   2026-09-25): `hoc-deu.vercel.app` then serves M1 until 5.8.
 3. Settings → General: turn on "Automatically expose System Environment Variables" — the app
    reads `VERCEL_ENV` and `VERCEL_BRANCH_URL` at runtime (decision 20, `lib/env.ts`).
-4. Deployment Protection: leave at its default.
+4. Deployment Protection: leave at its default (Vercel's standard protection) — preview URLs
+   then open only for someone signed in to Vercel with access to the project.
 5. Settings → Environment Variables, scoped to **Preview**:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
@@ -102,6 +120,9 @@ first when a staging sign-in ends up on the wrong page (§6a below).
    if it is `true` while `VERCEL_ENV=production`, and staging must not carry it either.
    `NEXT_PUBLIC_SITE_URL` is a **Production**-only variable (task 5.8); previews derive their site
    URL from `VERCEL_BRANCH_URL` instead (decision 20).
+6. After setting the Preview variables, **redeploy `main` as a Preview** (Deployments → the latest
+   `main` deployment → Redeploy): a deployment reads its variables when it is built, so one built
+   before they existed stays broken.
 
 ## 6. Checks on the preview's branch URL
 
@@ -144,8 +165,9 @@ pnpm exec supabase db push
 pnpm exec supabase migration list
 ```
 
-Run both against the linked staging project (§2) and confirm `migration list` shows local and
-remote at the same version before the next PR is opened against staging.
+Run both against the linked staging project (§2; today the production project `hoc-deu` — see
+"Current state") and confirm `migration list` shows local and remote at the same version before
+the next PR is opened against staging.
 
 ## 8. Break glass — no active admin left (decision 23, ADR-0004)
 

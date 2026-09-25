@@ -376,8 +376,9 @@ Every variable is v1.0 unless marked **(v1.1)**.
 **Admin bootstrap:** on each sign-in the auth callback (server) compares the provider-verified email
 with `ADMIN_EMAILS`. On a match, if the profile is not yet an admin, it calls
 `admin_bootstrap(user_id)` with the secret key: role `admin`, status `active`, audit event
-`admin.bootstrapped`. Removing an email from the list does not demote anyone; demotion is an admin
-action.
+`admin.bootstrapped` (superseded by decision 23 / R13 — implementation plan, Part B-M2: only
+while no active admin exists). Removing an email from the list does not demote anyone; demotion is
+an admin action.
 
 ---
 

@@ -175,7 +175,7 @@ Legend: **[owner]** = needs the owner's accounts or clicks; **v1.0 / v1.1** = re
 | 2.4 Migration: profiles, schedule_versions, user_tracks | `supabase/migrations/*`, `supabase/tests/database/*.sql` M1 deferred #21: doc drift — plan Part A 1.1 ("merge `shadcn eject` CSS", superseded by Part B-M1 decision 3) and spec §7.2's className exceptions (`app/global-error.tsx`, `app/dev/**`). | pgTAP: profile created `pending` on sign-up; column grants; `is_admin`/`is_active`; `admin_*` functions check admin and write audit events; `admin_bootstrap`; layer rule gaps (deferred minor #6): `app/api/**` follows its §7.2 row (no components), `.js`/`.jsx`/`.mjs` files are checked, the `'use client'` rule also covers `app/dev/**` — each with a rule test | `pnpm test:db && pnpm verify` |
 | 2.5 Events core | migration: `events`, `event_quota` + `SECURITY DEFINER` quota trigger, `local_day` SQL function, `apply_event` / `apply_system_event` (state-table events only; derived tables in M4); `lib/domain/events.ts` — Zod payload schemas for every event type (§4.4 table) **Writes ADR-0007, ADR-0030.** | pgTAP: **[RF-1]** SQL `local_day` equals TypeScript `localDay` on the shared fixtures; forced `actor_id`/`source`; `local_day` computed in DB; 501st learner event → `quota_exceeded`; learners cannot read/write `event_quota` | `pnpm test:db` |
 | 2.6 Supabase clients, proxy, DAL, guards | `lib/supabase/{client,server,proxy,admin}.ts`, `proxy.ts` (matcher: pages only), `lib/auth/dal.ts`, `lib/auth/guards.ts` **Writes ADR-0002, ADR-0006, ADR-0019.** | DAL returns cached profile; `requireActive` redirects pending; architecture test: every `'use server'` module and route handler calls a guard | `pnpm verify` |
-| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) **Writes ADR-0003.** M1 deferred #5: AppShell sign-out — `onSignOut` is a server action invoked as `() => void onSignOut()` (Radix passes a non-serializable Event); the top-bar title comes from the pathname, not a prop. | e2e with test login: pending user sees `/pending`; admin email becomes active admin; **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
+| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) **Writes ADR-0003.** M1 deferred #5: AppShell sign-out — `onSignOut` is a server action invoked as `() => void onSignOut()` (Radix passes a non-serializable Event); the top-bar title comes from the pathname, not a prop. | e2e with test login: pending user sees `/pending`; admin email becomes active admin (superseded by decision 23 / R13: only while no active admin exists); **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
 | 2.8 Admin approval queue | `features/admin/*`, `app/(admin)/admin/users` **Writes ADR-0004.** | e2e: approve/reject/suspend; non-admin gets 404/redirect; `/dev/components` admin-only in production | `pnpm verify:full` |
 | 2.9 Minimal track manifests + projection table | `content/tracks/{dsa,english}/track.yaml` (manifest fields only), tiny loader `lib/content/tracks.ts`, `lib/domain/plan/projections.ts` seeded with the §5.11 prototype table | loader parses both manifests; projection lookup interpolates and clamps | `pnpm verify` |
 | 2.10 Onboarding | `features/onboarding/*`, `app/(onboarding)/onboarding` — tracks → minutes → DSA variant (default by budget, simulated finish) → start date/timezone/day start → code language → template preview; events `track.enrolled`, `schedule.changed`, `settings.changed`, `onboarding.completed`; uses `localDay` (2.3) **Writes ADR-0015.** | 60 min → 8w default, 75 → 10w; finish text uses vi-VN decimal comma; e2e completes onboarding | `pnpm verify:full` |
@@ -3581,7 +3581,8 @@ plan(n); … select * from finish(); rollback;`):**
   returns `false` and writes nothing (decision 23). Otherwise role `admin`,
   status `active`, `approved_at = now()`, event `admin.bootstrapped`
   (`source 'system'`, `actor_id` = the user, payload `{ targetUserId, from: <old status>, to:
-  'active' }`) → `true` (§2.5).
+  'active' }`) → `true` (§2.5). (superseded by decision 23 / R13: only while no active admin
+  exists)
 
 - Produces TypeScript:
 
@@ -3655,7 +3656,8 @@ plan(n); … select * from finish(); rollback;`):**
      admin → `forbidden`;
   4. `admin_set_role` → role changed + `admin.role_changed`; same role → `no_change`;
   5. `admin_bootstrap` on a never-processed pending user → `true`, active admin, one
-     `admin.bootstrapped` event; again → `false`, still one event; `false` with no change and no
+     `admin.bootstrapped` event (superseded by decision 23 / R13: only while no active admin
+     exists); again → `false`, still one event; `false` with no change and no
      event for: a **suspended admin** (stays suspended), a **demoted admin** (learner, active,
      `approved_at` set — stays learner), a **rejected** learner (stays rejected);
      `anon` has no execute privilege on any function of this task, `authenticated` none on
@@ -3950,7 +3952,8 @@ and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/compone
   3. a wrong password shows the error and stays on `/sign-in`;
   4. **bootstrap** (desktop project only; each scenario first `deleteUserByEmail(<its address>)`):
      a never-processed pending `bootstrap-admin@example.test` signs in → lands on `/onboarding`
-     as an active admin; a **rejected** `bootstrap-rejected@example.test` signs in → stays on
+     as an active admin (superseded by decision 23 / R13: only while no active admin exists);
+     a **rejected** `bootstrap-rejected@example.test` signs in → stays on
      `/pending` with the rejected copy, still `learner`/`rejected`; a **demoted**
      `bootstrap-demoted@example.test` (learner, active, `approved_at` set, onboarded) signs in →
      `/today`, still `learner` (decision 23);
