@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 const ROOT = resolve(import.meta.dirname, '..', '..')
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'content-verify.yml')
 const RUN_IF = "steps.paths.outputs.run == 'true'"
+const STRIP = 'Strip write-for-others across the runner'
 
 type Step = {
   id?: string
@@ -117,6 +118,7 @@ describe('content-verify workflow', () => {
     const order = [
       'Runner temp off the shared /tmp',
       'Sandbox user without network (OD2)',
+      STRIP,
       'Sandbox audit: nothing the runner executes is writable by the sandbox user',
       'Sandbox self-test (fail closed)',
       'CLI refuses to run unsandboxed (exit 2)',
@@ -156,6 +158,95 @@ describe('content-verify workflow', () => {
       expect(setup).toContain(socketPath)
     }
     expect(setup).toContain('getfacl -p')
+  })
+
+  it('strips write-for-others after the last setup step and before any sandboxed code (CI round 1)', () => {
+    const stripAt = steps.findIndex((candidate) => candidate.name === STRIP)
+    expect(stripAt).toBeGreaterThan(pathsIndex)
+    // Every action and the dependency install come first; nothing is installed afterwards.
+    const setup = steps.filter(
+      (candidate) =>
+        candidate.uses !== undefined || candidate.run === 'pnpm install --frozen-lockfile',
+    )
+    expect(setup.length).toBeGreaterThan(6)
+    expect(setup.filter((candidate) => steps.indexOf(candidate) > stripAt)).toEqual([])
+    expect(steps.slice(stripAt).filter((candidate) => candidate.uses !== undefined)).toEqual([])
+    // The sandbox user exists (the ownership check needs it); everything that runs as it is later.
+    expect(
+      steps.findIndex((candidate) => candidate.name === 'Sandbox user without network (OD2)'),
+    ).toBeLessThan(stripAt)
+    const sandboxed = steps.filter(
+      (candidate) =>
+        (candidate.run ?? '').includes('sudo -n -u cvsandbox') ||
+        candidate.env?.CONTENT_VERIFY_SANDBOX_USER !== undefined,
+    )
+    expect(sandboxed.map((candidate) => candidate.name)).toEqual([
+      'Sandbox audit: nothing the runner executes is writable by the sandbox user',
+      'Sandbox self-test (fail closed)',
+      'Harness self-test on fixtures',
+      'Verify content',
+    ])
+    expect(sandboxed.filter((candidate) => steps.indexOf(candidate) < stripAt)).toEqual([])
+    const strip = step(STRIP)
+    expect(strip.if).toBe(RUN_IF)
+    expect(strip.shell).toBe('bash')
+    expect(strip.run?.startsWith('set -euo pipefail\n')).toBe(true)
+  })
+
+  it('walks every local disk filesystem, skipping only the shared temp dirs (CI round 1)', () => {
+    const strip = script(STRIP).replace(/\s*\\\n\s*/g, ' ')
+    const walk =
+      /sudo find \/ -ignore_readdir_race \\\( (.*?) \\\) -prune -o ! \\\( (.*?) \\\) -prune -o /.exec(
+        strip,
+      )
+    if (walk === null) throw new Error('no `sudo find / … -prune -o … -prune -o` walk in the strip')
+    const skipped = ['/tmp', '/var/tmp', '/dev/shm', '/proc', '/sys', '/run']
+    expect(walk[1]).toBe(skipped.map((path) => `-path ${path}`).join(' -o '))
+    const disks = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs']
+    expect(walk[2]).toBe(disks.map((type) => `-fstype ${type}`).join(' -o '))
+    // Positive control: / must be one of the walked types, or the strip would change nothing.
+    expect(strip).toContain(`disk_types='${disks.join(',')}'`)
+    expect(strip).toContain('findmnt -no FSTYPE --target /')
+  })
+
+  it('removes write and unlistable search for others, and fails on anything the sandbox owns (CI round 1)', () => {
+    const strip = script(STRIP).replace(/\s*\\\n\s*/g, ' ')
+    expect(strip).toContain('! -type l -perm -0002 -fprint0 "$out/others-write"')
+    expect(strip).toContain('-type d -perm -0001 ! -perm -0004 -fprint0 "$out/search-only"')
+    expect(strip).toContain('\\( -user cvsandbox -o -group cvsandbox \\) -fprint "$out/owned"')
+    expect(strip).toMatch(/if \[ -s "\$out\/owned" \]; then\s+echo "::error::[\s\S]*?exit 1/)
+    expect(strip).toContain('sudo xargs -0 -r chmod o-w -- < "$out/others-write"')
+    expect(strip).toContain('sudo xargs -0 -r chmod o-x -- < "$out/search-only"')
+    // How many entries changed, and how long it took.
+    expect(strip).toContain('$SECONDS')
+    expect(strip).toMatch(/echo "Removed write-for-others from \$written entries/)
+  })
+
+  it('keeps the audit as strict: same roots, run on the whole PATH (CI round 1)', () => {
+    const audit = script(
+      'Sandbox audit: nothing the runner executes is writable by the sandbox user',
+    ).replace(/\s*\\\n\s*/g, ' ')
+    expect(audit).toContain(
+      '--user cvsandbox --path "$PATH" /opt /usr/local /home /etc) < tools/content-verify/sandbox_audit.py',
+    )
+  })
+
+  it('leaves no per-tree chmod, and never grants anything to others (CI round 1)', () => {
+    const chmods = later
+      .flatMap((candidate) => (candidate.run ?? '').split('\n'))
+      .filter((line) => !line.trim().startsWith('#') && /\bchmod\b/.test(line))
+    expect(chmods.length).toBe(2)
+    for (const line of chmods) expect(line).toMatch(/\bchmod o-[wx] -- /)
+    expect(script('Sandbox user without network (OD2)')).not.toContain('chmod')
+  })
+
+  it('records the tool cache layout and one Java binary before and after the strip (CI round 1)', () => {
+    const strip = script(STRIP)
+    expect(strip).toContain('sudo find /opt/hostedtoolcache -maxdepth 3 -type l')
+    expect(strip).toContain('namei -l')
+    expect(strip).toContain('getfacl -p')
+    expect(strip).toMatch(/diagnose_java before\n[\s\S]*sudo find \/ [\s\S]*diagnose_java after\n/)
+    expect(strip).toContain('findmnt -lno TARGET,FSTYPE,SOURCE -t "$disk_types"')
   })
 
   it('runs the positive-controlled audit as the sandbox user and fails on findings or a broken audit (N1)', () => {

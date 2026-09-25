@@ -40,13 +40,27 @@ as a required check that always runs.
     `timeout`, `prlimit`, `env`, `pkill`, `pgrep`, `kill`, `chown` and `rm` are fixed `/usr/bin`
     paths, checked root-owned and writable by root only — every directory up to `/`, along every
     hop of a symlink chain — before sandbox mode starts; the toolchains must not be writable by
-    others. The runner image is pinned (`ubuntu-24.04`). The workflow removes other-write from the
-    tool cache and every PATH directory, then runs `sandbox_audit.py` as the sandbox user over
-    these roots: every PATH directory (for a missing one, its nearest existing parent), `/opt`,
-    `/usr/local`, `/home` and `/etc`, each symlink chain in them hop by hop. It fails on any
-    writable file, directory, link hop or target, and fails as broken unless its positive controls
-    hold (it runs as the sandbox user, `/tmp` is writable, it walked a real tree). The runner's own
-    temp files move to `RUNNER_TEMP`.
+    others. The runner image is pinned (`ubuntu-24.04`).
+  - **The strip.** Once every toolchain and dependency is installed (no action runs after it), one
+    `find` as root walks every local disk filesystem (ext2/3/4, xfs, btrfs; pseudo and tmpfs mounts
+    are not walked, and it fails unless `/` is one of those types). It removes write-for-others
+    from every entry except symlinks, and search-for-others from every directory others can enter
+    but not list. Only the shared `/tmp` and `/var/tmp` are skipped and keep 1777. It fails if any
+    entry already carries the new user's uid or gid (an orphaned id; the owner could `chmod` it
+    back). It logs what it changed, by tree, and how long it took. A per-tree `chmod` was tried
+    first and was not enough on the real image (PR #5's first run, 1958 audit findings). `/opt`
+    itself was 0777, and so were `/usr/share`, `/usr/lib/jvm`, `/usr/local/lib/node_modules`,
+    `/usr/local/.ghcup` and binaries in `/usr/local/bin`, all reached from PATH through links. The
+    tool cache's Java `x64` is only a link to `/usr/lib/jvm/…`, which `chmod -R` on the tool cache
+    never enters.
+  - **The audit.** `sandbox_audit.py` then runs as the sandbox user over these roots: every PATH
+    directory (for a missing one, its nearest existing parent), `/opt`, `/usr/local`, `/home` and
+    `/etc`, each symlink chain in them hop by hop. It fails on any writable file, directory, link
+    hop or target, or any directory it can enter but not list. It fails as broken unless its
+    positive controls hold (it runs as the sandbox user, `/tmp` is writable, it walked a real
+    tree). The audit judges by what the sandbox user can do now (`os.access`: mode bits, groups,
+    ACLs). Ownership is the strip's job, because a file the user owns but cannot yet write passes
+    `os.access`. The runner's own temp files move to `RUNNER_TEMP`.
   - After every command, `kill -KILL -1` as the sandbox user (every process of the uid in one
     syscall), then `pkill -KILL` by effective and real user, repeat until `pgrep` finds no sandbox
     process (or the run stops), so in sandbox mode units run one at a time. A unit
@@ -90,14 +104,16 @@ as a required check that always runs.
   developer, like any test suite.
 - **Blocked** for the sandbox user: every IPv4/IPv6 packet it sends (TCP, UDP, ICMP, loopback
   included), name resolution (port 53 by iptables; systemd-resolved's varlink socket, D-Bus and
-  nscd by ACL), the snapd sockets, writing under the audited roots (the PATH directories, `/opt`,
-  `/usr/local`, `/home`, `/etc`), leaving a process behind or scheduling one (cron, at), more than
-  512 processes or a file over 256 MiB.
+  nscd by ACL), the snapd sockets, writing anywhere on the runner's local disks outside `/tmp` and
+  `/var/tmp` (the strip; the audit proves it as the sandbox user for the roots the runner executes
+  from: the PATH directories, `/opt`, `/usr/local`, `/home`, `/etc`), leaving a process behind or
+  scheduling one (cron, at), more than 512 processes or a file over 256 MiB.
 - **Not blocked** (accepted, the job holds nothing worth stealing — no secrets, a read-only token,
   no persisted credentials): reading world-readable files, whose content a solution can print into
   the public log; other Unix-domain sockets it has file permission for, and abstract-namespace
-  sockets, which no file permission governs; writing outside the audited roots where the runner
-  does not execute from (for example `/var/lib`); writing to the shared `/tmp`, `/var/tmp` and `/dev/shm`;
+  sockets, which no file permission governs; writing to the shared `/tmp`, `/var/tmp` and the
+  world-writable directories of tmpfs mounts, which the strip does not walk (`/dev/shm`,
+  `/run/lock`);
   memory beyond Java's `-Xmx` (no address-space cap: it breaks the JVM), bounded only by the
   runner and the timeouts. All units share one sandbox user, and Go units share a build cache, so
   a hostile solution could tamper with another problem's verdict within the same run; the damage

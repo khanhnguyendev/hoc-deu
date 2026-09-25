@@ -22,7 +22,8 @@ jobs:
     name: content-verify
     # Pinned: newer images swap /usr/bin tools (sudo-rs, uutils) that the sandbox relies on.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The strip walks the whole disk once, cold: headroom until its logged duration is known.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -93,18 +94,93 @@ jobs:
               sudo getfacl -p "$socket_path"
             fi
           done
-          # Nothing the runner executes after sandboxed code may be writable by the sandbox user.
-          sudo chmod -R o-w /opt/hostedtoolcache
-          IFS=: read -r -a path_dirs <<< "$PATH"
-          existing=()
-          for dir in "${path_dirs[@]}"; do
-            if [ -d "$dir" ]; then sudo chmod o-w "$dir"; existing+=("$dir"); fi
-          done
           # For the record.
           sudo iptables -S OUTPUT | sed -n 1,3p
           sudo ip6tables -S OUTPUT | sed -n 1,3p
-          stat -c '%A %U:%G %n' / /opt /opt/hostedtoolcache "${existing[@]}"
           sysctl fs.protected_hardlinks fs.protected_symlinks fs.protected_regular
+
+      # Every toolchain and dependency is installed by now, and no action runs after this step
+      # (pinned by workflow.test.ts). The image ships trees writable by others that a per-tree
+      # `chmod -R` never reaches — /opt itself, /usr/share, /usr/local/…, and /usr/lib/jvm, which
+      # the tool cache's Java `x64` dir only links to — so strip every local disk filesystem as root
+      # instead. Only the shared temp dirs keep 1777; pseudo and tmpfs mounts are not walked. The
+      # audit below then proves the result as the sandbox user.
+      - if: steps.paths.outputs.run == 'true'
+        name: Strip write-for-others across the runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          started=$SECONDS
+          out="$RUNNER_TEMP/strip"
+          mkdir -p "$out"
+          # Positive control: / must be a filesystem the walk covers, or the strip changes nothing.
+          disk_types='ext2,ext3,ext4,xfs,btrfs'
+          root_type="$(findmnt -no FSTYPE --target /)"
+          if [[ ",$disk_types," != *",$root_type,"* ]]; then
+            echo "::error::/ is $root_type, not one of the filesystems the strip walks ($disk_types)"
+            exit 1
+          fi
+          echo "Filesystems walked:"
+          findmnt -lno TARGET,FSTYPE,SOURCE -t "$disk_types"
+          IFS=: read -r -a path_dirs <<< "$PATH"
+          existing=()
+          for dir in "${path_dirs[@]}"; do
+            if [ -d "$dir" ]; then existing+=("$dir"); fi
+          done
+          echo "Filesystems holding the audited roots:"
+          df --output=fstype,target / /opt /usr/local /home /etc /tmp /var/tmp "${existing[@]}" | sort -u
+          # Diagnostics: the tool cache's layout (symlinked version dirs) and one Java binary,
+          # before and after.
+          java_bin="$(command -v java)"
+          java_real="$(readlink -f "$java_bin")"
+          diagnose_java() {
+            echo "::group::Java binary $1 the strip"
+            namei -l "$java_bin"
+            stat -c '%A %U:%G %n' "$java_bin" "$java_real"
+            sudo getfacl -p "$java_real"
+            echo "::endgroup::"
+          }
+          echo "::group::Tool cache layout"
+          ls -la "$(dirname "$(dirname "$(dirname "$java_bin")")")"
+          sudo find /opt/hostedtoolcache -maxdepth 3 -type l -printf '%p -> %l\n'
+          for tool in python3 javac go node; do namei -l "$(command -v "$tool")"; done
+          echo "::endgroup::"
+          diagnose_java before
+          # One walk as root, three lists:
+          # - others-write: every non-symlink entry others can write → chmod o-w;
+          # - search-only: directories others can enter but not list → chmod o-x (the audit cannot
+          #   see inside them, so it counts each as a finding);
+          # - owned: entries that already carry cvsandbox's uid or gid (an orphaned id the new user
+          #   inherited; it could chmod them) → fail.
+          walk_started=$SECONDS
+          sudo find / -ignore_readdir_race \
+            \( -path /tmp -o -path /var/tmp -o -path /dev/shm -o -path /proc -o -path /sys -o -path /run \) -prune -o \
+            ! \( -fstype ext2 -o -fstype ext3 -o -fstype ext4 -o -fstype xfs -o -fstype btrfs \) -prune -o \
+            \( \( ! -type l -perm -0002 -fprint0 "$out/others-write" \) , \
+               \( -type d -perm -0001 ! -perm -0004 -fprint0 "$out/search-only" \) , \
+               \( \( -user cvsandbox -o -group cvsandbox \) -fprint "$out/owned" \) \)
+          echo "Walk took $((SECONDS - walk_started)) s."
+          if [ -s "$out/owned" ]; then
+            echo "::error::entries on disk already carry cvsandbox's uid or gid (listed below)"
+            sed -n 1,50p "$out/owned"
+            exit 1
+          fi
+          written="$(tr -cd '\0' < "$out/others-write" | wc -c)"
+          searchable="$(tr -cd '\0' < "$out/search-only" | wc -c)"
+          echo "::group::Writable by others: $written entries, by tree (before the strip)"
+          tr '\0' '\n' < "$out/others-write" \
+            | awk -F/ '{ tree = ""; for (i = 2; i <= NF && i <= 5; i++) tree = tree "/" $i; print tree }' \
+            | sort | uniq -c | sort -rn | sed -n 1,80p
+          echo "::endgroup::"
+          echo "::group::Searchable but not listable by others: $searchable directories (before the strip)"
+          sudo xargs -0 -r ls -ld -- < "$out/search-only" | sed -n 1,80p
+          echo "::endgroup::"
+          sudo xargs -0 -r chmod o-w -- < "$out/others-write"
+          sudo xargs -0 -r chmod o-x -- < "$out/search-only"
+          diagnose_java after
+          echo "For the record:"
+          stat -c '%A %U:%G %n' / /opt /opt/hostedtoolcache "${existing[@]}"
+          echo "Removed write-for-others from $written entries and search-for-others from $searchable directories in $((SECONDS - started)) s."
 
       - if: steps.paths.outputs.run == 'true'
         name: 'Sandbox audit: nothing the runner executes is writable by the sandbox user'
