@@ -1429,6 +1429,18 @@ prototype; they are recalibrated **once** against the TypeScript engine in M4, t
 - Snapshot (documents the §5.11 trade-off): DSA 10w @ 60 min realistic median > 12 weeks.
 - `projections.generated.json` matches its projection inputs hash (§5.11).
 
+Regenerated in M4 by `pnpm sim:projections` → `lib/domain/plan/projections.generated.json`
+(authoritative from then on); calibrated TypeScript numbers (task 4.8, ADR-0014; the test is split
+into `lib/domain/plan/__tests__/simulation.dsa.test.ts` and `simulation.english.test.ts`; 126 days,
+200 realistic + 1 ideal learner) — every threshold above is met, so all stay as written, frozen:
+DSA 8w @ 60 realistic finish median 10.7 / p90 11.4 / max 11.71 weeks, ideal 8.29; 10w @ 90
+realistic p90 9.6, ideal 7.14; 10w @ 75 realistic p90 11.4; 10w @ 60 realistic median 15.6; max
+due p90 18 / 26.1 / 26.1 and due p90 on day 125 4 / 5.1 / 5 (8w @ 60, 10w @ 75, 10w @ 90); English
+realistic mean due w8–12 20.6, max due p90 70, due p90 on day 125 18, 135/135 core cards in every
+run; no simulated day over budget + one item. The TypeScript realistic learner completes the paused
+plan on the day after a skip (decision 32 of the implementation plan's Part B-M4) where the
+prototype repeated the previous day's plan, so its finishes are earlier (ADR-0014).
+
 ### 5.11 Decision: DSA variant by budget (option A)
 
 The brief asked for "10w finishes within 12 weeks (realistic)" **and** "60 min/day"; §5.10 shows
@@ -1464,6 +1476,21 @@ both cannot hold at once. **Decision: A.**
   stay green; an owner PR that changes them regenerates the table in the same PR.
 - Until M4 regenerates it, this table (182-day runs) is the authoritative source; §5.10's cells
   (126-day runs) differ by at most 0.1 week.
+- Regenerated in M4 by `pnpm sim:projections` → `lib/domain/plan/projections.generated.json`
+  (authoritative from then on, ADR-0037); calibrated TypeScript numbers (weeks, realistic learner,
+  200 runs of 182 days each; the displayed default becomes "Với 60 phút/ngày, lộ trình 8 tuần
+  thường hoàn thành sau ~11 tuần (90 %: ~11,4 tuần)"):
+
+  | Budget (min/day) | 8w median | 8w p90 | 10w median | 10w p90 |
+  | --- | --- | --- | --- | --- |
+  | 45 | 14.6 | 15.3 | 20.1 | 20.7 |
+  | 60 | 10.7 | 11.4 | 15.6 | 16.4 |
+  | 75 | 7.6 | 8.1 | 10.8 | 11.4 |
+  | 90 | 6.6 | 6.9 | 9.3 | 9.6 |
+  | 120 | 4.6 | 4.7 | 6.6 | 6.7 |
+
+  Option A still holds: 10w at 60 min/day stays well over 12 weeks (median 15.6), while the
+  default variant finishes under 12 at 60 min/day (8w, 10.7) and at 75 (10w, 10.8).
 
 ### 5.12 Per-user personalization: overrides and custom items (AI users only)
 

@@ -39,12 +39,12 @@ describe('VariantPicker', () => {
     setup({ budgetMinutes: 60 })
     expect(
       screen.getByText(
-        'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)',
+        'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~11 tuần (90 %: ~11,4 tuần)',
       ),
     ).toBeTruthy()
     expect(
       screen.getByText(
-        'Với 60 phút/ngày, lộ trình 10 tuần thường hoàn thành sau ~17 tuần (90 %: ~17,4 tuần)',
+        'Với 60 phút/ngày, lộ trình 10 tuần thường hoàn thành sau ~16 tuần (90 %: ~16,4 tuần)',
       ),
     ).toBeTruthy()
   })
@@ -53,7 +53,7 @@ describe('VariantPicker', () => {
     setup({ budgetMinutes: 75, value: '10w' })
     expect(
       screen.getByText(
-        'Với 75 phút/ngày, lộ trình 10 tuần thường hoàn thành sau ~13 tuần (90 %: ~13,6 tuần)',
+        'Với 75 phút/ngày, lộ trình 10 tuần thường hoàn thành sau ~11 tuần (90 %: ~11,4 tuần)',
       ),
     ).toBeTruthy()
   })

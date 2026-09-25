@@ -156,7 +156,7 @@ describe('OnboardingWizard — step 3, the DSA variant (§5.11, ADR-0015)', () =
     expect(screen.getByRole('radio', { name: /^8 tuần/ }).getAttribute('aria-checked')).toBe('true')
     expect(
       screen.getByText(
-        'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)',
+        'Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~11 tuần (90 %: ~11,4 tuần)',
       ),
     ).toBeTruthy()
   })

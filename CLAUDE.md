@@ -30,6 +30,9 @@ pnpm db:types       # regenerate lib/supabase/database.types.ts from the local s
 pnpm test:db        # pgTAP tests (supabase test db) — needs pnpm db:start
 pnpm verify:full    # verify + test:db + test:e2e — needs pnpm db:start
 pnpm content:verify # run every solution against its tests.yaml (Python ≥ 3.11, JDK ≥ 21, Go ≥ 1.22)
+pnpm sim:projections # regenerate the simulated finish table after changing DSA roadmaps,
+                    # difficulties or the manifest's srs / review / estimates / weeklyTemplate /
+                    # defaults (lib/domain/plan/*.generated.json; a stale hash fails pnpm test)
 pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```

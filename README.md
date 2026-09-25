@@ -29,6 +29,9 @@ pnpm db:reset       # re-apply migrations and seed data
 pnpm test:db        # pgTAP tests against the local stack
 pnpm test:e2e       # Playwright + axe (run `pnpm exec playwright install chromium` once)
 pnpm verify:full    # verify + test:db + test:e2e — needs the local stack running
+pnpm sim:projections # regenerate the simulated finish table after changing DSA roadmaps,
+                    # difficulties or the manifest's srs / review / estimates / weeklyTemplate /
+                    # defaults
 ```
 
 Contributor and agent rules live in [CLAUDE.md](CLAUDE.md).
