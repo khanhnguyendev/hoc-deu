@@ -10053,11 +10053,20 @@ effect at the next day start), ADR-0017; decision 27. **Files:**
   `onboarded_at` is null, and is checked under the per-user advisory lock the R14 cap already uses
   (`hashtextextended('schedule_versions:' || user_id, 0)`), so two concurrent first inserts cannot
   both count as first.
-- Every **later** version inserted by `authenticated` needs `effective_at >=` the next day start
-  of the version in force at `now()`, minus 65 minutes: `((public.user_local_day(new.user_id,
-  now()) + 1) + <in-force day_starts_at>) at time zone <in-force timezone>` — 5 minutes of clock
-  skew (the existing allowance) plus one hour for a day start inside a DST gap or overlap, where
-  Postgres and `nextDayStart` may pick different instants. Otherwise `schedule_backdated`.
+- Every **later** version inserted by `authenticated` **once the profile is onboarded** (ruling
+  M4-R16: before onboarding, later versions keep the 5-minute rule, so a retried onboarding is
+  never locked out) needs `effective_at >=` the next day start of its **predecessor** — the latest
+  version with `effective_at < new.effective_at`, pending ones included (the default schedule when
+  none) — computed at `greatest(now(), predecessor.effective_at)`, minus 65 minutes (one hour for a
+  day start inside a DST gap or overlap, where Postgres and `nextDayStart` may pick different
+  instants, plus 5 minutes); and it may not land before an existing pending version with a
+  different `effective_at` (the app always upserts at the earliest pending `effectiveAt`). Measured
+  only from the version in force at `now()`, a second pending version could still move the local
+  day back in the middle of the first one's day (ruling M4-R17, 4.12 review). The 5-minute rule
+  stays too. Otherwise `schedule_backdated`.
+- Before onboarding, an `authenticated` insert may not be dated later than `now() + 5 minutes`
+  (onboarding sends `now − 1 minute`), so no future version can be planted before onboarding and
+  survive it (ruling M4-R17).
 - The secret-key role and definer functions are not restricted (as before).
 
 - [ ] **Step 1: Failing pgTAP** `013-schedule-history-floor.test.sql`: a second version effective
