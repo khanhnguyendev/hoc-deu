@@ -1,0 +1,22 @@
+signature:
+  { kind: function, name: groupAnagrams, params: { strs: 'string[]' }, returns: 'string[][]' }
+compare: unordered-nested
+cases:
+  - {
+      name: example-1,
+      input: { strs: [eat, tea, tan, ate, nat, bat] },
+      expected: [[bat], [nat, tan], [ate, eat, tea]],
+    }
+  - { name: example-2, input: { strs: [''] }, expected: [['']] }
+  - { name: example-3, input: { strs: [a] }, expected: [[a]] }
+  - { name: no-anagrams, input: { strs: [abc, def, g] }, expected: [[abc], [def], [g]] }
+  - {
+      name: duplicates-and-empty-strings,
+      input: { strs: ['', b, '', ab, ba, b] },
+      expected: [['', ''], [b, b], [ab, ba]],
+    }
+  - {
+      name: same-letters-different-counts,
+      input: { strs: [aab, aba, abb, bab] },
+      expected: [[aab, aba], [abb, bab]],
+    }

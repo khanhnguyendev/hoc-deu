@@ -1,0 +1,8 @@
+signature: { kind: function, name: isAnagram, params: { s: string, t: string }, returns: bool }
+compare: exact
+cases:
+  - { name: example-1, input: { s: anagram, t: nagaram }, expected: true }
+  - { name: example-2, input: { s: rat, t: car }, expected: false }
+  - { name: single-letter, input: { s: a, t: a }, expected: true }
+  - { name: different-lengths, input: { s: ab, t: a }, expected: false }
+  - { name: same-letters-different-counts, input: { s: aab, t: abb }, expected: false }

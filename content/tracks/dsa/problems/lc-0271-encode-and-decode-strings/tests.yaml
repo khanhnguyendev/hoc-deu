@@ -1,0 +1,29 @@
+# Design class (§3.7): compile-only until M3c. Each case round-trips one list: decode receives
+# encode's result ({ $result: 1 }) and must return the original list; the encoded form is free.
+signature:
+  kind: design-class
+  className: Codec
+  methods:
+    encode: { params: { strs: 'string[]' }, returns: string }
+    decode: { params: { s: string }, returns: 'string[]' }
+cases:
+  - name: example-1
+    ops: [Codec, encode, decode]
+    args: [[], [[Hello, World]], [{ $result: 1 }]]
+    expected: [null, { $any: true }, [Hello, World]]
+  - name: example-2
+    ops: [Codec, encode, decode]
+    args: [[], [['']], [{ $result: 1 }]]
+    expected: [null, { $any: true }, ['']]
+  - name: delimiter-and-digits
+    ops: [Codec, encode, decode]
+    args: [[], [['4#ab', '#', '12', '#3#']], [{ $result: 1 }]]
+    expected: [null, { $any: true }, ['4#ab', '#', '12', '#3#']]
+  - name: several-empty-strings
+    ops: [Codec, encode, decode]
+    args: [[], [['', '', '']], [{ $result: 1 }]]
+    expected: [null, { $any: true }, ['', '', '']]
+  - name: spaces-and-symbols
+    ops: [Codec, encode, decode]
+    args: [[], [['hello world', ' ', 'a,b;c', '"quoted"', '::']], [{ $result: 1 }]]
+    expected: [null, { $any: true }, ['hello world', ' ', 'a,b;c', '"quoted"', '::']]
