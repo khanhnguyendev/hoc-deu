@@ -8,6 +8,7 @@ import { AppShell } from '@/components/patterns/app-shell'
 import { Banner } from '@/components/patterns/banner'
 import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar-heatmap'
 import { ChoiceCard } from '@/components/patterns/choice-card'
+import { CodeBlock } from '@/components/patterns/code-block'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
@@ -101,6 +102,7 @@ import { VariantPicker } from '@/features/tracks/components/variant-picker'
 import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
 import type { TrackOption } from '@/lib/content/track-options'
 import { vi } from '@/lib/i18n/vi'
+import { GO_SAMPLE, JAVA_SAMPLE, LONG_LINE_SAMPLE, PYTHON_SAMPLE } from './code-samples'
 
 /**
  * Every component with its variants and states (platform design §7.7). `file` must match the
@@ -984,6 +986,20 @@ export const CATALOG: Entry[] = [
     layer: 'patterns',
     file: 'components/patterns/choice-card.tsx',
     demos: [{ title: 'Selected and unselected', render: () => <ChoiceCardDemo /> }],
+  },
+  {
+    name: 'CodeBlock',
+    layer: 'patterns',
+    file: 'components/patterns/code-block.tsx',
+    demos: [
+      { title: 'Python', render: () => <CodeBlock code={PYTHON_SAMPLE} label="Lời giải Python" /> },
+      { title: 'Java', render: () => <CodeBlock code={JAVA_SAMPLE} label="Lời giải Java" /> },
+      { title: 'Go', render: () => <CodeBlock code={GO_SAMPLE} label="Lời giải Go" /> },
+      {
+        title: 'Dòng dài (cuộn ngang, không xuống dòng)',
+        render: () => <CodeBlock code={LONG_LINE_SAMPLE} label="Ví dụ dòng dài" />,
+      },
+    ],
   },
   {
     name: 'ConfirmDialog',

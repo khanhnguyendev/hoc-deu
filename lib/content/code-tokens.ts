@@ -1,0 +1,60 @@
+/**
+ * Token types shared by the content pipeline and the `CodeBlock` pattern (task 3.3a).
+ *
+ * A pattern may import only `components/ui`, `lib/utils` and `lib/i18n` (platform design §7.2),
+ * so `components/patterns/code-block.tsx` declares its own copy of `CodeTokenKind`, `CodeLine`
+ * and `HighlightedCode` (gate-review fix 1); `features/items/code-tokens.types.test.ts` pins the
+ * two declarations equal with `expectTypeOf(...).toEqualTypeOf(...)`, checked by `pnpm typecheck`.
+ */
+
+export const CODE_TOKEN_KINDS = ['keyword', 'string', 'constant', 'comment'] as const
+export type CodeTokenKind = (typeof CODE_TOKEN_KINDS)[number]
+
+/** Plain runs are strings; highlighted runs are [text, kind]; adjacent runs of one kind are merged. */
+export type CodeLine = ReadonlyArray<string | readonly [text: string, kind: CodeTokenKind]>
+
+export type HighlightedCode = { lang: string; lines: readonly CodeLine[] }
+
+export type CodeBundle = {
+  /** A problem's solution files; 3.2b replaces the union by `CodeLanguage` (3.1). */
+  solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>
+  /** Fenced blocks of the item's MDX, keyed by `codeBlockKey`. */
+  blocks: Readonly<Record<string, HighlightedCode>>
+}
+
+/** Removes one trailing `\n` from `code`, if present. */
+function trimOneTrailingNewline(code: string): string {
+  return code.endsWith('\n') ? code.slice(0, -1) : code
+}
+
+/** A 32-bit FNV-1a hash of `input`, as 8 lowercase hex digits. */
+function fnv1a32(input: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+/**
+ * `code` as unhighlighted `HighlightedCode`: one trailing `\n` is removed, the rest is split on
+ * `\n` into one plain run per line (an empty line is `[]`). Used for the `text` language and as a
+ * fallback when a snippet cannot be highlighted.
+ */
+export function plainCode(lang: string, code: string): HighlightedCode {
+  const lines = trimOneTrailingNewline(code)
+    .split('\n')
+    .map((line) => (line === '' ? [] : [line]))
+  return { lang, lines }
+}
+
+/**
+ * A stable, opaque key for `code` in `lang`: `${lang}:${fnv1a32 hex of the code without one
+ * trailing '\n'}`. The MDX `pre` override gets the fenced block's text with a trailing newline
+ * (spike finding); `content:build` computes it without one; both normalise the same way first, so
+ * they agree on the key for the same source.
+ */
+export function codeBlockKey(lang: string, code: string): string {
+  return `${lang}:${fnv1a32(trimOneTrailingNewline(code))}`
+}

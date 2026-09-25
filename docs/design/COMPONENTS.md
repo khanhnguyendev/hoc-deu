@@ -293,6 +293,23 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** a `<label>` card ≥ 44 px; clicking anywhere toggles the control (native label
   behaviour); selected state is never colour alone — the control itself shows the check
 
+### CodeBlock
+
+- **Layer:** pattern
+- **File:** `components/patterns/code-block.tsx`
+- **Props:** `code: HighlightedCode` (`{ lang, lines }`, build-time-highlighted token runs —
+  `lib/content/code-tokens.ts` declares an identical type for the content pipeline;
+  `features/items/code-tokens.types.test.ts` keeps the two equal), `label: string` (accessible
+  name, e.g. "Lời giải Python"), `className?`
+- **Variants:** —
+- **States:** static (no hooks, no `'use client'`; server-compatible)
+- **Usage:** `<CodeBlock code={highlighted} label="Lời giải Python" />`
+- **Accessibility:** `<pre tabIndex={0} role="region" aria-label={label}>` — a focusable scroll
+  region (axe `scrollable-region-focusable`); `overflow-x-auto`, `whitespace-pre` (never wrapped);
+  an empty line keeps its height with a zero-width space. Syntax colours reuse verified text
+  tokens (DESIGN_SYSTEM §9, decision 13): keyword `text-primary`, string `text-success`, constant
+  `text-warning`, comment `text-muted-foreground italic` — no new design tokens
+
 ### ConfirmDialog
 
 - **Layer:** pattern
