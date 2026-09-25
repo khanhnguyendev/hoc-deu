@@ -2229,7 +2229,8 @@ pnpm bot <command>
   `@testing-library/react`, `@testing-library/user-event`, `fast-check`, `@playwright/test`,
   `@axe-core/playwright`, `supabase` (CLI), `tsx`, `yaml`, `shiki` (code highlighting **at build
   time** in `content:build` — zero runtime CPU and zero client JS), `@types/node`, `@types/react`,
-  `@types/mdx`.
+  `@types/mdx`, `@mdx-js/mdx` (the MDX syntax tree for the safety check in `content:build`;
+  approved 2026-09-25, implementation plan Part B-M3 OD1).
 - Exact versions are pinned in M0 (`pnpm-lock.yaml`); Dependabot proposes weekly updates, which
   are merged manually.
 
