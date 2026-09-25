@@ -16,7 +16,7 @@ keys, `getClaims()` never `getSession()` on the server) · Vitest 5 · Playwrigh
 ```bash
 pnpm dev            # dev server
 pnpm content:build  # validate content/**, update content/ids.lock, write .generated/
-                    # (runs first in verify, build, dev, test:e2e)
+                    # (runs first in dev, build, typecheck, test and test:e2e — they read .generated/)
 pnpm verify         # typecheck → lint (ESLint + Prettier) → unit tests → build — must be green
 pnpm typecheck      # next typegen + tsc
 pnpm lint           # ESLint (layer, token, style rules) + Prettier check

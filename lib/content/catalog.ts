@@ -1,7 +1,7 @@
 /**
  * The generated catalog (platform design §3.6; decision 5), for the server. `pnpm content:build`
- * writes `.generated/` before `dev`, `build`, `verify` and `test:e2e`; the MDX and code modules
- * load lazily, one item page at a time.
+ * writes `.generated/` before `dev`, `build`, `typecheck`, `test` (so `verify`) and `test:e2e`; the
+ * MDX and code modules load lazily, one item page at a time.
  */
 import 'server-only'
 import { CATALOG } from '@/.generated/catalog'
