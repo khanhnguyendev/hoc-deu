@@ -5,7 +5,7 @@
   topic: tickets
   instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
   text: "I can't {{blank}} the bug on my machine, so could you share the exact steps and your browser version?"
-  answers: [reproduce, repro, replicate]
+  answers: [reproduce, repro, replicate, recreate, trigger]
   hint: 'Động từ nghĩa là tái hiện lỗi (làm lỗi xảy ra lại để kiểm tra).'
 
 - id: english:ex-w02-rewrite-1
@@ -18,10 +18,10 @@
   text: 'Login broken!!! Fix ASAP'
   sampleAnswers:
     - 'Login fails with a 500 error on Safari when two-factor authentication is enabled'
-    - 'iOS app: the login button does nothing after a password reset'
+    - 'iOS app crashes on login right after a password reset'
   rubric:
-    - 'Nêu triệu chứng thấy được (lỗi 500, nút không phản hồi…), không chỉ "broken"'
-    - 'Có điều kiện hoặc môi trường (trình duyệt, nền tảng, bước gây lỗi)'
+    - 'Nêu triệu chứng thấy được (lỗi 500, app crash…), không chỉ "broken"'
+    - 'Có điều kiện hoặc environment (trình duyệt, nền tảng, bước gây lỗi)'
     - 'Giọng bình tĩnh: bỏ "!!!" và "ASAP"; độ gấp để ở trường priority'
 
 - id: english:ex-w02-respond-1
@@ -34,7 +34,7 @@
   text: 'Hey, a customer says the invoice page is broken. Can you take a look?'
   sampleAnswers:
     - "Sure! Could you ask them for the steps to reproduce, which browser and device they're using, and what they expected to see? A screenshot of the error message would help too."
-    - "Happy to look into it. Do we know which environment this is, the exact error message, and whether it happens every time or only sometimes? In the meantime, I'll check the logs for their account."
+    - "Happy to look into it. Could you ask them which browser and device they're on, what exactly they see on the page, and whether it happens every time or only sometimes? In the meantime, I'll check the logs for their account."
   rubric:
     - 'Nhận lời giúp, giọng thân thiện'
     - 'Hỏi ít nhất ba thông tin: các bước, môi trường (trình duyệt, thiết bị), kết quả mong đợi, error message, tần suất'
@@ -80,3 +80,4 @@
     - 'Nêu cả severity và priority, không nhầm hai khái niệm'
     - 'Mỗi lựa chọn có lý do dựa trên impact (ai bị ảnh hưởng, nặng tới đâu) và việc có workaround hay không'
     - 'Ngắn gọn, nối lý do bằng "because" hoặc "since"'
+    - 'Không có đáp án duy nhất (severity medium hay high đều được): chấm theo lý do'

@@ -30,8 +30,8 @@
   week: 3
   minutes: 15
   instruction:
-    vi: 'Chọn một PR nhỏ (của bạn, của đồng nghiệp hoặc một dự án mã nguồn mở) và viết ba comment review bằng tiếng Anh, không cần đăng: một nit, một câu hỏi hoặc gợi ý, một lời khen cụ thể'
-    en: "Pick a small PR (yours, a teammate's or an open-source one) and write three review comments in English, without posting them: one nit, one question or suggestion, and one specific compliment"
+    vi: 'Viết ba comment review bằng tiếng Anh cho một PR nhỏ, không cần đăng: một nit, một câu hỏi hoặc gợi ý, một lời khen'
+    en: 'Write three review comments in English on a small PR, without posting them: one nit, one question or suggestion, and one compliment'
   rubric:
     - 'Comment nit có đánh dấu "Nit:" hoặc "Non-blocking:"'
     - 'Câu hỏi hoặc gợi ý có lý do và giọng mở ("Have you considered…?", "Could we…?")'

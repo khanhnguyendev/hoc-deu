@@ -5,7 +5,7 @@
   topic: standup
   instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
   text: "The payment migration is on {{blank}} until the security team finishes its review, so I've picked up the refund bug instead."
-  answers: [hold]
+  answers: [hold, pause, ice]
   hint: 'Cụm "on …" nghĩa là tạm dừng, để đó chưa làm tiếp.'
 
 - id: english:ex-w01-rewrite-1
@@ -45,7 +45,7 @@
   week: 1
   topic: standup
   instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
-  text: "I don't have the final numbers yet, but I'll get {{blank}} to you by EOD."
+  text: "I'll check with the data team first and get {{blank}} to you on that by EOD."
   answers: [back]
   hint: 'Cụm "get … to someone" nghĩa là trả lời, liên lạc lại với ai sau.'
 
@@ -70,13 +70,13 @@
   week: 1
   topic: standup
   instruction:
-    vi: 'Trả lời quản lý: tính năng có nguy cơ trễ vì team API đổi contract; nêu lý do và ngày dự kiến mới'
-    en: 'Reply to your manager: the feature is at risk because the API team changed the contract; give the reason and a new date'
+    vi: 'Trả lời quản lý: tính năng có nguy cơ trễ vì team API đổi contract; nêu lý do và điều kiện để vẫn kịp'
+    en: 'Reply to your manager: the feature is at risk because the API team changed the contract; give the reason and what the date depends on'
   text: 'Hi! Is the CSV export still on track for Friday?'
   sampleAnswers:
-    - "Not quite: it's at risk because the API team changed the response format on Tuesday. I need about two more days to update the parser, so next Tuesday is more realistic. I'll get back to you tomorrow if that changes."
-    - "Unfortunately, it's at risk. The API contract changed this week, so we're about two days behind schedule. My new ETA is Tuesday, and I'll flag it early if it slips again."
+    - "It's at risk, unfortunately: the API team changed the response format on Tuesday. If they confirm the final format by Wednesday, we can still make Friday; otherwise it'll slip to next Tuesday. I'll get back to you on Wednesday afternoon."
+    - "Not for certain. It's at risk because the API contract changed this week and I have to update the parser. If the new format is confirmed tomorrow, Friday still works; if not, the realistic date is next Tuesday, and I'll flag it as soon as I know."
   rubric:
-    - 'Trả lời thẳng câu hỏi trước: còn on track hay không'
+    - 'Trả lời thẳng câu hỏi trước: còn on track hay đang at risk'
     - 'Nêu lý do ngắn gọn, không đổ lỗi cho người khác'
-    - 'Đưa ra mốc mới cụ thể (ETA) và hẹn cập nhật tiếp'
+    - 'Nói rõ kịp hay trễ phụ thuộc vào điều gì, nếu trễ thì sang ngày nào, và khi nào sẽ báo lại'

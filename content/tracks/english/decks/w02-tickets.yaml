@@ -294,7 +294,7 @@ cards:
   - id: english:w02-timeout
     tier: extended
     front: timeout
-    back: lỗi quá thời gian chờ, khi yêu cầu không nhận được phản hồi kịp
+    back: lỗi quá thời gian chờ, khi yêu cầu không nhận được phản hồi kịp; cũng là thời gian chờ tối đa được cài đặt
     usage:
       pos: noun
       register: neutral
@@ -320,7 +320,7 @@ cards:
     usage:
       pos: noun
       register: neutral
-      note: 'Thuật ngữ Agile, Jira. Thứ bậc hay gặp: epic > story > task > subtask. Không liên quan nghĩa "hoành tráng" trong văn nói.'
+      note: 'Thuật ngữ Agile, Jira. Thứ bậc hay gặp trong Jira: epic > story/task > subtask. Không liên quan nghĩa "hoành tráng" trong văn nói.'
     example: "Let's link these three tickets to the checkout redesign epic so we can track them together."
     pronunciation: '/ˈep.ɪk/ · EP-ic'
 

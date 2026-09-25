@@ -276,14 +276,14 @@ cards:
     usage:
       pos: noun
       register: neutral
-      note: 'Còn gọi là "guard clause". Gợi ý review quen thuộc: "Consider an early return here to reduce nesting."'
+      note: 'Câu if kiểm tra rồi return sớm ở đầu hàm gọi là "guard clause". Gợi ý review quen thuộc: "Consider an early return here to reduce nesting."'
     example: 'An early return for empty input would remove one level of nesting here.'
     pronunciation: '/ˌɜː.li rɪˈtɜːn/ · ear-ly re-TURN'
 
   - id: english:w03-null-check
     tier: extended
     front: null check
-    back: đoạn kiểm tra một giá trị có bị null (rỗng) không trước khi dùng
+    back: đoạn kiểm tra xem một giá trị có phải null (không có giá trị) hay không trước khi dùng
     usage:
       pos: noun
       register: neutral

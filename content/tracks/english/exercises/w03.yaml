@@ -4,7 +4,7 @@
   week: 3
   topic: code-review
   instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
-  text: 'This function is hard to follow because the if statements are {{blank}} four levels deep.'
+  text: 'This function is hard to follow because it has four levels of {{blank}} if statements.'
   answers: [nested]
   hint: 'Tính từ nghĩa là "lồng nhau": cái này nằm bên trong cái kia.'
 
@@ -46,7 +46,7 @@
   topic: code-review
   instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
   text: "Good {{blank}}! I didn't notice the off-by-one error, so I've pushed a fix."
-  answers: [catch, spot, eye]
+  answers: [catch, spot, eye, find]
   hint: 'Cụm "Good …!" dùng để cảm ơn khi ai đó phát hiện lỗi mình bỏ sót.'
 
 - id: english:ex-w03-rewrite-2
@@ -72,7 +72,7 @@
   instruction:
     vi: 'Viết một comment review cho dòng code này: lịch sự, cụ thể, có gợi ý cách sửa'
     en: 'Write a review comment on this line: polite, specific, with a suggested fix'
-  text: "const API_URL = 'https://staging.example.com/v1' // used by the production build"
+  text: "`const API_URL = 'https://staging.example.com/v1' // used by the production build`"
   sampleAnswers:
     - 'This URL is hard-coded to staging, so the production build would call the staging API. Could we read it from an environment variable instead?'
     - "Have you considered moving this URL into the config? Right now it's hard-coded to staging, and the production build would pick it up."

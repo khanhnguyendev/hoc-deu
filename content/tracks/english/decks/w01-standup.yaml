@@ -228,7 +228,7 @@ cards:
   - id: english:w01-get-to
     tier: extended
     front: get to
-    back: có thời gian để làm tới (việc gì)
+    back: kịp làm, có thời gian động tới (việc gì)
     usage:
       pos: verb
       register: neutral
@@ -243,7 +243,7 @@ cards:
     usage:
       pos: phrasal-verb
       register: neutral
-      note: '"get back to + người". Dùng khi chưa trả lời được ngay; nên hẹn thời điểm cụ thể: "I''ll get back to you by Friday."'
+      note: '"get back to + người". Dùng khi chưa trả lời được ngay; nên hẹn thời điểm cụ thể: "I''ll get back to you by Friday." Còn nghĩa quay lại làm tiếp một việc: "I''ll get back to the migration after lunch."'
     example: "I need to check with the data team first, so I'll get back to you after lunch."
     pronunciation: '/ˌɡet ˈbæk tuː/ · get BACK to'
 
