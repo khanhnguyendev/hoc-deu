@@ -787,6 +787,8 @@ All in the `public` schema with RLS on.
 - `roadmap_variant`; `status` active / paused / removed; `start_date`
 - `budget_minutes`; `new_per_day`, `throttle`, `weekly_template` (null = track default)
 - `include_bonus` bool (default false, §5.3)
+- `reset_on` date — the local day of the last `track.reset` (added in M4; implementation plan
+  Part B-M4 decision 6)
 
 **`events`** (append-only log)
 
@@ -810,6 +812,15 @@ All in the `public` schema with RLS on.
 - `seen_at` — set when `/today` first renders this plan in the browser (§5.2); the gate only
   considers seen plans; kept when an AI plan replaces a baseline plan
 - `updated_at` — maintained by a trigger; used by the incremental backup (§2.3)
+- **As built in M4** (implementation plan Part B-M4 decisions 6–7): each block holds `items: [{
+  itemId, mode, minutes, overBudget? }]` (the mode is per item — a review block mixes quick recall,
+  redo and a deep-dive lesson) plus `estMinutes`, `recapWeek` (recap) and `shadowing` (card IDs);
+  `roadmap_weeks` holds per track `{ variant, week, dueCount, newPerDay, throttled, reviewDebt }`;
+  `rationale` and `bot_run_id` arrive with the bot tables (task 6.2)
+- **Plans are never pruned** (implementation plan Part B-M4 decision 35): `events.plan_id`
+  references `day_plans` on delete cascade, so deleting a plan would silently delete the
+  source-of-truth events that name it. A `BEFORE DELETE` trigger raises `plans_are_permanent` for
+  any direct delete, whatever the role; only the account-deletion cascade (§4.6) removes plans.
 
 **`item_state`** (derived)
 
@@ -824,6 +835,8 @@ All in the `public` schema with RLS on.
 
 - PK `(plan_id, block_id)`; `user_id` (copied in for RLS)
 - `status` done / partial / skipped; `minutes`; `note`; `auto` bool; `checked_in_at`
+- `track_id` and `checked_in_on` (the local day of the first check-in, which the block counts for
+  in `daily_activity`) — added in M4 (implementation plan Part B-M4 decisions 6, 8)
 
 **`event_quota`** (internal — §4.5)
 
@@ -884,8 +897,11 @@ All in the `public` schema with RLS on.
 ### 4.3 Views, functions, indexes
 
 - **Every view has `security_invoker = true`** (Supabase views bypass RLS otherwise).
-- `v_weak_topics`: topics with ≥ 2 Weak items.
-- `due_items(p_local_day)`: SQL function (today depends on the user's timezone).
+- `v_weak_topics`: topics with ≥ 2 Weak items. **Not built — computed in TypeScript**
+  (`stats/weakTopics.ts`; implementation plan Part B-M4 decision 5).
+- `due_items(p_local_day)`: SQL function (today depends on the user's timezone). **Not built —
+  computed in TypeScript** (`plan/queues.ts`): the due list excludes retired and draft items and
+  paused tracks, which only the catalog and the enrollments know (Part B-M4 decision 5).
 - Streak and roadmap week are computed in TypeScript on read (from `daily_activity`, `item_state`,
   the catalog, `user_tracks.roadmap_variant` and — for AI users — active `roadmap_overrides`).
   No extra tables.
@@ -898,7 +914,7 @@ All in the `public` schema with RLS on.
     `SECURITY DEFINER`, `EXECUTE` granted only to the secret-key role. Handles plan generation and
     AI precedence under the advisory lock, custom items, overrides, onboarding, publish-request
     updates and admin events; returns `{ outcome, versions }`.
-  - `mark_plan_seen(plan_id)`, `due_items(p_local_day)`.
+  - `mark_plan_seen(plan_id)`, `due_items(p_local_day)` (not built, see above).
   - Admin: `admin_set_status`, `admin_set_role`, `admin_set_ai_flag`, `admin_bootstrap`
     (`SECURITY DEFINER`, check `is_admin()` except bootstrap, write an audit event) and aggregate
     readers `admin_user_overview()`, `admin_content_coverage()`, `admin_activity_stats()`.
@@ -964,7 +980,7 @@ All in the `public` schema with RLS on.
 | `roadmap.override_set` / `revoked` | `{ key, kind, params? }` |
 | `roadmap.override_suspended` / `resumed` | `{ keys }` |
 | `admin.*` | `{ targetUserId?, from?, to? }` |
-| `item.snapshot` (reserved) | `{ level, weak, topSuccesses, dueOn, lapses, reps, rulesVersion }` |
+| `item.snapshot` (reserved) | `{ level, weak, topSuccesses, dueOn, lapses, reps, rulesVersion }`, plus `introducedOn`, `lastResult`, `lastResultOn` from M4 (Part B-M4 decision 19: a snapshot restores a full `item_state` row) |
 
 #### Atomicity and locking
 
@@ -1062,6 +1078,10 @@ All in the `public` schema with RLS on.
 All functions in this section are **pure TypeScript** in `lib/domain/**`. They receive `now`,
 the user's `localDay`, state and the catalog as parameters — never the client clock, never I/O.
 Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not randomness).
+
+- **As built in M4** (implementation plan Part B-M4 decision 29): every tie-break is by item ID
+  (deterministic, whatever the catalog's order); no M4 rule needs the random-looking spread a
+  `userId + localDay` hash would give.
 
 ### 5.1 Local day
 
@@ -1417,6 +1437,18 @@ prototype; they are recalibrated **once** against the TypeScript engine in M4, t
 - Snapshot (documents the §5.11 trade-off): DSA 10w @ 60 min realistic median > 12 weeks.
 - `projections.generated.json` matches its projection inputs hash (§5.11).
 
+Regenerated in M4 by `pnpm sim:projections` → `lib/domain/plan/projections.generated.json`
+(authoritative from then on); calibrated TypeScript numbers (task 4.8, ADR-0014; the test is split
+into `lib/domain/plan/__tests__/simulation.dsa.test.ts` and `simulation.english.test.ts`; 126 days,
+200 realistic + 1 ideal learner) — every threshold above is met, so all stay as written, frozen:
+DSA 8w @ 60 realistic finish median 10.7 / p90 11.4 / max 11.71 weeks, ideal 8.29; 10w @ 90
+realistic p90 9.6, ideal 7.14; 10w @ 75 realistic p90 11.4; 10w @ 60 realistic median 15.6; max
+due p90 18 / 26.1 / 26.1 and due p90 on day 125 4 / 5.1 / 5 (8w @ 60, 10w @ 75, 10w @ 90); English
+realistic mean due w8–12 20.6, max due p90 70, due p90 on day 125 18, 135/135 core cards in every
+run; no simulated day over budget + one item. The TypeScript realistic learner completes the paused
+plan on the day after a skip (decision 32 of the implementation plan's Part B-M4) where the
+prototype repeated the previous day's plan, so its finishes are earlier (ADR-0014).
+
 ### 5.11 Decision: DSA variant by budget (option A)
 
 The brief asked for "10w finishes within 12 weeks (realistic)" **and** "60 min/day"; §5.10 shows
@@ -1452,6 +1484,21 @@ both cannot hold at once. **Decision: A.**
   stay green; an owner PR that changes them regenerates the table in the same PR.
 - Until M4 regenerates it, this table (182-day runs) is the authoritative source; §5.10's cells
   (126-day runs) differ by at most 0.1 week.
+- Regenerated in M4 by `pnpm sim:projections` → `lib/domain/plan/projections.generated.json`
+  (authoritative from then on, ADR-0037); calibrated TypeScript numbers (weeks, realistic learner,
+  200 runs of 182 days each; the displayed default becomes "Với 60 phút/ngày, lộ trình 8 tuần
+  thường hoàn thành sau ~11 tuần (90 %: ~11,4 tuần)"):
+
+  | Budget (min/day) | 8w median | 8w p90 | 10w median | 10w p90 |
+  | --- | --- | --- | --- | --- |
+  | 45 | 14.6 | 15.3 | 20.1 | 20.7 |
+  | 60 | 10.7 | 11.4 | 15.6 | 16.4 |
+  | 75 | 7.6 | 8.1 | 10.8 | 11.4 |
+  | 90 | 6.6 | 6.9 | 9.3 | 9.6 |
+  | 120 | 4.6 | 4.7 | 6.6 | 6.7 |
+
+  Option A still holds: 10w at 60 min/day stays well over 12 weeks (median 15.6), while the
+  default variant finishes under 12 at 60 min/day (8w, 10.7) and at 75 (10w, 10.8).
 
 ### 5.12 Per-user personalization: overrides and custom items (AI users only)
 
@@ -1510,6 +1557,19 @@ lib/domain/
 
 Built test-first in M4 (Vitest, table-driven fixtures for every row of §5.7 and §5.9, plus the
 §5.10 simulation).
+
+**As built in M4** (the tree above is the design-time sketch):
+
+- `plan/gate.ts` — `gateStatus()`, `lastSeenPlan()`, `unfinishedBlocks()` (not `isGateOpen()`).
+- `plan/queues.ts` — `dueQueue()` only. `plan/roadmap.ts` — `roadmapWeek()`, `newQueue()`,
+  `recapSource()` and `recapCandidates()` (the recap picker).
+- `plan/practice.ts` — the practice-block pickers and `mockInterviewProblem()` (§5.6);
+  `plan/reviewMode.ts` — `reviewMode()`; `plan/history.ts` — `recapWeeksDone()`;
+  `plan/template.ts` — `dayTemplate()`, `planBlockId()`.
+- `plan/simulate.ts` and `plan/simInputs.ts` — the §5.10 simulation, asserted by
+  `plan/__tests__/simulation.dsa.test.ts` and `simulation.english.test.ts`; `plan/projections.ts`
+  reads `projections.generated.json` and `plan/variant.ts` picks the default variant (§5.11).
+- `plan/overrides.ts` is not built: §5.12 is v1.1 (task 6.6).
 
 ## 6. AI bot boundaries and bot API contract — APPROVED
 

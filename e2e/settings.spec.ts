@@ -9,7 +9,9 @@ import {
   getProfile,
   getScheduleVersions,
   getUserTracks,
+  latestEventPayload,
   seedLearnerSetup,
+  seedPausedTrack,
   type TestUser,
 } from './support/users'
 
@@ -134,6 +136,38 @@ test('[RF-1] schedule, minutes, pause and resume, and code language', async ({ p
 
   // The pending notice, the paused badge and the changed forms, in both themes.
   await expectNoAxeViolationsInBothThemes(page)
+})
+
+test('resume records the real pausedDays after a multi-day pause (§5.9, task 4.11)', async ({
+  page,
+}) => {
+  const learner = await openSettings(page)
+  await seedPausedTrack(learner.id, 'english', 5)
+  await page.reload()
+  const english = track(page, ENGLISH)
+  await expect(english.getByRole('button', { name: 'Tiếp tục', exact: true })).toBeVisible()
+  await english.getByRole('button', { name: 'Tiếp tục', exact: true }).click()
+  await expect(english.getByRole('button', { name: 'Tạm dừng', exact: true })).toBeVisible()
+  await expect
+    .poll(() => latestEventPayload(learner.id, 'track.resumed', 'english'))
+    .toEqual({ pausedDays: 5 })
+  expect((await trackRow(learner.id, 'english'))?.status).toBe('active')
+})
+
+test('resume records pausedDays: 0 for a track paused today (§5.9, task 4.11)', async ({
+  page,
+}) => {
+  const learner = await openSettings(page)
+  await seedPausedTrack(learner.id, 'english', 0)
+  await page.reload()
+  const english = track(page, ENGLISH)
+  await expect(english.getByRole('button', { name: 'Tiếp tục', exact: true })).toBeVisible()
+  await english.getByRole('button', { name: 'Tiếp tục', exact: true }).click()
+  await expect(english.getByRole('button', { name: 'Tạm dừng', exact: true })).toBeVisible()
+  await expect
+    .poll(() => latestEventPayload(learner.id, 'track.resumed', 'english'))
+    .toEqual({ pausedDays: 0 })
+  expect((await trackRow(learner.id, 'english'))?.status).toBe('active')
 })
 
 test('removing a track moves it to "Thêm lộ trình"; adding it back re-enrolls it', async ({

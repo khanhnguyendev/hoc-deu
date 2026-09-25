@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { canonicalTimeZone, isTimeZoneOption, isValidTimeZone, timeZoneOptions } from './timeZones'
 
 describe('canonicalTimeZone', () => {
@@ -62,5 +62,28 @@ describe('isTimeZoneOption', () => {
     expect(isTimeZoneOption('asia/tokyo')).toBe(false)
     expect(isTimeZoneOption('Asia/Saigon')).toBe(false)
     expect(isTimeZoneOption('Mars/Base')).toBe(false)
+  })
+
+  it('rejects an unknown zone (Mars/Olympus) and accepts a real one (M3 follow-up)', () => {
+    expect(isTimeZoneOption('Asia/Ho_Chi_Minh')).toBe(true)
+    expect(isTimeZoneOption('Mars/Olympus')).toBe(false)
+  })
+})
+
+describe('isTimeZoneOption option-list caching (M3 follow-up)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('builds the option list at most once across many calls', async () => {
+    vi.resetModules()
+    const supportedValuesOf = vi.spyOn(Intl, 'supportedValuesOf')
+    const fresh = await import('./timeZones')
+    for (let i = 0; i < 100; i += 1) {
+      expect(fresh.isTimeZoneOption('Asia/Ho_Chi_Minh')).toBe(true)
+      expect(fresh.isTimeZoneOption('Mars/Olympus')).toBe(false)
+    }
+    expect(supportedValuesOf.mock.calls.length).toBeLessThanOrEqual(1)
   })
 })

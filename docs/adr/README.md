@@ -4,7 +4,7 @@ Each decision listed in platform design §9.2 gets a file `NNNN-<slug>.md` (from
 `0000-template.md`), written by the task that implements it (implementation plan, **Writes
 ADR-NNNN**). Until then the decision is recorded in the platform design only. Rows 0009–0012 are
 linked ahead of their files (implementation plan Part B-M3, decision 27), so the parallel M3 tasks
-that write them never edit this index.
+that write them never edit this index; rows 0008, 0014, 0016 and 0037 likewise for M4 (task 4.0).
 
 | ADR | Decision | Written in task |
 | --- | --- | --- |
@@ -15,15 +15,15 @@ that write them never edit this index.
 | 0005 | Public repository; encrypted backups; security features on | 5.7 |
 | [0006](0006-proxy-and-dal.md) | `proxy.ts` only refreshes the session; access checks in layouts + DAL | 2.6 |
 | [0007](0007-event-log-and-apply-event.md) | Event log + derived state; pure TypeScript domain + `apply_event` RPC (`SECURITY INVOKER`) | 2.5b |
-| 0008 | `rules_version` on events and derived rows | 4.2 |
+| [0008](0008-rules-version.md) | `rules_version` on events and derived rows | 4.2 |
 | [0009](0009-tracks-are-data-item-types-are-code.md) | Tracks are data, item types are code (registry) | 3.4a |
 | [0010](0010-namespaced-ids-and-ids-lock.md) | Namespaced IDs, append-only `ids.lock`, reserved `user:` prefix | 3.2b |
 | [0011](0011-mdx-safety-and-build-time-highlighting.md) | `@next/mdx` with a strict MDX safety check; code highlighting at build time | 3.3b |
 | [0012](0012-sandboxed-solution-verification.md) | Solutions verified in a sandboxed CI job; phased harness | 3.5b |
 | [0013](0013-one-lesson-per-pattern.md) | One lesson per pattern; notes upgradeable to deep-dives | 3.7b |
-| 0014 | Simulation-backed SRS parameters per track; mastery | 4.8 |
+| [0014](0014-simulation-backed-srs-parameters.md) | Simulation-backed SRS parameters per track; mastery | 4.8 |
 | [0015](0015-dsa-variant-follows-budget.md) | DSA variant follows the budget; simulated finish shown | 2.10 |
-| 0016 | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
+| [0016](0016-gate-on-last-seen-plan.md) | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
 | [0017](0017-day-start-and-schedule-versions.md) | Per-user day start; schedule versions effective at the next day start | 2.3 |
 | 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5 |
 | [0019](0019-cache-components-off.md) | Cache Components off in v1 | 2.6 |
@@ -44,7 +44,7 @@ that write them never edit this index.
 | 0034 | Daily maintenance cron (idempotent, `CRON_SECRET`) | 5.7 |
 | 0035 | One content PR per plan run; stale bot PRs closed after 7 days | 7.3 |
 | 0036 | No offline queue in v1; a future queue needs a clamped client timestamp | 5.2 |
-| 0037 | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | 4.8 |
+| [0037](0037-projection-inputs-hash.md) | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | 4.8 |
 | 0038 | Release boundary v1.0 / v1.1 / later, week-4 content + harness constraint, dogfooding rollout | 5.8 |
 | 0039 | `seen_at` set only by a browser-side effect on `/today` (never by `ensurePlan` or prefetch) | 5.1 |
 | 0040 | Bot-written notes show "tested (bot tests)" until an admin publishes them via the checklist | 6.7 |

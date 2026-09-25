@@ -42,3 +42,6 @@ its name alone would be promised a finish date the plan cannot keep.
   differ, and the copy says "thường" (usually) rather than promising a date.
 - Accepted: a learner who deliberately picks `10w` at 60 min/day sees "~17 tuần" and keeps that
   choice — the platform informs, it does not refuse.
+- Note (M4): the numbers above are the prototype table's. Since M4 they come from
+  `lib/domain/plan/projections.generated.json` — 8w @ 60 min/day ≈ "~11 tuần (90 %: ~11,4)",
+  10w @ 60 ≈ "~16 tuần (90 %: ~16,4)"; ADR-0014 explains why they moved.

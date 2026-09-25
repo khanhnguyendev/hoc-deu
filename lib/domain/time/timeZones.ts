@@ -33,11 +33,25 @@ export function isValidTimeZone(id: string): boolean {
   }
 }
 
+/**
+ * `Intl.supportedValuesOf('timeZone')` is far more expensive than a `Set` lookup and never
+ * changes within a process, so it is built at most once, lazily (M3 follow-up) — not a clock
+ * read: its output depends only on the fixed ICU data of this process.
+ */
+let cachedOptions: Set<string> | null = null
+
+function optionsSet(): Set<string> {
+  if (cachedOptions === null) {
+    const canonical = new Set(Intl.supportedValuesOf('timeZone').map(canonicalTimeZone))
+    canonical.add('Asia/Ho_Chi_Minh')
+    cachedOptions = canonical
+  }
+  return cachedOptions
+}
+
 /** Sorted canonical IDs for pickers: `supportedValuesOf`, canonicalised, deduplicated, plus VN. */
 export function timeZoneOptions(): readonly string[] {
-  const canonical = new Set(Intl.supportedValuesOf('timeZone').map(canonicalTimeZone))
-  canonical.add('Asia/Ho_Chi_Minh')
-  return [...canonical].sort()
+  return [...optionsSet()].sort()
 }
 
 /**
@@ -46,5 +60,5 @@ export function timeZoneOptions(): readonly string[] {
  * Canonicalise first (`canonicalTimeZone`).
  */
 export function isTimeZoneOption(id: string): boolean {
-  return timeZoneOptions().includes(id)
+  return optionsSet().has(id)
 }

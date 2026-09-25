@@ -4,6 +4,7 @@ import {
   EVENT_PAYLOADS,
   jsonbTextBytes,
   LEARNER_EVENT_TYPES,
+  MAX_PAUSED_DAYS,
   MAX_PAYLOAD_BYTES,
   parseEventPayload,
   SYSTEM_EVENT_TYPES,
@@ -38,6 +39,19 @@ const OVERRIDE_KEYS_SAMPLE = {
   invalid: { keys: 'dsa:w3:extra' },
 }
 const EMPTY_SAMPLE = { valid: {}, invalid: [] }
+/** A full `item_state` row as the compaction job would write it (decision 19). */
+const SNAPSHOT = {
+  level: 3,
+  weak: false,
+  topSuccesses: 2,
+  dueOn: '2026-10-01',
+  lapses: 1,
+  reps: 5,
+  introducedOn: '2026-09-01',
+  lastResult: 'solved',
+  lastResultOn: '2026-09-10',
+  rulesVersion: RULES_VERSION,
+}
 
 /** One valid and one invalid payload per event type (§4.4 payload table, task 2.5 brief). */
 const SAMPLES: Record<EventType, { valid: Record<string, unknown>; invalid: unknown }> = {
@@ -109,24 +123,8 @@ const SAMPLES: Record<EventType, { valid: Record<string, unknown>; invalid: unkn
   'admin.role_changed': ADMIN_SAMPLE,
   'admin.ai_flag_changed': ADMIN_SAMPLE,
   'item.snapshot': {
-    valid: {
-      level: 3,
-      weak: false,
-      topSuccesses: 2,
-      dueOn: '2026-10-01',
-      lapses: 1,
-      reps: 5,
-      rulesVersion: RULES_VERSION,
-    },
-    invalid: {
-      level: 3,
-      weak: false,
-      topSuccesses: 2,
-      dueOn: '2026-02-30',
-      lapses: 1,
-      reps: 5,
-      rulesVersion: RULES_VERSION,
-    },
+    valid: SNAPSHOT,
+    invalid: { ...SNAPSHOT, dueOn: '2026-02-30' },
   },
 }
 
@@ -210,6 +208,57 @@ describe('parseEventPayload', () => {
     ).toMatchObject({ dueOn: null })
     expect(() => parseEventPayload('track.updated', { weeklyTemplate: ['sat', 'sun'] })).toThrow(
       ZodError,
+    )
+  })
+
+  it('bounds track.resumed pausedDays to 0–MAX_PAUSED_DAYS, whole days (decision 36)', () => {
+    expect(MAX_PAUSED_DAYS).toBe(3650)
+    expect(parseEventPayload('track.resumed', { pausedDays: 0 })).toEqual({ pausedDays: 0 })
+    expect(parseEventPayload('track.resumed', { pausedDays: MAX_PAUSED_DAYS })).toEqual({
+      pausedDays: 3650,
+    })
+    expect(() => parseEventPayload('track.resumed', { pausedDays: MAX_PAUSED_DAYS + 1 })).toThrow(
+      ZodError,
+    )
+    expect(() => parseEventPayload('track.resumed', { pausedDays: 2.5 })).toThrow(ZodError)
+    expect(() => parseEventPayload('track.resumed', { pausedDays: '5' })).toThrow(ZodError)
+  })
+
+  it('takes a full item_state row in item.snapshot (decision 19)', () => {
+    expect(
+      parseEventPayload('item.snapshot', { ...SNAPSHOT, lastResult: null, lastResultOn: null }),
+    ).toMatchObject({ introducedOn: '2026-09-01', lastResult: null, lastResultOn: null })
+    expect(parseEventPayload('item.snapshot', { ...SNAPSHOT, lastResult: 'x'.repeat(32) })).toEqual(
+      { ...SNAPSHOT, lastResult: 'x'.repeat(32) },
+    )
+    const withoutIntroducedOn = Object.fromEntries(
+      Object.entries(SNAPSHOT).filter(([key]) => key !== 'introducedOn'),
+    )
+    expect(() => parseEventPayload('item.snapshot', withoutIntroducedOn)).toThrow(ZodError)
+    expect(() => parseEventPayload('item.snapshot', { ...SNAPSHOT, introducedOn: null })).toThrow(
+      ZodError,
+    )
+    expect(() =>
+      parseEventPayload('item.snapshot', { ...SNAPSHOT, introducedOn: '2026-09-31' }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseEventPayload('item.snapshot', { ...SNAPSHOT, lastResult: 'x'.repeat(33) }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseEventPayload('item.snapshot', { ...SNAPSHOT, lastResultOn: '2026-9-10' }),
+    ).toThrow(ZodError)
+    expect(() => parseEventPayload('item.snapshot', { ...SNAPSHOT, status: 'strong' })).toThrow(
+      ZodError,
+    )
+  })
+
+  it('throws a ZodError, not a TypeError, for a payload JSON cannot serialise (a BigInt)', () => {
+    const payload = { weeklyTemplate: { x: 1n } }
+    // The free-form object accepts any value, so only the size check reaches the BigInt.
+    expect(EVENT_PAYLOADS['track.updated'].safeParse(payload).success).toBe(true)
+    expect(() => parseEventPayload('track.updated', payload)).toThrow(ZodError)
+    expect(() => parseEventPayload('track.updated', payload)).toThrow(
+      /the track\.updated payload is not JSON-serialisable/,
     )
   })
 

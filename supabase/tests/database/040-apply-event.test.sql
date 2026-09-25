@@ -5,7 +5,8 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(62);
 
--- A learner event as the app sends it (lib/events/apply.ts): snake_case keys, rules_version 1.
+-- A learner event as the app sends it (lib/events/apply.ts): snake_case keys, rules_version 1 —
+-- an older client's; the events trigger stores the current rules_version() (2, task 4.9a).
 create function tests.event(
   p_id text, p_type text, p_track text default null, p_payload jsonb default '{}'::jsonb
 ) returns jsonb language sql immutable as $$
@@ -40,10 +41,10 @@ select results_eq(
   $$select id, type, track_id, source, actor_id, rules_version from public.events$$,
   format(
     $$values ('40000000-0000-4000-8000-000000000001'::uuid, 'track.enrolled'::text, 'dsa'::text,
-              'learner'::text, %L::uuid, 1)$$,
+              'learner'::text, %L::uuid, 2)$$,
     :'learner'
   ),
-  'and exactly one event: source learner, actor_id the user'
+  'and exactly one event: source learner, actor_id the user, the current rules_version'
 );
 
 -- 2. Idempotent retries: the same id is a no-op; an id another user already used is a conflict.
@@ -137,7 +138,8 @@ select throws_ok(
   '42501', 'not_authenticated', 'without a user id in the JWT, apply_event raises not_authenticated'
 );
 
--- 4. Learner types only; M2 applies only the state-table types (decision 8); active users only.
+-- 4. Learner types only, with the keys their type needs (4.9b: every learner type is applied, and
+--    p_changes / p_expected must match the type's derived tables); active users only.
 select tests.authenticate_as(:'learner');
 select throws_ok(
   $$select public.apply_event(tests.event(
@@ -160,23 +162,23 @@ select throws_ok(
 select throws_ok(
   $$select public.apply_event(tests.event(
       gen_random_uuid()::text, 'item.result', null, '{"result": "solved"}'))$$,
-  'P0001', 'not_implemented', 'item.result raises not_implemented in M2'
+  'P0001', 'invalid_event', 'item.result without item_id raises invalid_event'
 );
 select throws_ok(
-  $$select public.apply_event(tests.event(gen_random_uuid()::text, 'track.reset', 'dsa'))$$,
-  'P0001', 'not_implemented', 'track.reset raises not_implemented in M2 (decision 18)'
+  $$select public.apply_event(tests.event(gen_random_uuid()::text, 'track.reset', 'english'))$$,
+  'P0001', 'track_not_enrolled', 'track.reset on a track not enrolled raises track_not_enrolled'
 );
 select throws_ok(
   $$select public.apply_event(
       tests.event(gen_random_uuid()::text, 'track.paused', 'dsa'),
       '[{"table": "item_state"}]'::jsonb)$$,
-  'P0001', 'not_implemented', 'a non-empty p_changes raises not_implemented'
+  'P0001', 'invalid_event', 'a p_changes entry on track.paused (no derived table) raises invalid_event'
 );
 select throws_ok(
   $$select public.apply_event(
       tests.event(gen_random_uuid()::text, 'track.paused', 'dsa'),
-      p_expected => '{"item_state": 1}'::jsonb)$$,
-  'P0001', 'not_implemented', 'a non-empty p_expected raises not_implemented'
+      p_expected => '{"item_state:x": 1}'::jsonb)$$,
+  'P0001', 'invalid_event', 'a p_expected key without its change raises invalid_event'
 );
 select tests.authenticate_as(:'pending');
 select throws_ok(
@@ -301,13 +303,14 @@ select results_eq(
 );
 
 -- 7. schedule.changed upserts the version for effectiveAt; the history and time-zone triggers
---    still apply, and their errors leave no event behind.
+--    still apply, and their errors leave no event behind. (Before onboarding a learner's version
+--    takes effect at most 5 minutes ahead, 4.12: the pending versions here lie minutes ahead.)
 select tests.authenticate_as(:'schedule_user');
 select is(
   public.apply_event(tests.event(
     gen_random_uuid()::text, 'schedule.changed', null,
     jsonb_build_object(
-      'timezone', 'Asia/Tokyo', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '1 day'
+      'timezone', 'Asia/Tokyo', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '1 minute'
     )
   )),
   '{"outcome": "applied", "versions": {}}'::jsonb,
@@ -315,14 +318,15 @@ select is(
 );
 select results_eq(
   $$select effective_at, timezone, day_starts_at from public.schedule_versions$$,
-  $$values (now() + interval '1 day', 'Asia/Tokyo'::text, '05:00'::time)$$,
+  $$values (now() + interval '1 minute', 'Asia/Tokyo'::text, '05:00'::time)$$,
   '... and inserts the version'
 );
 select is(
   public.apply_event(tests.event(
     gen_random_uuid()::text, 'schedule.changed', null,
     jsonb_build_object(
-      'timezone', 'Europe/Berlin', 'dayStartsAt', '06:30', 'effectiveAt', now() + interval '1 day'
+      'timezone', 'Europe/Berlin', 'dayStartsAt', '06:30',
+      'effectiveAt', now() + interval '1 minute'
     )
   )),
   '{"outcome": "applied", "versions": {}}'::jsonb,
@@ -330,14 +334,15 @@ select is(
 );
 select results_eq(
   $$select effective_at, timezone, day_starts_at from public.schedule_versions$$,
-  $$values (now() + interval '1 day', 'Europe/Berlin'::text, '06:30'::time)$$,
+  $$values (now() + interval '1 minute', 'Europe/Berlin'::text, '06:30'::time)$$,
   '... and replaces the first (one row)'
 );
 select throws_ok(
   $$select public.apply_event(tests.event(
       '40000000-0000-4000-8000-000000000007', 'schedule.changed', null,
       jsonb_build_object(
-        'timezone', 'Mars/Base', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '2 days')))$$,
+        'timezone', 'Mars/Base', 'dayStartsAt', '05:00',
+        'effectiveAt', now() + interval '2 minutes')))$$,
   'P0001', 'invalid_timezone', 'timezone Mars/Base raises invalid_timezone'
 );
 select is(

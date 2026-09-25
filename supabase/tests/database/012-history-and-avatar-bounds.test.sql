@@ -13,6 +13,9 @@ select tests.create_user('avatar@hocdeu.test') as avatar \gset
 -- 1. Ruling R17: at most 10 versions per user with effective_at in the last day or later. The
 --    history guard lets a later version start up to 5 minutes in the past; without this bound,
 --    versions inside that window were never counted, so history could grow without limit.
+--    (Since 4.12 a learner's version waits for the next day start once onboarded_at is set, and
+--    starts at most 5 minutes ahead before that, 013; these learners have not onboarded, so their
+--    pending versions sit minutes ahead; postgres keeps the pre-4.12 rules.)
 --    (now() is the transaction's start, so every statement below sees the same window; the
 --    versions sit 20 seconds apart, and each later insert picks a time none of them uses.)
 select tests.authenticate_as(:'win');
@@ -27,9 +30,10 @@ select throws_ok(
   'P0001', 'too_many_pending_schedules',
   'an 11th version inside the window raises too_many_pending_schedules'
 );
+-- Before onboarding a learner's version starts at most 5 minutes ahead (4.12, M4-R17).
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    values (auth.uid(), now() + interval '1 day')$$,
+    values (auth.uid(), now() + interval '4 minutes')$$,
   'P0001', 'too_many_pending_schedules', 'a pending version counts against the same bound'
 );
 select throws_ok(
@@ -88,7 +92,7 @@ select lives_ok(
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    select auth.uid(), now() + g * interval '1 day' from generate_series(1, 2) g$$,
+    select auth.uid(), now() + g * interval '1 minute' from generate_series(1, 2) g$$,
   '2 pending versions: 11 rows, 10 of them counted (the first is older than a day)'
 );
 select throws_ok(
@@ -98,7 +102,7 @@ select throws_ok(
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '1 day', '06:00')
+    values (auth.uid(), now() + interval '1 minute', '06:00')
     on conflict (user_id, effective_at) do update set day_starts_at = excluded.day_starts_at$$,
   'an upsert of an existing (pending) version at the bound still works'
 );

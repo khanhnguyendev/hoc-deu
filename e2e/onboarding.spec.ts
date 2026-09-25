@@ -63,8 +63,8 @@ test('a new learner picks DSA and English, sets the schedule and lands on /today
   await expect(stepHeading(page, 'Phiên bản lộ trình')).toBeVisible()
   await expect(page.getByRole('radio', { name: /^8 tuần/ })).toBeChecked()
   const eightWeeks = page.getByText(/lộ trình 8 tuần thường hoàn thành sau/)
-  await expect(eightWeeks).toContainText('~12 tuần')
-  await expect(eightWeeks).toContainText('12,4')
+  await expect(eightWeeks).toContainText('~11 tuần')
+  await expect(eightWeeks).toContainText('11,4')
 
   // Back to the minutes: 75 min/day moves the default to "10 tuần".
   await back(page)

@@ -1,0 +1,1109 @@
+{
+  "rulesVersion": 2,
+  "trackId": "dsa",
+  "srs": {
+    "intervals": [7, 21, 60],
+    "relearnDays": 3,
+    "masteredAfter": 2
+  },
+  "estimates": {
+    "lesson": 25,
+    "problem": {
+      "E": 20,
+      "M": 35,
+      "H": 50
+    }
+  },
+  "review": {
+    "recallMinutes": 5,
+    "redoFactor": 0.6
+  },
+  "weeklyTemplate": {
+    "mon-fri": [
+      {
+        "kind": "review",
+        "maxMinutes": 15
+      },
+      {
+        "kind": "new"
+      }
+    ],
+    "sat": [
+      {
+        "kind": "review"
+      }
+    ],
+    "sun": [
+      {
+        "kind": "practice",
+        "minutes": 45,
+        "tag": "mock-interview",
+        "fromWeek": 3
+      },
+      {
+        "kind": "recap",
+        "count": 3
+      }
+    ]
+  },
+  "defaults": {
+    "budgetMinutes": 60,
+    "newPerDay": null,
+    "throttle": []
+  },
+  "roadmaps": {
+    "10w": {
+      "id": "10w",
+      "weeks": [
+        {
+          "week": 1,
+          "topics": ["arrays-hashing"],
+          "core": [
+            "dsa:lc-0217",
+            "dsa:lc-0242",
+            "dsa:lc-0001",
+            "dsa:lc-0049",
+            "dsa:lc-0347",
+            "dsa:lc-0238",
+            "dsa:lc-0128",
+            "dsa:lc-0036"
+          ],
+          "bonus": [],
+          "recap": [
+            {
+              "item": "dsa:lc-0271"
+            },
+            {
+              "item": "dsa:lc-0128",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0049",
+              "mode": "explain-aloud"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 2,
+          "topics": ["two-pointers", "sliding-window"],
+          "core": [
+            "dsa:lc-0125",
+            "dsa:lc-0121",
+            "dsa:lc-0167",
+            "dsa:lc-0015",
+            "dsa:lc-0011",
+            "dsa:lc-0003",
+            "dsa:lc-0424",
+            "dsa:lc-0042"
+          ],
+          "bonus": ["dsa:lc-0076"],
+          "recap": [
+            {
+              "item": "dsa:lc-0001",
+              "mode": "explain-aloud"
+            },
+            {
+              "item": "dsa:lc-0567"
+            },
+            {
+              "item": "dsa:lc-0347",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 3,
+          "topics": ["stack", "binary-search"],
+          "core": [
+            "dsa:lc-0020",
+            "dsa:lc-0704",
+            "dsa:lc-0155",
+            "dsa:lc-0739",
+            "dsa:lc-0875",
+            "dsa:lc-0153",
+            "dsa:lc-0981",
+            "dsa:lc-0084"
+          ],
+          "bonus": ["dsa:lc-0853", "dsa:lc-0033"],
+          "recap": [
+            {
+              "item": "dsa:lc-0424",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0150"
+            },
+            {
+              "item": "dsa:lc-0238",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 4,
+          "topics": ["linked-list"],
+          "core": [
+            "dsa:lc-0206",
+            "dsa:lc-0021",
+            "dsa:lc-0141",
+            "dsa:lc-0019",
+            "dsa:lc-0143",
+            "dsa:lc-0002",
+            "dsa:lc-0146",
+            "dsa:lc-0023"
+          ],
+          "bonus": ["dsa:lc-0287"],
+          "recap": [
+            {
+              "item": "dsa:lc-0074"
+            },
+            {
+              "item": "dsa:lc-0003",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0138"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 5,
+          "topics": ["trees"],
+          "core": [
+            "dsa:lc-0226",
+            "dsa:lc-0104",
+            "dsa:lc-0100",
+            "dsa:lc-0543",
+            "dsa:lc-0102",
+            "dsa:lc-0098",
+            "dsa:lc-0230",
+            "dsa:lc-0124"
+          ],
+          "bonus": [
+            "dsa:lc-0110",
+            "dsa:lc-0235",
+            "dsa:lc-1448",
+            "dsa:lc-0105",
+            "dsa:lc-0208",
+            "dsa:lc-0211"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0146",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0199"
+            },
+            {
+              "item": "dsa:lc-0128",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 6,
+          "topics": ["heap"],
+          "core": [
+            "dsa:lc-0703",
+            "dsa:lc-1046",
+            "dsa:lc-0973",
+            "dsa:lc-0215",
+            "dsa:lc-0621",
+            "dsa:lc-0355",
+            "dsa:lc-0295"
+          ],
+          "bonus": [],
+          "recap": [
+            {
+              "item": "dsa:lc-0347",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0230",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0981",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 7,
+          "topics": ["backtracking"],
+          "core": [
+            "dsa:lc-0078",
+            "dsa:lc-0039",
+            "dsa:lc-0046",
+            "dsa:lc-0090",
+            "dsa:lc-0040",
+            "dsa:lc-0079",
+            "dsa:lc-0017",
+            "dsa:lc-0051"
+          ],
+          "bonus": ["dsa:lc-0131"],
+          "recap": [
+            {
+              "item": "dsa:lc-0022"
+            },
+            {
+              "item": "dsa:lc-0572"
+            },
+            {
+              "item": "dsa:lc-0215",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 8,
+          "topics": ["graphs"],
+          "core": [
+            "dsa:lc-0200",
+            "dsa:lc-0695",
+            "dsa:lc-0133",
+            "dsa:lc-0994",
+            "dsa:lc-0417",
+            "dsa:lc-0207",
+            "dsa:lc-0210",
+            "dsa:lc-0127"
+          ],
+          "bonus": ["dsa:lc-0130", "dsa:lc-0684", "dsa:lc-0743"],
+          "recap": [
+            {
+              "item": "dsa:lc-0079",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0102",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0739",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 9,
+          "topics": ["dp-1d"],
+          "core": [
+            "dsa:lc-0070",
+            "dsa:lc-0198",
+            "dsa:lc-0213",
+            "dsa:lc-0005",
+            "dsa:lc-0091",
+            "dsa:lc-0322",
+            "dsa:lc-0139",
+            "dsa:lc-0300"
+          ],
+          "bonus": ["dsa:lc-0746", "dsa:lc-0152", "dsa:lc-0416"],
+          "recap": [
+            {
+              "item": "dsa:lc-0994",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0647"
+            },
+            {
+              "item": "dsa:lc-0042",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 10,
+          "topics": ["dp-2d", "intervals", "greedy"],
+          "core": [
+            "dsa:lc-0062",
+            "dsa:lc-1143",
+            "dsa:lc-0056",
+            "dsa:lc-0057",
+            "dsa:lc-0435",
+            "dsa:lc-0253",
+            "dsa:lc-0053",
+            "dsa:lc-0763"
+          ],
+          "bonus": [
+            "dsa:lc-0309",
+            "dsa:lc-0518",
+            "dsa:lc-0494",
+            "dsa:lc-0072",
+            "dsa:lc-0252",
+            "dsa:lc-0055",
+            "dsa:lc-0045",
+            "dsa:lc-0134"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0146",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0295",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0380"
+            }
+          ],
+          "decks": []
+        }
+      ]
+    },
+    "8w": {
+      "id": "8w",
+      "weeks": [
+        {
+          "week": 1,
+          "topics": ["arrays-hashing"],
+          "core": [
+            "dsa:lc-0217",
+            "dsa:lc-0242",
+            "dsa:lc-0001",
+            "dsa:lc-0049",
+            "dsa:lc-0347",
+            "dsa:lc-0238",
+            "dsa:lc-0128",
+            "dsa:lc-0036"
+          ],
+          "bonus": [],
+          "recap": [
+            {
+              "item": "dsa:lc-0271"
+            },
+            {
+              "item": "dsa:lc-0128",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0049",
+              "mode": "explain-aloud"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 2,
+          "topics": ["two-pointers", "sliding-window"],
+          "core": [
+            "dsa:lc-0125",
+            "dsa:lc-0121",
+            "dsa:lc-0167",
+            "dsa:lc-0015",
+            "dsa:lc-0011",
+            "dsa:lc-0003",
+            "dsa:lc-0424",
+            "dsa:lc-0042"
+          ],
+          "bonus": ["dsa:lc-0567", "dsa:lc-0076"],
+          "recap": [
+            {
+              "item": "dsa:lc-0001",
+              "mode": "explain-aloud"
+            },
+            {
+              "item": "dsa:lc-0347",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0003",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 3,
+          "topics": ["stack", "binary-search"],
+          "core": [
+            "dsa:lc-0020",
+            "dsa:lc-0704",
+            "dsa:lc-0155",
+            "dsa:lc-0739",
+            "dsa:lc-0875",
+            "dsa:lc-0153",
+            "dsa:lc-0981"
+          ],
+          "bonus": [
+            "dsa:lc-0084",
+            "dsa:lc-0150",
+            "dsa:lc-0022",
+            "dsa:lc-0853",
+            "dsa:lc-0074",
+            "dsa:lc-0033"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0424",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0238",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0739",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 4,
+          "topics": ["linked-list", "trees"],
+          "core": [
+            "dsa:lc-0206",
+            "dsa:lc-0021",
+            "dsa:lc-0141",
+            "dsa:lc-0146",
+            "dsa:lc-0226",
+            "dsa:lc-0104",
+            "dsa:lc-0100",
+            "dsa:lc-0543",
+            "dsa:lc-0102",
+            "dsa:lc-0098",
+            "dsa:lc-0230"
+          ],
+          "bonus": [
+            "dsa:lc-0019",
+            "dsa:lc-0143",
+            "dsa:lc-0002",
+            "dsa:lc-0023",
+            "dsa:lc-0138",
+            "dsa:lc-0287",
+            "dsa:lc-0124",
+            "dsa:lc-0199",
+            "dsa:lc-0572",
+            "dsa:lc-0110",
+            "dsa:lc-0235",
+            "dsa:lc-1448",
+            "dsa:lc-0105",
+            "dsa:lc-0208",
+            "dsa:lc-0211"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0146",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0128",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0102",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 5,
+          "topics": ["heap", "backtracking"],
+          "core": [
+            "dsa:lc-0703",
+            "dsa:lc-0973",
+            "dsa:lc-0215",
+            "dsa:lc-0078",
+            "dsa:lc-0039",
+            "dsa:lc-0046",
+            "dsa:lc-0079"
+          ],
+          "bonus": [
+            "dsa:lc-1046",
+            "dsa:lc-0621",
+            "dsa:lc-0355",
+            "dsa:lc-0295",
+            "dsa:lc-0090",
+            "dsa:lc-0040",
+            "dsa:lc-0017",
+            "dsa:lc-0051",
+            "dsa:lc-0131"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0347",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0230",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0981",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 6,
+          "topics": ["graphs"],
+          "core": [
+            "dsa:lc-0200",
+            "dsa:lc-0695",
+            "dsa:lc-0133",
+            "dsa:lc-0994",
+            "dsa:lc-0417",
+            "dsa:lc-0207",
+            "dsa:lc-0210"
+          ],
+          "bonus": ["dsa:lc-0127", "dsa:lc-0130", "dsa:lc-0684", "dsa:lc-0743"],
+          "recap": [
+            {
+              "item": "dsa:lc-0079",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0102",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0739",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 7,
+          "topics": ["dp-1d"],
+          "core": [
+            "dsa:lc-0070",
+            "dsa:lc-0198",
+            "dsa:lc-0213",
+            "dsa:lc-0005",
+            "dsa:lc-0091",
+            "dsa:lc-0322",
+            "dsa:lc-0139",
+            "dsa:lc-0300"
+          ],
+          "bonus": ["dsa:lc-0647", "dsa:lc-0746", "dsa:lc-0152", "dsa:lc-0416"],
+          "recap": [
+            {
+              "item": "dsa:lc-0994",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0042",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0005",
+              "mode": "redo"
+            }
+          ],
+          "decks": []
+        },
+        {
+          "week": 8,
+          "topics": ["dp-2d", "intervals", "greedy"],
+          "core": [
+            "dsa:lc-0062",
+            "dsa:lc-1143",
+            "dsa:lc-0056",
+            "dsa:lc-0057",
+            "dsa:lc-0435",
+            "dsa:lc-0253",
+            "dsa:lc-0053",
+            "dsa:lc-0763"
+          ],
+          "bonus": [
+            "dsa:lc-0309",
+            "dsa:lc-0518",
+            "dsa:lc-0494",
+            "dsa:lc-0072",
+            "dsa:lc-0252",
+            "dsa:lc-0055",
+            "dsa:lc-0045",
+            "dsa:lc-0134"
+          ],
+          "recap": [
+            {
+              "item": "dsa:lc-0146",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0215",
+              "mode": "redo"
+            },
+            {
+              "item": "dsa:lc-0380"
+            }
+          ],
+          "decks": []
+        }
+      ]
+    }
+  },
+  "problems": {
+    "dsa:lc-0001": {
+      "difficulty": "E",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0002": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0003": {
+      "difficulty": "M",
+      "topic": "sliding-window"
+    },
+    "dsa:lc-0005": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0011": {
+      "difficulty": "M",
+      "topic": "two-pointers"
+    },
+    "dsa:lc-0015": {
+      "difficulty": "M",
+      "topic": "two-pointers"
+    },
+    "dsa:lc-0017": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0019": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0020": {
+      "difficulty": "E",
+      "topic": "stack"
+    },
+    "dsa:lc-0021": {
+      "difficulty": "E",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0022": {
+      "difficulty": "M",
+      "topic": "stack"
+    },
+    "dsa:lc-0023": {
+      "difficulty": "H",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0033": {
+      "difficulty": "M",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0036": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0039": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0040": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0042": {
+      "difficulty": "H",
+      "topic": "two-pointers"
+    },
+    "dsa:lc-0045": {
+      "difficulty": "M",
+      "topic": "greedy"
+    },
+    "dsa:lc-0046": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0049": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0051": {
+      "difficulty": "H",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0053": {
+      "difficulty": "M",
+      "topic": "greedy"
+    },
+    "dsa:lc-0055": {
+      "difficulty": "M",
+      "topic": "greedy"
+    },
+    "dsa:lc-0056": {
+      "difficulty": "M",
+      "topic": "intervals"
+    },
+    "dsa:lc-0057": {
+      "difficulty": "M",
+      "topic": "intervals"
+    },
+    "dsa:lc-0062": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-0070": {
+      "difficulty": "E",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0072": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-0074": {
+      "difficulty": "M",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0076": {
+      "difficulty": "H",
+      "topic": "sliding-window"
+    },
+    "dsa:lc-0078": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0079": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0084": {
+      "difficulty": "H",
+      "topic": "stack"
+    },
+    "dsa:lc-0090": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0091": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0098": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0100": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0102": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0104": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0105": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0110": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0121": {
+      "difficulty": "E",
+      "topic": "sliding-window"
+    },
+    "dsa:lc-0124": {
+      "difficulty": "H",
+      "topic": "trees"
+    },
+    "dsa:lc-0125": {
+      "difficulty": "E",
+      "topic": "two-pointers"
+    },
+    "dsa:lc-0127": {
+      "difficulty": "H",
+      "topic": "graphs"
+    },
+    "dsa:lc-0128": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0130": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0131": {
+      "difficulty": "M",
+      "topic": "backtracking"
+    },
+    "dsa:lc-0133": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0134": {
+      "difficulty": "M",
+      "topic": "greedy"
+    },
+    "dsa:lc-0138": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0139": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0141": {
+      "difficulty": "E",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0143": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0146": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0150": {
+      "difficulty": "M",
+      "topic": "stack"
+    },
+    "dsa:lc-0152": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0153": {
+      "difficulty": "M",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0155": {
+      "difficulty": "M",
+      "topic": "stack"
+    },
+    "dsa:lc-0167": {
+      "difficulty": "M",
+      "topic": "two-pointers"
+    },
+    "dsa:lc-0198": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0199": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0200": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0206": {
+      "difficulty": "E",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0207": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0208": {
+      "difficulty": "M",
+      "topic": "tries"
+    },
+    "dsa:lc-0210": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0211": {
+      "difficulty": "M",
+      "topic": "tries"
+    },
+    "dsa:lc-0213": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0215": {
+      "difficulty": "M",
+      "topic": "heap"
+    },
+    "dsa:lc-0217": {
+      "difficulty": "E",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0226": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0230": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0235": {
+      "difficulty": "M",
+      "topic": "trees"
+    },
+    "dsa:lc-0238": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0242": {
+      "difficulty": "E",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0252": {
+      "difficulty": "E",
+      "topic": "intervals"
+    },
+    "dsa:lc-0253": {
+      "difficulty": "M",
+      "topic": "intervals"
+    },
+    "dsa:lc-0271": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0287": {
+      "difficulty": "M",
+      "topic": "linked-list"
+    },
+    "dsa:lc-0295": {
+      "difficulty": "H",
+      "topic": "heap"
+    },
+    "dsa:lc-0300": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0309": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-0322": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0347": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0355": {
+      "difficulty": "M",
+      "topic": "heap"
+    },
+    "dsa:lc-0380": {
+      "difficulty": "M",
+      "topic": "arrays-hashing"
+    },
+    "dsa:lc-0416": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0417": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0424": {
+      "difficulty": "M",
+      "topic": "sliding-window"
+    },
+    "dsa:lc-0435": {
+      "difficulty": "M",
+      "topic": "intervals"
+    },
+    "dsa:lc-0494": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-0518": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-0543": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0567": {
+      "difficulty": "M",
+      "topic": "sliding-window"
+    },
+    "dsa:lc-0572": {
+      "difficulty": "E",
+      "topic": "trees"
+    },
+    "dsa:lc-0621": {
+      "difficulty": "M",
+      "topic": "heap"
+    },
+    "dsa:lc-0647": {
+      "difficulty": "M",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0684": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0695": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0703": {
+      "difficulty": "E",
+      "topic": "heap"
+    },
+    "dsa:lc-0704": {
+      "difficulty": "E",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0739": {
+      "difficulty": "M",
+      "topic": "stack"
+    },
+    "dsa:lc-0743": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-0746": {
+      "difficulty": "E",
+      "topic": "dp-1d"
+    },
+    "dsa:lc-0763": {
+      "difficulty": "M",
+      "topic": "greedy"
+    },
+    "dsa:lc-0853": {
+      "difficulty": "M",
+      "topic": "stack"
+    },
+    "dsa:lc-0875": {
+      "difficulty": "M",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0973": {
+      "difficulty": "M",
+      "topic": "heap"
+    },
+    "dsa:lc-0981": {
+      "difficulty": "M",
+      "topic": "binary-search"
+    },
+    "dsa:lc-0994": {
+      "difficulty": "M",
+      "topic": "graphs"
+    },
+    "dsa:lc-1046": {
+      "difficulty": "E",
+      "topic": "heap"
+    },
+    "dsa:lc-1143": {
+      "difficulty": "M",
+      "topic": "dp-2d"
+    },
+    "dsa:lc-1448": {
+      "difficulty": "M",
+      "topic": "trees"
+    }
+  }
+}

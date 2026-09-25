@@ -39,19 +39,24 @@ sections for every task.
   step-level detail in [Part B-M1](#part-b-m1--component-library-step-by-step), reviewed by the
   owner together with the M1 pull request. M2 done (PR #4, merged 2026-09-25): step-level detail
   in [Part B-M2](#part-b-m2--auth-onboarding-settings-step-by-step), written at the start of M2
-  and reviewed by the owner before execution. M3: step-level detail in
+  and reviewed by the owner before execution. M3 done (PRs #5–#8, merged 2026-09-25): step-level
+  detail in
   [Part B-M3](#part-b-m3--track-manifests-content-loading-and-validation-step-by-step), written at
-  the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding.
+  the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding. M4:
+  step-level detail in [Part B-M4](#part-b-m4--plan-engine--spaced-repetition-step-by-step),
+  written at the start of M4 and gate-reviewed; the owner approved Q1 (`fast-check`) and asked
+  for its SQL parts (4.9a–c, decision 33) to wait for a separate approval (2026-09-25).
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
-## Execution methods (approved by the owner, 2026-09-24; M3 row changed 2026-09-25)
+## Execution methods (approved by the owner, 2026-09-24; M3 and M4 rows changed 2026-09-25)
 
 | Milestone | Method |
 | --- | --- |
 | M0 | **Native** (superpowers:executing-plans), then one fresh reviewer on the whole branch |
 | M1, M5 | Native, with an end-of-milestone review |
-| M2, M4, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M2, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M4 | **Subagent-driven, parallel waves in git worktrees** (owner request 2026-09-25, Part B-M4 decision 1) |
 | M3 | **Subagent-driven, parallel waves in git worktrees** — one worktree per task, one integration worktree per target branch (owner decision 2026-09-25, Part B-M3 OD5) |
 | M7 | Decided at the start of M7 |
 
@@ -234,22 +239,34 @@ need it first.
 
 Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 
+**Part B-M4 changes to this table** (decisions there): 4.4 splits into **4.4a** (roadmap position,
+new-item queue, recap source) and **4.4b** (due queue, weak topics, practice pickers); 4.9 into
+**4.9a** (tables, RLS, `mark_plan_seen`, `RULES_VERSION` 2), **4.9b** (`apply_event` with derived
+changes) and **4.9c** (`apply_system_event` for plans and the auto check-in); stale-plan resume
+moves from 4.3 to 4.6 and `stats/weakTopics.ts` from 4.7 to 4.4b (2); new rows **4.10** (content →
+domain adapter), **4.11** (the settings `pausedDays` e2e) and **4.12** (schedule-history floor)
+(27); no `due_items()` SQL function or `v_weak_topics` view — computed in TypeScript (5); the M3
+follow-ups go to the separate PR **F1**, the HTTP 404 to 5.1 (28); §5.12's override simulation
+scenario moves with overrides to 6.6 (31).
+
 ### M5 — Dashboard, check-in, review (v1.0) → v1.0 launch
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
-| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
-| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
+| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). Part B-M4: the real HTTP 404 for unknown tracks and items (M3 follow-up, decision 28); no second plan on a resume day (`gateStatus().resumedToday`, decision 32); settings and track add / pause / remove / reset rebuild today's plan while it is untouched (`storePlan` mode `rebuild`, §5.4, §5.9). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
+| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** Part B-M4: one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34). | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
 | 5.4 "Học thêm" + off-plan study; "Bắt đầu lại"; track-page progress and weak items | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18); track-page progress and weak items on `/t/[trackId]` (Part B-M3 decision 25) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
 | 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`); Modify: `next.config.ts` — remove the `/admin` → `/admin/users` redirect added in 2.8 (it would shadow the new `/admin` page) **Writes ADR-0031.** | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
 | 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
-| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), Vercel Production Branch back to `main` (a placeholder since 2.2, `docs/ops/staging.md` §5), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** M1 deferred #17: `global-error.tsx` follows the saved theme. | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
+| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), Vercel Production Branch back to `main` (a placeholder since 2.2, `docs/ops/staging.md` §5), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** M1 deferred #17: `global-error.tsx` follows the saved theme. Part B-M4 decision 37: after the owner's first two weeks of dogfooding, compare the real pace with the onboarding projection (ADR-0014's skip-day model decides 11.4 vs 13.3 weeks for 8w @ 60); more than 15 % slower → revisit the model and the defaults before inviting learners. | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
-either W4–W5 notes/lessons written or v1.1 shipped.
+either W4–W5 notes/lessons written or v1.1 shipped. The **M3b** harness task's first step (M3
+follow-up, Part B-M4 decision 28): the Java harness bridges `List<String>` parameters and Go
+design classes are created via `Constructor()` (problems 139, 127, 271).
 
 ### M6 — Admin AI controls + bot API (v1.1)
 
@@ -7263,3 +7280,2859 @@ right variants), sample answers and rubrics sensible, prompts doable in 15 minut
    keeps either side, runs `pnpm content:build`, commits).
 3. M4 starts after PR A (content PRs run in parallel, Execution methods note); task 4.8 waits for
    PR B.
+
+## Part B-M4 — Plan engine + spaced repetition, step by step
+
+Written at the start of M4 (2026-09-25) from the code merged in M0–M3 (`main` at `86b637b`: PR #5
+pipeline, #6, #7 English content, #8 DSA content), then revised the same day after an independent
+gate review ("approve after fixes": 5 blockers, 7 important, 19 minor — all applied; decisions
+31–34 come from it). The shared domain types, helpers and test fixtures in task 4.0 were compiled in a throwaway worktree against that commit (`tsc`, ESLint, the
+`tools/guards` suite — green), so they are known to fit the pinned toolchain and the
+`lib/domain` purity rules. Executed **subagent-driven with parallel waves in git worktrees** (as
+M3, owner request): a fresh implementer and a fresh reviewer per task, the tasks of one wave in
+separate worktrees, then one whole-branch review on the most capable model, one fix pass and one
+re-review.
+
+**Branch:** `feat/m4-plan-engine` from `main` at `86b637b`; this section is its first commit. One
+pull request, "M4: plan engine + spaced repetition", plus the small follow-up PR **F1** (M3
+residuals, own branch `fix/m3-followups` from `main`).
+
+**Scope.** Pure functions in `lib/domain` (SRS, projection and replay, gate, queues, budget,
+`buildPlan`, stale-plan resume, stats, simulation), the content → domain adapter, and the database
+side of the plan engine: `day_plans` and the derived tables, the full `apply_event`, the plan and
+auto check-in paths of `apply_system_event`, `mark_plan_seen`. No screen changes: `/today`,
+check-in, `/review`, "Học thêm" and `/progress` are M5, which consumes these interfaces. §5.12
+overrides and custom items are v1.1 (release table; owned by task 6.6) and are not built: `buildPlan` takes no
+overrides and skips items that are not in the catalog.
+
+**Owner questions** (answer at the review of this section; everything else below is a ruling the
+owner can overturn):
+
+- **Q1 — `fast-check` (dev).** Spec §7.10 already lists `fast-check` among the approved dev
+  dependencies and §7.8 names it for the property tests, but it is not installed yet, and the owner
+  asked to be asked before any new dependency. Proposal: `fast-check@4.10.2` (exact; one
+  transitive dependency, `pure-rand`), installed by the controller in 4.0 and used only by
+  `lib/domain/**/__tests__` (the purity guard already allows it there; `pnpm view` on 2026-09-25:
+  4.10.2 is the latest release, its only dependency `pure-rand ^8`). **If declined:** the property
+  tests of 4.4a and 4.6 draw their inputs from the seeded `mulberry32` generator
+  (`lib/domain/random.ts`, created in 4.0 anyway) with the same invariants over 500 generated
+  contexts; no shrinking.
+
+**Execution schedule.** A task starts when every task it depends on has been cherry-picked onto
+`feat/m4-plan-engine`; the waves below apply that rule in lockstep. "Stack" = the task uses the
+single local Supabase stack — `pnpm db:reset` / `pnpm test:db` (DB) or `pnpm test:e2e` (e2e); one
+stack holder per wave, because a `db:reset` under a running e2e breaks it.
+
+**Owner hold (2026-09-25), lifted the same day:** the owner approved the SQL parts (4.9a–c) and
+decision 33 after tracing every write path's lock order, and added decisions 35–37. Before that,
+the SQL parts (4.9a–c, decision 33) and everything touching `supabase/**` waited for the owner's
+approval. Until then the pure-TypeScript tasks run in their
+waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependency order
+(4.9a → 4.9b → 4.9c → 4.12 → 4.11), one at a time.
+
+| Task | Depends on | Stack | Shared files it owns in its wave |
+| --- | --- | --- | --- |
+| 4.0 plan, deps, shared types (controller) | M3 merged | — | plan, spec, `docs/adr/README.md`, `package.json`, `pnpm-lock.yaml`, `lib/domain/{catalog,state,random}.ts`, `lib/domain/srs/outcomes.ts`, `lib/domain/plan/{types,reviewMode}.ts`, `lib/domain/plan/__tests__/fixtures.ts` |
+| 4.1 SRS transitions | 4.0 | — | — |
+| 4.4a roadmap position, new queue, recap source | 4.0 | — | — |
+| 4.4b due queue, weak topics, practice pickers | 4.0 | — | — |
+| 4.5 budget and throttle | 4.0 | — | — |
+| 4.9a migration: plans and derived tables | 4.0 | DB | `lib/domain/rules.ts`, `lib/domain/plan/*.generated.json`, spec §4.1, `tools/db/sql-sync.test.ts`, `lib/supabase/database.types.ts`, `supabase/tests/database/{001,012,030,040,060}-*.sql`, `docs/adr/0007-*.md` |
+| 4.2 projection and replay | 4.1 | — | `lib/domain/events.ts` (+ test) |
+| 4.3 gate and plan history | 4.0 | — | — |
+| 4.7 stats, weekday, time-zone cache | 4.0 | — | `lib/domain/time/timeZones.ts` (+ test) |
+| 4.10 plan catalog adapter | 4.0 | — | — |
+| 4.9b `apply_event` with derived changes | 4.9a | DB | `lib/events/apply.ts` (+ test), `lib/domain/events.ts` (+ test), `features/settings/actions.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,040}-*.sql` |
+| 4.6 `buildPlan`, resume, property tests | 4.3, 4.4a, 4.4b, 4.5, 4.7 | — | — |
+| 4.9c `apply_system_event`: plans, auto check-in | 4.9b | DB | `lib/events/apply.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,041}-*.sql` |
+| F1 M3 follow-ups (separate PR) | — | — | its own branch: `tools/content/derived.ts` (+ test), the fence-parity test, `vitest.config.ts`, `tools/content-verify/workflow.test.ts` |
+| 4.8 simulation and projection table | 4.2, 4.6 | — (the controller runs the e2e after the wave) | `lib/domain/plan/projections.ts` (+ test), `package.json` scripts, `CLAUDE.md`, `README.md`, spec §5.10–§5.11, onboarding / variant-picker tests, `e2e/onboarding.spec.ts` |
+| 4.12 schedule-history floor | 4.9c | DB | `supabase/tests/database/{011,012}-*.sql`, `docs/adr/0017-*.md` |
+| 4.11 settings `pausedDays` e2e | 4.9b | e2e | `e2e/support/users.ts`, `e2e/settings.spec.ts` |
+
+| Wave | Parallel tasks (one worktree each) | Stack holder | Controller at the end of the wave |
+| --- | --- | --- | --- |
+| 0 | 4.0 (controller, in the integration worktree) | — | `pnpm verify` |
+| 1 | 4.1 ‖ 4.4a ‖ 4.4b ‖ 4.5 ‖ 4.9a | DB: 4.9a | `pnpm verify`, then `pnpm db:reset && pnpm test:db` |
+| 2 | 4.2 ‖ 4.3 ‖ 4.7 ‖ 4.10 ‖ 4.9b | DB: 4.9b | same |
+| 3 | 4.6 ‖ 4.9c ‖ F1 | DB: 4.9c | same; F1: CI, review, merge to `main` (controller) |
+| 4 | 4.8 ‖ 4.12 | DB: 4.12 | same, then `pnpm test:e2e --grep onboarding` |
+| 5 | 4.11 | e2e: 4.11 | `pnpm verify:full` |
+| 6 | — | controller | whole-branch review, one fix pass, re-review, `verify:full`, PR, CI |
+
+- **Same-wave tasks share no file.** Each shared file has one owner per wave (last column above);
+  new files belong to the task that creates them. Wave sizes are capped at five agents (M3 lost two
+  agents to rate limits with more).
+- **Integration worktree:** `/Users/ryan/ws/hoc-deu-int-m4` (branch `feat/m4-plan-engine`). The
+  controller never switches the main checkout; it cherry-picks reviewed commits there, checks that
+  the tree equals the reviewed tree (`git rev-parse HEAD^{tree}`), and verifies.
+- **Task worktrees:** `/Users/ryan/ws/hoc-deu-worktrees/wt-<task>` (M3-R1), created from the
+  integration branch head with `git worktree add … -b feat/m4-task-<task>`, then `pnpm install
+  --frozen-lockfile`; removed with their branch after the cherry-pick. F1 uses
+  `wt-f1` on `fix/m3-followups` from `origin/main`.
+- **Stack lock:** the local Supabase stack is shared. Only the wave's stack task runs `pnpm
+  db:reset`, `pnpm test:db` or `pnpm test:e2e`; the controller runs its post-wave checks after that
+  task has finished (e2e under `/Users/ryan/ws/hoc-deu-worktrees/E2E_LOCK`). Nobody runs
+  `db:stop`. Never touch the other local project, `ytb-extractor`.
+
+**Decisions taken while writing (each is a ledger ruling; the owner can overturn any):**
+
+1. **Execution:** subagent-driven, parallel waves in worktrees (the plan's M4 row said
+   subagent-driven; the owner asked for M3-style parallelism).
+2. **Task splits:** Part A 4.4 → **4.4a** (roadmap position, new-item queue, recap source) +
+   **4.4b** (due queue, weak topics, practice pickers); 4.9 → **4.9a** (tables, RLS,
+   `mark_plan_seen`, `RULES_VERSION` 2) + **4.9b** (`apply_event` with derived changes) + **4.9c**
+   (`apply_system_event` for plans and the auto check-in); new **4.10** (content → domain
+   adapter); stale-plan resume moves from 4.3 to **4.6** (it is a plan build and needs the budget
+   rules); `stats/weakTopics.ts` moves from 4.7 to **4.4b** (the due-queue sort needs it).
+3. **Shared vocabulary first.** Task 4.0 commits, verbatim from this section, the domain types
+   every task uses (`lib/domain/catalog.ts`, `state.ts`, `srs/outcomes.ts`, `plan/types.ts`), two
+   tiny helpers two same-wave tasks both need (`plan/reviewMode.ts`, `random.ts`) and the test
+   fixtures (`plan/__tests__/fixtures.ts`), so parallel tasks never declare their own copies (the
+   M3 wave-1 pain).
+4. **`lib/domain` never imports `lib/content`** (layer rule): the engine reads a `PlanCatalog` —
+   items with resolved SRS parameters and minutes per mode — built by `lib/content/plan-catalog.ts`
+   (4.10). Result names map to outcomes through the domain's `RESULT_OUTCOMES`; a 4.10 test keeps
+   it equal to the item-type cores' `outcomes`.
+5. **No `due_items()` SQL function and no `v_weak_topics` view** (§4.3 lists both). The due list
+   and weak areas exclude retired and draft items and paused or removed tracks, which only the
+   catalog and the enrollments know; one rule in one place (`plan/queues.ts`,
+   `stats/weakTopics.ts`). Spec §4.3 is annotated in 4.0.
+6. **Columns beyond §4.1:** `plan_block_state` gains `track_id` (daily minutes per track) and
+   `checked_in_on` (the local day of the first check-in, which the block counts for — an edit on
+   a later day never moves it); `user_tracks` gains `reset_on`; `day_plans.roadmap_weeks` holds a
+   per-track snapshot `{ variant, week, dueCount, newPerDay, throttled, reviewDebt }` (the
+   dashboard's throttle message, §5.5, reads it). `day_plans.rationale` and `bot_run_id` are v1.1:
+   owned by task **6.2** (the bot tables migration).
+7. **Block JSON:** a block lists `items: [{ itemId, mode, minutes, overBudget? }]` instead of
+   §4.1's `item_ids` + one block `mode` — a review block mixes quick-recall and redo problems and a
+   deep-dive lesson, so the mode is per item. Recap blocks carry `recapWeek`, shadowing blocks
+   `shadowing` (card IDs). Stored camelCase inside the JSON, like event payloads.
+8. **`daily_activity`:** `minutes_by_track` and `completed` are recomputed from the blocks whose
+   `checked_in_on` is that day (so an edited check-in replaces its minutes, never adds);
+   `items_done` = distinct items with a counted outcome that day.
+9. **`track.reset`** deletes the track's `item_state` rows and sets `user_tracks.reset_on`; events,
+   plans, check-ins and daily activity stay (history, streak). Recap-done derivation ignores plans
+   dated before `reset_on`. **`track.resumed`** shifts the track's `due_on` by `pausedDays` (§5.9).
+   Both are set-based in SQL (4.9b) and mirrored in `project()` (4.2); a pgTAP case and a Vitest
+   case run the same fixture.
+10. **Derived writes carry versions.** `p_changes` = `[{ table, row }]` (snake_case rows),
+    `p_expected` = `{ "<table>:<key>": version }` with `0` for a row that must not exist yet; a
+    mismatch raises `version_conflict` and rolls the event back, so the caller reloads, recomputes
+    and retries (≤ 3, §4.4). `p_event.local_day` (optional) is the local day the caller computed
+    the change for; the database raises `day_changed` when its own `local_day` differs (a request
+    crossing the day start), so an SRS due date is never computed from the wrong day.
+11. **Derived tables are bounded** like the state tables (M2 ruling R14): a learner may write their
+    own derived rows directly (`apply_event` is `SECURITY INVOKER`), so triggers cap `item_state`
+    at 5000 rows per user, accept a new `daily_activity` row only within one day of the user's
+    current local day, and a `plan_block_state` row only for a block its plan lists; and `UPDATE`
+    is granted per column, never on a key column (`item_id`, `local_day`, `plan_id`, `block_id`,
+    `user_id`), so an update cannot move a row out of those bounds.
+12. **Untouched plan** (§2.3, §5.4 rebuilds): no `plan_block_state` row and no event carrying its
+    `plan_id` other than `plan.generated` and `plan.ai_*` (the generation event itself carries the
+    `plan_id`).
+13. **One overshoot per track per plan.** §5.4 lets the first new item and the first recap item
+    exceed the budget, and reserves fixed blocks first — but a 45-minute mock interview on a
+    10-minute budget followed by a forced recap item breaks the §5.4 invariant
+    (planned ≤ budget + the largest single item). Rule: the track's overshoot is **used** as soon
+    as its remaining budget goes below zero, whatever caused it (a forced unit or a half-fit one);
+    fixed blocks, the first recap item and the first new item may exceed the remaining budget
+    **only while it is unused**, and skip / half-fit additions need a positive remainder anyway. The
+    invariant then holds for every budget from 10 to 240 and every valid template, custom ones
+    included (4.6 property test).
+14. **Empty blocks are dropped;** a practice block that finds no item is dropped before its
+    minutes are reserved (RF-4: English weeks 4–10 have no weekend prompts yet, so from week 4 the
+    Sunday prompt block disappears once W1–W3's are done; the exercise block falls back to an
+    introduced exercise, so it stays).
+15. **Queue details §5.3 leaves open:** unlocked derived cards, ordered by their source's first
+    outcome (`introducedOn`, then source ID — stable, unlike the last result), go once, into the
+    earliest roadmap week that still has not-introduced items, after its recap items and before its
+    extended cards; exercises are ordered by ID, not file order (the catalog keeps none for them),
+    so the kinds of a week come grouped — `fill-1, fill-2, respond-1, …` — accepted; a weekly
+    prompt falls back to the earliest not-introduced one of an earlier week, then to nothing; recap
+    filler items use the normal review mode (Weak problem → redo).
+16. **Roadmap week counts active core items** (amended during 4.4a's review, ruling M4-R5):
+    `roadmapWeek` = `weekForProgress(introduced active core items, active core items per week)` —
+    draft, retired or missing core items count on neither side, so a retired problem never blocks
+    the week and a draft deck in a later week never pushes the learner ahead (the first version
+    counted non-active items as passed everywhere, which put a learner a week early). The recap
+    source still asks whether **all** of a week's core items are passed (introduced or not
+    active). Publishing a draft core item, or retiring an introduced one, can move the week by one
+    step — accepted (owner-only content change).
+17. **SRS edge rules:** a first-attempt fail sets Weak but is not a lapse; mastered items have
+    `due_on` null; `item.readded` puts a mastered item back at the top level, due today,
+    `top_successes` 0; completion-only items (lessons, exercises, prompts) get an `item_state` row
+    with level 0 and status `ok`; the first-result-per-day rule applies to every item type.
+18. **`RULES_VERSION` becomes 2** in 4.9a, in TypeScript and SQL together (the first version with
+    plan and SRS rules). Replay supports only the current rules; an event from a later version is
+    an error. **Tests that the two agree** (owner request): the existing
+    `tools/db/sql-sync.test.ts` case compares `RULES_VERSION` with the last `public.rules_version()`
+    definition in the migrations (static, in `pnpm test`); 4.9a adds a pgTAP assertion that the
+    **running** database's `public.rules_version()` returns the value, and a sql-sync case that
+    this pgTAP literal equals `RULES_VERSION` — so the constant, the migrations and the live
+    function cannot disagree without a red test.
+19. **`item.snapshot` payload** gains `introducedOn`, `lastResult` and `lastResultOn` (the type is
+    reserved and nothing writes it yet), so a snapshot restores a full `item_state` row (4.2).
+20. **Simulation inputs:** the DSA simulation reads `lib/domain/plan/sim-inputs.generated.json`
+    (roadmaps, difficulties, topics and the manifest fields of §5.11, written by
+    `pnpm sim:projections` and hash-checked in `tools/sim`), because `lib/domain` tests cannot read
+    the catalog. The English simulation uses a fixed synthetic model (the §5.10 card counts per
+    week, 0.9 derived cards per day, a weekly exercise set and weekend prompt), so English content
+    PRs — the v1.1 bot's — never make it stale. The simulation may be split into several
+    `plan/__tests__/simulation*.test.ts` files so Vitest runs them in parallel.
+21. **Simulation thresholds are recalibrated once** (§5.10): 4.8 records the TypeScript engine's
+    numbers next to each threshold. A threshold the engine meets stays as the spec wrote it; one it
+    misses stops the task (`BLOCKED`, with the numbers) — the controller decides by a ledger ruling
+    (engine bug, or a loosened threshold stated in the PR), never the implementer.
+22. **`weeklySummary`** covers the Monday–Sunday week of a given day (Vietnamese weeks start on
+    Monday); `weekdayOf` / `weekStart` live in `lib/domain/time/weekday.ts`.
+23. **Streak and schedule changes (RF-1):** the dates a schedule change skips are computed from the
+    schedule versions (`scheduleSkippedDays`), not assumed — so two identical consecutive versions
+    (a reverted change, M2 note) skip nothing.
+24. **The mock-interview problem** ("the introduced Medium problem not seen for the longest", §5.6)
+    is a helper for M5's prompt page (`mockInterviewProblem`), not a second item in the block.
+25. **Stale-plan resume** (§5.8): per track, a `review` block (today's weekday cap and debt rule)
+    and a `new` block with exactly the stale plan's not-yet-introduced new items, under today's
+    throttle, first-item and half-fit rules — items that do not fit stay not introduced; no practice
+    or recap blocks.
+26. **English Sundays spill** leftover minutes into new cards: §5.4 step 6 applies to any day whose
+    template has neither a `new` nor a `recap` block (the prototype had no Sunday spill; 4.8
+    recalibrates).
+27. **M2 deferred minors absorbed:** re-enrolling a track resets `new_per_day`, `throttle`,
+    `weekly_template` and `include_bonus`; `track.updated` on a removed track raises
+    `track_not_enrolled`; plan events take the `(user, plan_date)` advisory lock (all in 4.9b); a
+    BigInt in a free-form payload object is a `ZodError`, not a `TypeError` (4.2); identical
+    schedule versions do not break the streak (4.7). **Owned by new tasks** (owner rule: nothing
+    is postponed without an owning task): M2 2.4's schedule-history tightening — the next-day-start
+    floor for schedule versions and the advisory lock for concurrent first versions — is task
+    **4.12**; the settings `pausedDays` query test is task **4.11**, in M4 rather than M5 because
+    pause / resume has been in settings since M2 and 4.9b makes `pausedDays` move due dates.
+28. **M3 follow-ups:** the four PR A residuals (m1–m4) go to the separate small PR **F1**; the
+    `isTimeZoneOption` cache goes to 4.7 (it is `lib/domain/time`); the real HTTP 404 for unknown
+    tracks and items goes to 5.1 (it needs the loading-boundary restructure that `/today` touches);
+    the Java `List<String>` bridge and Go `Constructor()` become the first step of the **M3b**
+    harness task (Part A, "Before any learner reaches week 4"; 4.0 Step 2 writes it there).
+29. **Tie-breaks** are by item ID (deterministic; §5 asks for a `userId + localDay` hash, which
+    only matters when a random-looking spread is wanted — nothing in M4 needs one).
+30. **After merge:** the controller runs `supabase db push` for the four M4 migrations on the
+    production project (docs/ops/staging.md), as for M2 and M3 — first checking there that `select
+    count(*) from public.events where plan_id is not null` is 0 (M2 accepted any UUID as a
+    `plan_id`, and the new foreign key would fail on one).
+31. **§5.12's override simulation scenario** (one `extra_week` per four weeks, two `insert_block`s)
+    moves with overrides to v1.1: owned by task **6.6** (overrides and `effectiveRoadmap`); M4
+    simulates the baseline engine only.
+32. **One plan per local day after a resume** (§5.2, §5.9): when the last seen plan is from an
+    earlier day and its first `done` / `partial` check-in happened **today**, the gate is open but
+    `resumedToday` — no new plan is built today (M5's `ensurePlan` shows the resumed plan); the
+    next plan comes on the next local day (4.3, 4.8).
+33. **Lock order:** every path takes the `(user, plan_date)` advisory lock **before** any row lock —
+    `apply_system_event` used to lock the profile row first, and `apply_event`'s event insert takes
+    a key-share lock on the same profile row after its advisory lock, a deadlock between a learner
+    check-in and an auto check-in or a rebuild. The key comes from one helper,
+    `public.plan_lock_key(user, date)` (4.9a).
+34. **Check-in minutes are whole numbers** (`block.checked_in` and `plan_block_state.minutes` are
+    integers, but card minutes are 1.5 / 0.5): the one-tap and auto check-in pre-fill
+    `checkInMinutes(block) = Math.ceil(block.estMinutes)` (4.6).
+35. **Plans are permanent** (owner SQL review, must-fix): `events.plan_id` cascades on plan
+    deletion, so a direct `day_plans` delete — a server bug with the secret key, or a future prune
+    job — would silently delete source-of-truth events. A `BEFORE DELETE` trigger on `day_plans`
+    raises `plans_are_permanent` for any direct delete, whatever the role; only the
+    account-deletion cascade (which reaches the trigger through the foreign-key trigger, one level
+    deeper) removes plans (4.9a). Plans are never pruned (spec §4.1 note).
+36. **`pausedDays` is bounded** (owner SQL review): `track.resumed.pausedDays` must be an integer
+    0–3650 — the Zod schema (`MAX_PAUSED_DAYS`), the settings action (clamps) and `apply_event`
+    (`invalid_event` before the cast) agree (4.9b).
+37. **Pace check after dogfooding** (owner, §0 rollout): after the owner's first two weeks, task 5.8
+    compares the real pace with the onboarding projection — the skip-day model in ADR-0014 decides
+    11.4 vs 13.3 weeks for 8w @ 60 — and if the owner is more than 15 % slower, the model and the
+    defaults are revisited before inviting learners.
+
+**Review focus for M4** — inputs the spec implies but no happy-path test exercises; each line's test
+is in the task named (the plan-level RF-1…RF-5 lines are marked where they land):
+
+1. **Tiny budgets and big fixed blocks** — 10 minutes a day, a 45-minute mock interview, a 50-minute
+   Hard problem: the plan stays within budget + one item and still gives work (4.5, 4.6 property
+   test **I1**, decision 13).
+2. **Content holes** — a missing roadmap file, a week without a lesson, a retired or draft core
+   item, English weeks without exercises or weekend prompts, an empty catalog: a valid (possibly
+   empty) plan, the roadmap week never stuck, the gate never stuck on an empty plan (4.3, 4.4a,
+   4.4b, 4.6 — **[RF-4]**).
+3. **Long absence** — weeks away with 100+ reviews due: debt cap, throttle, Weak-first order,
+   "Học tiếp hôm nay" without advancing the pointer (4.3, 4.4b, 4.5, 4.6 — **[RF-5]**).
+4. **Same-day and repeated writes** — a second result on the same day, a check-in edited on a
+   later day, the same event sent twice, two tabs racing on one row, a request crossing the day
+   start (4.1, 4.2, 4.9b — **[RF-2]**, decision 10).
+5. **Reset, pause and schedule changes** — reset then study again, pause across days, re-enroll a
+   removed track, move east over a date: TypeScript and SQL agree, the streak survives
+   (4.2, 4.7, 4.9b — **[RF-1]**).
+
+**Changes to the spec, Part A and the plan header** (applied in task 4.0): the "Execution status"
+bullet gains "M4: step-level detail in Part B-M4"; the Execution methods row for M4 becomes
+"Subagent-driven, parallel waves in git worktrees (owner request 2026-09-25)"; under the M4 table a
+note "**Part B-M4 changes to this table**" (decisions 2, 5, 28, 31); Part A row 5.1 gains "the
+real HTTP 404 for unknown tracks and items (M3 follow-up)", "no second plan on a resume day
+(`gateStatus().resumedToday`, decision 32)" and "settings, track add / pause / remove / reset
+rebuild today's plan while it is untouched (`storePlan` mode `rebuild`, §5.4, §5.9)"; Part A row 5.2
+gains "one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34)"; the M4 table
+gains rows 4.10 (adapter), 4.11 (`pausedDays` e2e) and 4.12 (schedule-history floor); the
+"Before any learner reaches week 4" block names the **M3b** harness task and its first step, "the
+Java harness bridges `List<String>` parameters and Go design classes are created via
+`Constructor()` (problems 139, 127, 271)" (decision 28); spec §4.3 annotates `due_items()` and
+`v_weak_topics` as "not built — computed in TypeScript (implementation plan Part B-M4 decision 5)";
+spec §4.1 notes the added columns (decision 6) and the block item shape (decision 7); spec §4.4 notes
+the `item.snapshot` payload fields (decision 19); `docs/adr/README.md` links rows 0008, 0014, 0016
+and 0037 with their final file names (`0008-rules-version.md`,
+`0014-simulation-backed-srs-parameters.md`, `0016-gate-on-last-seen-plan.md`,
+`0037-projection-inputs-hash.md`) — tasks only create the files.
+
+**Subagent contract for every task** (M3's contract, plus): read `CLAUDE.md`, the platform-design
+sections the task cites and this task's text; TDD (superpowers:test-driven-development) — the
+listed tests fail first; `pnpm verify` green before the commit (plus `pnpm test:db` for 4.9a–c
+and 4.12, `pnpm test:e2e` for 4.11, each only while holding the stack lock); never read `.env*` other than the
+committed template `.env.example`, and never `docs/credentials/`; no subagents.
+
+- Work only in the worktree and branch named in your brief; commit there; never push; never touch
+  the main checkout, the integration worktree or another task's worktree.
+- Change no dependency (`pnpm install --frozen-lockfile` only); if something is missing, stop and
+  report `BLOCKED`.
+- Edit only the shared files your task owns (the schedule table); anything else shared → ask the
+  controller.
+- **`lib/domain` rules:** imports only from `lib/domain` and `zod` (tests also `vitest` and
+  `fast-check`); no `Date.now()`, argument-less `new Date()`, local-time getters or
+  `Math.random()`; `now` and `localDay` are parameters. No `case '<item type>'` anywhere outside
+  `lib/content` and `features/items` — compare `item.itemType === block.itemType` instead.
+- **Immutability:** no function mutates its inputs; tests freeze inputs where it matters
+  (`Object.freeze` on the fixture objects they pass).
+- **Types come from 4.0.** Import `PlanCatalog`, `PlanItem`, `ItemState`, `PlanBlock`,
+  `PlanContext`, … from `lib/domain/{catalog,state}.ts` and `lib/domain/plan/types.ts`; never
+  redeclare them. If one must change, stop and ask the controller.
+- Tests use the fixtures in `lib/domain/plan/__tests__/fixtures.ts` (copy and change; never edit
+  the file — it is shared) and may add task-local fixtures next to their tests.
+- Merged migrations are never edited; each DB task adds its own migration file (timestamps below).
+  Regenerate `lib/supabase/database.types.ts` with `pnpm db:types` after a schema change (CI's
+  `db` job diffs it).
+- Report: files changed, the commit(s), the verification output (test counts), and anything you
+  decided that this section does not say.
+
+### Task 4.0: Plan commit, dependencies and shared domain types (controller)
+
+**Files:**
+
+- Modify: `docs/plans/2026-09-24-implementation-plan.md` (this section + the header / Part A
+  changes above), `docs/plans/2026-09-23-platform-design.md` (§4.1, §4.3, §4.4 notes),
+  `docs/adr/README.md` (rows 0008, 0014, 0016, 0037 linked), `package.json`, `pnpm-lock.yaml`
+- Create: `lib/domain/catalog.ts`, `lib/domain/state.ts`, `lib/domain/srs/outcomes.ts`,
+  `lib/domain/plan/types.ts`, `lib/domain/plan/reviewMode.ts`, `lib/domain/random.ts`,
+  `lib/domain/plan/__tests__/fixtures.ts` (verbatim below)
+
+- [ ] **Step 1: Integration worktree** (done while writing this section):
+  `git worktree add /Users/ryan/ws/hoc-deu-int-m4 -b feat/m4-plan-engine origin/main`, `pnpm
+  install --frozen-lockfile`. All controller work for M4 happens there.
+- [ ] **Step 2: Plan commit** — this section alone was committed at the owner-review stop
+  (`docs: Part B-M4 step-level plan`). After the owner's approval (and any changes the review asks
+  for), apply the header / Part A / spec / ADR-index changes listed above. Commit `docs: apply
+  Part B-M4 decisions to the plan header, Part A and the spec`.
+- [ ] **Step 3: Dependency (Q1)** — if the owner approved: `pnpm add --save-exact -D
+  fast-check@4.10.2`, then `pnpm verify`. Commit `build(deps): fast-check for the plan-engine
+  property tests`. If declined: skip — 4.4a and 4.6 then draw their property inputs from
+  `mulberry32` (`lib/domain/random.ts`, Step 4).
+- [ ] **Step 4: Shared domain types, helpers and fixtures** — create the seven files below exactly
+  as written, run `pnpm verify` (they compile and pass the guards; `reviewMode` is tested in 4.4b,
+  `mulberry32` in 4.8). Commit `feat(domain): shared plan-engine types, helpers and test
+  fixtures`.
+
+`lib/domain/catalog.ts`:
+
+```ts
+/**
+ * The plan engine's view of the content catalog (platform design §3, §5): what the engine reads
+ * about tracks, roadmaps and items, already resolved — SRS parameters per item (track `srs` plus
+ * `srs.byType`) and minutes per mode (manifest `estimates` / `review`). `lib/domain` never imports
+ * `lib/content`: `lib/content/plan-catalog.ts` (task 4.10) builds this from the generated catalog,
+ * the simulation builds it from its inputs (4.8), and tests build it by hand
+ * (`plan/__tests__/fixtures.ts`).
+ */
+
+export type ContentStatus = 'draft' | 'active' | 'retired'
+
+/** How an item is studied in a plan block (§5.4, §5.5); `lib/content` `Mode` has the same members. */
+export const ITEM_MODES = ['new', 'review', 'recall', 'redo', 'explain-aloud'] as const
+export type ItemMode = (typeof ITEM_MODES)[number]
+
+export type SrsParams = {
+  readonly intervals: readonly number[]
+  readonly relearnDays: number
+  readonly masteredAfter: number
+}
+
+export type Difficulty = 'E' | 'M' | 'H'
+export type CardTier = 'core' | 'extended' | 'derived'
+
+export type PlanItem = {
+  readonly id: string
+  readonly trackId: string
+  /** Compared by equality only (a practice block's `itemType`); never switched on (§7.2). */
+  readonly itemType: string
+  readonly topicId: string | null
+  /** The authored week: a card's deck, an exercise, a weekly prompt; otherwise null. */
+  readonly week: number | null
+  readonly status: ContentStatus
+  /** Resolved SRS parameters, or null for completion-only item types (§5.7 `srs: true`). */
+  readonly srs: SrsParams | null
+  /** Minutes per mode (§5.4 estimates; decision 12 of Part B-M3 for explain-aloud). */
+  readonly minutes: Readonly<Record<ItemMode, number>>
+  /** Problems: reviewed by quick recall, or redo when Weak (§5.5). Cards: plain review. */
+  readonly reviewModes: boolean
+  readonly difficulty: Difficulty | null
+  readonly tier: CardTier | null
+  readonly deckId: string | null
+  /** A derived card's source item (§3.4); null otherwise. */
+  readonly derivedFrom: string | null
+  /** A deep-dive lesson's problem (§3.3 `about`); null for a pattern lesson and non-lessons. */
+  readonly about: string | null
+  /** A problem's deep-dive lesson (§5.4 step 3), whatever that lesson's status; null otherwise. */
+  readonly deepDiveId: string | null
+  /** Prompts: the tag a practice block picks them by. */
+  readonly tag: string | null
+  /** Prompts: repeatable ones (the mock interview) have no week. */
+  readonly repeatable: boolean
+  /** Cards with an example sentence (shadowing, §5.6). */
+  readonly hasExample: boolean
+}
+
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+export type TemplateDayKey = 'mon-fri' | Weekday
+
+/** A weekly-template block (§3.4, §5.4) — the manifest's `templateBlockSchema`, as data. */
+export type PlanTemplateBlock =
+  | { readonly kind: 'review'; readonly maxMinutes?: number; readonly fromWeek?: number }
+  | { readonly kind: 'new'; readonly fromWeek?: number }
+  | { readonly kind: 'recap'; readonly count: number; readonly fromWeek?: number }
+  | {
+      readonly kind: 'practice'
+      readonly minutes: number
+      readonly tag?: string
+      readonly itemType?: string
+      readonly fromWeek?: number
+    }
+
+export type PlanWeeklyTemplate = Readonly<
+  Partial<Record<TemplateDayKey, readonly PlanTemplateBlock[]>>
+>
+
+export type ThrottleRule = { readonly dueAbove: number; readonly newPerDay: number }
+
+export type RecapMode = 'recall' | 'redo' | 'explain-aloud'
+
+export type PlanRoadmapWeek = {
+  readonly week: number
+  readonly topics: readonly string[]
+  readonly core: readonly string[]
+  readonly bonus: readonly string[]
+  /** An entry without a mode introduces its item (§5.3 step 3). */
+  readonly recap: readonly { readonly item: string; readonly mode?: RecapMode }[]
+  /** Deck IDs; their `core` / `extended` cards belong to this week. */
+  readonly decks: readonly string[]
+}
+
+export type PlanRoadmap = { readonly id: string; readonly weeks: readonly PlanRoadmapWeek[] }
+
+export type PlanTrack = {
+  readonly id: string
+  readonly status: ContentStatus
+  readonly weeklyTemplate: PlanWeeklyTemplate
+  readonly defaults: {
+    readonly budgetMinutes: number
+    readonly newPerDay: number | null
+    readonly throttle: readonly ThrottleRule[]
+  }
+  /** Variant → roadmap, for the roadmap files that exist (a missing one is coverage, M3 dec. 4). */
+  readonly roadmaps: Readonly<Record<string, PlanRoadmap>>
+}
+
+/** An authored deck; `cardIds` in file order. Derived decks are not listed (their cards are). */
+export type PlanDeck = {
+  readonly id: string
+  readonly trackId: string
+  readonly status: ContentStatus
+  readonly cardIds: readonly string[]
+}
+
+export type PlanCatalog = {
+  readonly tracks: Readonly<Record<string, PlanTrack>>
+  readonly items: Readonly<Record<string, PlanItem>>
+  readonly decks: Readonly<Record<string, PlanDeck>>
+}
+```
+
+`lib/domain/state.ts`:
+
+```ts
+/**
+ * Derived state (platform design §4.1): the rows of `item_state`, `plan_block_state` and
+ * `daily_activity` as the engine sees them — no `version` / `rules_version`, which are persistence
+ * concerns (`lib/events/derived.ts`, task 4.9b). `projection/project.ts` computes them from events.
+ */
+import type { LocalDay } from './time/localDay'
+
+/** §5.7 status; no row = not started. */
+export const ITEM_STATE_STATUSES = ['weak', 'ok', 'strong', 'mastered', 'skipped'] as const
+export type ItemStateStatus = (typeof ITEM_STATE_STATUSES)[number]
+
+export type ItemState = {
+  readonly itemId: string
+  readonly trackId: string
+  readonly topicId: string | null
+  readonly itemType: string
+  /** SRS level 1…N; 0 = not in spaced repetition (completion-only or skipped items). */
+  readonly level: number
+  readonly weak: boolean
+  readonly topSuccesses: number
+  readonly status: ItemStateStatus
+  /** The next review day; null when not scheduled (completion-only, skipped, mastered). */
+  readonly dueOn: LocalDay | null
+  /** The raw result of the last counted outcome: `solved`, `know`, `pass`, `completed`, … */
+  readonly lastResult: string | null
+  readonly lastResultOn: LocalDay | null
+  /** The local day of the first recorded outcome, `item.skipped` included (§5.3). */
+  readonly introducedOn: LocalDay
+  readonly lapses: number
+  readonly reps: number
+}
+
+export const CHECK_IN_STATUSES = ['done', 'partial', 'skipped'] as const
+export type CheckInStatus = (typeof CHECK_IN_STATUSES)[number]
+
+export type BlockState = {
+  readonly planId: string
+  readonly blockId: string
+  readonly trackId: string
+  readonly status: CheckInStatus
+  readonly minutes: number
+  readonly note: string | null
+  readonly auto: boolean
+  /** The local day of the block's first check-in: the `daily_activity` day it counts for. */
+  readonly checkedInOn: LocalDay
+}
+
+export type DailyActivity = {
+  readonly localDay: LocalDay
+  readonly minutesByTrack: Readonly<Record<string, number>>
+  /** Distinct items with a counted outcome that day. */
+  readonly itemsDone: number
+  /** At least one block checked in `done` or `partial` that day (§4.1). */
+  readonly completed: boolean
+}
+
+export type DerivedState = {
+  readonly items: Readonly<Record<string, ItemState>>
+  /** Keyed by `blockKey(planId, blockId)`. */
+  readonly blocks: Readonly<Record<string, BlockState>>
+  readonly days: Readonly<Record<LocalDay, DailyActivity>>
+}
+
+export const EMPTY_DERIVED_STATE: DerivedState = { items: {}, blocks: {}, days: {} }
+
+export function blockKey(planId: string, blockId: string): string {
+  return `${planId}/${blockId}`
+}
+```
+
+`lib/domain/srs/outcomes.ts`:
+
+```ts
+/** SRS outcomes (platform design §5.7) and the result names that map to them (§4.4). */
+
+export const OUTCOMES = ['success', 'partial', 'fail'] as const
+export type Outcome = (typeof OUTCOMES)[number]
+
+/**
+ * Every `item.result` result name → its outcome. The item-type cores in `lib/content` carry the
+ * same mapping per type; `lib/content/plan-catalog.test.ts` (task 4.10) keeps them equal.
+ */
+export const RESULT_OUTCOMES = {
+  solved: 'success',
+  hint: 'partial',
+  failed: 'fail',
+  know: 'success',
+  unsure: 'partial',
+  dont_know: 'fail',
+} as const satisfies Record<string, Outcome>
+
+export type ResultName = keyof typeof RESULT_OUTCOMES
+```
+
+`lib/domain/plan/types.ts`:
+
+```ts
+/**
+ * Plans (platform design §4.1 `day_plans`, §5.4): the blocks `buildPlan` produces and
+ * `day_plans.blocks` stores, the per-track snapshot stored in `day_plans.roadmap_weeks`, and the
+ * inputs of a plan build. The Zod schemas validate the JSON read back from the database (M5).
+ */
+import { z } from 'zod'
+import {
+  ITEM_MODES,
+  type PlanCatalog,
+  type PlanWeeklyTemplate,
+  type ThrottleRule,
+} from '../catalog'
+import type { ItemState } from '../state'
+import type { LocalDay } from '../time/localDay'
+
+export const BLOCK_KINDS = ['review', 'new', 'recap', 'practice', 'extra'] as const
+export type BlockKind = (typeof BLOCK_KINDS)[number]
+
+export const planBlockItemSchema = z.strictObject({
+  itemId: z.string().min(1).max(128),
+  mode: z.enum(ITEM_MODES),
+  minutes: z.number().min(0).max(600),
+  /** The first new item that exceeds the remaining budget ("dài hơn thời gian dự kiến", §5.4). */
+  overBudget: z.literal(true).optional(),
+})
+export type PlanBlockItem = z.infer<typeof planBlockItemSchema>
+
+export const planBlockSchema = z.strictObject({
+  /** `<planDate>:<trackId>:<kind>:<n>`, n = 1, 2, … per kind within the track (§5.4 step 8). */
+  id: z.string().min(1).max(128),
+  trackId: z.string().min(1).max(32),
+  kind: z.enum(BLOCK_KINDS),
+  /** The sum of the items' minutes; a practice block's fixed length. */
+  estMinutes: z.number().min(0).max(600),
+  items: z.array(planBlockItemSchema).max(500),
+  /** Practice blocks: the template's tag or item type. */
+  tag: z.string().min(1).max(32).optional(),
+  itemType: z.string().min(1).max(32).optional(),
+  /** Recap blocks: the roadmap week whose recap this is (§5.6); null for filler-only recaps. */
+  recapWeek: z.number().int().positive().nullable().optional(),
+  /** Shadowing blocks: the cards whose example sentences are read aloud (§5.6). */
+  shadowing: z.array(z.string().min(1).max(128)).max(10).optional(),
+})
+export type PlanBlock = z.infer<typeof planBlockSchema>
+
+/** Per-track facts at plan time (`day_plans.roadmap_weeks`): the week snapshot and the throttle. */
+export const trackSnapshotSchema = z.strictObject({
+  variant: z.string().min(1).max(32),
+  week: z.number().int().positive(),
+  dueCount: z.number().int().min(0),
+  /** The effective new-item cap (§5.5); null = no cap. */
+  newPerDay: z.number().int().min(0).nullable(),
+  throttled: z.boolean(),
+  reviewDebt: z.boolean(),
+})
+export type TrackSnapshot = z.infer<typeof trackSnapshotSchema>
+
+export const PLAN_MODES = ['baseline', 'resume'] as const
+export type PlanMode = (typeof PLAN_MODES)[number]
+
+/** What `buildPlan` / `buildResumePlan` return — a plan not stored yet. */
+export type DayPlan = {
+  readonly planDate: LocalDay
+  readonly mode: PlanMode
+  readonly blocks: readonly PlanBlock[]
+  readonly tracks: Readonly<Record<string, TrackSnapshot>>
+}
+
+/** A `day_plans` row as the engine reads it. */
+export type StoredPlan = {
+  readonly id: string
+  readonly planDate: LocalDay
+  readonly version: number
+  readonly source: 'baseline' | 'ai'
+  /** Set once, when `/today` first renders the plan in the browser (§5.2); null = never seen. */
+  readonly seenAt: string | null
+  readonly blocks: readonly PlanBlock[]
+  readonly tracks: Readonly<Record<string, TrackSnapshot>>
+}
+
+/** A `user_tracks` row with every track default resolved (`lib/content/plan-catalog.ts`, 4.10). */
+export type Enrollment = {
+  readonly trackId: string
+  readonly variant: string
+  readonly status: 'active' | 'paused' | 'removed'
+  readonly startDate: LocalDay
+  readonly budgetMinutes: number
+  /** Null = no daily cap on new SRS items. */
+  readonly newPerDay: number | null
+  readonly throttle: readonly ThrottleRule[]
+  readonly weeklyTemplate: PlanWeeklyTemplate
+  readonly includeBonus: boolean
+  /** The local day of the last `track.reset` (4.9b); plans before it do not count (4.3). */
+  readonly resetOn: LocalDay | null
+}
+
+/** Everything `buildPlan` reads (§5.4) — loaded by M5's `ensurePlan`, never by the engine. */
+export type PlanContext = {
+  readonly planDate: LocalDay
+  readonly catalog: PlanCatalog
+  readonly enrollments: readonly Enrollment[]
+  /** Every `item_state` row of the user, all tracks (derived cards unlock from other tracks). */
+  readonly items: Readonly<Record<string, ItemState>>
+  /** Track → roadmap weeks whose recap is done (`recapWeeksDone`, 4.3). */
+  readonly recapDone: Readonly<Record<string, ReadonlySet<number>>>
+}
+```
+
+`lib/domain/plan/__tests__/fixtures.ts`:
+
+```ts
+/**
+ * Hand-built catalogs and state for the plan-engine tests (Part B-M4, task 4.0). Small on
+ * purpose: two DSA weeks and two English weeks with every case the engine branches on — a pattern
+ * and a deep-dive lesson, a recap entry that introduces its item, a bonus and a retired core
+ * problem, a repeatable prompt, core / extended / derived cards, cards with and without an
+ * example, weekly exercises and prompts. Tests copy and change them; they never mutate them.
+ */
+import type {
+  ItemMode,
+  PlanCatalog,
+  PlanItem,
+  PlanRoadmap,
+  PlanTrack,
+  PlanWeeklyTemplate,
+  SrsParams,
+} from '../../catalog'
+import type { ItemState } from '../../state'
+import type { LocalDay } from '../../time/localDay'
+import type { Enrollment, PlanContext } from '../types'
+
+export const DSA_SRS: SrsParams = { intervals: [7, 21, 60], relearnDays: 3, masteredAfter: 2 }
+export const DSA_CARD_SRS: SrsParams = {
+  intervals: [1, 3, 7, 14],
+  relearnDays: 1,
+  masteredAfter: 2,
+}
+export const ENGLISH_SRS: SrsParams = { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
+
+/** Every mode costs `minutes`. */
+export const flat = (minutes: number): Record<ItemMode, number> => ({
+  new: minutes,
+  review: minutes,
+  recall: minutes,
+  redo: minutes,
+  'explain-aloud': minutes,
+})
+
+/** DSA problem minutes (§5.4): new E/M/H 20/35/50, recall and explain-aloud 5, redo ×0.6. */
+const PROBLEM_MINUTES = {
+  E: { new: 20, review: 5, recall: 5, redo: 12, 'explain-aloud': 5 },
+  M: { new: 35, review: 5, recall: 5, redo: 21, 'explain-aloud': 5 },
+  H: { new: 50, review: 5, recall: 5, redo: 30, 'explain-aloud': 5 },
+} as const satisfies Record<string, Record<ItemMode, number>>
+
+const CARD_MINUTES: Record<ItemMode, number> = {
+  new: 1.5,
+  review: 0.5,
+  recall: 0.5,
+  redo: 0.5,
+  'explain-aloud': 0.5,
+}
+
+/** A plan item with neutral defaults; pass what the test is about. */
+export function planItem(
+  item: Partial<PlanItem> & Pick<PlanItem, 'id' | 'trackId' | 'itemType'>,
+): PlanItem {
+  return {
+    topicId: null,
+    week: null,
+    status: 'active',
+    srs: null,
+    minutes: flat(10),
+    reviewModes: false,
+    difficulty: null,
+    tier: null,
+    deckId: null,
+    derivedFrom: null,
+    about: null,
+    deepDiveId: null,
+    tag: null,
+    repeatable: false,
+    hasExample: false,
+    ...item,
+  }
+}
+
+const problem = (
+  id: string,
+  difficulty: 'E' | 'M' | 'H',
+  topicId: string,
+  extra: Partial<PlanItem> = {},
+): PlanItem =>
+  planItem({
+    id,
+    trackId: 'dsa',
+    itemType: 'problem',
+    topicId,
+    difficulty,
+    srs: DSA_SRS,
+    minutes: PROBLEM_MINUTES[difficulty],
+    reviewModes: true,
+    ...extra,
+  })
+
+const lesson = (id: string, topicId: string, about: string | null = null): PlanItem =>
+  planItem({ id, trackId: 'dsa', itemType: 'lesson', topicId, about, minutes: flat(25) })
+
+const card = (
+  id: string,
+  deckId: string,
+  week: number,
+  tier: 'core' | 'extended',
+  hasExample: boolean,
+): PlanItem =>
+  planItem({
+    id,
+    trackId: 'english',
+    itemType: 'flashcard',
+    topicId: week === 1 ? 'standup' : 'tickets',
+    week,
+    srs: ENGLISH_SRS,
+    minutes: CARD_MINUTES,
+    tier,
+    deckId,
+    hasExample,
+  })
+
+const derivedCard = (source: string): PlanItem =>
+  planItem({
+    id: `english:explaining-code:${source}`,
+    trackId: 'english',
+    itemType: 'flashcard',
+    srs: ENGLISH_SRS,
+    minutes: CARD_MINUTES,
+    tier: 'derived',
+    derivedFrom: source,
+  })
+
+const exercise = (id: string, week: number): PlanItem =>
+  planItem({ id, trackId: 'english', itemType: 'exercise', week, minutes: flat(5) })
+
+const weeklyPrompt = (id: string, week: number): PlanItem =>
+  planItem({
+    id,
+    trackId: 'english',
+    itemType: 'prompt',
+    week,
+    tag: 'weekend-task',
+    minutes: flat(10),
+  })
+
+export const DSA_TEMPLATE: PlanWeeklyTemplate = {
+  'mon-fri': [{ kind: 'review', maxMinutes: 15 }, { kind: 'new' }],
+  sat: [{ kind: 'review' }],
+  sun: [
+    { kind: 'practice', tag: 'mock-interview', minutes: 45, fromWeek: 3 },
+    { kind: 'recap', count: 3 },
+  ],
+}
+
+export const ENGLISH_TEMPLATE: PlanWeeklyTemplate = {
+  'mon-fri': [
+    { kind: 'practice', itemType: 'exercise', minutes: 5 },
+    { kind: 'practice', tag: 'shadowing', minutes: 3 },
+    { kind: 'review' },
+    { kind: 'new' },
+  ],
+  sat: [{ kind: 'review' }],
+  sun: [{ kind: 'practice', tag: 'weekend-task', minutes: 15 }, { kind: 'review' }],
+}
+
+/** Two DSA weeks. W1 recap introduces p4; W2 lists a retired core problem (p8) and a bonus (p7). */
+export const DSA_8W: PlanRoadmap = {
+  id: '8w',
+  weeks: [
+    {
+      week: 1,
+      topics: ['arrays'],
+      core: ['dsa:p1', 'dsa:p2', 'dsa:p3'],
+      bonus: [],
+      recap: [
+        { item: 'dsa:p4' },
+        { item: 'dsa:p2', mode: 'redo' },
+        { item: 'dsa:p1', mode: 'explain-aloud' },
+      ],
+      decks: [],
+    },
+    {
+      week: 2,
+      topics: ['two-pointers'],
+      core: ['dsa:p5', 'dsa:p6', 'dsa:p8'],
+      bonus: ['dsa:p7'],
+      recap: [{ item: 'dsa:p3', mode: 'redo' }],
+      decks: [],
+    },
+  ],
+}
+
+export const DSA_TRACK: PlanTrack = {
+  id: 'dsa',
+  status: 'active',
+  weeklyTemplate: DSA_TEMPLATE,
+  defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] },
+  roadmaps: { '8w': DSA_8W },
+}
+
+export const ENGLISH_10W: PlanRoadmap = {
+  id: '10w',
+  weeks: [
+    { week: 1, topics: ['standup'], core: [], bonus: [], recap: [], decks: ['english:deck-w1'] },
+    { week: 2, topics: ['tickets'], core: [], bonus: [], recap: [], decks: ['english:deck-w2'] },
+  ],
+}
+
+export const ENGLISH_TRACK: PlanTrack = {
+  id: 'english',
+  status: 'active',
+  weeklyTemplate: ENGLISH_TEMPLATE,
+  defaults: {
+    budgetMinutes: 25,
+    newPerDay: 8,
+    throttle: [
+      { dueAbove: 40, newPerDay: 4 },
+      { dueAbove: 60, newPerDay: 0 },
+    ],
+  },
+  roadmaps: { '10w': ENGLISH_10W },
+}
+
+const byId = (items: readonly PlanItem[]): Record<string, PlanItem> =>
+  Object.fromEntries(items.map((item) => [item.id, item]))
+
+export const DSA_ITEMS: readonly PlanItem[] = [
+  lesson('dsa:lesson-arrays', 'arrays'),
+  lesson('dsa:lesson-two-pointers', 'two-pointers'),
+  lesson('dsa:lesson-deep-dive-p3', 'arrays', 'dsa:p3'),
+  problem('dsa:p1', 'E', 'arrays'),
+  problem('dsa:p2', 'M', 'arrays'),
+  problem('dsa:p3', 'M', 'arrays', { deepDiveId: 'dsa:lesson-deep-dive-p3' }),
+  problem('dsa:p4', 'H', 'arrays'),
+  problem('dsa:p5', 'E', 'two-pointers'),
+  problem('dsa:p6', 'M', 'two-pointers'),
+  problem('dsa:p7', 'M', 'two-pointers'),
+  problem('dsa:p8', 'M', 'two-pointers', { status: 'retired' }),
+  planItem({
+    id: 'dsa:prompt-mock',
+    trackId: 'dsa',
+    itemType: 'prompt',
+    tag: 'mock-interview',
+    repeatable: true,
+    minutes: flat(45),
+  }),
+]
+
+export const ENGLISH_ITEMS: readonly PlanItem[] = [
+  card('english:e1', 'english:deck-w1', 1, 'core', true),
+  card('english:e2', 'english:deck-w1', 1, 'core', true),
+  card('english:e3', 'english:deck-w1', 1, 'core', false),
+  card('english:e4', 'english:deck-w1', 1, 'core', false),
+  card('english:x1', 'english:deck-w1', 1, 'extended', true),
+  card('english:x2', 'english:deck-w1', 1, 'extended', false),
+  card('english:e5', 'english:deck-w2', 2, 'core', true),
+  card('english:e6', 'english:deck-w2', 2, 'core', false),
+  derivedCard('dsa:p1'),
+  derivedCard('dsa:p2'),
+  exercise('english:ex-w1-a', 1),
+  exercise('english:ex-w1-b', 1),
+  exercise('english:ex-w2-a', 2),
+  weeklyPrompt('english:prompt-w1', 1),
+  weeklyPrompt('english:prompt-w2', 2),
+]
+
+/** DSA and English together: derived English cards unlock from DSA problems. */
+export const CATALOG: PlanCatalog = {
+  tracks: { dsa: DSA_TRACK, english: ENGLISH_TRACK },
+  items: byId([...DSA_ITEMS, ...ENGLISH_ITEMS]),
+  decks: {
+    'english:deck-w1': {
+      id: 'english:deck-w1',
+      trackId: 'english',
+      status: 'active',
+      cardIds: ['english:e1', 'english:e2', 'english:e3', 'english:e4', 'english:x1', 'english:x2'],
+    },
+    'english:deck-w2': {
+      id: 'english:deck-w2',
+      trackId: 'english',
+      status: 'active',
+      cardIds: ['english:e5', 'english:e6'],
+    },
+  },
+}
+
+export const EMPTY_CATALOG: PlanCatalog = { tracks: {}, items: {}, decks: {} }
+
+/** A copy of `catalog` with `changes` applied to the named items. */
+export function withItems(
+  catalog: PlanCatalog,
+  changes: Readonly<Record<string, Partial<PlanItem>>>,
+): PlanCatalog {
+  const items = { ...catalog.items }
+  for (const [id, change] of Object.entries(changes)) {
+    const item = items[id]
+    if (item === undefined) throw new Error(`withItems: no item ${id}`)
+    items[id] = { ...item, ...change }
+  }
+  return { ...catalog, items }
+}
+
+/**
+ * An item's state as a fresh success at level 1 would leave it, introduced on `day`; pass the
+ * fields the test is about. `trackId`, `topicId` and `itemType` come from `CATALOG`.
+ */
+export function itemState(
+  itemId: string,
+  day: LocalDay,
+  state: Partial<ItemState> = {},
+  catalog: PlanCatalog = CATALOG,
+): ItemState {
+  const item = catalog.items[itemId]
+  if (item === undefined) throw new Error(`itemState: no item ${itemId}`)
+  return {
+    itemId,
+    trackId: item.trackId,
+    topicId: item.topicId,
+    itemType: item.itemType,
+    level: item.srs === null ? 0 : 1,
+    weak: false,
+    topSuccesses: 0,
+    status: 'ok',
+    dueOn: null,
+    lastResult: item.srs === null ? 'completed' : 'solved',
+    lastResultOn: day,
+    introducedOn: day,
+    lapses: 0,
+    reps: 1,
+    ...state,
+  }
+}
+
+/** Item states by ID. */
+export const statesOf = (...states: readonly ItemState[]): Record<string, ItemState> =>
+  Object.fromEntries(states.map((state) => [state.itemId, state]))
+
+/** An active enrollment with the track's defaults (DSA 8w, English 10w), starting 2026-09-28. */
+export function enrollment(
+  trackId: 'dsa' | 'english',
+  change: Partial<Enrollment> = {},
+): Enrollment {
+  const track = CATALOG.tracks[trackId]
+  if (track === undefined) throw new Error(`enrollment: no track ${trackId}`)
+  return {
+    trackId,
+    variant: trackId === 'dsa' ? '8w' : '10w',
+    status: 'active',
+    startDate: '2026-09-28',
+    budgetMinutes: track.defaults.budgetMinutes,
+    newPerDay: track.defaults.newPerDay,
+    throttle: track.defaults.throttle,
+    weeklyTemplate: track.weeklyTemplate,
+    includeBonus: false,
+    resetOn: null,
+    ...change,
+  }
+}
+
+/** 2026-09-28 is a Monday; 2026-10-03 a Saturday; 2026-10-04 a Sunday. */
+export const MONDAY = '2026-09-28'
+export const SATURDAY = '2026-10-03'
+export const SUNDAY = '2026-10-04'
+
+/** A plan context on `MONDAY` with both tracks enrolled and nothing studied yet. */
+export function planContext(change: Partial<PlanContext> = {}): PlanContext {
+  return {
+    planDate: MONDAY,
+    catalog: CATALOG,
+    enrollments: [enrollment('dsa'), enrollment('english')],
+    items: {},
+    recapDone: {},
+    ...change,
+  }
+}
+```
+
+`lib/domain/plan/reviewMode.ts`:
+
+```ts
+/** How a due item is reviewed (platform design §5.5) — shared by the due queue and the recap. */
+import type { ItemMode, PlanItem } from '../catalog'
+import type { ItemState } from '../state'
+
+/** Problems (`reviewModes`): redo when Weak, quick recall otherwise. Anything else: 'review'. */
+export function reviewMode(item: PlanItem, state: ItemState): ItemMode {
+  if (!item.reviewModes) return 'review'
+  return state.weak ? 'redo' : 'recall'
+}
+```
+
+`lib/domain/random.ts`:
+
+```ts
+/**
+ * A seeded pseudo-random generator (mulberry32) for the simulation (§5.10) and property tests:
+ * the same seed gives the same sequence on every machine. Never `Math.random()` in `lib/domain`.
+ */
+
+/** Floats in [0, 1), deterministic for `seed` (any 32-bit integer). */
+export function mulberry32(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+```
+
+- [ ] **Step 5:** write the dispatch context file
+  `.superpowers/sdd/2026-09-24-implementation-plan/m4-context.md` (Global Constraints, this
+  section's header, decisions and contract) and record wave 0 in the ledger.
+
+### Task 4.1: SRS transitions
+
+**Spec:** §5.7 (table, outcomes, first result per day, mastery, readd, status). **Files:**
+
+- Create: `lib/domain/srs/applyResult.ts`, `lib/domain/srs/applyResult.test.ts`
+
+**Interfaces:**
+
+- Consumes: `SrsParams` (`catalog.ts`), `ItemState`, `ItemStateStatus` (`state.ts`), `Outcome`
+  (`srs/outcomes.ts`), `LocalDay`, `addDays` (`time/localDay.ts`).
+- Produces (4.2 and 4.8 rely on these names):
+
+```ts
+// lib/domain/srs/applyResult.ts
+/** The spaced-repetition fields of an item's state (§5.7). */
+export type SrsState = Pick<
+  ItemState,
+  'level' | 'weak' | 'topSuccesses' | 'status' | 'dueOn' | 'lastResultOn' | 'lapses' | 'reps'
+>
+
+/** An item with no row yet (§5.7 "not started"). */
+export const NOT_STARTED: SrsState // { level: 0, weak: false, topSuccesses: 0, status: 'ok',
+//                                     dueOn: null, lastResultOn: null, lapses: 0, reps: 0 }
+
+/** Weak → 'weak'; level ≥ N with topSuccesses ≥ masteredAfter → 'mastered'; level ≥ 3 →
+ *  'strong'; else 'ok' (N = params.intervals.length). */
+export function srsStatus(
+  level: number,
+  weak: boolean,
+  topSuccesses: number,
+  params: SrsParams,
+): Exclude<ItemStateStatus, 'skipped'>
+
+/** One result on `day` (the local day of the result, §5.7). Returns `state` itself (the same
+ *  object) when `state.lastResultOn === day` — only the first result per item per day counts. */
+export function applyResult(
+  state: SrsState,
+  outcome: Outcome,
+  day: LocalDay,
+  params: SrsParams,
+): SrsState
+
+/** `item.readded` (§5.7): a mastered item back at the top level, due `day`, topSuccesses 0.
+ *  Any other state is returned unchanged (the same object). Not a result: lastResultOn and reps
+ *  stay. */
+export function readd(state: SrsState, day: LocalDay, params: SrsParams): SrsState
+```
+
+**Rules** (N = `params.intervals.length`; L = `Math.min(state.level, N)` — a level above N after the
+manifest shortened its intervals is treated as N; level 0 is "not started" whatever the status,
+so a skipped item that gets a result starts SRS):
+
+| Current | Outcome | level | weak | topSuccesses | lapses | dueOn |
+| --- | --- | --- | --- | --- | --- | --- |
+| L = 0 | success / partial | 1 | false | 0 | same | day + intervals[0] |
+| L = 0 | fail | 1 | **true** | 0 | same (a first attempt is not a lapse) | day + relearnDays |
+| 1 ≤ L < N | success | L + 1 | false | same | same | day + intervals[L] |
+| L = N | success | N | false | + 1 | same | day + intervals[N − 1] |
+| L ≥ 1 | partial | L | same | same | same | day + intervals[L − 1] |
+| L ≥ 1 | fail | 1 | **true** | 0 | + 1 | day + relearnDays |
+
+Then `reps + 1`, `lastResultOn = day`, `status = srsStatus(level, weak, topSuccesses, params)`, and
+`dueOn = null` when the status is `mastered`.
+
+- [ ] **Step 1: Write the failing tests** (`applyResult.test.ts`), table-driven with `it.each`:
+  - every row of the table above with the DSA problem parameters (`DSA_SRS` from the fixtures:
+    `[7, 21, 60]`, relearn 3, mastered after 2), from `2026-10-01`: e.g. not started + success →
+    `{ level: 1, weak: false, dueOn: '2026-10-08', reps: 1, status: 'ok' }`; L 2 + success →
+    level 3, due `2026-10-01 + 60`, status `strong`; L 1 + fail → level 1, weak, lapses + 1,
+    due `2026-10-04`, status `weak`;
+  - the same rows with `ENGLISH_SRS` (`[1, 3, 7, 14]`, relearn 1) and with `DSA_CARD_SRS` (the
+    `srs.byType.flashcard` parameters — resolving them is 4.10's job; here they are just params);
+  - mastery: L = N, two successes on different days → the first leaves `topSuccesses: 1`, status
+    `strong`; the second → `topSuccesses: 2`, status `mastered`, `dueOn: null`; a partial on a
+    mastered item keeps it mastered; a fail on a mastered item → level 1, weak, `topSuccesses: 0`,
+    lapses + 1, status `weak`;
+  - English (N = 4): level 3 and 4 are `strong`, level 1–2 `ok`;
+  - first result per day: a second `applyResult` on the same day returns the identical object
+    (`toBe`), whatever the outcome;
+  - "today" is the result day: an item due `2026-10-01` reviewed on `2026-10-05` with success from
+    L 1 → due `2026-10-05 + 21`;
+  - `readd` on a mastered DSA item on `2026-11-01` → level 3, `topSuccesses: 0`, `dueOn:
+    '2026-11-01'`, status `strong`, `reps` and `lastResultOn` unchanged; on a non-mastered state →
+    returns the same object;
+  - level clamp: a state with level 5 under `DSA_SRS` + success → level 3 (N), `topSuccesses + 1`;
+  - `srsStatus` truth table (weak wins; mastered needs level N; strong needs level ≥ 3);
+  - purity: the input state (frozen) is never modified.
+- [ ] **Step 2:** `pnpm vitest run lib/domain/srs` — fails (module missing).
+- [ ] **Step 3: Implement** `applyResult.ts` with `addDays` for every date; no other imports
+  beyond the types.
+- [ ] **Step 4:** `pnpm vitest run lib/domain/srs` — passes; `pnpm verify` — green.
+- [ ] **Step 5: Commit** `feat(domain): SRS transitions (§5.7)`.
+
+### Task 4.2: Projection and replay — **Writes ADR-0008**
+
+**Spec:** §4.1 (derived tables), §4.4 (event types and payloads), §4.7 (rules version), §5.3
+(introduced set), §5.7, §5.9 (pause, reset). **Files:**
+
+- Create: `lib/domain/projection/project.ts`, `lib/domain/projection/replay.ts` (+ a `*.test.ts`
+  each), `docs/adr/0008-rules-version.md`
+- Modify: `lib/domain/events.ts` (+ `events.test.ts`): the `item.snapshot` payload (decision 19)
+  and the BigInt guard (M2 deferred minor)
+
+**Interfaces:**
+
+- Consumes: `applyResult`, `readd`, `srsStatus`, `NOT_STARTED` (4.1); `RESULT_OUTCOMES`;
+  `PlanCatalog`; `DerivedState`, `ItemState`, `BlockState`, `DailyActivity`, `blockKey`,
+  `EMPTY_DERIVED_STATE`; `EVENT_PAYLOADS`, `EventType` (`events.ts`); `RULES_VERSION`.
+- Produces (4.8 and M5 rely on these):
+
+```ts
+// lib/domain/projection/project.ts
+/** An `events` row as the engine reads it (payload not yet validated). */
+export type DomainEvent = {
+  readonly id: string
+  readonly type: EventType
+  /** ISO-8601 instant (`occurred_at`). */
+  readonly occurredAt: string
+  /** The event's local day, computed by the database (§4.5). */
+  readonly localDay: LocalDay
+  readonly trackId: string | null
+  readonly itemId: string | null
+  readonly planId: string | null
+  readonly blockId: string | null
+  readonly payload: unknown
+  readonly rulesVersion: number
+}
+
+export type IgnoreReason =
+  | 'invalid_payload'
+  | 'unknown_item'
+  | 'not_srs'
+  | 'wrong_type'
+  | 'missing_keys'
+
+/** Applies one event. `ignored` says why an event changed nothing it could have changed; events
+ *  that never touch derived state (settings, schedules, admin, plan.generated, …) return
+ *  `ignored: null` and the same state object. Never mutates `state`. */
+export function projectEvent(
+  state: DerivedState,
+  event: DomainEvent,
+  catalog: PlanCatalog,
+): { readonly state: DerivedState; readonly ignored: IgnoreReason | null }
+
+/** `projectEvent(...).state`. */
+export function project(state: DerivedState, event: DomainEvent, catalog: PlanCatalog): DerivedState
+
+// lib/domain/projection/replay.ts
+export type ReplayResult = {
+  readonly state: DerivedState
+  readonly ignored: readonly { readonly eventId: string; readonly reason: IgnoreReason }[]
+}
+/** Rebuilds all derived state from the events, sorted by (Date.parse(occurredAt), id) — the input
+ *  order and the timestamp's text form (`Z` vs `+00:00`) do not matter. `rulesVersion` defaults to RULES_VERSION and must equal it (only the current rules
+ *  exist); an event stamped with a later version throws. */
+export function replay(
+  events: readonly DomainEvent[],
+  catalog: PlanCatalog,
+  options?: { readonly rulesVersion?: number },
+): ReplayResult
+```
+
+**What each event does** (every payload is first checked with `EVENT_PAYLOADS[type].safeParse`;
+a failure → `invalid_payload`):
+
+| Event | Effect |
+| --- | --- |
+| `item.result` | Needs `itemId` (else `missing_keys`) and a catalog item (else `unknown_item`) with `srs` (else `not_srs`). `applyResult(row ?? NOT_STARTED, RESULT_OUTCOMES[result], localDay, item.srs)`; a new row gets `introducedOn = localDay` and `trackId` / `topicId` / `itemType` from the catalog; `lastResult = result`. If `applyResult` returned the same object: nothing changes (not even `lastResult`). |
+| `lesson.completed`, `exercise.submitted`, `prompt.completed` | Needs `itemId` and a catalog item whose `itemType` is `lesson` / `exercise` / `prompt` respectively and whose `srs` is null (else `wrong_type` — so a completion event never blocks an SRS item's result that day). Counted once per item per day (`lastResultOn === localDay` → nothing): a new row is `{ level: 0, weak: false, topSuccesses: 0, status: 'ok', dueOn: null, lapses: 0, reps: 1, introducedOn: localDay }`; an existing row gets `reps + 1`, and a `skipped` status becomes `ok`. `lastResult` = `'completed'` (lesson, prompt) or the exercise `grade`; `lastResultOn = localDay`. |
+| any of the four above, when counted | `days[localDay].itemsDone + 1` (the day row is created with `{ minutesByTrack: {}, itemsDone: 0, completed: false }` if missing). |
+| `item.skipped` | Needs `itemId` and a catalog item. No row → `{ level: 0, status: 'skipped', dueOn: null, introducedOn: localDay, lastResult: null, lastResultOn: null, reps: 0 }`; a row → `status: 'skipped'`, `dueOn: null`, everything else kept. Not an outcome: `itemsDone` unchanged. |
+| `item.readded` | Needs `itemId`, a catalog item with `srs`, and a row: `readd(row, localDay, item.srs)`. |
+| `item.snapshot` | Needs `itemId` and a catalog item: the row becomes the payload's fields (`level`, `weak`, `topSuccesses`, `dueOn`, `lapses`, `reps`, `introducedOn`, `lastResult`, `lastResultOn`), status `srsStatus(...)` (or `ok` when `srs` is null / level 0). |
+| `block.checked_in` | Needs `planId`, `blockId`, `trackId` (else `missing_keys`). No block row → create it with `checkedInOn = localDay`; a row → replace `status`, `minutes`, `note ?? null`, `auto ?? false`, keep `checkedInOn`. Then recompute `days[checkedInOn]`: `minutesByTrack` = sum of `minutes` by `trackId` over all blocks with that `checkedInOn`; `completed` = any of them `done` or `partial`; `itemsDone` kept. |
+| `track.reset` | Needs `trackId`: every item row with that `trackId` is removed. Blocks and days stay. |
+| `track.resumed` | Needs `trackId`: every item row of the track with `dueOn !== null` gets `dueOn = addDays(dueOn, pausedDays)`. |
+| everything else | No change, `ignored: null`. |
+
+- [ ] **Step 1: `events.ts` first** (failing tests in `events.test.ts`): the `item.snapshot`
+  payload accepts `introducedOn` (local day, required), `lastResult` (string ≤ 32, nullable),
+  `lastResultOn` (local day, nullable) and still rejects unknown keys; `parseEventPayload(
+  'track.updated', { weeklyTemplate: { x: 1n } })` throws a `ZodError` (today `jsonbTextBytes`'s
+  `JSON.stringify` throws a `TypeError`) — catch the `TypeError` inside `parseEventPayload` and
+  rethrow it as `payloadError(payload, 'the <type> payload is not JSON-serialisable')`. Make them
+  pass.
+- [ ] **Step 2: Write the failing projection tests** (`project.test.ts`, `replay.test.ts`), using
+  `CATALOG` and small event builders local to the test (`event(type, fields)` with ids
+  `e-001`, `e-002`, … and `occurredAt` one minute apart):
+  - `item.result` for `dsa:p1` solved on `2026-09-28` → a row `{ level: 1, dueOn: '2026-10-05',
+    introducedOn: '2026-09-28', lastResult: 'solved', topicId: 'arrays', itemType: 'problem' }`
+    and `days['2026-09-28'].itemsDone === 1`; a second result the same day changes nothing and
+    `itemsDone` stays 1; a result for a card uses the card's SRS (`english:e1` know → due
+    `2026-09-29`);
+  - `item.result` for `dsa:lesson-arrays` → `ignored: 'not_srs'`; for `dsa:nope` →
+    `unknown_item`; without `itemId` → `missing_keys`; with payload `{ result: 'maybe' }` →
+    `invalid_payload`; each returns the same state object;
+  - `lesson.completed`, `exercise.submitted { kind: 'fill-blank', grade: 'close' }` and
+    `prompt.completed` → level-0 rows, `lastResult` `completed` / `close` / `completed`; repeated on
+    the next day → `reps: 2`;
+  - `item.skipped` then `item.result` on the same item → SRS starts at level 1 (level 0 = not
+    started), `introducedOn` stays the skip day, status no longer `skipped`;
+  - `item.readded` on a mastered row → level 3, due that day; on an unknown row → ignored,
+    unchanged;
+  - `item.snapshot` → exactly the payload's fields and the derived status;
+  - `block.checked_in` done 30 min + another block partial 10 min the same day → `minutesByTrack
+    { dsa: 30, english: 10 }`, `completed: true`; re-checking the first block as `skipped` 0 min on
+    the **next** day keeps its `checkedInOn` and recomputes that day to `{ dsa: 0, english: 10 }`,
+    still completed (the partial); only `skipped` blocks → `completed: false`;
+  - `track.reset` removes only that track's items (an English item survives a DSA reset);
+    `track.resumed { pausedDays: 5 }` shifts every DSA `dueOn` by 5 and leaves `null` ones and
+    English items alone;
+  - `schedule.changed`, `settings.changed`, `plan.generated`, `admin.user_approved` → same state
+    object, `ignored: null`;
+  - purity: a deep-frozen state is never modified;
+  - `replay`: a 3-week scripted history (enrol, 10 results over several days, check-ins, a skip,
+    a pause and resume, a reset) gives exactly the state of folding `project` over the same
+    events; shuffling the input gives the same result; the `ignored` list names the invalid
+    events; `rulesVersion: RULES_VERSION - 1` throws `/rules version/`; a `lesson.completed` naming
+    a problem → `wrong_type`, and that day's `item.result` for the problem still counts; an event
+    with `rulesVersion:
+    RULES_VERSION + 1` throws.
+- [ ] **Step 3:** `pnpm vitest run lib/domain/projection lib/domain/events.test.ts` — fails.
+- [ ] **Step 4: Implement** `project.ts` (one small function per row of the table; a `setItem`
+  / `setBlock` / `setDay` helper returning new records) and `replay.ts` (sort, fold, collect
+  `ignored`).
+- [ ] **Step 5: ADR-0008** `docs/adr/0008-rules-version.md` (from `0000-template.md`): every event
+  and derived row carries `rules_version`; `RULES_VERSION` (TS) and `public.rules_version()` (SQL)
+  are bumped together (sql-sync test); replay is an explicit choice — today only the current rules
+  exist, so replay re-derives everything under them and refuses newer events; `item.snapshot` makes
+  compacted history replayable (with its limitation: rules changed after a snapshot cannot
+  recompute what came before it). Status: accepted.
+- [ ] **Step 6:** `pnpm verify` — green. **Commit** `feat(domain): projection and replay of
+  derived state (ADR-0008)`.
+
+### Task 4.3: Gate rule and plan history — **Writes ADR-0016**
+
+**Spec:** §5.2, §5.6 (recap done), §5.8 (offer), §5.9. **Files:**
+
+- Create: `lib/domain/plan/gate.ts`, `lib/domain/plan/history.ts` (+ a `*.test.ts` each),
+  `docs/adr/0016-gate-on-last-seen-plan.md`
+
+**Interfaces:**
+
+- Consumes: `StoredPlan`, `PlanBlock`, `Enrollment` (`plan/types.ts`), `BlockState`, `blockKey`,
+  `daysBetween`.
+- Produces (4.6, 4.8 and M5 rely on these):
+
+```ts
+// lib/domain/plan/gate.ts
+/** "Học tiếp hôm nay" is offered when the last seen plan is more than this many days old (§5.8). */
+export const RESUME_AFTER_DAYS = 2
+
+export type GateStatus =
+  | {
+      readonly open: true
+      readonly lastSeen: StoredPlan | null
+      /** The last seen plan (from an earlier day) got its first `done` / `partial` check-in today:
+       *  resuming counts as today's work, so no new plan is built today (§5.2, §5.9; decision 32). */
+      readonly resumedToday: boolean
+    }
+  | {
+      readonly open: false
+      readonly lastSeen: StoredPlan
+      /** daysBetween(lastSeen.planDate, today). */
+      readonly daysSince: number
+      readonly offerResume: boolean
+    }
+
+/** The seen plan with the latest planDate before `today` (§5.2); unseen plans never count. */
+export function lastSeenPlan(plans: readonly StoredPlan[], today: LocalDay): StoredPlan | null
+
+/** Open when there is no last seen plan, when it has no blocks (nothing could be done — RF-4), or
+ *  when any of its blocks is checked in `done` or `partial` (at any time) — `resumedToday` when the
+ *  earliest `checkedInOn` of those blocks is `today`. Closed otherwise, with `offerResume` when
+ *  `daysSince > RESUME_AFTER_DAYS`. */
+export function gateStatus(
+  plans: readonly StoredPlan[],
+  blocks: Readonly<Record<string, BlockState>>,
+  today: LocalDay,
+): GateStatus
+
+/** The plan's blocks without a `done` / `partial` check-in, in plan order (the paused view, M5). */
+export function unfinishedBlocks(
+  plan: StoredPlan,
+  blocks: Readonly<Record<string, BlockState>>,
+): PlanBlock[]
+
+// lib/domain/plan/history.ts
+/** Track → roadmap weeks whose recap is done (§5.6): a `recap` block of that track with a
+ *  `recapWeek`, checked in `done` or `partial`, in a plan whose `tracks[trackId].variant` is the
+ *  enrollment's current variant and whose planDate is on or after the enrollment's `resetOn`.
+ *  Every enrollment gets an entry (possibly empty). */
+export function recapWeeksDone(
+  plans: readonly StoredPlan[],
+  blocks: Readonly<Record<string, BlockState>>,
+  enrollments: readonly Enrollment[],
+): Record<string, Set<number>>
+```
+
+- [ ] **Step 1: Write the failing tests** with a local `plan(date, blocks, seenAt)` builder:
+  - no plans → open, `lastSeen: null`; only a plan for today → open (today's plan is not "last");
+  - last seen plan with a `done` block → open; `partial` → open; all `skipped` → closed; no
+    check-in → closed; a check-in made two days after the plan date still opens it;
+  - `resumedToday` (decision 32): yesterday's seen plan whose first `done` check-in is today →
+    open, `resumedToday: true`; checked in yesterday → `resumedToday: false`; a `skipped` check-in
+    yesterday and a `done` one today → `true`; no last seen plan → `false`;
+  - **[RF-5]** closed with the last seen plan 3 days old → `offerResume: true`, `daysSince: 3`;
+    2 days old → `offerResume: false`;
+  - an **unseen** later plan (an AI plan never opened) is ignored: the gate follows the earlier
+    seen plan (open or closed); a seen plan with zero blocks → open;
+  - `lastSeenPlan` picks the latest date among seen plans before today, whatever the input order;
+  - `unfinishedBlocks` keeps plan order and drops `done` / `partial` blocks, keeps `skipped`;
+  - `recapWeeksDone`: a done recap block with `recapWeek: 1` → `{ dsa: {1} }`; a `skipped` one →
+    empty; a recap block from a plan whose snapshot variant is `10w` while the enrollment is `8w`
+    → ignored; a plan dated before `resetOn` → ignored, on `resetOn` → counted; `recapWeek: null`
+    → ignored; an English enrollment → an empty set.
+- [ ] **Step 2:** run them — fail. **Step 3:** implement. **Step 4:** pass.
+- [ ] **Step 5: ADR-0016** `docs/adr/0016-gate-on-last-seen-plan.md`: the gate reads the last
+  **seen** plan, so unseen (AI or skipped) plans never close it; closing means no new plan and no
+  roadmap advance; the first `done` / `partial` check-in reopens it, and the next plan comes on the
+  next local day (`resumedToday`); a stale plan older than two days offers "Học tiếp hôm nay"
+  (§5.8, built in `plan/resume.ts`, 4.6); an empty seen plan never closes it. Status: accepted.
+- [ ] **Step 6:** `pnpm verify`. **Commit** `feat(domain): gate rule on the last seen plan and
+  recap history (ADR-0016)`.
+
+### Task 4.4a: Roadmap position, new-item queue, recap source
+
+**Spec:** §5.3, §5.6 (DSA recap), §3.4 (week sizes, derived decks). **Files:**
+
+- Create: `lib/domain/plan/roadmap.ts`, `lib/domain/plan/roadmap.test.ts`,
+  `lib/domain/plan/__tests__/roadmap.property.test.ts`
+
+**Interfaces:**
+
+- Consumes: `PlanCatalog`, `PlanRoadmap`, `PlanRoadmapWeek`, `ItemMode`, `ItemState`;
+  `reviewMode` (`plan/reviewMode.ts`, 4.0) for filler recap items.
+- Produces (4.6 and 4.8 rely on these):
+
+```ts
+// lib/domain/plan/roadmap.ts
+/** A week's core items (§3.4): `week.core`, then the `core`-tier cards of `week.decks` (deck
+ *  order, card order), whatever their status. */
+export function coreItemsOfWeek(week: PlanRoadmapWeek, catalog: PlanCatalog): string[]
+
+/** Core items per week (§3.4 week sizes). */
+export function weekSizes(roadmap: PlanRoadmap, catalog: PlanCatalog): number[]
+
+/** A core item counts as passed when introduced (it has a row) or not active in the catalog
+ *  (draft, retired, missing) — decision 16. */
+export function isPassed(
+  itemId: string,
+  catalog: PlanCatalog,
+  items: Readonly<Record<string, ItemState>>,
+): boolean
+
+/** §5.3: the first week w whose cumulative size exceeds `passedCore`, clamped to the last week;
+ *  1 when `sizes` is empty. [8, 8, 7]: 0 → 1, 7 → 1, 8 → 2, 20 → 3, 99 → 3. */
+export function weekForProgress(passedCore: number, sizes: readonly number[]): number
+
+/** The learner's roadmap week on this track (decision 16, as amended): weekForProgress over
+ *  ACTIVE core items only — the introduced active ones against the active ones per week; 1
+ *  without a roadmap. */
+export function roadmapWeek(
+  roadmap: PlanRoadmap | null,
+  catalog: PlanCatalog,
+  items: Readonly<Record<string, ItemState>>,
+): number
+
+/** §5.3 new-item queue: active, not-introduced item IDs in roadmap order — per week: pattern
+ *  lessons of its topics (lessons with that topic and `about === null`, in `week.topics` order then
+ *  ID), core items, recap entries without a mode, [unlocked derived cards — once, see below],
+ *  extended cards, bonus problems (only with `includeBonus`). An item appears at most once.
+ *  Unlocked derived cards of `trackId` (tier `derived`, their source has `lastResultOn !== null`),
+ *  ordered by (source introducedOn, source ID) — stable, decision 15 — go into the first week that
+ *  still has a not-introduced item of its own, after its recap items; with no such week, at the
+ *  end. Without a roadmap only the derived cards remain. */
+export function newQueue(input: {
+  readonly trackId: string
+  readonly roadmap: PlanRoadmap | null
+  readonly catalog: PlanCatalog
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly includeBonus: boolean
+}): string[]
+
+/** §5.6: the latest week w ≤ currentWeek whose core items are all passed and w ∉ done; null when
+ *  none. */
+export function recapSource(input: {
+  readonly roadmap: PlanRoadmap | null
+  readonly catalog: PlanCatalog
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly done: ReadonlySet<number>
+  readonly currentWeek: number
+}): number | null
+
+export type RecapPick = { readonly itemId: string; readonly mode: ItemMode }
+
+/** §5.6 recap items, at most `count`: the source week's recap entries that have a mode, whose item
+ *  is active and introduced (level ≥ 1), in file order, with that mode; then filler — the track's
+ *  other introduced SRS items (level ≥ 1, not mastered, active), sorted by (level, lastResultOn,
+ *  ID), each time preferring a topic not picked yet ("spread across topics"), in their review
+ *  mode (`reviewMode`: Weak problem → 'redo', other problem → 'recall', card → 'review'). `week: null` = filler
+ *  only. Items in `exclude` are never picked. */
+export function recapCandidates(input: {
+  readonly trackId: string
+  readonly roadmap: PlanRoadmap | null
+  readonly week: number | null
+  readonly catalog: PlanCatalog
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly count: number
+  readonly exclude: ReadonlySet<string>
+}): RecapPick[]
+```
+
+- [ ] **Step 1: Write the failing tests** (`roadmap.test.ts`) against `CATALOG` / `DSA_8W` /
+  `ENGLISH_10W`:
+  - `coreItemsOfWeek`: DSA W2 → `['dsa:p5', 'dsa:p6', 'dsa:p8']` (the retired p8 included);
+    English W1 → `['english:e1', …, 'english:e4']` (extended cards not included);
+  - `weekSizes(DSA_8W)` → `[3, 3]`; `weekSizes(ENGLISH_10W)` → `[4, 2]`;
+  - `weekForProgress` — the five examples in the doc comment, and `[]` → 1;
+  - `roadmapWeek`: nothing introduced → 1; p1–p3 introduced → 2; p1–p3, p5, p6 introduced → 2
+    (p8 is retired, so passed: 6 passed of 6 → clamped to week 2); no roadmap → 1;
+  - `newQueue` (DSA, nothing introduced) → `['dsa:lesson-arrays', 'dsa:p1', 'dsa:p2', 'dsa:p3',
+    'dsa:p4', 'dsa:lesson-two-pointers', 'dsa:p5', 'dsa:p6']` — no deep-dive lesson, no retired
+    p8, no bonus p7; with `includeBonus` p7 follows p6; with p1 introduced p1 is gone; with
+    `dsa:lesson-arrays` set to `draft` (`withItems`) it is gone;
+  - `newQueue` (English, nothing introduced) → `['english:e1', 'english:e2', 'english:e3',
+    'english:e4', 'english:x1', 'english:x2', 'english:e5', 'english:e6']`; with DSA states for
+    `dsa:p2` (introduced and last result `2026-09-29`) and `dsa:p1` (`2026-09-30`), the derived
+    cards follow `english:e4` as `…:dsa:p2`, `…:dsa:p1` (unlock order), before `x1` — and stay in
+    that order after p2 gets a later result; once all W1 cards are
+    introduced they follow `english:e6` (W2's core, before its extended cards — W2 has none); with
+    every English card introduced they are the whole queue; a derived card whose source was only skipped (`lastResultOn: null`) stays locked;
+  - `recapSource`: p1–p3 introduced (so `roadmapWeek` 2), `done` empty, `currentWeek: 2` → 1 (W2's
+    p5 and p6 are not passed; W1 is); `done: {1}` → null; only p1 and p2 introduced,
+    `currentWeek: 1` → null (p3 not passed);
+  - `recapCandidates` for week 1 with p1, p2 introduced (p4 not): `[{ p2, redo }, { p1,
+    explain-aloud }]` then filler up to `count: 3` → p3 if introduced (in its review mode), never
+    p4 (not introduced) and never an `exclude`d item; filler spreads topics: with introduced
+    arrays items a1 (level 1) and a2 (level 1) and a two-pointers item t1 (level 2), count 2 with
+    `week: null` → `[a1, t1]`, not `[a1, a2]`; a Weak problem as filler → mode `redo`;
+    `week: null`, nothing introduced → `[]`.
+- [ ] **Step 2: Property test** (`__tests__/roadmap.property.test.ts`, fast-check — or the seeded
+  generator if Q1 is declined): for arbitrary subsets of introduced items of `CATALOG` (random
+  levels / `lastResultOn`) and arbitrary `includeBonus`: (a) every active, not-introduced core item
+  of every week appears in `newQueue` exactly once; (b) no introduced, draft or retired item
+  appears; (c) the queue has no duplicates; (d) `roadmapWeek` never decreases when one more item is
+  introduced (monotonic in the introduced set).
+- [ ] **Step 3:** run — fail. **Step 4:** implement. **Step 5:** pass; `pnpm verify`.
+- [ ] **Step 6: Commit** `feat(domain): roadmap position, new-item queue and recap source (§5.3,
+  §5.6)`.
+
+### Task 4.4b: Due queue, weak topics, practice pickers
+
+**Spec:** §5.4 step 3 (sort), §5.5 (review modes), §5.6 (exercise, weekend prompt, shadowing,
+mock interview), §5.7 (weak topics), §5.9 (paused, retired). **Files:**
+
+- Create: `lib/domain/plan/queues.ts`, `lib/domain/plan/practice.ts`,
+  `lib/domain/stats/weakTopics.ts` (+ a `*.test.ts` each)
+
+**Interfaces:**
+
+```ts
+// lib/domain/stats/weakTopics.ts
+/** A topic is weak with at least this many Weak items (§5.7). */
+export const WEAK_TOPIC_MIN = 2
+export type WeakTopic = { readonly trackId: string; readonly topicId: string; readonly itemIds: readonly string[] }
+/** Topics of `trackIds` with ≥ WEAK_TOPIC_MIN items whose status is 'weak' and whose catalog item
+ *  is active; items sorted by ID; topics sorted by (itemIds.length desc, trackId, topicId). */
+export function weakTopics(
+  items: Readonly<Record<string, ItemState>>,
+  catalog: PlanCatalog,
+  trackIds: ReadonlySet<string>,
+): WeakTopic[]
+
+// lib/domain/plan/queues.ts — uses `reviewMode` from `plan/reviewMode.ts` (4.0; tested here)
+export type DueEntry = {
+  readonly itemId: string
+  readonly item: PlanItem
+  readonly state: ItemState
+  /** daysBetween(state.dueOn, today) — 0 when due today. */
+  readonly overdueDays: number
+  readonly mode: ItemMode
+  /** item.minutes[mode]. */
+  readonly minutes: number
+}
+
+/** §5.4 step 3: the track's due items — dueOn ≤ today, status not mastered or skipped, catalog
+ *  item active with `srs` — sorted Weak first → items of `weakTopicIds` → most overdue → lowest
+ *  level → ID. */
+export function dueQueue(input: {
+  readonly trackId: string
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly catalog: PlanCatalog
+  readonly today: LocalDay
+  readonly weakTopicIds: ReadonlySet<string>
+}): DueEntry[]
+
+// lib/domain/plan/practice.ts
+/** The tag whose block shows example sentences instead of an item (§5.6). */
+export const SHADOWING_TAG = 'shadowing'
+
+/** Rank of a last grade for "the worst last grade first" (§5.6): miss, close, pass, anything else. */
+export const GRADE_RANK: Readonly<Record<string, number>> // { miss: 0, close: 1, pass: 2 }
+
+/** A `practice` block with `itemType` (§5.6 exercise rule, generic): the first active,
+ *  not-introduced item of that type whose `week` is `roadmapWeek` (ID order); else the introduced
+ *  one with the worst last grade (GRADE_RANK, unknown grades last), oldest lastResultOn, then ID;
+ *  else null. */
+export function pickByItemType(input: {
+  readonly trackId: string
+  readonly itemType: string
+  readonly roadmapWeek: number
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly catalog: PlanCatalog
+}): string | null
+
+/** A `practice` block with `tag`: the first active repeatable prompt with that tag (ID order);
+ *  else the active, not-introduced one with `week === roadmapWeek`; else the earliest (week, ID)
+ *  active, not-introduced one with a lower week; else null. */
+export function pickByTag(input: {
+  readonly trackId: string
+  readonly tag: string
+  readonly roadmapWeek: number
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly catalog: PlanCatalog
+}): string | null
+
+/** Shadowing (§5.6): up to `count` of today's new cards that have an example, in plan order; when
+ *  none, the track's most recently introduced cards with an example (introducedOn desc, ID). */
+export function pickShadowing(input: {
+  readonly trackId: string
+  readonly todaysNew: readonly string[]
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly catalog: PlanCatalog
+  readonly count?: number // default 3
+}): string[]
+
+/** §5.6: the introduced (level ≥ 1) active Medium problem of the track with the oldest
+ *  lastResultOn, then ID; null when none. For M5's mock-interview prompt page. */
+export function mockInterviewProblem(input: {
+  readonly trackId: string
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly catalog: PlanCatalog
+}): string | null
+```
+
+- [ ] **Step 1: Write the failing tests** (fixtures + `itemState`/`statesOf`/`withItems`):
+  - `weakTopics`: two weak `arrays` problems → `[{ dsa, arrays, [p1, p2] }]`; one → `[]`; a
+    retired weak item does not count; a track outside `trackIds` (paused) is excluded; ordering by
+    count then IDs;
+  - `reviewMode`: weak problem → redo, problem → recall, card → review, weak card → review;
+  - `dueQueue` on `2026-10-10` with `weakTopicIds: {'arrays'}`: Weak p1 and p2 (due 10-08 and
+    10-10), p3 (arrays, not weak, due today), p5 (5 days overdue), p6 (due today, level 1), p7 (due
+    today, level 2) → `[p1, p2, p3, p5, p6, p7]`; items
+    due tomorrow, mastered, skipped, retired (`withItems`), of another track, or not in the
+    catalog are excluded; `overdueDays`, `mode` and `minutes` (redo 21 for a weak Medium problem,
+    recall 5, card review 0.5) are set;
+  - `pickByItemType` (English, exercise): week 1, nothing introduced → `english:ex-w1-a`;
+    `ex-w1-a` introduced → `ex-w1-b`; both introduced → the introduced one with the worst grade (`miss`
+    beats `close` beats `pass`, then older `lastResultOn`); week 3 (no exercises) with none
+    introduced → null **[RF-4]**; a draft exercise is never picked;
+  - `pickByTag`: DSA `mock-interview` → `dsa:prompt-mock` whatever the week; English
+    `weekend-task` week 2 → `english:prompt-w2`; week 2 with w2 introduced and w1 not →
+    `english:prompt-w1` (catch-up); week 3 with both introduced → null; unknown tag → null;
+  - `pickShadowing`: todaysNew `[e3, e1, e2, e4]` → `[e1, e2]` (only cards with an example, plan
+    order, max 3); todaysNew `[]` with introduced x1 (`2026-09-29`) and e1 (`2026-09-30`) →
+    `[e1, x1]`; nothing → `[]`;
+  - `mockInterviewProblem`: introduced p2 (M, lastResultOn `2026-09-30`) and p3 (M,
+    `2026-09-29`) and p1 (E) → p3; none → null.
+- [ ] **Step 2:** run — fail. **Step 3:** implement. **Step 4:** pass; `pnpm verify`.
+- [ ] **Step 5: Commit** `feat(domain): due queue, weak topics and practice pickers (§5.4–§5.7)`.
+
+### Task 4.5: Budget and throttle
+
+**Spec:** §5.4 steps 2–5, §5.5 throttle, §5.10 (review cap, debt), decision 13. **Files:**
+
+- Create: `lib/domain/plan/budget.ts`, `lib/domain/plan/throttle.ts` (+ a `*.test.ts` each)
+
+**Interfaces:**
+
+```ts
+// lib/domain/plan/budget.ts
+/** One unit a block may take: an item, or a deep-dive lesson (`lead`) and its problem together. */
+export type Candidate = {
+  readonly itemId: string
+  readonly mode: ItemMode
+  readonly minutes: number
+  /** A new SRS item: counts toward the new-item cap (§5.5). */
+  readonly srs: boolean
+  /** Placed right before this item and taken or skipped with it (§5.4 step 3). */
+  readonly lead?: Candidate
+}
+
+export type Picked = {
+  readonly itemId: string
+  readonly mode: ItemMode
+  readonly minutes: number
+  readonly overBudget?: true
+}
+
+export type Selection = {
+  /** Flattened: a unit's lead comes right before its item. */
+  readonly picked: readonly Picked[]
+  readonly minutes: number
+  /** A forced unit exceeded the remaining budget (the track's one overshoot, decision 13). */
+  readonly overshoot: boolean
+}
+
+export const EMPTY_SELECTION: Selection // { picked: [], minutes: 0, overshoot: false }
+
+/** A track's budget while its plan is built. `remaining` may go negative after the overshoot. */
+export type BudgetState = { readonly remaining: number; readonly overshootUsed: boolean }
+export function startBudget(minutes: number): BudgetState
+/** remaining − selection.minutes; overshootUsed ||= selection.overshoot || the new remaining < 0
+ *  (a half-fit unit that overshoots uses the track's one overshoot too — decision 13). */
+export function spend(budget: BudgetState, selection: Selection): BudgetState
+
+/** §5.10 review debt: an item more than `overdueDays` overdue raises the weekday cap to
+ *  `capShare` of the track budget. */
+export const REVIEW_DEBT = { overdueDays: 7, capShare: 0.4 } as const
+export function inReviewDebt(overdueDays: readonly number[]): boolean
+
+/** A review block's cap (§5.4 step 3): min(remaining, limit), never below 0, where limit =
+ *  ∞ without maxMinutes; maxMinutes; or max(maxMinutes, capShare × trackBudget) in debt. */
+export function reviewCap(input: {
+  readonly maxMinutes: number | undefined
+  readonly trackBudget: number
+  readonly remaining: number
+  readonly debt: boolean
+}): number
+
+/** A fixed block (§5.4 step 2): taken when it fits; otherwise taken as the overshoot while it is
+ *  unused (`overshoot: true`); otherwise dropped. */
+export function reserveFixed(
+  budget: BudgetState,
+  minutes: number,
+): { readonly take: boolean; readonly overshoot: boolean }
+
+/** Reviews and recap (§5.4 steps 3–4): in order, a unit is taken when its minutes (lead included)
+ *  fit `cap − used`, otherwise skipped; with `forceFirst` the first candidate is taken whatever it
+ *  costs (its items flagged `overBudget` and `overshoot: true` when it does not fit). At most
+ *  `maxUnits` units (default: no limit). */
+export function selectSkipping(
+  candidates: readonly Candidate[],
+  options: { readonly cap: number; readonly maxUnits?: number; readonly forceFirst?: boolean },
+): Selection
+
+/** New items (§5.4 step 5): the first unit is taken whatever it costs when `forceFirst`
+ *  (flagged `overBudget` + `overshoot` if it does not fit); each following unit when at least half
+ *  of it fits (`remaining − used ≥ minutes / 2`); the first unit that fails stops the selection —
+ *  order is never broken. SRS units stop at `newCap` (null = no cap); `newCap` 0 → no SRS unit,
+ *  even with `forceFirst`. */
+export function selectHalfFit(
+  candidates: readonly Candidate[],
+  options: { readonly remaining: number; readonly newCap: number | null; readonly forceFirst: boolean },
+): Selection
+
+// lib/domain/plan/throttle.ts
+/** §5.5: the `newPerDay` of the matching rule with the highest `dueAbove` that `dueCount` exceeds;
+ *  otherwise `newPerDay` (null = no cap). */
+export function effectiveNewPerDay(
+  newPerDay: number | null,
+  throttle: readonly ThrottleRule[],
+  dueCount: number,
+): number | null
+```
+
+- [ ] **Step 1: Write the failing tests:**
+  - `effectiveNewPerDay(8, english rules, n)`: 40 → 8, 41 → 4, 60 → 4, 61 → 0; rules in any order;
+    `(null, [], 500)` → null; `(null, [{ dueAbove: 10, newPerDay: 2 }], 11)` → 2;
+  - `reviewCap`: `(15, 60, 60, false)` → 15; `(15, 60, 60, true)` → 24; `(15, 90, 90, true)` → 36;
+    `(15, 60, 10, true)` → 10; `(undefined, 60, 45, false)` → 45; `(15, 60, -5, false)` → 0;
+    `inReviewDebt([7])` false, `([0, 8])` true;
+  - `reserveFixed`: 45 of 60 → take; 45 of 30 unused → take + overshoot; 45 of 30 with the
+    overshoot used → dropped;
+  - `selectSkipping`: cap 15 with [recall 5, redo 21, recall 5, recall 5, recall 5] → the three
+    recalls that fit (5, 5, 5 = 15), the redo skipped; a lead + item pair of 25 + 21 with cap 30 is
+    skipped as a whole; `maxUnits: 3`; `forceFirst` with a first unit of 21 and cap 10 → it is
+    taken, `overBudget` on it, `overshoot: true`, and nothing else fits after it;
+  - `selectHalfFit`: remaining 40 with [20, 35, 20] → 20 (fits), 35 (half 17.5 ≤ 20 → taken, now
+    −15), stop; remaining 10, forceFirst, [50] → taken, `overBudget`, `overshoot`; forceFirst false
+    and [50] with remaining 10 → nothing; half-fit exactly at the boundary (remaining 15 with
+    [5, 20]: 5 fits, then 20 with 10 left → taken); `newCap: 2` with four SRS cards → two; `newCap: 0` with [lesson (srs false), card] →
+    the lesson only; order is never broken (a small item after a failing big one is not taken);
+  - `spend` and `startBudget` arithmetic; `spend` after a half-fit selection that leaves −15 →
+    `overshootUsed: true` although `selection.overshoot` is false.
+- [ ] **Step 2:** run — fail. **Step 3:** implement. **Step 4:** pass; `pnpm verify`.
+- [ ] **Step 5: Commit** `feat(domain): budget rules and throttle (§5.4, §5.5)`.
+
+### Task 4.6: `buildPlan`, stale-plan resume, property tests
+
+**Spec:** §5.4 (all steps, invariant), §5.5, §5.6, §5.8, §5.9; decisions 13–15, 25, 26. **[RF-4],
+[RF-5].** **Files:**
+
+- Create: `lib/domain/plan/template.ts`, `lib/domain/plan/buildPlan.ts`,
+  `lib/domain/plan/resume.ts` (+ a `*.test.ts` each),
+  `lib/domain/plan/__tests__/buildPlan.property.test.ts`
+
+**Interfaces:**
+
+- Consumes: `roadmapWeek`, `newQueue`, `recapSource`, `recapCandidates` (4.4a); `reviewMode`
+  (4.0); `dueQueue`, `pickByItemType`, `pickByTag`, `pickShadowing`, `SHADOWING_TAG`, `weakTopics`
+  (4.4b); everything in `budget.ts` and `effectiveNewPerDay` (4.5); `weekdayOf` (4.7);
+  `StoredPlan` / `PlanContext` / `DayPlan` / `PlanBlock` (4.0).
+- Produces (4.8 and M5):
+
+```ts
+// lib/domain/plan/template.ts
+/** The day's blocks (§5.4 step 1): the weekday's own key wins over 'mon-fri'; blocks whose
+ *  fromWeek > roadmapWeek are left out. [] when the template has nothing for the day. */
+export function dayTemplate(
+  template: PlanWeeklyTemplate,
+  weekday: Weekday,
+  roadmapWeek: number,
+): PlanTemplateBlock[]
+/** `<planDate>:<trackId>:<kind>:<n>` (§5.4 step 8). */
+export function planBlockId(planDate: LocalDay, trackId: string, kind: BlockKind, n: number): string
+
+// lib/domain/plan/buildPlan.ts
+export function buildPlan(ctx: PlanContext): DayPlan
+/** Sum of the track's blocks' estMinutes. */
+export function plannedMinutes(plan: Pick<DayPlan, 'blocks'>, trackId: string): number
+/** The largest single item of the track: the max over item minutes and practice-block minutes. */
+export function largestItemMinutes(plan: Pick<DayPlan, 'blocks'>, trackId: string): number
+/** The minutes a one-tap or auto check-in pre-fills (decision 34): Math.ceil(block.estMinutes),
+ *  so any non-empty block gives at least 1 (`block.checked_in.minutes` is an integer). */
+export function checkInMinutes(block: PlanBlock): number
+
+// lib/domain/plan/resume.ts
+/** "Học tiếp hôm nay" (§5.8, decision 25): mode 'resume'. */
+export function buildResumePlan(ctx: PlanContext, stale: StoredPlan): DayPlan
+```
+
+**`buildPlan` algorithm** — for each enrollment, in `trackId` order, that is `active`, has
+`planDate ≥ startDate`, and whose track is in the catalog with status `active`:
+
+1. `roadmap = track.roadmaps[variant] ?? null`; `week = roadmapWeek(roadmap, catalog, items)`;
+   `blocks = dayTemplate(e.weeklyTemplate, weekdayOf(planDate), week)`.
+2. `weak = weakTopics(items, catalog, {trackId})` → `weakTopicIds`; `due = dueQueue(...)`;
+   `debt = inReviewDebt(due.map(d => d.overdueDays))`; `newCap = effectiveNewPerDay(e.newPerDay,
+   e.throttle, due.length)`; `budget = startBudget(e.budgetMinutes)`; `planned` = the item IDs
+   already placed in this track.
+3. **Practice blocks** (template order): `itemType` → `pickByItemType`; `tag` → `pickByTag`, else
+   when `tag === SHADOWING_TAG` a shadowing block (cards filled in step 8); nothing → the block is
+   dropped. `reserveFixed(budget, minutes)` → take (spend `minutes`, overshoot as returned) or
+   drop. A taken practice block with an item has `items: [{ itemId, mode: 'new' | 'review', minutes:
+   block minutes }]` (`review` when the item is already introduced) and `estMinutes = minutes`.
+4. **Review blocks:** `cap = reviewCap({ maxMinutes, trackBudget: e.budgetMinutes, remaining,
+   debt })`; candidates = `due` entries not in `planned`, each `{ itemId, mode, minutes, srs: true }`,
+   and — for a Weak entry whose `item.deepDiveId` is an active, not-introduced lesson not in
+   `planned` — `lead: { itemId: deepDiveId, mode: 'new', minutes: lesson.minutes.new, srs: false }`;
+   `selectSkipping(candidates, { cap })`.
+5. **Recap blocks:** `source = recapSource({ …, done: ctx.recapDone[trackId] ?? ∅, currentWeek:
+   week })`; picks = `recapCandidates({ week: source, count, exclude: planned })` →
+   candidates (minutes = `item.minutes[mode]`); `selectSkipping(candidates, { cap: remaining,
+   maxUnits: count, forceFirst: !budget.overshootUsed })`; the block's `recapWeek` = `source`
+   (null when only filler).
+6. **New blocks:** queue = `newQueue(...)` minus `planned` → candidates `{ mode: 'new', minutes:
+   item.minutes.new, srs: item.srs !== null }`; `selectHalfFit(candidates, { remaining, newCap:
+   newCap − SRS items already added as new today, forceFirst: first new block &&
+   !budget.overshootUsed })`.
+7. **Days without a `new` block in the template:** an empty review block falls back to filler recap
+   (`recapCandidates` with `week: null`, `count: 3`, `forceFirst: !overshootUsed`, emitted as kind
+   `recap` with `recapWeek: null`), then — still empty — to new items (`selectHalfFit` with
+   `forceFirst: !overshootUsed`, kind `new`); an empty recap block falls back to new items the same
+   way. Then, **when the template has neither a `new` nor a `recap` block** and no fallback
+   produced a `new` block, leftover minutes spill into new items: `selectHalfFit({ remaining,
+   newCap, forceFirst: false })`, appended as a `new` block after the others (decision 26).
+8. **Shadowing blocks** get `shadowing = pickShadowing({ todaysNew: this track's new-block items })`;
+   a shadowing block with no card is dropped after planning — its reserved minutes stay unused (at
+   most one short block; accepted).
+9. Every step updates `planned` and `budget` (`spend`). Emit the track's non-empty blocks in
+   template order (fallback blocks take their block's place; the spill block goes last), numbered
+   per kind with `planBlockId`; a block's `estMinutes` = the sum of its items' minutes (practice:
+   its fixed minutes). The track snapshot: `{ variant, week, dueCount: due.length, newPerDay:
+   newCap, throttled: newCap !== e.newPerDay, reviewDebt: debt }`.
+
+Output: `{ planDate, mode: 'baseline', blocks: <all tracks' blocks, in trackId order>, tracks }`.
+
+**`buildResumePlan`** — for each enrollment eligible as above: step 1–2 as `buildPlan`; a `review`
+block with `cap = reviewCap({ maxMinutes: <today's template's first review block's maxMinutes>,
+… })`; then a `new` block whose candidates are the items of `stale`'s `new` blocks of this track,
+in order, that are active and not introduced now (`selectHalfFit` with today's `newCap` and
+`forceFirst: !budget.overshootUsed`). No practice, recap, fallback or spill. Mode `'resume'`.
+
+- [ ] **Step 1: Write the failing unit tests** (`template.test.ts`, `buildPlan.test.ts`,
+  `resume.test.ts`) with `planContext`, `enrollment`, `itemState`, `statesOf`, `withItems`,
+  `MONDAY` / `SATURDAY` / `SUNDAY`:
+  - `dayTemplate`: DSA Monday → review 15 + new; Sunday week 2 → recap only (mock `fromWeek: 3`);
+    Sunday week 3 → mock + recap; a template with `wed` and `mon-fri` → `wed` wins on Wednesday;
+    a day with no key → `[]`; `planBlockId('2026-09-28', 'dsa', 'new', 1)` →
+    `'2026-09-28:dsa:new:1'`;
+  - **new learner, Monday, DSA 60 min** → one block `2026-09-28:dsa:new:1` with
+    `lesson-arrays` (25) and p1 (20) — lesson 25 (35 left), p1 20 (15 left), p2 35 (half 17.5 > 15
+    → stop); `estMinutes: 45`; no review block (empty); snapshot `{ variant: '8w',
+    week: 1, dueCount: 0, newPerDay: null, throttled: false, reviewDebt: false }`;
+  - **English Monday, new learner, 25 min**: exercise block `ex-w1-a` (5), shadowing (3), no
+    review block, a new block with `[e1, e2, e3, e4, x1, x2, e5, e6]` (8 = `newPerDay`, 12 minutes;
+    derived cards stay locked — no DSA results), shadowing cards `[e1, e2, x1]` (the first three
+    new cards with an example) — assert the exact blocks and ids `2026-09-28:english:practice:1`,
+    `…:practice:2`, `…:new:1`;
+  - review cap and debt: DSA Monday with six due recall items (5 min) → review block of three
+    (15); with one of them 8 days overdue → four (24 → cap 24, 4 × 5 = 20, the fifth needs 25);
+  - a Weak due problem with a not-completed active deep-dive (p3) → the review block holds
+    `lesson-deep-dive-p3` right before p3 when both fit a Saturday budget; on a weekday (cap 15)
+    both are skipped together;
+  - throttle (a catalog copy with 70 extra English core cards built with `planItem` in the test):
+    45 due cards → `newPerDay` 4 in the snapshot, `throttled: true`, at most 4 new SRS cards; 61 due
+    → no new card at all, and no first-item overshoot;
+  - first-item overshoot: DSA budget 10 on a weekday with nothing due → the first new item
+    (lesson, 25) is taken with `overBudget: true`, nothing else;
+  - decision 13: DSA on `SUNDAY` with budget 30 and an enrollment template whose mock interview
+    has `fromWeek: 1` → the mock interview (45) is taken as the overshoot; the recap and its new
+    fallback get nothing (the overshoot is used, the remainder negative) → planned 45 ≤ 30 + 45;
+  - Sunday recap: p1–p3 introduced and `recapDone` empty → recap block `recapWeek: 1` with
+    `p2 redo` (21), `p1 explain-aloud` (5), then `p3 recall` (5) as filler; with
+    `recapDone: { dsa: {1} }` → filler only, `recapWeek: null`;
+  - Saturday fallback: new learner on `SATURDAY` → review empty → filler empty → a `new` block
+    `[lesson-arrays, p1]` (the lesson forced first, p1 fits, p2 fails half-fit) **[RF-4]**; a
+    learner with two recall reviews due on Saturday (60 min) → review block (10), then a spill
+    `new` block (half-fit, no forced overshoot);
+  - English Sunday: new learner → weekend prompt w1 (15), the empty review falls back to new
+    cards (7 cards: six fit, the seventh half-fits); with four due cards → prompt, review block
+    (2 minutes), then a spill `new` block (decision 26);
+  - **[RF-4]** empty catalog → `{ blocks: [], tracks: {} }`; a track with a future `startDate` is
+    skipped; a paused or removed enrollment is skipped; on `MONDAY`, a track whose variant has no
+    roadmap file → reviews only (no new, no recap); with a test-local copy of `ENGLISH_10W` that has
+    a week 3 (one deck, one core card, no exercises), every W1–W2 core card introduced and no
+    exercise introduced → roadmap week 3 → no exercise block;
+  - `checkInMinutes`: a block of three 0.5-minute reviews → 2; a 45-minute block → 45;
+  - determinism: the same context twice → deep-equal plans; frozen inputs are never modified;
+  - **[RF-5]** `buildResumePlan` with a stale plan whose DSA new block held `[lesson-arrays, p1,
+    p2]` of which `lesson-arrays` is now introduced → new block `[p1, p2]` (as budget allows),
+    never p3 (the pointer does not advance); due reviews in a review block; mode `'resume'`; no
+    English new cards when the stale plan had no English new block.
+- [ ] **Step 2: Property tests** (`__tests__/buildPlan.property.test.ts`, 300 runs each; fast-check
+  or the seeded generator): contexts from arbitrary budgets (10–240, step 5, per track), weekdays
+  (`MONDAY` + 0…6), item states for random subsets of `CATALOG` items (level 0…N, weak, due
+  offset −20…+20 days, topSuccesses 0…2, status consistent with `srsStatus`), `includeBonus`,
+  `newPerDay` (null or 0…10), throttle rules and `recapDone` subsets, and — in half of the runs —
+  a random custom weekly template (1–4 valid blocks per day key, any order and kinds, as a learner
+  could store one; decision 13). For every generated plan and
+  track: **(I1)** `plannedMinutes ≤ budget` or `plannedMinutes ≤ budget + largestItemMinutes`
+  (§5.4 invariant); **(I2)** no item ID appears twice in the plan; **(I3)** items in `new` blocks
+  are not introduced; items in `review` blocks with a mode other than `new` are due, active and
+  neither mastered nor skipped, and a `new`-mode item in a review block is an active,
+  not-introduced deep-dive lesson placed directly before its Weak problem; recap items are
+  introduced; **(I4)** no block is empty (a practice block has an item or
+  shadowing cards), block IDs are unique and match
+  `/^\d{4}-\d{2}-\d{2}:[a-z][a-z0-9-]*:(review|new|recap|practice|extra):\d+$/`; **(I5)** no draft
+  or retired item appears; **(I6)** SRS items in `new` blocks ≤ the snapshot's `newPerDay` when not
+  null; **(I7)** building twice gives deep-equal plans.
+- [ ] **Step 3:** run — fail. **Step 4:** implement `template.ts`, `buildPlan.ts` (one function per
+  step, a per-track builder returning `{ blocks, snapshot }`), `resume.ts` (reuses the per-track
+  helpers). **Step 5:** pass; `pnpm verify`.
+- [ ] **Step 6: Commit** `feat(domain): buildPlan, stale-plan resume and plan invariants (§5.4,
+  §5.8)`.
+
+### Task 4.7: Stats — streak, weekly summary, weekday; time-zone option cache
+
+**Spec:** §5.1, §5.7 (streak), §5.9 (schedule changes, removed tracks), §2.4 (`/progress` weekly
+summary); decisions 22, 23. **[RF-1].** **Files:**
+
+- Create: `lib/domain/time/weekday.ts`, `lib/domain/stats/streak.ts`,
+  `lib/domain/stats/weeklySummary.ts` (+ a `*.test.ts` each)
+- Modify: `lib/domain/time/timeZones.ts` (+ test) — `isTimeZoneOption` stops rebuilding the option
+  list on every call (M3 follow-up): a module-level lazily built `Set`.
+
+**Interfaces:**
+
+```ts
+// lib/domain/time/weekday.ts
+export const WEEKDAYS: readonly Weekday[] // ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+/** Pure calendar math: daysBetween('1970-01-05' (a Monday), day) mod 7. */
+export function weekdayOf(day: LocalDay): Weekday
+/** The Monday on or before `day`. */
+export function weekStart(day: LocalDay): LocalDay
+
+// lib/domain/stats/streak.ts
+/** Dates no local day ever had because a schedule change jumped over them (§5.9 moving east):
+ *  for consecutive versions (by effectiveAt) A → B at instant t, every date strictly between
+ *  localDay(t − 1 ms, A) and localDay(t, B). Identical consecutive versions skip nothing. */
+export function scheduleSkippedDays(versions: readonly ScheduleVersion[]): Set<LocalDay>
+/** §5.7: consecutive completed days ending today — or yesterday when today is not completed yet;
+ *  a date in `skippedDays` is passed over without counting or breaking. */
+export function streak(input: {
+  readonly completedDays: ReadonlySet<LocalDay>
+  readonly today: LocalDay
+  readonly skippedDays?: ReadonlySet<LocalDay>
+}): number
+
+// lib/domain/stats/weeklySummary.ts
+export type SummaryDay = {
+  readonly localDay: LocalDay
+  readonly minutesByTrack: Readonly<Record<string, number>>
+  readonly minutes: number
+  readonly itemsDone: number
+  readonly completed: boolean
+}
+export type WeeklySummary = {
+  readonly weekStart: LocalDay
+  /** Monday … Sunday; a day without activity has zeros. */
+  readonly days: readonly SummaryDay[]
+  readonly minutesByTrack: Readonly<Record<string, number>>
+  readonly totalMinutes: number
+  readonly itemsDone: number
+  readonly completedDays: number
+}
+/** The Monday–Sunday week of `weekOf`; only `trackIds`' minutes count (removed tracks leave the
+ *  summaries, §5.9); `itemsDone` and `completed` are the day's own. */
+export function weeklySummary(
+  days: Readonly<Record<LocalDay, DailyActivity>>,
+  weekOf: LocalDay,
+  trackIds: ReadonlySet<string>,
+): WeeklySummary
+```
+
+- [ ] **Step 1: Write the failing tests:**
+  - `weekdayOf('2026-09-28')` → `'mon'`, `'2026-10-04'` → `'sun'`, `'2024-02-29'` → `'thu'`,
+    `'1969-12-31'` → `'wed'` (negative day numbers); `weekStart('2026-10-04')` → `'2026-09-28'`,
+    `weekStart('2026-09-28')` → itself;
+  - `streak`: completed 09-26…09-28, today 09-28 → 3; today 09-29 not completed → 3 (from
+    yesterday); a gap on 09-27 → 1; nothing → 0;
+  - **[RF-1]** `scheduleSkippedDays`: Pacific/Pago_Pago 04:00 → Pacific/Kiritimati 04:00 effective
+    at the Pago Pago day start of 2026-10-01 (`2026-10-01T15:00:00Z`; the local day is 09-30 just
+    before and 10-02 just after) → exactly `{'2026-10-01'}`; Asia/Ho_Chi_Minh → Pacific/Kiritimati
+    at the Ho Chi Minh day start → nothing (a jump under 24 hours skips no date); moving west
+    (Asia/Ho_Chi_Minh → America/Los_Angeles) skips nothing; two identical consecutive versions skip nothing; a single version → ∅; and
+    `streak` counts across the skipped date without breaking (completed 09-29, 09-30, 10-02 with
+    10-01 skipped → 3);
+  - `weeklySummary`: Monday–Sunday days even without rows; minutes summed per track and in total;
+    a removed track's minutes excluded; `completedDays` and `itemsDone` totals;
+  - `isTimeZoneOption`: the same answers as before (`Asia/Ho_Chi_Minh` true, `Mars/Olympus`
+    false), and the option list is built at most once across many calls: `vi.resetModules()`, spy
+    on `Intl.supportedValuesOf`, then import `timeZones.ts` dynamically and call
+    `isTimeZoneOption` 100 times → at most one `supportedValuesOf` call.
+- [ ] **Step 2:** run — fail. **Step 3:** implement. **Step 4:** pass; `pnpm verify`.
+- [ ] **Step 5: Commit** `feat(domain): streak, weekly summary and weekday helpers (§5.7, RF-1)`.
+
+### Task 4.8: Simulation and projection table — **Writes ADR-0014, ADR-0037**
+
+**Spec:** §5.10 (scenarios, thresholds), §5.11 (projection table, inputs hash), §7.9
+(`pnpm sim:projections`); decisions 20, 21. **Files:**
+
+- Create: `lib/domain/random.test.ts`, `lib/domain/plan/simulate.ts` (+ `simulate.test.ts`),
+  `lib/domain/plan/simInputs.ts` (+ test), `lib/domain/plan/__tests__/simulation.dsa.test.ts`,
+  `lib/domain/plan/__tests__/simulation.english.test.ts`,
+  `lib/domain/plan/__tests__/englishModel.ts`, `lib/domain/plan/sim-inputs.generated.json`,
+  `lib/domain/plan/projections.generated.json`, `tools/sim/{inputs,cli}.ts`,
+  `tools/sim/projections.test.ts`, `docs/adr/0014-simulation-backed-srs-parameters.md`,
+  `docs/adr/0037-projection-inputs-hash.md`
+- Modify: `lib/domain/plan/projections.ts` (+ test), `package.json` (script), `CLAUDE.md` and
+  `README.md` (the command), spec §5.10–§5.11 (a pointer to the generated table and the calibrated
+  numbers), and — only if the regenerated table changes the displayed weeks —
+  `features/onboarding/components/onboarding-wizard.test.tsx`,
+  `features/tracks/components/variant-picker.test.tsx`, `e2e/onboarding.spec.ts`
+
+**Interfaces:**
+
+```ts
+// lib/domain/plan/simulate.ts — the seeded PRNG is `mulberry32` from `lib/domain/random.ts` (4.0)
+/** Linear interpolation between order statistics (the prototype's `pct`), rounded to 0.1. */
+export function percentile(values: readonly number[], q: number): number
+
+export type LearnerProfile = 'ideal' | 'realistic'
+export type SimOptions = {
+  readonly catalog: PlanCatalog
+  readonly enrollment: Enrollment
+  readonly profile: LearnerProfile
+  readonly seed: number
+  readonly days: number
+  /** Day 0; the realistic learner's weeks start here. */
+  readonly startDate: LocalDay
+  /** Items outside the track that gain a result over time (English derived-card sources):
+   *  before day d's plan, the first min(⌊(d + 1) × perDay⌋, n) get a success. */
+  readonly externalResults?: { readonly itemIds: readonly string[]; readonly perDay: number }
+}
+export type SimDay = {
+  readonly date: LocalDay
+  /** The plan created that day; null when none was (gate closed, or resumed today). */
+  readonly planDate: LocalDay | null
+  /** The learner studied that day (a new plan or the paused one); false on a skipped day. */
+  readonly studied: boolean
+  /** Due, unmastered items of the track at the start of the day (dueQueue length). */
+  readonly due: number
+  readonly plannedMinutes: number
+  readonly largestItem: number
+  /** plannedMinutes ≤ budget or ≤ budget + largestItem. */
+  readonly withinBudget: boolean
+}
+export type SimRun = {
+  /** The day index on which the last roadmap item (pattern lessons, core, recap introducers; no
+   *  bonus) was introduced; null if not within `days`. */
+  readonly finishDay: number | null
+  readonly days: readonly SimDay[]
+  readonly coreIntroduced: number
+  readonly coreTotal: number
+}
+/** Runs the real engine day by day (§5.10): `gateStatus` (4.3) → `buildPlan` (seen) → the
+ *  learner. Ideal: every result a success, no skipped day. Realistic: per result 80 % success,
+ *  10 % partial, 10 % fail (drawn from `mulberry32(seed)`); one random day per 7-day block is
+ *  skipped — when the gate is open the plan is created and seen, and nothing is done. On a later
+ *  day with the gate closed the learner completes the paused plan instead; the gate is then open
+ *  with `resumedToday`, so no new plan is built that day (decision 32). Results become events
+ *  folded with `project` (4.2): SRS items `item.result` (solved / hint / failed), lessons
+ *  `lesson.completed`, exercises `exercise.submitted` (pass / close / miss), prompts
+ *  `prompt.completed`; every block is checked in `done` with `checkInMinutes(block)` (4.6).
+ *  Deterministic for a seed. */
+export function simulate(options: SimOptions): SimRun
+
+// lib/domain/plan/simInputs.ts
+/** What the DSA simulation reads (§5.11 projection inputs), extracted from content by tools/sim. */
+export type SimInputs = {
+  readonly rulesVersion: number
+  readonly trackId: string
+  readonly srs: SrsParams
+  readonly estimates: { readonly lesson: number; readonly problem: Readonly<Record<Difficulty, number>> }
+  readonly review: { readonly recallMinutes: number; readonly redoFactor: number }
+  readonly weeklyTemplate: PlanWeeklyTemplate
+  readonly defaults: PlanTrack['defaults']
+  readonly roadmaps: Readonly<Record<string, PlanRoadmap>>
+  /** Every problem a roadmap lists → its difficulty and topic. */
+  readonly problems: Readonly<Record<string, { readonly difficulty: Difficulty; readonly topic: string }>>
+}
+/** The planned content (§5.11): one active pattern lesson per topic a roadmap week lists
+ *  (`<trackId>:lesson-<topic>`), every listed problem active with its difficulty's minutes
+ *  (redo = round(new × redoFactor), recall / review / explain-aloud = recallMinutes), and one
+ *  repeatable prompt `<trackId>:prompt-<tag>` per practice `tag` in `weeklyTemplate`, with that
+ *  block's minutes — prompt files are not inputs, so they are not hashed (bots may edit them). */
+export function simCatalog(inputs: SimInputs): PlanCatalog
+export function simEnrollment(inputs: SimInputs, variant: string, budgetMinutes: number): Enrollment
+```
+
+`tools/sim/inputs.ts`: `simInputs(catalog: Catalog): SimInputs` (DSA manifest `srs` resolved for
+problems, `estimates.lesson`, `estimates.problem.new`, `review`, `weeklyTemplate`, `defaults`;
+every roadmap file; each listed problem's difficulty and topic — no prompt file is read) and
+`inputsHash(inputs: SimInputs): string` (sha256 hex of the JSON with keys sorted recursively,
+`node:crypto`). `tools/sim/cli.ts` (`pnpm sim:projections`): for variants `8w`, `10w` × budgets
+45, 60, 75, 90, 120 runs 200 realistic learners (seeds 0…199) for 182 days, and writes
+`lib/domain/plan/projections.generated.json` =
+`{ inputsHash, rulesVersion, runs: 200, days: 182, table: { dsa: { '8w': [[45, median, p90], …],
+'10w': [...] } } }` (weeks = (finishDay + 1) / 7) and `lib/domain/plan/sim-inputs.generated.json`
+(the inputs), printing progress per scenario. A run that does not finish within 182 days is rerun
+for 364 days; one that still does not finish makes the CLI exit non-zero (the UI must never show
+"~99 tuần").
+
+- [ ] **Step 1: `simulate.ts` unit tests first.** `random.test.ts`: `mulberry32(1)` starts
+  `0.6270739405881613, 0.002735721180215478, 0.5274470399599522` (pinned); every value is in
+  [0, 1). `simulate.test.ts`: `percentile([1, 2, 3, 4], 0.5)` → 2.5,
+  `([5], 0.9)` → 5; `simulate` on `CATALOG` / DSA / ideal for 21 days finishes the two-week
+  fixture roadmap (finishDay not null — only active roadmap items count, so the retired p8 never
+  blocks it), every day `withinBudget`; the same seed twice →
+  deep-equal runs; a realistic run has exactly one day per 7-day block with `studied: false`
+  (the skip), never two `SimDay`s with the same `planDate`, and a `planDate: null` day right after
+  each skip (the resume day). Then implement `percentile` and `simulate`.
+- [ ] **Step 2: `simInputs.ts`** tests with a two-week hand-built `SimInputs`: `simCatalog` has one
+  lesson per topic, problem minutes `{ new: 35, redo: 21, recall: 5, … }` for an M problem at
+  redoFactor 0.6, one repeatable prompt `dsa:prompt-mock-interview` (45 minutes) from the Sunday
+  practice block; `simEnrollment` uses the defaults with the given variant and
+  budget. Implement.
+- [ ] **Step 3: `tools/sim`** — `inputs.ts` (tests: on the real generated catalog, `simInputs`
+  lists both DSA roadmaps and a difficulty for every problem they reference; `inputsHash` is
+  stable under key order and changes when one difficulty changes), `cli.ts`, the `package.json`
+  script `"sim:projections": "pnpm content:build && tsx tools/sim/cli.ts && prettier --write
+  lib/domain/plan/*.generated.json"`. Run `pnpm sim:projections` and commit both generated files.
+- [ ] **Step 4: `tools/sim/projections.test.ts`** (on the generated catalog, `@/.generated/catalog`):
+  `projections.generated.json.inputsHash === inputsHash(simInputs(CATALOG))`, `rulesVersion ===
+  RULES_VERSION`, and `sim-inputs.generated.json` deep-equals `simInputs(CATALOG)` — each failing with "run pnpm
+  sim:projections". `lib/domain/plan/projections.ts`: `PROJECTION_TABLE` = the generated `table`
+  (typed); `projectFinish` keeps its signature and behaviour; `projections.test.ts` stops pinning
+  the §5.11 prototype numbers and tests the interpolation against a hand-built table passed to an
+  exported `projectFinishIn(table, trackId, variant, budget)`, plus "every generated row is sorted
+  by budget and has median ≤ p90".
+- [ ] **Step 5: The simulation tests** (`simulation.dsa.test.ts`, `simulation.english.test.ts`,
+  `describe` with `{ timeout: 180_000 }`), 200 realistic seeds (0…199) + 1 ideal run per scenario,
+  126 days from `2026-09-28`:
+  - DSA (from `sim-inputs.generated.json` via `simCatalog`): 8w @ 60 realistic → finish p90 ≤ 12.5
+    weeks, max ≤ 13.5; 10w @ 90 realistic → p90 ≤ 11.5; 10w @ 75 realistic → p90 ≤ 14; ideal 8w @
+    60 ≤ 8.5; ideal 10w @ 90 ≤ 7.5; for 8w @ 60, 10w @ 75 and 10w @ 90 realistic: p90 of the
+    per-run max due ≤ 40 and p90 of the due count at day 125 ≤ 15; snapshot: 10w @ 60 realistic
+    median > 12 (documents §5.11);
+  - English (`englishModel.ts`: core cards per week `[12, 16, 14, 14, 12, 13, 16, 14, 11, 13]`,
+    extended cards `30 − core` for weeks 1–3, six exercises and one weekend prompt per week, 105
+    derived cards whose sources gain a result at 0.9 per day through `externalResults`, the real
+    English template, 25 min, `newPerDay` 8, throttle `>40 → 4, >60 → 0`): mean due over days
+    56–125 (the prototype's `mean(dues[56:])` over 126 days, which §5.10 labels "w8–12") ≤ 25; p90 of the per-run max due ≤ 90; p90 of the due count at day 125 ≤ 25;
+    every core card introduced by day 125 in every run;
+  - every simulated day of every run: `withinBudget` (the §5.4 invariant).
+  Run them; record every observed value (median, p90, max) next to its threshold in the report.
+  **If any threshold fails, stop and report `BLOCKED` with the numbers and your diagnosis**
+  (decision 21) — do not change a threshold.
+- [ ] **Step 6: Displayed projections** — if the regenerated 8w/10w numbers change the text the
+  onboarding wizard and variant picker show, update their component tests and
+  `e2e/onboarding.spec.ts` to the new values. Do not run e2e (the wave's stack holder is 4.12); the
+  controller runs `pnpm test:e2e --grep onboarding` after the wave.
+- [ ] **Step 7: Docs** — ADR-0014 (`[7, 21, 60]` for DSA problems, `[1, 3, 7, 14]` for English and
+  DSA cards, mastery after 2, relearn 3 / 1; the §5.10 prototype; the TypeScript calibration run
+  and its numbers; thresholds frozen), ADR-0037 (the projection table is generated and keyed by the
+  inputs hash; the stale-hash test; the inputs are only what bots cannot edit — manifests,
+  roadmaps, `problem.yaml` — and prompt files are deliberately not hashed (the simulation derives
+  its prompts from the template's practice blocks), so content-only PRs stay green); spec §5.10 and §5.11 gain a line "Regenerated in M4 by `pnpm
+  sim:projections` → `lib/domain/plan/projections.generated.json` (authoritative from then on);
+  calibrated TypeScript numbers: …"; `CLAUDE.md` and `README.md` list `pnpm sim:projections`
+  ("regenerate the simulated finish table after changing DSA roadmaps, difficulties or the
+  manifest's srs / review / estimates / weeklyTemplate / defaults").
+- [ ] **Step 8:** `pnpm verify` (note the test duration in the report). **Commits:**
+  `feat(domain): plan simulation (§5.10)`, `feat(sim): projection table from the TypeScript
+  simulation (ADR-0014, ADR-0037)`.
+
+### Task 4.9a: Migration — `day_plans` and the derived tables
+
+**Spec:** §4.1, §4.3, §4.5, §5.2 (`mark_plan_seen`); decisions 6, 11, 18. **Files:**
+
+- Create: `supabase/migrations/20260926000100_day_plans_and_derived_tables.sql`,
+  `supabase/tests/database/070-derived-tables.test.sql`
+- Modify: `lib/domain/plan/projections.generated.json` and `lib/domain/plan/sim-inputs.generated.json`
+  (ruling M4-R11: `pnpm sim:projections` after the bump, same commit — `tools/sim/projections.test.ts`
+  pins `rulesVersion` and the inputs hash), `docs/plans/2026-09-23-platform-design.md` (§4.1: "plans
+  are never pruned", decision 35), `lib/domain/rules.ts` (`RULES_VERSION = 2`), `tools/db/sql-sync.test.ts` (decision 18:
+  a case reading `supabase/tests/database/070-derived-tables.test.sql` with
+  `/select is\(\s*public\.rules_version\(\),\s*(\d+)/` and expecting `String(RULES_VERSION)`),
+  `lib/supabase/database.types.ts` (`pnpm db:types`), `supabase/tests/database/{001,012,030,040,060}-*.sql` (the allowlist, and
+  every expectation of `rules_version` 1 on a row a learner writes → 2; 041's system events keep the
+  `rules_version` they send, so 041 is unchanged), `docs/adr/0007-*.md` (one line: derived tables
+  are bounded like the state tables, decision 11)
+
+**The migration** (every function revokes PUBLIC and grants exactly its callers — the 001
+invariants):
+
+```sql
+-- §4.7 / decision 18: the first rules with plan and SRS behaviour (lib/domain/rules.ts).
+create or replace function public.rules_version() returns integer
+language sql immutable set search_path = '' as $$
+  select 2
+$$;
+
+create table public.day_plans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  plan_date date not null,
+  source text not null default 'baseline' check (source in ('baseline', 'ai')),
+  version integer not null default 1 check (version >= 1),
+  blocks jsonb not null check (jsonb_typeof(blocks) = 'array' and octet_length(blocks::text) <= 131072),
+  roadmap_weeks jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(roadmap_weeks) = 'object' and octet_length(roadmap_weeks::text) <= 8192),
+  rules_version integer not null default public.rules_version() check (rules_version >= 1),
+  seen_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, plan_date)
+);
+create trigger set_updated_at before update on public.day_plans
+  for each row execute function public.set_updated_at();
+
+create table public.plan_block_state (
+  plan_id uuid not null references public.day_plans (id) on delete cascade,
+  block_id text not null check (octet_length(block_id) <= 128),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  track_id text not null check (track_id ~ '^[a-z][a-z0-9-]{0,31}$'),
+  status text not null check (status in ('done', 'partial', 'skipped')),
+  minutes integer not null check (minutes between 0 and 600),
+  note text check (char_length(note) <= 1000),
+  auto boolean not null default false,
+  checked_in_on date not null,
+  checked_in_at timestamptz not null default now(),
+  version integer not null default 1 check (version >= 1),
+  rules_version integer not null default public.rules_version() check (rules_version >= 1),
+  primary key (plan_id, block_id)
+);
+
+create table public.item_state (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  item_id text not null check (octet_length(item_id) <= 128),
+  track_id text not null check (track_id ~ '^[a-z][a-z0-9-]{0,31}$'),
+  topic_id text check (octet_length(topic_id) <= 32),
+  item_type text not null check (item_type in ('problem', 'flashcard', 'lesson', 'exercise', 'prompt')),
+  level integer not null default 0 check (level between 0 and 32),
+  weak boolean not null default false,
+  top_successes integer not null default 0 check (top_successes >= 0),
+  status text not null check (status in ('weak', 'ok', 'strong', 'mastered', 'skipped')),
+  due_on date,
+  last_result text check (octet_length(last_result) <= 32),
+  last_result_on date,
+  introduced_on date not null,
+  lapses integer not null default 0 check (lapses >= 0),
+  reps integer not null default 0 check (reps >= 0),
+  version integer not null default 1 check (version >= 1),
+  rules_version integer not null default public.rules_version() check (rules_version >= 1),
+  primary key (user_id, item_id)
+);
+create index item_state_user_due_idx on public.item_state (user_id, due_on);
+
+create table public.daily_activity (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  local_day date not null,
+  minutes_by_track jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(minutes_by_track) = 'object' and octet_length(minutes_by_track::text) <= 2048),
+  items_done integer not null default 0 check (items_done >= 0),
+  completed boolean not null default false,
+  version integer not null default 1 check (version >= 1),
+  rules_version integer not null default public.rules_version() check (rules_version >= 1),
+  primary key (user_id, local_day)
+);
+
+alter table public.user_tracks add column reset_on date;  -- decision 9: set by track.reset (4.9b)
+
+-- Events that name a plan (§4.1). Cascade, never set null: the account-deletion cascade deletes
+-- plans and events together, and a SET NULL would UPDATE an event (events_append_only raises).
+alter table public.events add constraint events_plan_id_fkey
+  foreign key (plan_id) references public.day_plans (id) on delete cascade;
+```
+
+Plus, in the same migration:
+
+- **`public.plan_lock_key(p_user_id uuid, p_plan_date date) returns bigint`** — `language sql
+  immutable`, `search_path ''`: `pg_catalog.hashtextextended('day_plan:' || p_user_id::text || ':'
+  || (p_plan_date - date '2000-01-01')::text, 0)` — a day number, not the date's text, which would
+  depend on the session's `DateStyle` and make the function not immutable (ruling M4-R12, 4.9a
+  review). The one key of the `(user, plan_date)` advisory lock (decision 33), used by
+  `apply_event` (4.9b) and `apply_system_event` (4.9c). Revoke PUBLIC; grant `authenticated`,
+  `service_role` (the invoker `apply_event` calls it as the learner); 001 allowlist.
+- **`events_prepare`** (`create or replace`, the 000200 body unchanged plus): for `authenticated`,
+  a non-null `plan_id` must be one of the user's own plans (`exists (select 1 from
+  public.day_plans d where d.id = new.plan_id and d.user_id = new.user_id)`, RLS applies) else
+  `raise exception 'forbidden_plan_id' using errcode = '42501'` — a learner can never mark another
+  user's plan as touched.
+- **Bounds (decision 11)** — `BEFORE INSERT` triggers, applied only when `current_user =
+  'authenticated'` (the secret-key role and definer functions are trusted); a row whose `user_id`
+  is not `auth.uid()` is left to RLS (a learner never takes another user's lock — the 000100
+  pattern); a per-user advisory lock where one counts rows. `item_state_limit_rows` →
+  `too_many_items` above 5000 rows per user (the count leaves out `new.item_id`, so the insert half
+  of an upsert of an existing row is free — the 000100 pattern); `daily_activity_window` →
+  `invalid_local_day` unless `local_day` is within one day of `public.user_local_day(new.user_id,
+  now())`; `plan_block_state_known_block` → `unknown_block` unless the plan belongs to
+  `new.user_id` and `exists (select 1 from jsonb_array_elements(d.blocks) b where b ->> 'id' =
+  new.block_id)`.
+- **Plans are permanent (decision 35):** `create trigger day_plans_permanent before delete on
+  public.day_plans for each row execute function public.day_plans_reject_delete()`, where the
+  function raises `plans_are_permanent` when `pg_trigger_depth() < 2`. Inside a trigger function
+  the depth is 1 for a delete statement issued directly (by any role — `authenticated` has no
+  delete grant anyway, `service_role` and `postgres` do) and at least 2 when the delete comes from
+  the account-deletion cascade (the foreign-key action runs it from its own trigger). Revoke
+  PUBLIC; no grants (trigger function).
+- **`mark_plan_seen(p_plan_id uuid) returns boolean`** — `SECURITY DEFINER`, `search_path ''`:
+  `auth.uid()` null → `not_authenticated`; `not public.is_active()` → `inactive`; `update
+  public.day_plans set seen_at = now() where id = p_plan_id and user_id = auth.uid() and seen_at
+  is null` (so a second call changes nothing, not even `updated_at`); returns whether the plan is
+  the caller's (`exists (…)`), never another user's information. `grant execute … to
+  authenticated`.
+- **Grants and RLS** (deny by default, §4.5): `day_plans` — `select` own only (plans are written
+  by `apply_system_event` in 4.9c; `seen_at` by `mark_plan_seen`); `plan_block_state`,
+  `item_state`, `daily_activity` — `select` own; `insert` own with `is_active()`; `update` own with
+  `is_active()` **on non-key columns only** (decision 11): `item_state` — every column except
+  `user_id` and `item_id`; `daily_activity` — `minutes_by_track`, `items_done`, `completed`,
+  `version`, `rules_version`; `plan_block_state` — `status`, `minutes`, `note`, `auto`,
+  `checked_in_at`, `version`, `rules_version`; `item_state` also `delete` own with `is_active()`
+  (`track.reset` inside the invoker `apply_event`, 4.9b). No `anon` access. Policies use `(select auth.uid())` and
+  `(select public.is_active())` as in 000100.
+
+- [ ] **Step 1: Write the failing pgTAP** `070-derived-tables.test.sql` (`select plan(n)`, helpers
+  from `_helpers.psql`; plans are inserted as `postgres` with `tests.clear_authentication()`):
+  1. the four tables exist with RLS on (and 001's invariants still pass);
+  2. `select is(public.rules_version(), 2, 'the running rules_version() equals lib/domain/rules.ts
+     RULES_VERSION');` — this exact shape, which the new sql-sync case reads (decision 18); a
+     learner event's stored `rules_version` = 2;
+  3. a learner sees only their own plans, block states, item states and daily activity; cannot
+     insert or update `day_plans` (42501);
+  4. `mark_plan_seen`: own unseen plan → true and `seen_at` set; a second call → true and
+     `seen_at`, `updated_at` unchanged; another user's plan → false and that plan unchanged; a
+     pending user → `inactive`; anon cannot execute;
+  5. a learner's direct event insert with another user's `plan_id` → `forbidden_plan_id`; with
+     their own → ok; with a nonexistent one → `forbidden_plan_id` too (the BEFORE trigger runs
+     before the foreign key); inserted as `postgres` with a nonexistent `plan_id` → `23503`;
+  6. bounds: the 5001st `item_state` insert → `too_many_items` (insert 5000 with
+     `generate_series`); a `daily_activity` insert two days back → `invalid_local_day`, today
+     and yesterday → ok; a `plan_block_state` insert for a block id the plan does not list →
+     `unknown_block`; `service_role` is not bounded; a learner `UPDATE` of
+     `daily_activity.local_day`, `plan_block_state.block_id` / `plan_id` or `item_state.item_id`
+     → 42501 (column grants), of `item_state.due_on` → ok;
+  6b. `plan_lock_key(u, d)` is deterministic and differs for another day;
+  7. account deletion (`delete from auth.users`) removes the user's plans, block states, item
+     states, daily activity and events that name a plan, with no `events_are_append_only` error;
+  8. `user_tracks.reset_on` exists and defaults to null; `item_state_user_due_idx` exists;
+  9. **plans are permanent** (decision 35): a direct `delete from public.day_plans` as
+     `service_role` and as `postgres` → `plans_are_permanent`, the plan and its events and block
+     states intact; account deletion still removes the user's plans, their block states and the
+     events that name them, with no error (item 7 covers the cascade; assert both here).
+- [ ] **Step 2:** `pnpm db:reset && pnpm test:db` — 070 fails (no tables).
+- [ ] **Step 3: Write the migration**; bump `RULES_VERSION` to 2 in `lib/domain/rules.ts`; update
+  the 001 allowlist (`mark_plan_seen`, `plan_lock_key`) and the `rules_version` expectations in
+  012, 030, 040 and 060 where they assert a value a learner wrote (a test that *sends* `rules_version: 1` may keep
+  sending it — the trigger forces the current version for learners; assert 2).
+- [ ] **Step 4:** `pnpm db:reset && pnpm test:db` — all green; `pnpm db:types`; `pnpm
+  sim:projections` (ruling M4-R11: the bump changes `rulesVersion` and the inputs hash of the
+  generated files); `pnpm verify` (the sql-sync test checks `RULES_VERSION` = `rules_version()`;
+  `tools/sim/projections.test.ts` the regenerated files). Add the §4.1 spec note.
+- [ ] **Step 5: Commit** `feat(db): day_plans and the derived tables, mark_plan_seen, rules
+  version 2`.
+
+### Task 4.9b: `apply_event` with derived changes, versions and locks
+
+**Spec:** §4.3 (`apply_event`), §4.4 (atomicity, locking), §4.5, §5.9 (pause, reset); decisions
+9, 10, 27, 33. **[RF-2].** **Files:**
+
+- Create: `supabase/migrations/20260926000200_apply_event_derived.sql`,
+  `supabase/tests/database/071-apply-event-derived.test.sql`, `lib/events/derived.ts`
+  (+ `derived.test.ts`)
+- Modify: `lib/domain/events.ts` (+ test: `export const MAX_PAUSED_DAYS = 3650`, and
+  `track.resumed.pausedDays` gains `.max(MAX_PAUSED_DAYS)`), `features/settings/actions.ts` (+ test:
+  the resume action clamps `pausedDays` to `MAX_PAUSED_DAYS`), `lib/events/apply.ts` (+ `apply.test.ts`), `lib/supabase/database.types.ts` (the new
+  public function `apply_derived_changes` appears), `supabase/tests/database/001-schema-invariants.test.sql`
+  (allowlist: `apply_derived_changes`), `supabase/tests/database/040-apply-event.test.sql` (its four
+  `not_implemented` expectations become: `item.result` without `item_id` → `invalid_event`;
+  `track.reset` on an unenrolled track → `track_not_enrolled`; `track.paused` with `p_changes`
+  `[{"table":"item_state"}]` → `invalid_event`; `track.paused` with `p_expected`
+  `{"item_state:x":1}` → `invalid_event`)
+
+**SQL** — `create or replace function public.apply_event(p_event jsonb, p_changes jsonb default
+'[]', p_expected jsonb default '{}')` (same signature, `SECURITY INVOKER`):
+
+1. Signed in, own user only (unchanged).
+2. Every learner type is implemented (no more `not_implemented`). Validation (`invalid_event`):
+   the M2 checks, plus `item_id` required for `item.result`, `lesson.completed`,
+   `exercise.submitted`, `prompt.completed`, `item.skipped`, `item.readded`; `plan_id`,
+   `block_id` and `track_id` required for `block.checked_in`; `p_changes` a JSON array (≤ 16
+   elements) and `p_expected` an object; `local_day`, when present, a valid date.
+3. Active users only (unchanged).
+4. **Plan lock** (§4.4): when `plan_id` is set, `select plan_date … from public.day_plans where id
+   = plan_id and user_id = v_uid` (not found → `invalid_event`), then
+   `pg_advisory_xact_lock(public.plan_lock_key(v_uid, plan_date))` — before any row lock, and the
+   same key 4.9c takes first, so a result, an auto check-in and a plan rebuild never interleave or
+   deadlock (decision 33).
+5. Duplicate id → `{ outcome: 'duplicate', versions: {} }` before any change (unchanged).
+6. The event insert (unchanged), then `select local_day` of the new row; when `p_event ?
+   'local_day'` and it differs → `raise exception 'day_changed'` (decision 10).
+7. State changes: the M2 cases, with `track.enrolled`'s upsert also resetting `new_per_day`,
+   `throttle`, `weekly_template` to null and `include_bonus` to false; `track.updated` matching
+   `status <> 'removed'` only (a removed track → `track_not_enrolled`); plus
+   - `track.reset`: the track must be enrolled with status `active` or `paused` (removed →
+     `invalid_transition`, none → `track_not_enrolled`); `delete from public.item_state where
+     user_id = v_uid and track_id = v_track`; `update public.user_tracks set reset_on =
+     <event local_day>`;
+   - `track.resumed`: first `pausedDays` must be a JSON integer 0–3650 (`jsonb_typeof = 'number'`,
+     integral, within bounds — decision 36) else `invalid_event`, checked before any cast; after
+     the status update, `update public.item_state set due_on = due_on + (v_payload ->>
+     'pausedDays')::integer, version = version + 1 where user_id = v_uid and track_id = v_track and
+     due_on is not null`.
+8. Derived rows: `v_versions := public.apply_derived_changes(v_uid, p_event, v_local_day,
+   p_changes, p_expected)`; return `{ outcome: 'applied', versions: v_versions }`.
+
+`public.apply_derived_changes(p_user_id uuid, p_event jsonb, p_local_day date, p_changes jsonb,
+p_expected jsonb) returns jsonb` — `SECURITY INVOKER` (as its caller: RLS for learners, the owner
+inside `apply_system_event`), `search_path ''`, executable by `authenticated` and `service_role`
+(001 allowlist; calling it directly gives a learner nothing a direct write would not):
+
+| Event type | Allowed tables and keys |
+| --- | --- |
+| `item.result`, `lesson.completed`, `exercise.submitted`, `prompt.completed` | `item_state` (row `item_id` = the event's), `daily_activity` |
+| `item.skipped`, `item.readded`, `item.snapshot` | `item_state` (the event's item) |
+| `block.checked_in` | `plan_block_state` (row `plan_id` / `block_id` = the event's), `daily_activity` |
+| anything else | none — `p_changes` must be `[]` |
+
+For each change `{ table, row }`: the key is `item_state:<item_id>`,
+`plan_block_state:<plan_id>/<block_id>` or `daily_activity:<local_day>`; `p_expected` must hold
+it (else `invalid_event`), and every `p_expected` key must belong to a change (else
+`invalid_event`); expected `0` → `insert … on conflict do nothing` with `version 1` (no row
+inserted → `version_conflict`); expected `n` → `update … set <columns>, version = version + 1 where
+<key> and user_id = p_user_id and version = n` (no row → `version_conflict`). `user_id` is always
+`p_user_id` (never from the row); `rules_version` is the event's; `plan_block_state.checked_in_on`
+is `p_local_day` on insert and never changes on update, `checked_in_at` is `now()`. Returns `{
+"<key>": <new version>, … }`.
+
+**TypeScript** — `lib/events/derived.ts` (server code, not `server-only`: pure mapping):
+
+```ts
+export type VersionMap = {
+  readonly items: Readonly<Record<string, number>>
+  readonly blocks: Readonly<Record<string, number>> // blockKey(planId, blockId)
+  readonly days: Readonly<Record<LocalDay, number>>
+}
+export const NO_VERSIONS: VersionMap // all three empty
+export type DerivedWrite = { readonly changes: Json[]; readonly expected: Record<string, number> }
+/** The rows that differ between `before` and `after` (deep equality) as p_changes, each with its
+ *  version from `versions` (0 when absent) in p_expected. Used only for the event types of the
+ *  `apply_derived_changes` table above; every other type — `track.reset` and `track.resumed`
+ *  included, whose derived effects SQL applies itself — sends no derived write. A row missing
+ *  from `after` throws (deletions happen only in SQL). */
+export function derivedWrite(before: DerivedState, after: DerivedState, versions: VersionMap): DerivedWrite
+/** Row mappers: snake_case database rows ↔ domain state (version columns dropped / collected). */
+export function itemStateFromRow(row: ItemStateRow): ItemState
+export function blockStateFromRow(row: BlockStateRow): BlockState
+export function dailyActivityFromRow(row: DailyActivityRow): DailyActivity
+export function derivedStateFromRows(rows: {
+  items: readonly ItemStateRow[]; blocks: readonly BlockStateRow[]; days: readonly DailyActivityRow[]
+}): { readonly state: DerivedState; readonly versions: VersionMap }
+```
+
+(`ItemStateRow` etc. = `Database['public']['Tables'][…]['Row']`; `minutes_by_track` is Zod-checked
+as `Record<string, number>` and read as `{}` when malformed.) `lib/events/apply.ts`:
+`EventInput` gains `localDay?: LocalDay` (sent as `p_event.local_day`); `applyLearnerEvent(supabase,
+event, derived?: DerivedWrite)` passes `p_changes` / `p_expected`; `EventErrorCode` gains
+`version_conflict` and `day_changed` (user message `vi.errors.saveFailed` — no new copy);
+`export function isRetryable(error: unknown): boolean` (those two codes) and `export async function
+withRetry<T>(attempt: () => Promise<T>, attempts = 3): Promise<T>` (re-runs `attempt` — which
+reloads and recomputes — only on a retryable error, at most `attempts` times, then rethrows).
+
+- [ ] **Step 1: Failing pgTAP** `071-apply-event-derived.test.sql` (a local `tests.event` helper
+  with `item_id` / `plan_id` / `block_id` / `local_day`, plans inserted as `postgres`):
+  1. `item.result` with `item_state` (expected 0) and `daily_activity` (expected 0) → applied,
+     versions `{ "item_state:dsa:lc-0001": 1, "daily_activity:<day>": 1 }`, the rows stored with
+     `user_id` = the caller whatever the row said, `rules_version` 2;
+  2. **[RF-2]** the same event id again (even with different changes) → `duplicate`, rows and
+     event count unchanged, quota unchanged;
+  3. **[RF-2]** a new event with expected 0 for an existing row → `version_conflict`, and **no
+     event row** and no quota increment remain; expected 1 when the row is at 2 → the same;
+  4. a change without its `p_expected` key, an extra `p_expected` key, a change for another item
+     than the event's, `plan_block_state` on an `item.result`, any change on `track.updated` →
+     `invalid_event`;
+  5. `block.checked_in` insert → `checked_in_on` = the event's local day; an update from a later
+     transaction keeps `checked_in_on` and bumps `version`;
+  6. a `block.checked_in` naming another user's plan → `invalid_event`; the advisory lock is held
+     (in the same transaction, `pg_locks` has an `advisory` row whose `(classid, objid)` are the
+     high and low 32 bits of `plan_lock_key(<user>, <plan_date>)`);
+  7. `local_day` mismatch → `day_changed`, nothing stored;
+  8. `track.reset` deletes only that track's `item_state` rows, sets `reset_on`; on a removed track
+     → `invalid_transition`; on no enrollment → `track_not_enrolled`;
+  9. `track.paused` then `track.resumed { pausedDays: 5 }` shifts that track's `due_on` by 5 (null
+     ones stay null, other tracks untouched) — the same fixture as 4.2's resume test; `pausedDays`
+     `"5"` (a string), `-1`, `3651` and `2.5` → `invalid_event`, nothing shifted (decision 36);
+  10. re-enrolling (`track.enrolled`) after setting `newPerDay`, `throttle`, `weeklyTemplate`,
+      `includeBonus` resets them; `track.updated` on a removed track → `track_not_enrolled`;
+  11. every M2 case of 040 still passes with its four updated expectations (Files); run the whole
+      suite.
+- [ ] **Step 2: Failing Vitest** `derived.test.ts` / `apply.test.ts`: `derivedWrite` emits only
+  changed rows, snake_case, expected from the version map (0 for new rows), keys as above, throws on
+  a deleted row; `derivedStateFromRows` round-trips; `applyLearnerEvent` sends `p_changes`,
+  `p_expected` and `local_day`; `version_conflict` / `day_changed` map to `EventError` with
+  `vi.errors.saveFailed`; `withRetry` retries retryable errors up to 3 attempts and rethrows others
+  at once.
+- [ ] **Step 3:** `pnpm db:reset && pnpm test:db`, `pnpm vitest run lib/events` — fail.
+  **Step 4:** write the migration and the TypeScript. **Step 5:** both green; `pnpm db:types` and
+  commit its diff (it adds `apply_derived_changes`); `pnpm verify`.
+- [ ] **Step 6: Commit** `feat(db): apply_event writes derived rows with versions, plan locks,
+  track reset and resume`.
+
+### Task 4.9c: `apply_system_event` — plan generation and the auto check-in
+
+**Spec:** §2.3 (untouched plans), §4.3, §4.4 (`plan.generated`, auto `block.checked_in`), §5.4
+steps 1, 4 and "settings changes", §5.5 (auto check-in); decisions 10, 12, 30, 33. **Files:**
+
+- Create: `supabase/migrations/20260926000300_plan_system_events.sql`,
+  `supabase/tests/database/072-plan-events.test.sql`, `lib/events/plans.ts` (+ `plans.test.ts`)
+- Modify: `lib/events/apply.ts` (+ test), `lib/supabase/database.types.ts`,
+  `supabase/tests/database/{001,041}-*.sql` (041: a non-empty `p_changes` on
+  `onboarding.completed` → `invalid_event` instead of `not_implemented`; a case that expects
+  `not_implemented` uses a type that stays unimplemented, e.g. `plan.extra_added`)
+
+**SQL** — `create or replace function public.apply_system_event(p_user_id uuid, p_event jsonb,
+p_changes jsonb default '[]', p_expected jsonb default '{}')` (`SECURITY DEFINER`, secret key only,
+unchanged grants). It implements `onboarding.completed` (as M2), plus:
+
+- **`plan.generated`** — `p_changes` = `[{ "table": "day_plans", "row": { "plan_date", "blocks",
+  "roadmap_weeks" } }]`, `p_expected` = `{ "day_plans:<plan_date>": 0 | n }`, payload `{ mode,
+  planVersion }`. Take the `(user, plan_date)` advisory lock **first**
+  (`pg_advisory_xact_lock(public.plan_lock_key(p_user_id, <row plan_date>))`), then the profile
+  row lock (M2), then the duplicate-id check (decision 33 — the reverse order deadlocks with
+  `apply_event`).
+  - `baseline` / `resume`: expected must be 0 and `planVersion` 1. A plan already exists for the
+    date → return `{ outcome: 'plan_exists', plan_id: <its id>, versions: {} }`, **no event**.
+    Otherwise insert the plan (`version 1`, `source 'baseline'`, `rules_version` the event's),
+    then the event with `plan_id` = the new id; return `{ outcome: 'applied', plan_id, versions: {
+    "day_plans:<date>": 1 } }`.
+  - `rebuild`: expected n ≥ 1 and `planVersion` = n + 1. No plan with version n for the date →
+    `version_conflict`. Touched (decision 12: a `plan_block_state` row, or an event with this
+    `plan_id` whose type is not `plan.generated` / `plan.ai_proposed` / `plan.ai_applied` /
+    `plan.ai_skipped`) → `{ outcome: 'plan_in_use', plan_id, versions: {} }`, no event.
+    Otherwise update `blocks`, `roadmap_weeks`, `version = n + 1`, `source = 'baseline'`,
+    `rules_version`; **keep `seen_at`**; insert the event; return `applied`.
+- **`block.checked_in`** (the auto check-in, §5.5): payload `auto` must be `true` (else
+  `invalid_event`); the plan lock first (`plan_date` from the user's plan named by `plan_id`; not
+  theirs → `invalid_event`), then the profile lock and the duplicate check; after the event insert
+  the same `local_day` check as 4.9b (`p_event.local_day` differs → `day_changed`); then the same
+  derived writes as the learner path through `public.apply_derived_changes(p_user_id, …)`;
+  `source` defaults to `system`. `onboarding.completed` keeps M2's order (no plan lock) and now
+  rejects a non-empty `p_changes` / `p_expected` with `invalid_event`.
+- Every other system type stays `not_implemented`, each with its owning task: `plan.extra_added`
+  → 5.4; `plan.ai_proposed` / `ai_applied` / `ai_skipped` → 6.5; `user_item.*` and
+  `roadmap.override_*` → 6.6; `admin.bot_token_rotated` → 6.3; `item.snapshot` → the compaction job
+  (release table "later"; ADR-0031 names its trigger, the 350 MB warning). The other admin events
+  have their own functions (M2).
+
+**TypeScript** — `lib/events/plans.ts` (`server-only`):
+
+```ts
+export type PlanWriteMode = 'baseline' | 'resume' | 'rebuild'
+export type PlanWriteOutcome = 'applied' | 'duplicate' | 'plan_exists' | 'plan_in_use'
+/** plan.generated through apply_system_event (secret-key client, after requireActive). */
+export async function storePlan(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  input: {
+    readonly eventId: string
+    readonly plan: DayPlan
+    readonly mode: PlanWriteMode
+    /** 0 for baseline / resume; the current version for rebuild. */
+    readonly expectedVersion: number
+  },
+): Promise<{ readonly outcome: PlanWriteOutcome; readonly planId: string | null }>
+/** A day_plans row → StoredPlan; blocks and roadmap_weeks Zod-validated (planBlockSchema,
+ *  trackSnapshotSchema); a malformed row → null (M5 treats it as no plan and rebuilds). */
+export function storedPlanFromRow(row: DayPlanRow): StoredPlan | null
+```
+
+`lib/events/apply.ts`: `applySystemEvent(admin, userId, event, derived?: DerivedWrite)` passes the
+derived write (the auto check-in); its outcome type is unchanged.
+
+- [ ] **Step 1: Failing pgTAP** `072-plan-events.test.sql` (as `service_role` via
+  `tests.authenticate_as_service_role()`):
+  1. baseline → `applied` with a `plan_id`, one plan (version 1, `seen_at` null) and one
+     `plan.generated` event carrying that `plan_id`, source `system`;
+  2. a second baseline for the same date (new event id) → `plan_exists` with the first plan's id,
+     no second event; the same event id again → `duplicate`;
+  3. rebuild of an untouched plan (expected 1, `planVersion` 2) → version 2, new blocks,
+     `seen_at` kept (set it first with `mark_plan_seen` as the learner), `source` `baseline`; the
+     generation events alone do not make it touched;
+  4. rebuild after a learner check-in on it → `plan_in_use`, plan unchanged; after a learner
+     `item.result` carrying its `plan_id` → `plan_in_use`;
+  5. rebuild with a stale expected version → `version_conflict`; `planVersion` ≠ n + 1 →
+     `invalid_event`;
+  6. auto check-in (`block.checked_in`, `auto: true`) with `plan_block_state` and
+     `daily_activity` changes → rows written, `auto` true, event source `system`; `auto: false` →
+     `invalid_event`; a `local_day` that is not the database's → `day_changed`, nothing stored;
+  7. a plan whose `blocks` JSON exceeds 128 KB → the check constraint error; an inactive user →
+     `inactive`; `authenticated` cannot execute `apply_system_event` (041 still passes; its
+     `not_implemented` case uses a type that is still not implemented, e.g. `plan.extra_added`).
+- [ ] **Step 2: Failing Vitest** `plans.test.ts` (Supabase client mocked as in `apply.test.ts`):
+  `storePlan` sends the row (`plan_date`, `blocks`, `roadmap_weeks` from `plan.tracks`), payload
+  `{ mode, planVersion }`, `p_expected`; maps each outcome and `plan_id`; maps RPC errors to
+  `EventError`; `storedPlanFromRow` parses a valid row and returns null for bad blocks JSON.
+- [ ] **Step 3:** run both — fail. **Step 4:** implement. **Step 5:** `pnpm db:reset && pnpm
+  test:db`, `pnpm db:types`, `pnpm verify` — green.
+- [ ] **Step 6: Commit** `feat(db): plan generation and auto check-in through apply_system_event`.
+
+### Task 4.10: Plan catalog adapter (content → domain)
+
+**Spec:** §3.2–§3.5 (item types, manifests), §5.4 estimates, §5.7 `srs.byType`; decision 4; M2
+ruling R14 (readers validate the learner-writable JSON columns). **Files:**
+
+- Create: `lib/content/plan-catalog.ts`, `lib/content/plan-catalog.test.ts`
+
+**Interfaces:**
+
+```ts
+// lib/content/plan-catalog.ts (not server-only: pure; M5 loaders and tools/sim import it)
+/** The engine's view of `catalog` (decision 4): every item, drafts and retired included (the
+ *  engine filters by status), authored decks only. */
+export function toPlanCatalog(catalog: Catalog): PlanCatalog
+
+/** A user_tracks row as M5's loader reads it (camelCase; JSON columns unvalidated). */
+export type EnrollmentInput = {
+  readonly trackId: string
+  readonly roadmapVariant: string
+  readonly status: string
+  readonly startDate: string
+  readonly budgetMinutes: number
+  readonly newPerDay: number | null
+  readonly throttle: unknown
+  readonly weeklyTemplate: unknown
+  readonly includeBonus: boolean
+  readonly resetOn: string | null
+}
+/** Resolves every null / invalid setting to the track default (R14 reader rule): newPerDay null →
+ *  defaults.newPerDay; throttle / weeklyTemplate invalid or null → the track's; unknown track or
+ *  status → null (the row is ignored). */
+export function toEnrollment(input: EnrollmentInput, catalog: PlanCatalog): Enrollment | null
+```
+
+Mapping per item (`ITEM_TYPE_CORES[item.type]`, the item's track manifest): `srs` = `core.srs ?
+{ ...manifest.srs without byType, ...manifest.srs.byType?.[type] } : null`; `minutes[mode] =
+core.estimateMinutes(item.content, manifest, mode)` for every `ITEM_MODES` member (derived cards
+use their own track's manifest); `reviewModes` = problem; `difficulty` (problem);
+`tier`, `deckId`, `derivedFrom`, `hasExample` (flashcard); `about` (lesson); `deepDiveId`
+(problem: the ID of the lesson whose `about` is this problem, whatever its status and whether or
+not the problem has a note — not `note.deepDiveId`, which is null without a note); `tag`,
+`repeatable` (prompt); `week`, `topicId`, `status` as in the catalog. Tracks:
+`status`, `weeklyTemplate`, `defaults`, and `catalog.roadmaps[trackId]` copied into `PlanRoadmap`s.
+
+- [ ] **Step 1: Write the failing tests:**
+  - on the real generated catalog (`@/.generated/catalog`): every catalog item is mapped; every
+    `minutes` value is a positive number; `dsa:lc-0001` (Easy) → `{ new: 20, recall: 5, redo: 12,
+    review: 5, 'explain-aloud': 5 }`, `srs` `[7, 21, 60]` / 3 / 2, `reviewModes: true`; an English
+    card → `srs` `[1, 3, 7, 14]` / 1 / 2, `minutes.new` 1.5; a derived card → `tier: 'derived'`,
+    `derivedFrom` its source; `dsa:lesson-arrays-hashing` → `about: null`, minutes 25; the mock
+    interview prompt → `tag: 'mock-interview'`, `repeatable: true`, minutes 45; both tracks'
+    roadmaps present; `english:deck-w01-standup`'s `cardIds` start with the deck file's first card;
+  - a hand-built DSA manifest with `srs.byType.flashcard` → a DSA card gets `[1, 3, 7, 14]` /
+    relearn 1 / `masteredAfter` 2 (inherited);
+  - a hand-built catalog with a deep-dive lesson `about` a problem that has **no note** → that
+    problem's `deepDiveId` is the lesson (a draft lesson too; the engine checks the status);
+  - **outcome sync:** for every item-type core with `srs: true`, each `outcomes` entry equals
+    `RESULT_OUTCOMES[name]`, and every `RESULT_OUTCOMES` name belongs to such a core; a type-level
+    check that `ItemMode` and content `Mode` have the same members;
+  - `toEnrollment`: defaults resolved (`newPerDay: null` on English → 8; DSA → null); a malformed
+    `throttle` (`[{ dueAbove: 'x' }]`) or `weeklyTemplate` (`{ mon: [{ kind: 'nap' }] }`) → the
+    track's; a valid custom template is kept; unknown track → null; status `'archived'` → null.
+- [ ] **Step 2:** run — fail. **Step 3:** implement (`lib/content` may branch on item type).
+  **Step 4:** pass; `pnpm verify`.
+- [ ] **Step 5: Commit** `feat(content): plan catalog adapter for the engine`.
+
+### Task 4.11: Settings pause / resume — the real `pausedDays` query (e2e)
+
+**Source:** M2 deferred minor (task 2.11): `readLastPausedDay` in `features/settings/reads.ts` is
+mocked in every unit test, and the e2e never checks the stored payload. From 4.9b on,
+`track.resumed.pausedDays` shifts the track's due dates, so the real query must be pinned before M4
+merges (decision 27). **Spec:** §5.9 (pause shifts due dates). **Files:**
+
+- Modify: `e2e/support/users.ts` (two service-role helpers), `e2e/settings.spec.ts` (one test)
+
+**Interfaces** (`e2e/support/users.ts`, secret key of the local stack like the existing helpers):
+
+```ts
+/** Sets the enrollment to paused and records a `track.paused` event `daysAgo` days in the past
+ *  (inserted with the secret key, so `occurred_at` is not forced; the trigger computes local_day). */
+export async function seedPausedTrack(userId: string, trackId: string, daysAgo: number): Promise<void>
+/** The payload of the user's latest event of `type` for `trackId`, or null. */
+export async function latestEventPayload(
+  userId: string,
+  type: string,
+  trackId: string,
+): Promise<Record<string, unknown> | null>
+```
+
+- [ ] **Step 1: Write the failing test** in `e2e/settings.spec.ts`: an onboarded learner enrolled
+  in English (`seedLearnerSetup`), `seedPausedTrack(id, 'english', 5)`; in `/settings` the English
+  row shows the paused state; click "Tiếp tục" (the resume button); then
+  `latestEventPayload(id, 'track.resumed', 'english')` → `{ pausedDays: 5 }` and the enrollment is
+  active again. A second case: paused **today** (`daysAgo: 0`) → `{ pausedDays: 0 }`.
+- [ ] **Step 2:** with the stack lock (`E2E_LOCK`), `pnpm test:e2e --grep pausedDays` — fails
+  (helpers missing). **Step 3:** add the helpers. **Step 4:** passes on both projects (desktop,
+  mobile); if it fails on the real query, fix `readLastPausedDay` (the query must pick the latest
+  `track.paused` of that track by `occurred_at`) and say so in the report.
+- [ ] **Step 5:** `pnpm verify`. **Commit** `test(settings): pin the real pausedDays query of
+  resume (e2e)`.
+
+### Task 4.12: Schedule-history floor and first-version lock
+
+**Source:** M2 deferred minor (task 2.4, triaged to M4): the history guard lets a non-first
+schedule version take effect at `now()` instead of at the next day start, so a direct `apply_event`
+call can move the user's own local day back; the first-version exemption is unbounded and
+concurrent first inserts are unlocked. **Spec:** §4.1 (`schedule_versions`), §5.9 (changes take
+effect at the next day start), ADR-0017; decision 27. **Files:**
+
+- Create: `supabase/migrations/20260926000400_schedule_history_floor.sql`,
+  `supabase/tests/database/013-schedule-history-floor.test.sql`
+- Modify: `supabase/tests/database/{011,012}-*.sql` (cases that insert non-first versions at
+  arbitrary near-future times move them to the next day start), `docs/adr/0017-*.md` (one
+  paragraph)
+
+**The migration** — `create or replace function public.schedule_versions_guard_history()` (the
+000100 body, with its update and delete rules unchanged; insert rules):
+
+- The **first** version of a user (no row yet) is allowed at any time only while the profile's
+  `onboarded_at` is null, and is checked under the per-user advisory lock the R14 cap already uses
+  (`hashtextextended('schedule_versions:' || user_id, 0)`), so two concurrent first inserts cannot
+  both count as first.
+- Every **later** version inserted by `authenticated` **once the profile is onboarded** (ruling
+  M4-R16: before onboarding, later versions keep the 5-minute rule, so a retried onboarding is
+  never locked out) needs `effective_at >=` the next day start of its **predecessor** — the latest
+  version with `effective_at < new.effective_at`, pending ones included (the default schedule when
+  none) — computed at `greatest(now(), predecessor.effective_at)`, minus 65 minutes (one hour for a
+  day start inside a DST gap or overlap, where Postgres and `nextDayStart` may pick different
+  instants, plus 5 minutes); and it may not land before an existing pending version with a
+  different `effective_at` (the app always upserts at the earliest pending `effectiveAt`). Measured
+  only from the version in force at `now()`, a second pending version could still move the local
+  day back in the middle of the first one's day (ruling M4-R17, 4.12 review). The 5-minute rule
+  stays too. Otherwise `schedule_backdated`. **Ceiling (ruling M4-R19, 4.12 re-review):** the same
+  version must also satisfy `effective_at <=` that next day start as Postgres computes it, with no
+  tolerance above — a floor alone let one future-dated version (a day or more ahead) land in the
+  middle of a later day. So a later version always takes effect within the 65 minutes before its
+  predecessor's next day start; `nextDayStart` (TypeScript, the earliest instant) is never later
+  than Postgres's reading — a sweep over every time-zone option × day start across 2026's DST
+  transitions confirms it, and 013 pins representative cases. Otherwise `schedule_backdated`.
+- Before onboarding, an `authenticated` insert may not be dated later than `now() + 5 minutes`
+  (onboarding sends `now − 1 minute`), so no future version can be planted before onboarding and
+  survive it (ruling M4-R17).
+- The secret-key role and definer functions are not restricted (as before).
+
+- [ ] **Step 1: Failing pgTAP** `013-schedule-history-floor.test.sql`: a second version effective
+  `now()` → `schedule_backdated`; effective at the next day start (computed in the test with the
+  same expression) → ok; 60 minutes before it → ok (tolerance); 2 hours before it →
+  `schedule_backdated`; a first version for a profile with `onboarded_at` set → `schedule_backdated`;
+  a first version during onboarding (`onboarded_at` null) effective `now() − 1 minute` (what
+  onboarding sends) → ok; an upsert of an existing pending version still works; the settings flow's
+  own values (TypeScript `nextDayStart` for `Asia/Ho_Chi_Minh` 04:00 and for `America/New_York`
+  02:30, a DST-gap day start) pass.
+- [ ] **Step 2:** `pnpm db:reset && pnpm test:db` — 013 fails; **Step 3:** write the migration and
+  move the 011 / 012 cases that now fail to valid times (never weaken their intent); **Step 4:**
+  all green; `pnpm db:types` (no diff expected); then, still the wave's stack holder, `pnpm
+  test:e2e --grep "onboarding|settings"` (onboarding and settings write schedule versions).
+- [ ] **Step 5:** ADR-0017 gains a paragraph: the database now enforces the next-day-start rule
+  for later versions (with the 65-minute tolerance) and bounds the first-version exemption.
+  `pnpm verify`. **Commit** `fix(db): schedule versions take effect no earlier than the next day
+  start`.
+
+### Task F1: M3 follow-ups — separate PR `fix/m3-followups`
+
+**Source:** the M3 PR A re-review residuals m1–m4 (ruling M3-R16). Branch `fix/m3-followups` from
+`origin/main` in `wt-f1`; PR "fix: M3 follow-ups"; merged by the controller once CI and its review
+are green (like #6). **Files:**
+
+- Modify: `tools/content/derived.ts` (+ its test), the fence-parity test (the M3 PR A fix-pass
+  test that pins "the build key = the fence text as the renderer receives it" — find it with
+  `rg -n "fence" tools/content features/items --glob '*.test.*'`), `vitest.config.ts` (+ a guard
+  test), `tools/content-verify/workflow.test.ts`
+
+- [ ] **m1:** the retired-card draft check in `derived.ts` (`reviewedSource` / the `draftTrack`
+  flag around lines 104–143) reads the **locked card's own source track** (the track of
+  `parsed.sourceId`), not `deck.from.track`. Failing test first: a derived deck whose `from.track`
+  is active while a locked card's source item belongs to a draft track → the retired card shows the
+  source ID, never the draft problem's text.
+- [ ] **m2:** the fence-parity test gains a CRLF case and a "no newline at end of file" case, both
+  asserting the same parity as the LF case.
+- [ ] **m3:** `vitest.config.ts` imports the shared remark plugins with an explicit extension (or
+  whatever removes Vite's config-loader warning — reproduce the warning first with `pnpm vitest run
+  tools/guards 2>&1 | grep -i warn`), and a guard test pins that the `.mdx` transform uses
+  `remarkPlugins` from `tools/content/mdx/plugins` (import both and compare, or parse the config
+  source).
+- [ ] **m4:** `workflow.test.ts` pins the ACL post-check's `left` computation
+  (`.github/workflows/content-verify.yml` ~line 210: `awk '/^default:user::/ { n++ } END { print
+  n + 0 }'`) — assert the exact awk program and that its result feeds the `-ne 0` check.
+- [ ] `pnpm verify`; commits `fix(content): …`, `test(content): …`, `build: …`, `test(ci): …` (one
+  per item); push, PR, CI green, review, controller merges; then rebase nothing (M4 touches none
+  of these files).
+
+### M4 finish
+
+- [ ] Whole-branch review (`scripts/review-package` over `86b637b..HEAD`) on the most capable
+  model, against this section and spec §4–§5; one fix pass; one re-review (M2/M3 pattern).
+- [ ] `pnpm db:reset && pnpm verify:full` in the integration worktree (`verify` + `test:db` +
+  `test:e2e`, e2e lock held).
+- [ ] Push `feat/m4-plan-engine`, open the PR "M4: plan engine + spaced repetition" (summary,
+  decisions, owner question answers, the calibrated simulation numbers, the post-merge `db push`
+  step); CI green: verify, e2e, db, content-build, content-verify, CodeQL.
+- [ ] **Ask the owner who merges.** After the merge: on the production project, check `select
+  count(*) from public.events where plan_id is not null` = 0 (decision 30; Management API query
+  endpoint), then `supabase db push` of the four M4 migrations (docs/ops/staging.md; linked CLI via
+  the pooler, `.env.local` loaded into the shell, nothing printed), migration list local = remote; archive the ledger; update the
+  memory file; write the M5 hand-off.

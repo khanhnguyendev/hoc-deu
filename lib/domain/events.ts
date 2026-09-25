@@ -68,6 +68,13 @@ const nonNegativeInt = z.number().int().min(0)
 const planVersion = z.number().int().min(1)
 const jsonObject = z.record(z.string(), z.unknown())
 
+/**
+ * The longest pause `track.resumed` may report, in days (ten years; Part B-M4 decision 36).
+ * `apply_event` rejects a larger `pausedDays` too (before casting it), and the settings action
+ * clamps to it.
+ */
+export const MAX_PAUSED_DAYS = 3650
+
 /** A payload whose keys are all optional must still carry a change (`{}` is rejected). */
 const hasAKey = (payload: Record<string, unknown>): boolean =>
   Object.values(payload).some((value) => value !== undefined)
@@ -130,7 +137,7 @@ export const EVENT_PAYLOADS = {
     })
     .refine(hasAKey, AT_LEAST_ONE_KEY),
   'track.paused': emptyPayload,
-  'track.resumed': z.strictObject({ pausedDays: nonNegativeInt }),
+  'track.resumed': z.strictObject({ pausedDays: nonNegativeInt.max(MAX_PAUSED_DAYS) }),
   'track.removed': emptyPayload,
   'track.reset': emptyPayload,
   'schedule.changed': z.strictObject({
@@ -168,7 +175,9 @@ export const EVENT_PAYLOADS = {
   'admin.user_suspended': adminPayload,
   'admin.role_changed': adminPayload,
   'admin.ai_flag_changed': adminPayload,
-  // Reserved: written only by the future compaction job (§4.7); replay handles it from M4 on.
+  // Reserved: written only by the future compaction job (§4.7); replay handles it from M4 on. It
+  // carries a full `item_state` row (Part B-M4 decision 19), so a snapshot replaces the results it
+  // compacts.
   'item.snapshot': z.strictObject({
     level: z.number().int(),
     weak: z.boolean(),
@@ -176,6 +185,9 @@ export const EVENT_PAYLOADS = {
     dueOn: localDay.nullable(),
     lapses: z.number().int(),
     reps: z.number().int(),
+    introducedOn: localDay,
+    lastResult: z.string().max(32).nullable(),
+    lastResultOn: localDay.nullable(),
     rulesVersion: z.number().int().min(1),
   }),
 } satisfies Record<EventType, z.ZodType>
@@ -232,8 +244,9 @@ const payloadError = (payload: unknown, message: string): z.ZodError =>
 /**
  * Validates `payload` against the schema for `type` and returns the parsed payload. Throws a
  * `ZodError` when the schema rejects it, when a string holds `\u0000` or an unpaired surrogate
- * (jsonb cannot store them), or when its jsonb text (`jsonbTextBytes`) exceeds
- * `MAX_PAYLOAD_BYTES` — so nothing it accepts is rejected by the database.
+ * (jsonb cannot store them), when JSON cannot serialise it (a BigInt in a free-form object), or
+ * when its jsonb text (`jsonbTextBytes`) exceeds `MAX_PAYLOAD_BYTES` — so nothing it accepts is
+ * rejected by the database.
  */
 export function parseEventPayload<T extends EventType>(type: T, payload: unknown): EventPayload<T> {
   if (!Object.hasOwn(EVENT_PAYLOADS, type)) {
@@ -247,7 +260,14 @@ export function parseEventPayload<T extends EventType>(type: T, payload: unknown
       `the ${type} payload has a string with U+0000 or an unpaired surrogate, which jsonb cannot store`,
     )
   }
-  const bytes = jsonbTextBytes(parsed)
+  let bytes: number
+  try {
+    bytes = jsonbTextBytes(parsed)
+  } catch (error) {
+    // `JSON.stringify` throws a TypeError for a BigInt, which a free-form `z.unknown()` accepts.
+    if (!(error instanceof TypeError)) throw error
+    throw payloadError(payload, `the ${type} payload is not JSON-serialisable`)
+  }
   if (bytes > MAX_PAYLOAD_BYTES) {
     throw payloadError(
       payload,

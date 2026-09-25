@@ -3,6 +3,94 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      daily_activity: {
+        Row: {
+          completed: boolean
+          items_done: number
+          local_day: string
+          minutes_by_track: Json
+          rules_version: number
+          user_id: string
+          version: number
+        }
+        Insert: {
+          completed?: boolean
+          items_done?: number
+          local_day: string
+          minutes_by_track?: Json
+          rules_version?: number
+          user_id: string
+          version?: number
+        }
+        Update: {
+          completed?: boolean
+          items_done?: number
+          local_day?: string
+          minutes_by_track?: Json
+          rules_version?: number
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'daily_activity_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      day_plans: {
+        Row: {
+          blocks: Json
+          created_at: string
+          id: string
+          plan_date: string
+          roadmap_weeks: Json
+          rules_version: number
+          seen_at: string | null
+          source: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          blocks: Json
+          created_at?: string
+          id?: string
+          plan_date: string
+          roadmap_weeks?: Json
+          rules_version?: number
+          seen_at?: string | null
+          source?: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          plan_date?: string
+          roadmap_weeks?: Json
+          rules_version?: number
+          seen_at?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'day_plans_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       event_quota: {
         Row: {
           count: number
@@ -77,7 +165,142 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: 'events_plan_id_fkey'
+            columns: ['plan_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id']
+          },
+          {
             foreignKeyName: 'events_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      item_state: {
+        Row: {
+          due_on: string | null
+          introduced_on: string
+          item_id: string
+          item_type: string
+          lapses: number
+          last_result: string | null
+          last_result_on: string | null
+          level: number
+          reps: number
+          rules_version: number
+          status: string
+          top_successes: number
+          topic_id: string | null
+          track_id: string
+          user_id: string
+          version: number
+          weak: boolean
+        }
+        Insert: {
+          due_on?: string | null
+          introduced_on: string
+          item_id: string
+          item_type: string
+          lapses?: number
+          last_result?: string | null
+          last_result_on?: string | null
+          level?: number
+          reps?: number
+          rules_version?: number
+          status: string
+          top_successes?: number
+          topic_id?: string | null
+          track_id: string
+          user_id: string
+          version?: number
+          weak?: boolean
+        }
+        Update: {
+          due_on?: string | null
+          introduced_on?: string
+          item_id?: string
+          item_type?: string
+          lapses?: number
+          last_result?: string | null
+          last_result_on?: string | null
+          level?: number
+          reps?: number
+          rules_version?: number
+          status?: string
+          top_successes?: number
+          topic_id?: string | null
+          track_id?: string
+          user_id?: string
+          version?: number
+          weak?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'item_state_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      plan_block_state: {
+        Row: {
+          auto: boolean
+          block_id: string
+          checked_in_at: string
+          checked_in_on: string
+          minutes: number
+          note: string | null
+          plan_id: string
+          rules_version: number
+          status: string
+          track_id: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          auto?: boolean
+          block_id: string
+          checked_in_at?: string
+          checked_in_on: string
+          minutes: number
+          note?: string | null
+          plan_id: string
+          rules_version?: number
+          status: string
+          track_id: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          auto?: boolean
+          block_id?: string
+          checked_in_at?: string
+          checked_in_on?: string
+          minutes?: number
+          note?: string | null
+          plan_id?: string
+          rules_version?: number
+          status?: string
+          track_id?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'plan_block_state_plan_id_fkey'
+            columns: ['plan_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'plan_block_state_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
             referencedRelation: 'profiles'
@@ -174,6 +397,7 @@ export type Database = {
           created_at: string
           include_bonus: boolean
           new_per_day: number | null
+          reset_on: string | null
           roadmap_variant: string
           start_date: string
           status: string
@@ -188,6 +412,7 @@ export type Database = {
           created_at?: string
           include_bonus?: boolean
           new_per_day?: number | null
+          reset_on?: string | null
           roadmap_variant: string
           start_date: string
           status?: string
@@ -202,6 +427,7 @@ export type Database = {
           created_at?: string
           include_bonus?: boolean
           new_per_day?: number | null
+          reset_on?: string | null
           roadmap_variant?: string
           start_date?: string
           status?: string
@@ -249,6 +475,16 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: Json
       }
+      apply_derived_changes: {
+        Args: {
+          p_changes: Json
+          p_event: Json
+          p_expected: Json
+          p_local_day: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       apply_event: {
         Args: { p_changes?: Json; p_event: Json; p_expected?: Json }
         Returns: Json
@@ -268,6 +504,11 @@ export type Database = {
       local_day: {
         Args: { p_at: string; p_day_starts_at: string; p_timezone: string }
         Returns: string
+      }
+      mark_plan_seen: { Args: { p_plan_id: string }; Returns: boolean }
+      plan_lock_key: {
+        Args: { p_plan_date: string; p_user_id: string }
+        Returns: number
       }
       rules_version: { Args: never; Returns: number }
       system_event_types: { Args: never; Returns: string[] }
