@@ -13,8 +13,10 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { VariantPicker, WeeklyTemplatePreview } from '@/features/tracks'
+import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 import type { TrackOption } from '@/lib/content/track-options'
 import { defaultVariant } from '@/lib/domain/plan/variant'
+import { BUDGET_MINUTES, isBudgetMinutes, MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import {
   addDays,
   DAY_STARTS,
@@ -27,14 +29,8 @@ import {
 import { canonicalTimeZone, isValidTimeZone } from '@/lib/domain/time/timeZones'
 import { formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
-import {
-  isBudgetMinutes,
-  trackFieldKey,
-  type OnboardingInput,
-  type OnboardingState,
-} from '../schema'
+import { trackFieldKey, type OnboardingInput, type OnboardingState } from '../schema'
 
-type CodeLanguage = TrackOption['codeLanguages'][number]
 type StepKey = 'tracks' | 'minutes' | 'variant' | 'schedule' | 'language' | 'preview'
 
 const STEP_ORDER: readonly StepKey[] = [
@@ -45,9 +41,6 @@ const STEP_ORDER: readonly StepKey[] = [
   'language',
   'preview',
 ]
-const LANGUAGES: readonly CodeLanguage[] = ['python', 'java', 'go']
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
 const IDLE: OnboardingState = { status: 'idle' }
 const copy = vi.onboarding
 const messages = copy.errors
@@ -141,7 +134,7 @@ function OnboardingWizard({
 
   const selectedTracks = tracks.filter((track) => selected.includes(track.id))
   const variantTracks = selectedTracks.filter((track) => track.roadmaps.length > 1)
-  const languages = LANGUAGES.filter((language) =>
+  const languages = CODE_LANGUAGES.filter((language) =>
     selectedTracks.some((track) => track.codeLanguages.includes(language)),
   )
   const language = languages.includes(codeLanguage) ? codeLanguage : languages[0]
@@ -400,9 +393,9 @@ function OnboardingWizard({
                   {...control}
                   type="number"
                   inputMode="numeric"
-                  min={10}
-                  max={240}
-                  step={5}
+                  min={BUDGET_MINUTES.min}
+                  max={BUDGET_MINUTES.max}
+                  step={BUDGET_MINUTES.step}
                   value={minutes[track.id] ?? ''}
                   onChange={(event) =>
                     setMinutes((current) => ({ ...current, [track.id]: event.target.value }))

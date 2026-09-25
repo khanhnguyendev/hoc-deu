@@ -10,6 +10,7 @@ import {
   formatNumber,
   formatWeeks,
   variantLabel,
+  withTitle,
 } from './format'
 
 const originalTz = process.env.TZ
@@ -44,6 +45,14 @@ describe('formatMinutes with real-world values', () => {
       expect(formatMinutes(minutes)).toBe('0 phút')
     },
   )
+})
+
+describe('withTitle', () => {
+  it('puts a track title into {title}, literally', () => {
+    expect(withTitle('Đã tạm dừng {title}.', 'Tiếng Anh')).toBe('Đã tạm dừng Tiếng Anh.')
+    expect(withTitle('{title}', 'A $& B $1')).toBe('A $& B $1')
+    expect(withTitle('Không có tiêu đề', 'X')).toBe('Không có tiêu đề')
+  })
 })
 
 describe('formatNumber', () => {

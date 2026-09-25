@@ -2,8 +2,10 @@ id: demo-draft
 status: draft
 title: { vi: 'Demo nháp', en: 'Demo draft' }
 accent: track-2
-itemTypes: [lesson]
+itemTypes: [prompt]
+srs: { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
 defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates: { prompt: 10 }
 roadmaps: [{ id: 8w }]
 weeklyTemplate:
   mon-fri: [{ kind: review }]

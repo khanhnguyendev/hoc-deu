@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { budgetMinutesSchema, CODE_LANGUAGES, ROADMAP_VARIANT_PATTERN } from './settings'
 import { isDayStart, isLocalDay } from './time/localDay'
 
 /**
@@ -61,10 +62,8 @@ export type EventType = LearnerEventType | SystemEventType
 
 const localDay = z.string().refine(isLocalDay, 'not a valid local day (YYYY-MM-DD)')
 const dayStart = z.string().refine(isDayStart, 'not a day start (00:00–12:00, 30-minute steps)')
-/** The database's rule for `user_tracks.roadmap_variant`. */
-const roadmapVariant = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)
-/** Minutes per track: 10–240 in steps of 5 (decision 22). */
-const budgetMinutes = z.number().int().min(10).max(240).multipleOf(5)
+const roadmapVariant = z.string().regex(ROADMAP_VARIANT_PATTERN)
+const budgetMinutes = budgetMinutesSchema()
 const nonNegativeInt = z.number().int().min(0)
 const planVersion = z.number().int().min(1)
 const jsonObject = z.record(z.string(), z.unknown())
@@ -141,7 +140,7 @@ export const EVENT_PAYLOADS = {
   }),
   'settings.changed': z
     .strictObject({
-      codeLanguage: z.enum(['python', 'java', 'go']).optional(),
+      codeLanguage: z.enum(CODE_LANGUAGES).optional(),
       shareNotesWithAi: z.boolean().optional(),
       theme: z.enum(['light', 'dark', 'system']).optional(),
     })

@@ -8,6 +8,7 @@ import { FormActions } from '@/components/patterns/form-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { WeeklyTemplatePreview } from '@/features/tracks'
+import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { Enrollment, SettingsAction, SettingsTrack } from '../schema'
 import { TrackBudgetFields } from './track-budget-fields'
@@ -28,9 +29,6 @@ type Shown = SettingsTrack & { enrollment: Enrollment & { status: 'active' | 'pa
 
 const isShown = (track: SettingsTrack): track is Shown =>
   track.enrollment !== null && track.enrollment.status !== 'removed'
-
-// A replacer function: the title is inserted literally.
-const withTitle = (text: string, title: string) => text.replace('{title}', () => title)
 
 /**
  * The learner's tracks (§2.4, §5.9): each active or paused track with its status, minutes per

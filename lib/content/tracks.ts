@@ -22,12 +22,19 @@ function formatManifestError(file: string, error: z.ZodError): string {
   return `${fileLabel(file)}: ${field}: ${message}`
 }
 
-function readManifest(file: string): TrackManifest {
+/** `<root>/<folder>/track.yaml`, validated; its `id` must be the folder's name. */
+function readManifest(root: string, folder: string): TrackManifest {
+  const file = path.join(root, folder, 'track.yaml')
   const raw = readFileSync(file, 'utf8')
   const data: unknown = parseYaml(raw)
   const result = trackManifestSchema.safeParse(data)
   if (!result.success) {
     throw new Error(formatManifestError(file, result.error))
+  }
+  if (result.data.id !== folder) {
+    throw new Error(
+      `${fileLabel(file)}: id: "${result.data.id}" must equal the folder name "${folder}"`,
+    )
   }
   return result.data
 }
@@ -37,7 +44,7 @@ function readAll(root: string): readonly TrackManifest[] {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
-  return dirs.map((dir) => readManifest(path.join(root, dir, 'track.yaml')))
+  return dirs.map((dir) => readManifest(root, dir))
 }
 
 /**

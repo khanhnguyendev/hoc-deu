@@ -118,3 +118,11 @@ export function variantLabel(variantId: string): string {
   const match = /^(\d+)w$/.exec(variantId)
   return match !== null ? `${match[1]} tuần` : variantId
 }
+
+/**
+ * A `vi.ts` message with `{title}` (a track's title) filled in. A replacer function inserts the
+ * title literally, so `$&` or `$1` in a title stay as written.
+ */
+export function withTitle(text: string, title: string): string {
+  return text.replace('{title}', () => title)
+}

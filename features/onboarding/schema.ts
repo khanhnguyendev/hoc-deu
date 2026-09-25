@@ -1,29 +1,21 @@
 /**
  * The onboarding wizard's input (§2.4, task 2.10): what the hidden `payload` field carries to
  * `completeOnboarding`. Shared by the wizard (per-step checks) and the action, so both speak the
- * same field keys and Vietnamese messages. Client-safe: zod, the pure domain and the strings only.
+ * same field keys and Vietnamese messages. Client-safe: zod, the pure domain, the content constants
+ * and the strings only.
  */
 import { z } from 'zod'
+import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
+import { budgetMinutesSchema } from '@/lib/domain/settings'
 import { isDayStart, isLocalDay } from '@/lib/domain/time/localDay'
 import { vi } from '@/lib/i18n/vi'
 
 const errors = vi.onboarding.errors
 
-/** Minutes per track: 10–240 in steps of 5 (decision 22). */
-const budgetMinutesSchema = z
-  .number({ error: errors.minutes })
-  .int(errors.minutes)
-  .min(10, errors.minutes)
-  .max(240, errors.minutes)
-  .multipleOf(5, errors.minutes)
-
-export const isBudgetMinutes = (minutes: number): boolean =>
-  budgetMinutesSchema.safeParse(minutes).success
-
 const trackInputSchema = z
   .object({
     trackId: z.string().min(1),
-    budgetMinutes: budgetMinutesSchema,
+    budgetMinutes: budgetMinutesSchema(errors.minutes),
     roadmapVariant: z.string({ error: errors.variant }).min(1, errors.variant),
   })
   .strict()
@@ -41,7 +33,7 @@ export const onboardingInputSchema = z
     startDate: z.string({ error: errors.startDate }).refine(isLocalDay, errors.startDate),
     timezone: z.string({ error: errors.timezone }).min(1, errors.timezone),
     dayStartsAt: z.string({ error: errors.dayStart }).refine(isDayStart, errors.dayStart),
-    codeLanguage: z.enum(['python', 'java', 'go'], { error: errors.codeLanguage }).optional(),
+    codeLanguage: z.enum(CODE_LANGUAGES, { error: errors.codeLanguage }).optional(),
   })
   .strict()
 

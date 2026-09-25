@@ -50,11 +50,21 @@ topics: # technical terms stay English (DESIGN_SYSTEM §11); signals arrive in M
     }
   - { id: intervals, title: { vi: 'Intervals', en: 'Intervals' }, requires: [heap] }
   - { id: greedy, title: { vi: 'Greedy', en: 'Greedy' }, requires: [heap] }
+lessonFormats:
+  pattern:
+    sections: [signals, analogy, visual, approach, code, complexity, bilingual, practice, quiz]
+    requires: [anchor, practice]
+    rules: [anchor!=practice, same-topic, one-per-topic]
+  deep-dive:
+    sections: [analogy, visual, approach, code, complexity, bilingual, practice, quiz]
+    requires: [about, practice]
+    rules: [practice!=about, same-topic, max-1-per-about]
 defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
 estimates:
   lesson: 25
   problem: { new: { E: 20, M: 35, H: 50 } }
   prompt: 10
+  flashcard: { new: 1.5, review: 0.5 } # §5.4 card estimates (decision 32)
 roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]
 weeklyTemplate:
   mon-fri: [{ kind: review, maxMinutes: 15 }, { kind: new }]

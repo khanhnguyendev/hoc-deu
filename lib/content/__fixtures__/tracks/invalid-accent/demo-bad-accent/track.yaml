@@ -1,9 +1,11 @@
-id: demo-active
+id: demo-bad-accent
 status: active
 title: { vi: 'Demo', en: 'Demo' }
-accent: track-1
-itemTypes: [lesson]
+accent: purple
+itemTypes: [prompt]
+srs: { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
 defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates: { prompt: 10 }
 roadmaps: [{ id: 8w }]
 weeklyTemplate:
   mon-fri: [{ kind: review }]

@@ -1,12 +1,14 @@
 /** Renders a track's weekly template and throttle rules as Vietnamese text (platform design §3.4). */
 import { formatMinutes, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
-import type { TemplateBlock, TrackManifest, WeeklyTemplate } from './schemas/manifest'
+import {
+  WEEKDAY_KEYS,
+  type TemplateBlock,
+  type TrackManifest,
+  type WeeklyTemplate,
+} from './schemas/manifest'
 
 export type TemplateDay = { label: string; blocks: string[] }
-
-/** Always this order, whatever the YAML's key order. */
-const DAY_ORDER = ['mon-fri', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 
 const PRACTICE_TAGS: Record<string, string> = vi.template.tags
 
@@ -18,34 +20,30 @@ function fill(template: string, values: Record<string, string>): string {
   )
 }
 
-function practiceLabel(block: TemplateBlock): string {
-  const key = block.tag ?? block.itemType
-  if (key === undefined) return ''
-  return PRACTICE_TAGS[key] ?? key
-}
-
-function describeBlock(block: TemplateBlock): string {
+function blockText(block: TemplateBlock): string {
   switch (block.kind) {
-    case 'review': {
-      const max = block.maxMinutes
-      const suffix =
-        max === undefined ? '' : ` ${fill(vi.template.reviewMax, { n: formatNumber(max) })}`
-      return `${vi.template.review}${suffix}`
-    }
+    case 'review':
+      return block.maxMinutes === undefined
+        ? vi.template.review
+        : `${vi.template.review} ${fill(vi.template.reviewMax, { n: formatNumber(block.maxMinutes) })}`
     case 'new':
       return vi.template.newItems
     case 'recap':
-      return fill(vi.template.recap, { count: formatNumber(block.count ?? 0) })
+      return fill(vi.template.recap, { count: formatNumber(block.count) })
     case 'practice': {
-      const label = practiceLabel(block)
-      const minutes = block.minutes === undefined ? '' : ` · ${formatMinutes(block.minutes)}`
-      const fromWeek =
-        block.fromWeek === undefined
-          ? ''
-          : ` ${fill(vi.template.fromWeek, { w: formatNumber(block.fromWeek) })}`
-      return `${label}${minutes}${fromWeek}`
+      // The schema requires exactly one of `tag` / `itemType`.
+      const key = block.tag ?? block.itemType ?? ''
+      return `${PRACTICE_TAGS[key] ?? key} · ${formatMinutes(block.minutes)}`
     }
   }
+}
+
+/** A block as text, with `(từ tuần n)` when it starts from a roadmap week (§3.4 `fromWeek`). */
+function describeBlock(block: TemplateBlock): string {
+  const text = blockText(block)
+  return block.fromWeek === undefined
+    ? text
+    : `${text} ${fill(vi.template.fromWeek, { w: formatNumber(block.fromWeek) })}`
 }
 
 /**
@@ -53,7 +51,7 @@ function describeBlock(block: TemplateBlock): string {
  * `sun` order — whatever order the manifest's YAML lists them in — and only the days present.
  */
 export function describeWeeklyTemplate(template: WeeklyTemplate): TemplateDay[] {
-  return DAY_ORDER.filter((day) => template[day] !== undefined).map((day) => ({
+  return WEEKDAY_KEYS.filter((day) => template[day] !== undefined).map((day) => ({
     label: vi.template.days[day],
     blocks: (template[day] ?? []).map(describeBlock),
   }))

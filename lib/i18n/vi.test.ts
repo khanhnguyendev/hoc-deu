@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { BUDGET_MINUTES, MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { vi } from './vi'
 
 /** Every key the components and lib/events read. */
@@ -279,5 +280,14 @@ describe('lib/i18n/vi.ts', () => {
       expect(value, path).toBe(value.trim())
       expect(value, path).toBe(value.normalize('NFC'))
     }
+  })
+
+  it('states the budget and start-date rules of lib/domain/settings', () => {
+    const { min, max, step } = BUDGET_MINUTES
+    expect(vi.onboarding.errors.minutes).toContain(`từ ${min} đến ${max}, bước ${step} phút`)
+    expect(vi.settings.tracks.minutesHelper).toBe(`Từ ${min} đến ${max} phút, bước ${step} phút.`)
+    expect(vi.onboarding.errors.startDateTooLate).toContain(`${MAX_START_DAYS_AHEAD} ngày`)
+    expect(vi.onboarding.schedule.startDateHelper).toContain(`${MAX_START_DAYS_AHEAD} ngày`)
+    expect(vi.settings.add.startDateHelper).toContain(`${MAX_START_DAYS_AHEAD} ngày`)
   })
 })

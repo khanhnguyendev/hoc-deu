@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { defaultVariant } from '@/lib/domain/plan/variant'
+import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { addDays, localDay, type Schedule } from '@/lib/domain/time/localDay'
 import { formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -19,9 +20,6 @@ import { TrackBudgetFields } from './track-budget-fields'
 import { failureOf, fieldErrorsOf, useSettingsAction } from './use-settings-action'
 
 const copy = vi.settings.add
-
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
 
 type AddTrackFormProps = {
   /** Every active track with the learner's enrollment; removed and never-enrolled ones are offered. */

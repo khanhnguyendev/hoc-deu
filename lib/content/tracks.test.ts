@@ -33,9 +33,16 @@ describe('loadTracks (fixtures)', () => {
     expect(() => loadTracks(root)).toThrow(/track\.yaml: accent:/)
   })
 
-  it('rejects an unknown weekday key in the weekly template', () => {
+  it('rejects an unknown weekday key in the weekly template, naming the field', () => {
     const root = fixturesRoot('invalid-weekday')
-    expect(() => loadTracks(root)).toThrow(/track\.yaml/)
+    expect(() => loadTracks(root)).toThrow(/track\.yaml: weeklyTemplate: .*xyz/)
+  })
+
+  it("rejects a manifest whose id is not its folder's name", () => {
+    const root = fixturesRoot('id-mismatch')
+    expect(() => loadTracks(root)).toThrow(
+      /id-mismatch\/other\/track\.yaml: id: "demo-mismatch" must equal the folder name "other"/,
+    )
   })
 
   it('accepts a weekly template that lists only sat and sun (partial record)', () => {

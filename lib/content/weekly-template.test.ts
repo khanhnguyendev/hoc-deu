@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { vi } from '@/lib/i18n/vi'
 import { describeThrottle, describeWeeklyTemplate } from './weekly-template'
-import type { TrackManifest, WeeklyTemplate } from './schemas/manifest'
+import { WEEKDAY_KEYS, type TrackManifest, type WeeklyTemplate } from './schemas/manifest'
 
 const dsaTemplate: WeeklyTemplate = {
   'mon-fri': [{ kind: 'review', maxMinutes: 15 }, { kind: 'new' }],
@@ -62,6 +63,39 @@ describe('describeWeeklyTemplate', () => {
       'Nhiệm vụ cuối tuần · 15 phút',
       'Ôn tập',
     ])
+  })
+
+  it('prints the (từ tuần n) suffix on any block with fromWeek', () => {
+    const template: WeeklyTemplate = {
+      mon: [
+        { kind: 'review', maxMinutes: 15, fromWeek: 2 },
+        { kind: 'review', fromWeek: 3 },
+        { kind: 'new', fromWeek: 4 },
+        { kind: 'recap', count: 2, fromWeek: 5 },
+        { kind: 'practice', itemType: 'prompt', minutes: 10, fromWeek: 6 },
+      ],
+    }
+    expect(describeWeeklyTemplate(template)).toEqual([
+      {
+        label: 'Thứ 2',
+        blocks: [
+          'Ôn tập (tối đa 15 phút) (từ tuần 2)',
+          'Ôn tập (từ tuần 3)',
+          'Bài mới (từ tuần 4)',
+          'Ôn lại 2 bài (từ tuần 5)',
+          'prompt · 10 phút (từ tuần 6)',
+        ],
+      },
+    ])
+  })
+
+  it('lists the days in the schema weekday order', () => {
+    const template = Object.fromEntries(
+      [...WEEKDAY_KEYS].reverse().map((day) => [day, [{ kind: 'new' }]]),
+    ) as WeeklyTemplate
+    expect(describeWeeklyTemplate(template).map((day) => day.label)).toEqual(
+      WEEKDAY_KEYS.map((day) => vi.template.days[day]),
+    )
   })
 })
 

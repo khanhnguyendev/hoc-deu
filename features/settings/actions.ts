@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
+import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import {
   daysBetween,
   localDay,
@@ -14,6 +15,7 @@ import {
 import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId } from '@/lib/events/ids'
+import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -35,9 +37,6 @@ const copy = vi.settings
 const errors = vi.onboarding.errors
 const PATH = '/settings'
 
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
-
 /**
  * The account's tracks or schedules changed since the page was rendered (another tab, a day start
  * that passed): re-render it, so it shows the current state (ruling R17 adds the schedule codes).
@@ -50,7 +49,6 @@ const STALE: ReadonlySet<EventError['code']> = new Set([
   'schedule_backdated',
 ])
 
-const withTitle = (text: string, title: string) => text.replace('{title}', () => title)
 const titleOf = (trackId: string) => getTrack(trackId)?.title.vi ?? trackId
 
 const stale = (message: string = vi.errors.invalidTransition): SettingsResult => {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isBudgetMinutes,
   onboardingFieldErrors,
   onboardingInputSchema,
   trackFieldKey,
@@ -74,20 +73,6 @@ describe('onboardingInputSchema', () => {
   it('rejects an empty time zone and an unknown code language', () => {
     expect(onboardingInputSchema.safeParse({ ...valid, timezone: '' }).success).toBe(false)
     expect(onboardingInputSchema.safeParse({ ...valid, codeLanguage: 'rust' }).success).toBe(false)
-  })
-})
-
-describe('isBudgetMinutes', () => {
-  it.each([
-    [10, true],
-    [25, true],
-    [240, true],
-    [5, false],
-    [62, false],
-    [245, false],
-    [Number.NaN, false],
-  ])('%j → %j', (minutes, expected) => {
-    expect(isBudgetMinutes(minutes)).toBe(expected)
   })
 })
 

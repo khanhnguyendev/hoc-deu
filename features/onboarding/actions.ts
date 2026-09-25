@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { requireActive } from '@/lib/auth/dal'
 import { activeTracks } from '@/lib/content/tracks'
+import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { daysBetween, localDay, type Schedule } from '@/lib/domain/time/localDay'
 import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, applySystemEvent, EventError } from '@/lib/events/apply'
@@ -19,9 +20,6 @@ import {
 } from './schema'
 
 const errors = vi.onboarding.errors
-
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
 
 /**
  * The first schedule takes effect this long before the server's `now` (decision 5). The database
