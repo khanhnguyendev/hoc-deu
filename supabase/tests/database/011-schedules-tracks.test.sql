@@ -352,7 +352,9 @@ select is(
   'the tracks are gone'
 );
 
--- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role.
+-- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role. These
+--    learners have not onboarded, so the 5-minute rule is the one that applies; once
+--    onboarded_at is set, a learner's version also waits for the next day start (013, 4.12).
 select tests.authenticate_as(:'history');
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)

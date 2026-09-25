@@ -47,6 +47,20 @@ belonged to.
   account-deletion cascade, which runs once the profile is gone (§4.6). A pending (future) version
   may still be updated or deleted, but not moved into the past. `nextDayStart` in the server is
   the normal path; the trigger is the backstop.
+- **Since task 4.12 the database also enforces the next-day-start rule** (M2 deferred finding: a
+  direct `apply_event` call could start a later version at `now()` and move the learner's own
+  local day back). Once `profiles.onboarded_at` is set, a version inserted by `authenticated`
+  takes effect no earlier than the next day start of the version in force at `now()` —
+  `((user_local_day(user, now()) + 1) + day_starts_at) at time zone timezone` — minus **65
+  minutes**: the 5 minutes of clock skew plus one hour for a day start inside a DST gap or overlap,
+  where Postgres and `nextDayStart` pick instants up to an hour apart (the 5-minute rule still
+  holds as well). The first-version exemption is bounded: it applies only while `onboarded_at` is
+  null, and the check runs under the per-user advisory lock the pending-version cap takes, so two
+  concurrent first inserts cannot both count as the first. Before onboarding a later version keeps
+  the 5-minute rule (a retried onboarding sends another "from a minute ago" version; no past day
+  exists yet), and `service_role` and SECURITY DEFINER functions keep the pre-4.12 rules. A zone
+  whose DST shift exceeds an hour (`Antarctica/Troll`, 2 hours) can see a change rejected
+  (`schedule_backdated`) on its fall-back day; it succeeds the next day.
 
 ## Consequences
 

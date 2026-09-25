@@ -13,6 +13,8 @@ select tests.create_user('avatar@hocdeu.test') as avatar \gset
 -- 1. Ruling R17: at most 10 versions per user with effective_at in the last day or later. The
 --    history guard lets a later version start up to 5 minutes in the past; without this bound,
 --    versions inside that window were never counted, so history could grow without limit.
+--    (Since 4.12 a learner's version waits for the next day start once onboarded_at is set, 013;
+--    these learners have not onboarded, and postgres keeps the 5-minute rule.)
 --    (now() is the transaction's start, so every statement below sees the same window; the
 --    versions sit 20 seconds apart, and each later insert picks a time none of them uses.)
 select tests.authenticate_as(:'win');
