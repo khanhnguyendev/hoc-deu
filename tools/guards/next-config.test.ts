@@ -127,7 +127,9 @@ describe('next.config.ts images (OD3)', () => {
   it('keeps the M2 settings', async () => {
     const config = await loadConfig(true)
     expect(config.reactStrictMode).toBe(true)
-    expect(config.outputFileTracingIncludes).toEqual({ '/**': ['content/tracks/*/track.yaml'] })
+    // Task 3.4a (decision 6): the manifests come from the bundled catalog, so no route reads
+    // track.yaml at request time and nothing needs tracing.
+    expect(config.outputFileTracingIncludes).toBeUndefined()
     expect(await config.redirects?.()).toEqual([
       { source: '/admin', destination: '/admin/users', permanent: false },
     ])

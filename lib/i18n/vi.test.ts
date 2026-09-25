@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { EXERCISE_KINDS } from '@/lib/content/item-types/exercise'
+import { CARD_TIERS, PARTS_OF_SPEECH, REGISTERS } from '@/lib/content/item-types/flashcard'
 import { BUDGET_MINUTES, MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { vi } from './vi'
 
@@ -290,6 +292,67 @@ const USED = [
   'content.codeBlock.label',
   'content.codeBlock.text',
   'content.newTab',
+  'dev.itemsTitle',
+  'items.difficulty.E',
+  'items.difficulty.M',
+  'items.difficulty.H',
+  'items.status.draft',
+  'items.status.retired',
+  'items.notice.draft',
+  'items.notice.retired',
+  'items.related',
+  'items.problem.openOnLeetCode',
+  'items.problem.premium',
+  'items.problem.freeAlternatives',
+  'items.problem.noNote',
+  'items.problem.noNoteBody',
+  'items.problem.deepDive',
+  'items.verification.tested',
+  'items.verification.testedHint',
+  'items.verification.compileOnly',
+  'items.verification.compileOnlyHint',
+  'items.lessonFormat.pattern',
+  'items.lessonFormat.deep-dive',
+  'items.lesson.anchor',
+  'items.lesson.about',
+  'items.lesson.practice',
+  'items.lesson.noBody',
+  'items.flashcard.reveal',
+  'items.flashcard.hide',
+  'items.flashcard.hint',
+  'items.flashcard.usage',
+  'items.flashcard.example',
+  'items.flashcard.pronunciation',
+  'items.flashcard.tier.core',
+  'items.flashcard.tier.extended',
+  'items.flashcard.tier.derived',
+  'items.flashcard.pos.noun',
+  'items.flashcard.pos.verb',
+  'items.flashcard.pos.adjective',
+  'items.flashcard.pos.adverb',
+  'items.flashcard.pos.phrase',
+  'items.flashcard.pos.phrasal-verb',
+  'items.flashcard.pos.idiom',
+  'items.flashcard.pos.abbreviation',
+  'items.flashcard.register.formal',
+  'items.flashcard.register.neutral',
+  'items.flashcard.register.informal',
+  'items.exercise.kind.fill-blank',
+  'items.exercise.kind.respond',
+  'items.exercise.kind.rewrite',
+  'items.exercise.blank',
+  'items.exercise.check',
+  'items.exercise.showHint',
+  'items.exercise.hideHint',
+  'items.exercise.pass',
+  'items.exercise.close',
+  'items.exercise.miss',
+  'items.exercise.answer',
+  'items.exercise.notSaved',
+  'items.exercise.showSamples',
+  'items.exercise.hideSamples',
+  'items.exercise.samples',
+  'items.rubric',
 ]
 
 function lookup(path: string): unknown {
@@ -332,6 +395,49 @@ describe('lib/i18n/vi.ts', () => {
     expect(vi.content.quiz.score).toBe('Đúng {correct}/{total}')
     expect(vi.content.solution.label).toBe('Lời giải {language}')
     expect(vi.content.codeBlock.label).toContain('{language}')
+  })
+
+  it('names the item-type copy of task 3.4a', () => {
+    expect(vi.items.difficulty).toEqual({ E: 'Easy', M: 'Medium', H: 'Hard' })
+    expect(vi.items.verification.tested).toBe('Đã kiểm thử')
+    expect(vi.items.verification.compileOnly).toBe('Chỉ biên dịch')
+    expect(vi.items.problem).toMatchObject({
+      openOnLeetCode: 'Mở trên LeetCode',
+      premium: 'Premium',
+      freeAlternatives: 'Bản miễn phí:',
+      noNote: 'Chưa có ghi chú',
+      noNoteBody: 'Bạn vẫn có thể giải bài trên LeetCode.',
+      deepDive: 'Bài học chuyên sâu',
+    })
+    expect(vi.items.status).toEqual({ draft: 'Bản nháp', retired: 'Đã ngừng' })
+    expect(vi.items.lessonFormat).toEqual({ pattern: 'Pattern', 'deep-dive': 'Deep-dive' })
+    expect(vi.items.flashcard.reveal).toBe('Xem nghĩa')
+    expect(vi.items.flashcard.tier).toEqual({
+      core: 'Cốt lõi',
+      extended: 'Mở rộng',
+      derived: 'Giải thích code',
+    })
+    expect(vi.items.exercise.kind).toEqual({
+      'fill-blank': 'Điền từ',
+      respond: 'Trả lời',
+      rewrite: 'Viết lại',
+    })
+    expect(vi.items.exercise).toMatchObject({
+      check: 'Kiểm tra',
+      showHint: 'Xem gợi ý',
+      pass: 'Chính xác',
+      close: 'Gần đúng — bạn đã xem gợi ý',
+      miss: 'Chưa đúng — đáp án: {answer}',
+      notSaved: 'Câu trả lời không được lưu.',
+      showSamples: 'Xem câu trả lời mẫu',
+    })
+  })
+
+  it('has a Vietnamese label for every part of speech and register of the card schema', () => {
+    expect(Object.keys(vi.items.flashcard.pos).sort()).toEqual([...PARTS_OF_SPEECH].sort())
+    expect(Object.keys(vi.items.flashcard.register).sort()).toEqual([...REGISTERS].sort())
+    expect(Object.keys(vi.items.flashcard.tier).sort()).toEqual([...CARD_TIERS].sort())
+    expect(Object.keys(vi.items.exercise.kind).sort()).toEqual([...EXERCISE_KINDS].sort())
   })
 
   it('stores every string non-empty, trimmed and in NFC (RF-3)', () => {

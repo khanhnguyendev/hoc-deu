@@ -18,6 +18,7 @@ import { FocusLayout } from '@/components/patterns/focus-layout'
 import { FormActions } from '@/components/patterns/form-actions'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField } from '@/components/patterns/form-field'
+import { LinkRow } from '@/components/patterns/link-row'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { PageHeader } from '@/components/patterns/page-header'
@@ -88,6 +89,11 @@ import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
+import { DifficultyBadge, PremiumBadge } from '@/features/items/components/difficulty-badge'
+import { FillBlankExercise } from '@/features/items/components/fill-blank-exercise'
+import { FlashcardView } from '@/features/items/components/flashcard-view'
+import { ItemPageFrame } from '@/features/items/components/item-page-frame'
+import { ItemStatusBadge, ItemStatusNotice } from '@/features/items/components/item-status-badge'
 import { Bilingual } from '@/features/items/components/mdx/bilingual'
 import { Callout } from '@/features/items/components/mdx/callout'
 import { CodePre } from '@/features/items/components/mdx/code-pre'
@@ -102,6 +108,17 @@ import { SolutionTabs } from '@/features/items/components/mdx/solution-tabs'
 import { Step, Steps } from '@/features/items/components/mdx/steps'
 import { Term } from '@/features/items/components/mdx/term'
 import { VarTable } from '@/features/items/components/mdx/var-table'
+import { RelatedItems } from '@/features/items/components/related-items'
+import { RubricList } from '@/features/items/components/rubric-list'
+import { SelfGradedExercise } from '@/features/items/components/self-graded-exercise'
+import { VerificationBadge } from '@/features/items/components/verification-badge'
+import {
+  cardItem,
+  derivedCardItem,
+  FIXTURE_LINKS,
+  fillBlankItem,
+  rewriteItem,
+} from '@/features/items/fixtures'
 import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
 import type { OnboardingState } from '@/features/onboarding/schema'
@@ -1261,6 +1278,33 @@ export const CATALOG: Entry[] = [
     demos: [{ title: 'Required, description and error', render: () => <FormFieldDemo /> }],
   },
   {
+    name: 'LinkRow',
+    layer: 'patterns',
+    file: 'components/patterns/link-row.tsx',
+    demos: [
+      {
+        title: 'Tiêu đề English, thông tin, huy hiệu, trạng thái; chỉ tiêu đề',
+        render: () => (
+          <ul role="list" className="flex w-full max-w-prose flex-col divide-y divide-border">
+            <li>
+              <LinkRow
+                href="/t/dsa/items/lc-0001"
+                title="Two Sum"
+                titleLang="en"
+                meta={['#1', 'Easy', 'Arrays & Hashing']}
+                badges={<Badge tone="outline">Premium</Badge>}
+                trailing={<StatusPill status="not-started" />}
+              />
+            </li>
+            <li>
+              <LinkRow href="/t/english/items/ex-w01-fill-1" title="Điền từ còn thiếu" />
+            </li>
+          </ul>
+        ),
+      },
+    ],
+  },
+  {
     name: 'LoadingState',
     layer: 'patterns',
     file: 'components/patterns/loading-state.tsx',
@@ -2144,6 +2188,200 @@ export const CATALOG: Entry[] = [
             />
           </div>
         ),
+      },
+    ],
+  },
+  {
+    name: 'DifficultyBadge',
+    layer: 'features',
+    file: 'features/items/components/difficulty-badge.tsx',
+    demos: [
+      {
+        title: 'Easy, Medium, Hard (thuật ngữ LeetCode giữ tiếng Anh) và PremiumBadge',
+        render: () => (
+          <>
+            <DifficultyBadge difficulty="E" />
+            <DifficultyBadge difficulty="M" />
+            <DifficultyBadge difficulty="H" />
+            <PremiumBadge />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VerificationBadge',
+    layer: 'features',
+    file: 'features/items/components/verification-badge.tsx',
+    demos: [
+      {
+        title: 'Trang: nhãn + giải thích một dòng',
+        render: () => (
+          <div className="flex flex-col gap-3">
+            <VerificationBadge verification="tested" />
+            <VerificationBadge verification="compile-only" />
+          </div>
+        ),
+      },
+      {
+        title: 'Dòng: chỉ biểu tượng (nhãn cho trình đọc màn hình)',
+        render: () => (
+          <>
+            <VerificationBadge verification="tested" variant="icon" />
+            <VerificationBadge verification="compile-only" variant="icon" />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemStatusBadge',
+    layer: 'features',
+    file: 'features/items/components/item-status-badge.tsx',
+    demos: [
+      {
+        title: 'Dòng: Bản nháp, Đã ngừng (đang dùng: không hiện gì)',
+        render: () => (
+          <>
+            <ItemStatusBadge status="draft" />
+            <ItemStatusBadge status="retired" />
+            <ItemStatusBadge status="active" />
+          </>
+        ),
+      },
+      {
+        title: 'Trang: ItemStatusNotice ở đầu trang',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-3">
+            <ItemStatusNotice status="draft" />
+            <ItemStatusNotice status="retired" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemPageFrame',
+    layer: 'features',
+    file: 'features/items/components/item-page-frame.tsx',
+    demos: [
+      {
+        title: 'Thông báo, tiêu đề (h1 của trang), thông tin, nội dung',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <ItemPageFrame
+              status="retired"
+              title={<span lang="en">Valid Parentheses</span>}
+              meta={['#20', <DifficultyBadge key="difficulty" difficulty="E" />, 'Stack']}
+            >
+              <Md.p>Nội dung của mục.</Md.p>
+            </ItemPageFrame>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RelatedItems',
+    layer: 'features',
+    file: 'features/items/components/related-items.tsx',
+    demos: [
+      {
+        title: 'Bài mẫu, bài luyện tập, bài học chuyên sâu',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <RelatedItems
+              items={[
+                { label: 'Bài mẫu', link: FIXTURE_LINKS['dsa:lc-0167']! },
+                { label: 'Bài luyện tập', link: FIXTURE_LINKS['dsa:lc-0015']! },
+                { label: 'Bài học chuyên sâu', link: FIXTURE_LINKS['dsa:lesson-two-sum']! },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RubricList',
+    layer: 'features',
+    file: 'features/items/components/rubric-list.tsx',
+    demos: [
+      {
+        title: 'Tiêu chí tiếng Anh (lang="en") và tiếng Việt',
+        render: () => (
+          <div className="flex flex-col gap-6">
+            <RubricList items={['polite opener', 'specific issue', 'clear ask']} lang="en" />
+            <RubricList items={['Nêu ý tưởng trước khi viết code', 'Phân tích độ phức tạp']} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FlashcardView',
+    layer: 'features',
+    file: 'features/items/components/flashcard-view.tsx',
+    demos: [
+      {
+        title: 'Thẻ từ vựng: "Xem nghĩa" hiện nghĩa, gợi ý, cách dùng, ví dụ, phát âm',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={cardItem().content} headingLevel={3} />
+          </div>
+        ),
+      },
+      {
+        title: 'Thẻ "Giải thích code": mặt sau tiếng Anh, gợi ý tiếng Việt',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={derivedCardItem().content} headingLevel={3} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FillBlankExercise',
+    layer: 'features',
+    file: 'features/items/components/fill-blank-exercise.tsx',
+    demos: [
+      {
+        title: 'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng"',
+        render: () => {
+          const { content } = fillBlankItem()
+          return content.kind === 'fill-blank' ? (
+            <div className="w-full max-w-prose">
+              <FillBlankExercise
+                text={content.text}
+                answers={content.answers}
+                hint={content.hint}
+              />
+            </div>
+          ) : null
+        },
+      },
+    ],
+  },
+  {
+    name: 'SelfGradedExercise',
+    layer: 'features',
+    file: 'features/items/components/self-graded-exercise.tsx',
+    demos: [
+      {
+        title: 'Viết lại: ô trả lời (không lưu), "Xem câu trả lời mẫu" hiện mẫu và tiêu chí',
+        render: () => {
+          const { content } = rewriteItem()
+          return content.kind === 'fill-blank' ? null : (
+            <div className="w-full max-w-prose">
+              <SelfGradedExercise
+                text={content.text}
+                sampleAnswers={content.sampleAnswers}
+                rubric={content.rubric}
+              />
+            </div>
+          )
+        },
       },
     ],
   },

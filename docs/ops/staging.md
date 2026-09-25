@@ -144,10 +144,10 @@ on the hash URL exchanges its code against the wrong host and always ends at
    Always share and test the branch URL, never a hash URL.
 5. The owner's account (its e-mail listed in `ADMIN_EMAILS`) becomes an active admin on first
    sign-in — the fresh staging project has no active admin yet (bootstrap, decision 23) — and
-   lands on `/onboarding`; its first step **lists both tracks** — this proves `next.config.ts`'s
-   `outputFileTracingIncludes` shipped `content/tracks/*/track.yaml` into the deployed function
-   (only a real Vercel deployment proves this; `next start` reads the repo directly and would
-   pass even if this were missing).
+   lands on `/onboarding`; its first step **lists both tracks** — this proves the generated
+   catalog (`.generated/catalog.ts`, which `lib/content/tracks.ts` reads since task 3.4a) was
+   built by `pnpm build` and bundled into the deployed function (only a real Vercel deployment
+   proves this; `next start` reads the repo directly).
 6. `/admin/users` lists the account.
 7. A second Google (or GitHub) account signs in and lands on `/pending` until an admin approves
    it in `/admin/users`.

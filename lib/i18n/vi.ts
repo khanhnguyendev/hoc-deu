@@ -96,6 +96,8 @@ export const vi = {
     contentTitle: 'Nội dung mẫu',
     sampleLesson: 'Bài học mẫu',
     sampleNote: 'Ghi chú mẫu',
+    /** /dev/items: every item type's Page and Row (task 3.4a). */
+    itemsTitle: 'Loại mục học',
   },
   /** Form and focus-page primitives (DESIGN_SYSTEM §5 forms). */
   forms: {
@@ -456,5 +458,84 @@ export const vi = {
     newTab: '(mở trong tab mới)',
     /** A GFM task-list item's marker (not a control), read by screen readers. */
     task: { done: 'Đã xong', todo: 'Chưa xong' },
+  },
+  /**
+   * Item pages and rows (`features/items`, task 3.4a). LeetCode's difficulty terms stay English.
+   * Keyed copy for content values (a lesson format, a tag) is read with `Object.hasOwn` and falls
+   * back to the ID. `{answer}` is the expected fill-blank answer.
+   */
+  items: {
+    difficulty: { E: 'Easy', M: 'Medium', H: 'Hard' },
+    /** Row badges for items that are not `active` (§3.3). */
+    status: { draft: 'Bản nháp', retired: 'Đã ngừng' },
+    /** The notice at the top of a draft or retired item's page. */
+    notice: {
+      draft: 'Bản nháp: chỉ quản trị viên thấy mục này.',
+      retired: 'Mục này đã ngừng: không còn được xếp vào kế hoạch học.',
+    },
+    /** The list of linked items on a page (a lesson's anchor and practice, a deep-dive). */
+    related: 'Bài liên quan',
+    problem: {
+      openOnLeetCode: 'Mở trên LeetCode',
+      premium: 'Premium',
+      freeAlternatives: 'Bản miễn phí:',
+      noNote: 'Chưa có ghi chú',
+      noNoteBody: 'Bạn vẫn có thể giải bài trên LeetCode.',
+      deepDive: 'Bài học chuyên sâu',
+    },
+    /** A problem note's verification (§3.7, decision 21): a label and one line of why. */
+    verification: {
+      tested: 'Đã kiểm thử',
+      testedHint: 'Lời giải chạy qua mọi test case của bài trong CI.',
+      compileOnly: 'Chỉ biên dịch',
+      compileOnlyHint: 'Lời giải biên dịch được; dạng bài này chưa có test case tự động.',
+    },
+    /** Lesson formats by ID; a format without a label shows its ID (decision 33). */
+    lessonFormat: { pattern: 'Pattern', 'deep-dive': 'Deep-dive' },
+    lesson: {
+      anchor: 'Bài mẫu',
+      about: 'Bài được phân tích',
+      practice: 'Bài luyện tập',
+      noBody: 'Bài học chưa có nội dung',
+    },
+    flashcard: {
+      reveal: 'Xem nghĩa',
+      hide: 'Ẩn nghĩa',
+      hint: 'Gợi ý',
+      usage: 'Cách dùng',
+      example: 'Ví dụ',
+      pronunciation: 'Phát âm',
+      tier: { core: 'Cốt lõi', extended: 'Mở rộng', derived: 'Giải thích code' },
+      /** Parts of speech (`usage.pos`, §3.5). */
+      pos: {
+        noun: 'danh từ',
+        verb: 'động từ',
+        adjective: 'tính từ',
+        adverb: 'trạng từ',
+        phrase: 'cụm từ',
+        'phrasal-verb': 'cụm động từ',
+        idiom: 'thành ngữ',
+        abbreviation: 'từ viết tắt',
+      },
+      register: { formal: 'trang trọng', neutral: 'trung tính', informal: 'thân mật' },
+    },
+    exercise: {
+      kind: { 'fill-blank': 'Điền từ', respond: 'Trả lời', rewrite: 'Viết lại' },
+      /** The accessible name of the fill-blank input. */
+      blank: 'Từ còn thiếu',
+      check: 'Kiểm tra',
+      showHint: 'Xem gợi ý',
+      hideHint: 'Ẩn gợi ý',
+      pass: 'Chính xác',
+      close: 'Gần đúng — bạn đã xem gợi ý',
+      miss: 'Chưa đúng — đáp án: {answer}',
+      answer: 'Câu trả lời của bạn',
+      notSaved: 'Câu trả lời không được lưu.',
+      showSamples: 'Xem câu trả lời mẫu',
+      hideSamples: 'Ẩn câu trả lời mẫu',
+      samples: 'Câu trả lời mẫu',
+    },
+    /** An exercise's or prompt's self-check criteria. */
+    rubric: 'Tiêu chí',
   },
 } as const

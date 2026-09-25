@@ -1,70 +1,23 @@
-import 'server-only'
-import { readdirSync, readFileSync } from 'node:fs'
-import path from 'node:path'
-import { parse as parseYaml } from 'yaml'
-import type { z } from 'zod'
-import { trackManifestSchema, type TrackManifest } from './schemas/manifest'
-
-const defaultRoot = (): string => path.join(process.cwd(), 'content', 'tracks')
-
-/** One manifest per process for a given `root` (decision 12): re-parsing costs a disk read per request. */
-const cache = new Map<string, readonly TrackManifest[]>()
-
-function fileLabel(file: string): string {
-  const relative = path.relative(process.cwd(), file)
-  return relative.split(path.sep).join('/')
-}
-
-function formatManifestError(file: string, error: z.ZodError): string {
-  const [issue] = error.issues
-  const field = issue !== undefined && issue.path.length > 0 ? issue.path.join('.') : '(root)'
-  const message = issue?.message ?? 'invalid manifest'
-  return `${fileLabel(file)}: ${field}: ${message}`
-}
-
-/** `<root>/<folder>/track.yaml`, validated; its `id` must be the folder's name. */
-function readManifest(root: string, folder: string): TrackManifest {
-  const file = path.join(root, folder, 'track.yaml')
-  const raw = readFileSync(file, 'utf8')
-  const data: unknown = parseYaml(raw)
-  const result = trackManifestSchema.safeParse(data)
-  if (!result.success) {
-    throw new Error(formatManifestError(file, result.error))
-  }
-  if (result.data.id !== folder) {
-    throw new Error(
-      `${fileLabel(file)}: id: "${result.data.id}" must equal the folder name "${folder}"`,
-    )
-  }
-  return result.data
-}
-
-function readAll(root: string): readonly TrackManifest[] {
-  const dirs = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  return dirs.map((dir) => readManifest(root, dir))
-}
-
 /**
- * Loads and validates every track's `track.yaml` under `root` (defaults to
- * `<cwd>/content/tracks`), parsed once per process for a given root.
+ * The track manifests (platform design §3.4, §3.8): read from the generated catalog (decision 6),
+ * where `content:build` validated them once — no YAML at runtime, no file tracing. A new track
+ * appears in onboarding and settings when its manifest lands with `status: active`.
  */
-export function loadTracks(root: string = defaultRoot()): readonly TrackManifest[] {
-  const cached = cache.get(root)
-  if (cached !== undefined) return cached
-  const tracks = readAll(root)
-  cache.set(root, tracks)
-  return tracks
+import 'server-only'
+import { getCatalog } from './catalog'
+import type { TrackManifest } from './schemas/manifest'
+
+/** Every track, drafts and retired ones included, sorted by ID. */
+export function loadTracks(): readonly TrackManifest[] {
+  return getCatalog().tracks
 }
 
 /** Tracks with `status: active` — the only ones a learner may enroll in. */
-export function activeTracks(root?: string): readonly TrackManifest[] {
-  return loadTracks(root).filter((track) => track.status === 'active')
+export function activeTracks(): readonly TrackManifest[] {
+  return loadTracks().filter((track) => track.status === 'active')
 }
 
 /** A track by id, including `draft` and `retired` ones, or `null` when it does not exist. */
-export function getTrack(id: string, root?: string): TrackManifest | null {
-  return loadTracks(root).find((track) => track.id === id) ?? null
+export function getTrack(id: string): TrackManifest | null {
+  return loadTracks().find((track) => track.id === id) ?? null
 }

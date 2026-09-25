@@ -188,6 +188,11 @@ describe('trackManifestSchema — strict fields', () => {
     expect(issues[0]?.message).toMatch(/foo/)
   })
 
+  it('rejects an accent outside the design tokens (moved from tracks.test.ts, 3.4a)', () => {
+    expect(pathsOf({ ...dsaLike, accent: 'track-9' })).toEqual(['accent'])
+    expect(pathsOf({ ...dsaLike, accent: 'red' })).toEqual(['accent'])
+  })
+
   it('rejects the reserved track ID user', () => {
     expect(pathsOf({ ...dsaLike, id: 'user' })).toEqual(['id'])
   })

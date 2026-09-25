@@ -1,7 +1,7 @@
 /**
  * Active tracks as plain, serialisable options for the forms that enroll a learner: onboarding
  * (task 2.10) and settings (task 2.11). Client components import only the type (`import type`);
- * the loader reads the manifests from disk, so it runs on the server only.
+ * the loader reads the manifests from the generated catalog (server-only, decision 6).
  */
 import 'server-only'
 import type { CodeLanguage } from './schemas/common'

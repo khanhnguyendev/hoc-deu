@@ -13,14 +13,8 @@ const withMDX = createMDX({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // `lib/content/tracks.ts` reads these at request time (decision 12); Next only traces files a
-  // page's static analysis can see, and YAML read through the `yaml` package is invisible to
-  // that trace, so every route needs them named explicitly. `next start` reads the repo folder
-  // directly, so only a Vercel deployment (`output: 'standalone'`) proves this — owner check,
-  // task 2.2.
-  outputFileTracingIncludes: {
-    '/**': ['content/tracks/*/track.yaml'],
-  },
+  // No `outputFileTracingIncludes`: the track manifests come from the generated catalog bundled
+  // into the server build (`lib/content/tracks.ts`, decision 6), so no route reads track.yaml.
   // OD3: MDX images come from the one allow-listed Supabase Storage bucket; the pattern is built
   // from the same constant the MDX safety check enforces (tools/content/allowlist.ts).
   images: { remotePatterns: contentImageRemotePatterns() },

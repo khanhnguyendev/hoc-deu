@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getCatalog } from './catalog'
+import type { Catalog } from './catalog-types'
 import { loadTrackOptions } from './track-options'
+
+// A fixture catalog when a test sets one; the generated catalog otherwise (decision 6).
+const fixture = vi.hoisted(() => ({ catalog: null as Catalog | null }))
+vi.mock('./catalog', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./catalog')>()
+  return { ...real, getCatalog: () => fixture.catalog ?? real.getCatalog() }
+})
+
+beforeEach(() => {
+  fixture.catalog = null
+})
 
 describe('loadTrackOptions (real manifests)', () => {
   it('lists both active tracks, in manifest order, with their Vietnamese titles and accents', () => {
@@ -38,5 +51,12 @@ describe('loadTrackOptions (real manifests)', () => {
   it('returns plain, serialisable data (it crosses to a client component as props)', () => {
     const options = loadTrackOptions()
     expect(JSON.parse(JSON.stringify(options))).toEqual(options)
+  })
+
+  it('comes from the catalog: a draft track is not offered', () => {
+    const real = getCatalog()
+    const [dsa, english] = real.tracks
+    fixture.catalog = { ...real, tracks: [{ ...dsa!, status: 'draft' }, english!] }
+    expect(loadTrackOptions().map((option) => option.id)).toEqual(['english'])
   })
 })

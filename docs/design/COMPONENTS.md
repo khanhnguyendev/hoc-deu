@@ -4,7 +4,9 @@ The single list of every component in `components/ui`, `components/patterns` and
 `features/*/components`. **Search here before creating a component.** Add or update the entry in
 the same commit as the component; `tools/guards/component-catalog.test.ts` fails when an entry is
 missing here or in the `/dev/components` registry (`app/dev/components/registry.tsx`), which
-renders every variant and state in light and dark mode (axe-checked in CI).
+renders every variant and state in light and dark mode (axe-checked in CI). Item types' Pages and
+Rows (`features/items/<type>/{Page,Row}.tsx`) are listed under "Item types" and render in the
+`/dev/items` gallery instead (server components; same test).
 
 ## Entry format
 
@@ -438,6 +440,20 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** label above the field; `aria-describedby` joins the description and error
   ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"; `FormFieldError` is the
   same error line (`text-danger` + icon, never colour alone)
+
+### LinkRow
+
+- **Layer:** pattern
+- **File:** `components/patterns/link-row.tsx`
+- **Props:** `href: string`, `title: ReactNode`, `titleLang?: 'en' | 'vi'`, `meta?: ReactNode[]`
+  (joined with " · "; empty entries dropped), `badges?: ReactNode`, `trailing?: ReactNode` (e.g. a
+  StatusPill)
+- **Variants:** with / without meta, badges and trailing
+- **States:** default, hover (`surface-muted`), focus-visible (global ring)
+- **Usage:** `<LinkRow href={itemHref(item)} title="Two Sum" titleLang="en" meta={['#1', 'Easy']}
+  trailing={<StatusPill status="not-started" />} />` — every item Row, RelatedItems
+- **Accessibility:** the whole row is one `next/link` (`min-h-11`, ≥ 44 px); the title carries
+  `lang` for English content; the " · " separators are `aria-hidden`; the chevron is decorative
 
 ### LoadingState
 
@@ -1022,3 +1038,252 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
   `docs/ops/content-images.md`
 - **Accessibility:** the alt text is required by the check; `h-auto max-w-full`, no `title`
   attribute
+
+### Item components (`features/items/components`)
+
+The parts item Pages and Rows are built from (task 3.4a). All are client-safe, so the catalog
+renders them; FlashcardView, FillBlankExercise and SelfGradedExercise are client components. They
+take plain props (catalog content, never the registry). Copy: `vi.items`.
+
+### DifficultyBadge
+
+- **Layer:** feature (`features/items`, server-compatible; also exports `PremiumBadge`)
+- **File:** `features/items/components/difficulty-badge.tsx`
+- **Props:** `difficulty: 'E' | 'M' | 'H'` · `PremiumBadge`: none
+- **Variants:** Easy (`success`) · Medium (`warning`) · Hard (`danger`) — LeetCode's terms stay
+  English · PremiumBadge: outline, `Lock` + "Premium"
+- **States:** static
+- **Usage:** `<DifficultyBadge difficulty="M" />`, `{problem.premium && <PremiumBadge />}`
+- **Accessibility:** the difficulty is text on the badge, never colour alone; the lock is
+  decorative. (PracticeCard still labels difficulty in Vietnamese — "Dễ" / "Trung bình" / "Khó",
+  task 3.3b.)
+
+### VerificationBadge
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/verification-badge.tsx`
+- **Props:** `verification: 'tested' | 'compile-only'`, `variant?: 'full' | 'icon'`
+- **Variants:** tested — success Badge, `CircleCheck`, "Đã kiểm thử" · compile-only — neutral
+  Badge, `Info`, "Chỉ biên dịch"; `full` (pages) adds the one-line explanation, `icon` (rows) is
+  the icon alone
+- **States:** static
+- **Usage:** `<VerificationBadge verification={note.verification} />` (problem page, when the note
+  shows) · `variant="icon"` (ProblemRow)
+- **Accessibility:** icons `aria-hidden`; the icon variant keeps the label as `sr-only` text
+
+### ItemStatusBadge
+
+- **Layer:** feature (`features/items`, server-compatible; also exports `ItemStatusNotice`)
+- **File:** `features/items/components/item-status-badge.tsx`
+- **Props:** `status: 'draft' | 'active' | 'retired'` (both components)
+- **Variants:** badge (rows, a note): draft — warning, `PencilLine`, "Bản nháp" · retired —
+  neutral, `Archive`, "Đã ngừng" · notice (the top of a page, a Banner): draft — info, "Bản nháp:
+  chỉ quản trị viên thấy mục này." · retired — warning, "Mục này đã ngừng: không còn được xếp vào
+  kế hoạch học."
+- **States:** `active` renders nothing
+- **Usage:** `rowBadges(item.status)` in every Row; ItemPageFrame renders the notice
+- **Accessibility:** icon + label (never colour alone); the notice is one sentence
+
+### ItemPageFrame
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/item-page-frame.tsx`
+- **Props:** `status: ItemStatus`, `title?: ReactNode` (the page `h1`; omitted when the body renders
+  it — a flashcard's front), `description?`, `actions?`, `meta?: ReactNode[]` (facts; empty ones
+  dropped), `children`
+- **Variants:** with / without title, facts
+- **States:** draft / retired notice at the top; active: none
+- **Usage:** every item Page: `<ItemPageFrame status={item.status} title={…} meta={[…]}>…</ItemPageFrame>`
+- **Accessibility:** one `h1` per page (PageHeader); the notice comes first in reading order
+
+### RelatedItems
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/related-items.tsx`
+- **Props:** `items: { label: string; link: ItemLink }[]`
+- **Variants:** —
+- **States:** empty → nothing
+- **Usage:** a lesson's anchor / about / practice problems, a problem's deep-dive lesson —
+  `resolveItem(id)` results (an unknown ID is skipped by the page)
+- **Accessibility:** a list named "Bài liên quan"; each a LinkRow — the role label, `#leetcode`
+  and difficulty as text; LeetCode titles in `lang="en"`
+
+### RubricList
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/rubric-list.tsx`
+- **Props:** `items: readonly string[]`, `lang?: 'en'`
+- **Variants:** English criteria (`lang="en"`, exercises) · Vietnamese (prompts)
+- **States:** empty → nothing
+- **Usage:** `<RubricList items={prompt.rubric} />`; inside SelfGradedExercise with `lang="en"`
+- **Accessibility:** an `h2` "Tiêu chí" names the list (`aria-labelledby`); check icons decorative
+
+### FlashcardView
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/flashcard-view.tsx`
+- **Props:** `card: FlashcardSides` (`front`, `back`, `hint?`, `usage?`, `example?`,
+  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3` (1 on the item page)
+- **Variants:** vocabulary card (usage, example, pronunciation) · recall / derived card (back and
+  hint only, each side in its own language)
+- **States:** front only ("Xem nghĩa", primary); revealed (back, hint, "danh từ · trung tính" +
+  note, example, pronunciation; "Ẩn nghĩa", outline). No grade buttons until task 5.2
+- **Usage:** `<FlashcardView card={item.content} headingLevel={1} />` (FlashcardPage)
+- **Accessibility:** the front is a heading in the card's front language; the toggle has
+  `aria-expanded` / `aria-controls`; nothing of the back is in the DOM until revealed; the example
+  and pronunciation are `lang="en"`; fields are a `<dl>`
+
+### FillBlankExercise
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/fill-blank-exercise.tsx`
+- **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`
+- **Variants:** with / without a hint
+- **States:** answering; checked — pass ("Chính xác", `CircleCheck`, success), close ("Gần đúng —
+  bạn đã xem gợi ý", `CircleDot`, warning), miss ("Chưa đúng — đáp án: …", `CircleX`, danger);
+  editing the answer clears the verdict; hint hidden / shown
+- **Usage:** `<FillBlankExercise text={ex.text} answers={ex.answers} hint={ex.hint} />`
+  (ExercisePage); grading is `gradeFillBlank` (NFC, case- and whitespace-insensitive, [RF-3])
+- **Accessibility:** the text is `lang="en"`; the blank is a real input with a visually hidden
+  Vietnamese label "Từ còn thiếu" (`lang="vi"`); Enter submits; the verdict is icon + text in a
+  polite `role="status"`; the hint toggle has `aria-expanded` / `aria-controls`
+
+### SelfGradedExercise
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/self-graded-exercise.tsx`
+- **Props:** `text: string`, `sampleAnswers: readonly string[]`, `rubric: readonly string[]`
+- **Variants:** respond · rewrite (same component)
+- **States:** answering; samples hidden / shown ("Xem câu trả lời mẫu" / "Ẩn câu trả lời mẫu");
+  what the learner typed stays. Self-grading ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2
+- **Usage:** `<SelfGradedExercise text={ex.text} sampleAnswers={ex.sampleAnswers}
+  rubric={ex.rubric} />` (ExercisePage)
+- **Accessibility:** the text is a `lang="en"` blockquote; the Textarea is labelled "Câu trả lời của
+  bạn" and described by "Câu trả lời không được lưu."; sample answers and rubric are `lang="en"`
+  lists named by their headings
+
+## Item types
+
+One Page and one Row per item type (platform design §3.2, §7.6), joined with the type's core
+(`lib/content/item-types`) in the registry (`features/items/registry.ts`). They are **server
+components** — they read topic titles and estimates from the generated catalog — so they render in
+the `/dev/items` gallery (`app/dev/items/page.tsx`, fixture items, e2e + axe) instead of the client
+catalog. Screens never import them or branch on item type: rows come from `renderItemRow(item, {
+state, mode, showStatus })` and pages from `await renderItemPage(item, { state, context, viewer,
+resolveItem })` (`@/features/items`), which runs the type's `load` (problem: note MDX + code;
+lesson: MDX + code; others: nothing) — `tools/guards/item-type-branching.ts` fails any `case` on an
+item type outside the registry (ADR-0009). Every Page starts with ItemPageFrame's draft / retired
+notice; every Row is a LinkRow with the "Bản nháp" / "Đã ngừng" badge and, with `showStatus`, a
+StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRowProps<K>`
+(`features/items/types.ts`).
+
+### ProblemPage
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/problem/Page.tsx`
+- **Props:** `ItemPageProps<'problem'>` — `data.Body` is the note, `data.code` its solutions
+- **Variants:** noted (verification badge, note body bound with `mdxComponentsFor({ code,
+  codeLanguage: viewer.codeLanguage, resolvePractice })`) · no note — inline EmptyState "Chưa có
+  ghi chú" + "Bạn vẫn có thể giải bài trên LeetCode." · premium (PremiumBadge, "Bản miễn phí:" +
+  every alternative) · with a deep-dive (`note.deepDiveId` → RelatedItems "Bài học chuyên sâu")
+- **States:** a draft note is hidden from learners ("Chưa có ghi chú") and shown to admins with
+  "Bản nháp"; a retired note shows with "Đã ngừng"; an unloaded body reads as no note
+- **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b)
+- **Accessibility:** the `h1` is the English title in `lang="en"`; "Mở trên LeetCode" and the
+  alternatives are 44 px links opening a new tab (`rel="noopener noreferrer"`, "(mở trong tab
+  mới)"); `#1`, difficulty and topic are text
+
+### ProblemRow
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/problem/Row.tsx`
+- **Props:** `ItemRowProps<'problem'>`
+- **Variants:** Premium marker · verification icon when the note is published
+- **States:** status pill with `showStatus`; draft / retired badge
+- **Usage:** via `renderItemRow`
+- **Accessibility:** LinkRow: title `lang="en"`, meta "#1 · Easy · Arrays & Hashing"
+
+### LessonPage
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/lesson/Page.tsx`
+- **Props:** `ItemPageProps<'lesson'>` — `data.Body` is the lesson, `data.code` its fenced blocks
+- **Variants:** format badge (`vi.items.lessonFormat`: "Pattern", "Deep-dive"; another format
+  shows its ID) · topic · RelatedItems for `anchor` ("Bài mẫu"), `about` ("Bài được phân tích")
+  and `practice` ("Bài luyện tập") that `resolveItem` knows
+- **States:** an unloaded body → EmptyState "Bài học chưa có nội dung"
+- **Usage:** via `renderItemPage`
+- **Accessibility:** the lesson title is the `h1`; `<Section>`s bring their `h2`s
+
+### LessonRow
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/lesson/Row.tsx`
+- **Props:** `ItemRowProps<'lesson'>`
+- **Variants:** meta "Pattern · 25 phút" (the manifest's `estimates.lesson`)
+- **States:** status pill with `showStatus`; draft / retired badge
+- **Usage:** via `renderItemRow`
+- **Accessibility:** LinkRow
+
+### FlashcardPage
+
+- **Layer:** feature (`features/items`, server; renders the client FlashcardView)
+- **File:** `features/items/flashcard/Page.tsx`
+- **Props:** `ItemPageProps<'flashcard'>` (no `data`)
+- **Variants:** tier badge ("Cốt lõi" primary · "Mở rộng" · "Giải thích code") · vocabulary,
+  recall and derived cards
+- **States:** see FlashcardView
+- **Usage:** via `renderItemPage`
+- **Accessibility:** the card front is the page `h1`, in the card's front language
+
+### FlashcardRow
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/flashcard/Row.tsx`
+- **Props:** `ItemRowProps<'flashcard'>`
+- **Variants:** meta = tier label
+- **States:** status pill with `showStatus`; draft / retired badge
+- **Usage:** via `renderItemRow`
+- **Accessibility:** LinkRow; the front in the card's front language
+
+### ExercisePage
+
+- **Layer:** feature (`features/items`, server; renders client exercises)
+- **File:** `features/items/exercise/Page.tsx`
+- **Props:** `ItemPageProps<'exercise'>` (no `data`)
+- **Variants:** fill-blank → FillBlankExercise · respond / rewrite → SelfGradedExercise; kind badge
+  ("Điền từ" / "Trả lời" / "Viết lại")
+- **States:** see the two exercise components
+- **Usage:** via `renderItemPage`
+- **Accessibility:** the Vietnamese instruction is the `h1`, the English one below in `lang="en"`
+
+### ExerciseRow
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/exercise/Row.tsx`
+- **Props:** `ItemRowProps<'exercise'>`
+- **Variants:** meta = kind label
+- **States:** status pill with `showStatus`; draft / retired badge
+- **Usage:** via `renderItemRow`
+- **Accessibility:** LinkRow
+
+### PromptPage
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/prompt/Page.tsx`
+- **Props:** `ItemPageProps<'prompt'>` (no `data`)
+- **Variants:** tag badge (`vi.template.tags`; an unknown tag shows its ID) · minutes (its own, else
+  `estimates.prompt`) · RubricList when the rubric is not empty
+- **States:** static (completion is recorded from task 5.2)
+- **Usage:** via `renderItemPage`
+- **Accessibility:** the Vietnamese instruction is the `h1`, the English one in `lang="en"`
+
+### PromptRow
+
+- **Layer:** feature (`features/items`, server)
+- **File:** `features/items/prompt/Row.tsx`
+- **Props:** `ItemRowProps<'prompt'>`
+- **Variants:** meta "Phỏng vấn thử · 45 phút"
+- **States:** status pill with `showStatus`; draft / retired badge
+- **Usage:** via `renderItemRow`
+- **Accessibility:** LinkRow
