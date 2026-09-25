@@ -1,8 +1,9 @@
 /**
  * `content:build` step 7 (platform design §3.4, decision 8): the cards of derived decks (English
  * "Explaining code"). Each manifest `decks[]` entry gets one card per source problem whose note is
- * active and whose problem is not retired, and one deck summary. A locked card whose source no
- * longer qualifies stays, retired, so moving a note back to draft never breaks the build.
+ * active and whose problem is not retired, and one deck summary; a draft source track gives none.
+ * A locked card whose source no longer qualifies stays, retired, so moving a note back to draft
+ * never breaks the build — and it never shows draft text (§3.3: drafts are for admins only).
  */
 import type {
   CatalogItem,
@@ -66,7 +67,7 @@ function derivedCard(
   source: string,
 ): CatalogItem<'flashcard'> {
   const id = derivedCardId(track.id, deck.id, sourceId)
-  // A retired card whose problem or note is gone keeps its source ID as text.
+  // A retired card whose problem or note is gone (or a draft) keeps its source ID as text.
   const text = (value: MapValue) => fill(value, problem) ?? sourceId
   const { front, back, hint } = deck.map
   const content: FlashcardContent = {
@@ -96,6 +97,16 @@ function derivedCard(
   }
 }
 
+/**
+ * What a retired card may still show of its source: nothing from a draft problem or a draft source
+ * track, and never a draft note's text (its sides then fall back to the source ID).
+ */
+function reviewedSource(item: CatalogItem | undefined, draftTrack: boolean): ProblemContent | null {
+  if (draftTrack || item?.type !== 'problem' || item.status === 'draft') return null
+  const note = item.content.note
+  return note?.status === 'draft' ? { ...item.content, note: null } : item.content
+}
+
 /** The cards and deck summaries of every derived deck, each sorted by ID. */
 export function derivedCards(input: DerivedInput): {
   cards: CatalogItem<'flashcard'>[]
@@ -112,7 +123,11 @@ export function derivedCards(input: DerivedInput): {
     for (const deck of track.decks) {
       const deckCards: CatalogItem<'flashcard'>[] = []
       const qualifying = new Set<string>()
-      for (const problem of problems) {
+      // A draft source track is for admins only: none of its problems qualifies.
+      const draftTrack = input.tracks.some(
+        (candidate) => candidate.id === deck.from.track && candidate.status === 'draft',
+      )
+      for (const problem of draftTrack ? [] : problems) {
         if (problem.trackId !== deck.from.track || problem.status === 'retired') continue
         if (problem.content.note?.status !== 'active') continue
         qualifying.add(problem.id)
@@ -125,8 +140,7 @@ export function derivedCards(input: DerivedInput): {
         const parsed = parseDerivedId(id)
         if (parsed?.trackId !== track.id || parsed.deckId !== deck.id) continue
         if (qualifying.has(parsed.sourceId)) continue
-        const item = input.items[parsed.sourceId]
-        const problem = item?.type === 'problem' ? item.content : null
+        const problem = reviewedSource(input.items[parsed.sourceId], draftTrack)
         deckCards.push(derivedCard(track, deck, parsed.sourceId, problem, 'retired', source))
       }
       deckCards.sort(byId)

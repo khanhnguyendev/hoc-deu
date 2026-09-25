@@ -110,6 +110,54 @@ describe('derivedCards', () => {
     expect(decks[0]?.cardIds).toEqual([CARD_ID])
   })
 
+  it('note back to draft → retired card without the draft text (I1)', () => {
+    const items = withTwoSum('active', 'draft')
+    const twoSum = items['dsa:lc-0001']
+    if (twoSum?.type !== 'problem' || twoSum.content.note === null) throw new Error('no note')
+    const draftNote = { vi: 'BẢN NHÁP chưa duyệt', en: 'DRAFT REWRITE — not reviewed' }
+    items[twoSum.id] = {
+      ...twoSum,
+      content: { ...twoSum.content, note: { ...twoSum.content.note, bilingual: draftNote } },
+    }
+    const { cards } = run(items, new Set([CARD_ID]))
+    expect(cards.map((card) => [card.id, card.status])).toEqual([[CARD_ID, 'retired']])
+    const text = JSON.stringify(cards)
+    expect(text).not.toContain(draftNote.en)
+    expect(text).not.toContain(draftNote.vi)
+    // The note's sides fall back to the source ID; the active problem still names the card.
+    expect(cards[0]?.content).toMatchObject({
+      front: 'Explain the optimal approach for Two Sum in English.',
+      back: 'dsa:lc-0001',
+      hint: 'dsa:lc-0001',
+    })
+  })
+
+  it('problem back to draft → retired card with only the source ID (I1)', () => {
+    const items = withTwoSum('draft', 'draft')
+    const twoSum = items['dsa:lc-0001']
+    if (twoSum?.type !== 'problem') throw new Error('no Two Sum')
+    items[twoSum.id] = { ...twoSum, content: { ...twoSum.content, title: 'DRAFT TITLE' } }
+    const { cards } = run(items, new Set([CARD_ID]))
+    expect(
+      cards.map((card) => [card.id, card.status, card.title, card.content.back, card.content.hint]),
+    ).toEqual([[CARD_ID, 'retired', 'dsa:lc-0001', 'dsa:lc-0001', 'dsa:lc-0001']])
+    expect(JSON.stringify(cards)).not.toContain('DRAFT TITLE')
+  })
+
+  it('source track draft → no active cards; a locked one stays retired, as its source ID', () => {
+    const draftDsa = loaded.tracks.map((track) =>
+      track.id === 'dsa' ? { ...track, status: 'draft' as const } : track,
+    )
+    const fresh = run(itemsOf(), new Set(), draftDsa)
+    expect(fresh.cards).toEqual([])
+    expect(fresh.decks.map((deck) => deck.cardIds)).toEqual([[]])
+
+    const locked = run(itemsOf(), new Set([CARD_ID]), draftDsa)
+    expect(
+      locked.cards.map((card) => [card.id, card.status, card.content.front, card.content.back]),
+    ).toEqual([[CARD_ID, 'retired', 'dsa:lc-0001', 'dsa:lc-0001']])
+  })
+
   it('a locked card whose problem is gone stays, retired, its text the source ID', () => {
     const items = itemsOf()
     delete items['dsa:lc-0001']

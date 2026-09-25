@@ -188,11 +188,24 @@ describe('buildContent — the ok fixture', () => {
     await buildContent({ repoRoot: root, check: false })
     const lock = lockOf(root)
     const note = path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/note.mdx')
-    writeFileSync(note, readFileSync(note, 'utf8').replace('status: active', 'status: draft'))
+    // The note goes back to draft for a rewrite: its unreviewed text never reaches the card (I1).
+    const draft = 'DRAFT REWRITE IN PROGRESS — not reviewed'
+    writeFileSync(
+      note,
+      readFileSync(note, 'utf8')
+        .replace('status: active', 'status: draft')
+        .replace('Store each number in a hash map to look up its complement in O(1).', draft)
+        .replace('Lưu mỗi số vào hash map để tìm phần bù trong O(1).', `${draft} (vi)`),
+    )
     for (const check of [false, true]) {
       const result = await buildContent({ repoRoot: root, check })
       expect(result.issues).toEqual([])
-      expect(result.catalog?.items['english:explaining-code:dsa:lc-0001']?.status).toBe('retired')
+      const card = result.catalog?.items['english:explaining-code:dsa:lc-0001']
+      expect(card?.status).toBe('retired')
+      expect(JSON.stringify(card)).not.toContain(draft)
+      expect(readFileSync(path.join(root, '.generated/catalog.json'), 'utf8')).not.toContain(
+        `"back": "${draft}"`,
+      )
       expect(lockOf(root)).toBe(lock)
     }
   })
