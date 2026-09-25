@@ -17,10 +17,12 @@
 -- 1. The type: a system type (invalid_event), implemented here (not_implemented otherwise: the
 --    owning tasks are plan.extra_added 5.4, plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
 --    admin.bot_token_rotated 6.3, item.snapshot the compaction job; the admin decisions have their
---    own functions, M2). 2. The event's shape and, per type, its payload, p_changes and
---    p_expected (invalid_event) — before any lock. 3. The (user, plan_date) advisory lock for
---    plan.generated and block.checked_in (decision 33: before any row lock, as apply_event takes
---    it — the reverse order deadlocks with apply_event's key-share lock on the profile row).
+--    own functions — admin_bootstrap, admin_set_status and admin_set_role (M2), and
+--    admin.ai_flag_changed's writer admin_set_ai_flag (v1.1, task 6.5)). 2. The event's shape and,
+--    per type, its payload, p_changes and p_expected (invalid_event) — before any lock. 3. The
+--    (user, plan_date) advisory lock for plan.generated and block.checked_in (decision 33: before
+--    any row lock, as apply_event takes it — the reverse order deadlocks with apply_event's
+--    key-share lock on the profile row).
 -- 4. The profile row lock: active users only (inactive). 5. A duplicate event id is a no-op.
 -- 6. A rebuild: version_conflict / plan_in_use, decided under the lock. 7. The plan write
 --    (plan_exists when the date has a plan) and the event, in one subtransaction.

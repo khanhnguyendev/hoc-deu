@@ -1079,6 +1079,10 @@ All functions in this section are **pure TypeScript** in `lib/domain/**`. They r
 the user's `localDay`, state and the catalog as parameters — never the client clock, never I/O.
 Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not randomness).
 
+- **As built in M4** (implementation plan Part B-M4 decision 29): every tie-break is by item ID
+  (deterministic, whatever the catalog's order); no M4 rule needs the random-looking spread a
+  `userId + localDay` hash would give.
+
 ### 5.1 Local day
 
 - `localDay(now, schedule) = date part of (now in schedule.timezone − schedule.day_starts_at)`.
@@ -1553,6 +1557,19 @@ lib/domain/
 
 Built test-first in M4 (Vitest, table-driven fixtures for every row of §5.7 and §5.9, plus the
 §5.10 simulation).
+
+**As built in M4** (the tree above is the design-time sketch):
+
+- `plan/gate.ts` — `gateStatus()`, `lastSeenPlan()`, `unfinishedBlocks()` (not `isGateOpen()`).
+- `plan/queues.ts` — `dueQueue()` only. `plan/roadmap.ts` — `roadmapWeek()`, `newQueue()`,
+  `recapSource()` and `recapCandidates()` (the recap picker).
+- `plan/practice.ts` — the practice-block pickers and `mockInterviewProblem()` (§5.6);
+  `plan/reviewMode.ts` — `reviewMode()`; `plan/history.ts` — `recapWeeksDone()`;
+  `plan/template.ts` — `dayTemplate()`, `planBlockId()`.
+- `plan/simulate.ts` and `plan/simInputs.ts` — the §5.10 simulation, asserted by
+  `plan/__tests__/simulation.dsa.test.ts` and `simulation.english.test.ts`; `plan/projections.ts`
+  reads `projections.generated.json` and `plan/variant.ts` picks the default variant (§5.11).
+- `plan/overrides.ts` is not built: §5.12 is v1.1 (task 6.6).
 
 ## 6. AI bot boundaries and bot API contract — APPROVED
 

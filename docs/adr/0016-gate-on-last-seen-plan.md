@@ -32,7 +32,7 @@ Two further constraints shape the rule:
   including a later day. **Closed** otherwise (nothing done, or everything skipped).
 - **`resumedToday`.** When the gate is open because of a check-in on an **earlier** day's plan,
   `gateStatus` reports whether the *earliest* qualifying (`done`/`partial`) check-in landed on
-  `today`. When it did, the caller (`ensurePlan`, 4.6) builds no new plan today — the resumed work
+  `today`. When it did, the caller (`ensurePlan`, M5 task 5.1) builds no new plan today — the resumed work
   already counts as today's study day, so `/today` keeps showing the resumed plan and the next
   plan is built on the next local day. This is the one piece of gate state that depends on
   `today`, not just on plan history, which is why it is returned as a field of `GateStatus` rather
@@ -42,10 +42,11 @@ Two further constraints shape the rule:
   banner, and check-ins go to that old plan. The bot cannot write a plan for this user
   (`skipped_gate_closed`).
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
-  plan is `RESUME_AFTER_DAYS` (2) local days old or older — a two-day gap does not yet warrant it,
-  a three-day gap does. `plan/gate.ts` only computes the numbers (`daysSince`, `offerResume`); the
-  resume plan itself is built in `plan/resume.ts` (task 4.6), which needs the budget and throttle
-  rules `gate.ts` does not depend on.
+  plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
+  old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers
+  (`daysSince`, `offerResume`); the resume plan itself is built by `buildResumePlan` in
+  `plan/resume.ts` (task 4.6), which needs the budget and throttle rules `gate.ts` does not depend
+  on, and `ensurePlan` (M5 task 5.1) stores and shows it.
 
 ## Consequences
 
@@ -60,3 +61,10 @@ Two further constraints shape the rule:
 - The trade-off is that the gate can only reopen when a check-in event has already been recorded;
   a plan that was seen but never touched stays closed until the learner acts (by design — §5.2's
   "resuming counts as today's work" only means something once resuming has happened).
+- Accepted (M4 final review, a routed 4.9c item): the untouched-plan check of a rebuild
+  (`plan.generated` mode `rebuild`, decision 12 — no `plan_block_state` row and no event naming the
+  plan, read under the `(user, plan_date)` lock) can miss a learner's own direct writes. An
+  `events` or `plan_block_state` insert sent straight through PostgREST, outside `apply_event`,
+  takes no plan lock, so it can commit between the check and the rebuild. It touches only the
+  learner's own plan, and every app path (`apply_event` for events naming a plan,
+  `apply_system_event`) takes the plan lock — the same class as ruling R14's direct writes.
