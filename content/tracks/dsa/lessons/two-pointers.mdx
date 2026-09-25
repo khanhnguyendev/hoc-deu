@@ -1,0 +1,176 @@
+---
+id: dsa:lesson-two-pointers
+format: pattern
+topic: two-pointers
+title: 'Two Pointers: thu hẹp từ hai đầu'
+anchor: dsa:lc-0167
+practice: dsa:lc-0015
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="hai con trỏ">two pointers</Term> khi gặp một trong các dấu hiệu sau:
+
+- Mảng hoặc chuỗi **đã được sắp xếp**, và đề hỏi về một cặp (hay một bộ ba) có tổng cho trước.
+- Cần so sánh hai phần tử ở hai đầu rồi tiến dần vào giữa, như khi kiểm tra một <Term>palindrome</Term>.
+- Ở mỗi bước có một lý do chắc chắn để **loại** phần tử ở một đầu: tổng quá nhỏ, cột quá thấp…
+- Cần bộ nhớ thêm `O(1)`, thay cho một <Term vi="bảng băm">hash map</Term>.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Nếu cặp hiện tại chưa phải đáp án, phần tử ở đầu nào **chắc chắn** không thể nằm trong đáp án? Trả lời được câu này là dùng được hai con trỏ.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Bạn có 100 nghìn đồng và muốn mua đúng hai món ở một sạp hàng sao cho tiêu vừa hết số tiền. Các món được bày theo giá, rẻ nhất ở bên trái, đắt nhất ở bên phải. Tay trái cầm món rẻ nhất, tay phải cầm món đắt nhất, rồi cộng giá:
+
+- Chưa tới 100 nghìn: món bên trái rẻ quá, đi với món đắt nhất còn chưa đủ, nên đổi nó lấy món kế bên đắt hơn một chút.
+- Vượt 100 nghìn: món bên phải đắt quá, đi với món rẻ nhất còn dư, nên đổi nó lấy món kế bên rẻ hơn.
+- Vừa đúng 100 nghìn: mua hai món đó.
+
+Mỗi lần đổi, bạn gạt hẳn một món ra khỏi danh sách và không bao giờ phải xét lại nó.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Two Sum II: mảng đã sắp xếp, đáp án đánh số từ 1. Mỗi hàng là một bước; `left` và `right` là chỉ số tính từ 0.
+
+<VarTable caption="numbers = [2, 4, 5, 7, 11], target = 12">
+
+| Bước | left | right | Tổng | Hành động |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 4 | 2 + 11 = 13 | Lớn hơn 12: loại 11, giảm `right` |
+| 2 | 0 | 3 | 2 + 7 = 9 | Nhỏ hơn 12: loại 2, tăng `left` |
+| 3 | 1 | 3 | 4 + 7 = 11 | Nhỏ hơn 12: loại 4, tăng `left` |
+| 4 | 2 | 3 | 5 + 7 = 12 | Bằng 12: trả về `[3, 4]` (đánh số từ 1) |
+
+</VarTable>
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Kiểm tra thứ tự">Hai con trỏ cần dữ liệu có thứ tự. Nếu mảng chưa sắp xếp và đề chỉ hỏi giá trị, không hỏi chỉ số gốc, hãy sắp xếp trước với chi phí `O(n log n)`.</Step>
+
+<Step title="Đặt hai con trỏ">`left` ở phần tử đầu tiên, `right` ở phần tử cuối cùng.</Step>
+
+<Step title="Đánh giá cặp hiện tại">Tính giá trị của cặp — tổng, diện tích, hay chỉ là so sánh hai ký tự — và ghi nhận nếu nó là đáp án.</Step>
+
+<Step title="Loại một đầu">Dịch con trỏ ở đầu **chắc chắn không còn dùng được**: tổng nhỏ quá thì tăng `left`, lớn quá thì giảm `right`.</Step>
+
+<Step title="Dừng khi gặp nhau">Khi `left >= right`, mọi cặp đều đã được xét hoặc bị loại có lý do.</Step>
+
+</Steps>
+
+### Vì sao đúng
+
+Giả sử `numbers[left] + numbers[right]` nhỏ hơn `target`. Mọi số còn lại đều không lớn hơn `numbers[right]`, nên `numbers[left]` đi với số nào cũng thiếu: bỏ nó không làm mất đáp án. Khi tổng lớn hơn `target`, lập luận đối xứng cho `numbers[right]`.
+
+### Các biến thể trong tuần
+
+- **Valid Palindrome:** so sánh hai ký tự ở hai đầu, bỏ qua ký tự không phải chữ hoặc số.
+- **Container With Most Water** và **Trapping Rain Water:** luôn dịch phía có cột thấp hơn.
+
+</Section>
+
+<Section kind="code">
+
+Mẫu hai con trỏ, viết cho chính bài mẫu Two Sum II. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import List
+
+
+class Solution:
+    def twoSum(self, numbers: List[int], target: int) -> List[int]:
+        # numbers is sorted in ascending order; the answer is 1-indexed.
+        left, right = 0, len(numbers) - 1
+        while left < right:
+            total = numbers[left] + numbers[right]
+            if total == target:
+                return [left + 1, right + 1]
+            if total < target:
+                left += 1  # too small even with the largest remaining number
+            else:
+                right -= 1  # too large even with the smallest remaining number
+        return []
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi bước, một trong hai con trỏ tiến một ô vào trong, nên có nhiều nhất `n - 1` bước. Nếu phải sắp xếp trước thì thời gian là `O(n log n)`.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Đặt hai con trỏ ở hai đầu dãy đã sắp xếp; mỗi bước so sánh cặp hiện tại rồi loại một phần tử chắc chắn không thuộc đáp án, cho tới khi hai con trỏ gặp nhau." en="Place a pointer at each end of a sorted sequence. At each step, compare the pair and move one pointer inward, discarding a value that cannot be part of the answer, until the pointers meet. This takes O(n) time and O(1) space." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0015" />
+
+Thử 3Sum: làm sao đưa bài toán bộ ba về đúng bài toán tìm cặp ở trên, và làm sao để không trả về cùng một bộ ba hai lần?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Mảng đã sắp xếp và tổng numbers[left] + numbers[right] đang nhỏ hơn target. Bước tiếp theo là gì?" answer="b">
+
+<Choice id="a">Giảm `right`</Choice>
+
+<Choice id="b">Tăng `left`</Choice>
+
+<Choice id="c">Dịch cả hai con trỏ</Choice>
+
+</Question>
+
+<Question prompt="Vì sao bỏ phần tử ở left khi tổng quá nhỏ mà không sợ mất đáp án?" answer="a">
+
+<Choice id="a">Nó cộng với bất kỳ phần tử nào còn lại cũng vẫn nhỏ hơn target</Choice>
+
+<Choice id="b">Nó luôn là số âm</Choice>
+
+<Choice id="c">Mảng không có phần tử trùng nhau</Choice>
+
+</Question>
+
+<Question prompt="Trong Container With Most Water, nên dịch con trỏ nào vào trong?" answer="b">
+
+<Choice id="a">Con trỏ ở cột cao hơn</Choice>
+
+<Choice id="b">Con trỏ ở cột thấp hơn</Choice>
+
+<Choice id="c">Lần lượt từng con trỏ</Choice>
+
+</Question>
+
+<Question prompt="Mảng chưa sắp xếp và cần trả về chỉ số gốc của hai số có tổng bằng target. Cách nào phù hợp nhất?" answer="c">
+
+<Choice id="a">Hai con trỏ ngay trên mảng gốc</Choice>
+
+<Choice id="b">Sắp xếp rồi dùng hai con trỏ, trả về chỉ số sau khi sắp xếp</Choice>
+
+<Choice id="c">Một hash map lưu các số đã gặp cùng chỉ số của chúng</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

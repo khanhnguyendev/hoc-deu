@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Bài thiết kế lớp này cần nhớ mọi phiên bản giá trị của một key theo thời gian. Dùng một <Term vi="bảng băm">hash map</Term> từ mỗi key tới danh sách các cặp `(timestamp, value)`. Các lần `set` luôn đến với <Term vi="mốc thời gian">timestamp</Term> tăng dần, nên chỉ cần nối vào cuối danh sách là danh sách tự xếp theo thời gian, không phải sắp xếp lại. Khi `get`, dùng <Term vi="tìm kiếm nhị phân">binary search</Term> để tìm cặp **cuối cùng** có timestamp không lớn hơn mốc được hỏi.
+
+## Cách làm
+
+<Steps>
+
+<Step title="set">Nối cặp `(timestamp, value)` vào cuối danh sách của `key`, tạo danh sách mới nếu key chưa có.</Step>
+
+<Step title="get: chuẩn bị">Lấy danh sách `entries` của `key`, rỗng nếu key chưa có. Đặt `answer = ""`, `lo = 0` và `hi = len(entries) - 1`.</Step>
+
+<Step title="get: tìm nhị phân">Chừng nào `lo <= hi`, lấy `mid`. Nếu timestamp của `entries[mid]` không lớn hơn mốc được hỏi, cặp này là một ứng viên: ghi value của nó vào `answer` rồi tìm tiếp bên phải, `lo = mid + 1`. Ngược lại cặp này quá muộn: `hi = mid - 1`.</Step>
+
+<Step title="get: trả kết quả">Khi `lo > hi`, `answer` là value của ứng viên được ghi sau cùng, hoặc chuỗi rỗng nếu mọi timestamp đều sau mốc được hỏi.</Step>
+
+</Steps>
+
+Sau `set("lamp", "off", 2)`, `set("lamp", "on", 5)` và `set("lamp", "dim", 9)`, gọi `get("lamp", 7)`:
+
+<VarTable caption='entries = [(2, "off"), (5, "on"), (9, "dim")], get("lamp", 7)'>
+
+| lo | hi | mid | timestamp | Hành động | answer |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 2 | 1 | 5 | `5 <= 7`: ghi ứng viên, `lo = 2` | `"on"` |
+| 2 | 2 | 2 | 9 | `9 > 7`: `hi = 1` | `"on"` |
+| 2 | 1 | — | — | `lo > hi`: dừng | `"on"` |
+
+</VarTable>
+
+Với `get("lamp", 1)`, mọi timestamp đều lớn hơn 1, nên `answer` giữ nguyên chuỗi rỗng.
+
+<Callout tone="tip" title="Tìm phần tử cuối cùng thỏa điều kiện">
+
+Khác bài Binary Search thường, gặp một cặp hợp lệ chưa phải là xong: bên phải có thể còn cặp hợp lệ muộn hơn. Vì vậy ta ghi lại ứng viên rồi tìm tiếp bên phải; ứng viên được ghi sau cùng chính là cặp có timestamp lớn nhất mà vẫn không vượt quá mốc được hỏi.
+
+</Callout>
+
+<Complexity time="set O(1), get O(log n)" space="O(N)" />
+
+Với `n` là số cặp đã lưu cho key được hỏi và `N` là tổng số lần gọi `set`: `set` chỉ nối vào cuối danh sách, `get` tìm nhị phân trên danh sách của một key, và mọi cặp được lưu đúng một lần.
+
+<Solution />
+
+<Bilingual vi="Dùng hash map từ key tới danh sách cặp (timestamp, value); set nối vào cuối nên danh sách luôn tăng theo thời gian, get tìm nhị phân cặp cuối cùng có timestamp không vượt quá mốc được hỏi." en="Map each key to a list of (timestamp, value) pairs. Timestamps only increase, so set appends and each list stays sorted. For get, binary search for the last pair whose timestamp is at most the queried timestamp and return its value, or an empty string if none. set is O(1), get is O(log n)." />

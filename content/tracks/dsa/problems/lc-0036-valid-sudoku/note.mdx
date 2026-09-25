@@ -1,0 +1,50 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Bảng hợp lệ khi không chữ số nào xuất hiện hai lần trong cùng một hàng, một cột hay một ô vuông 3×3; chỉ xét các ô đã điền, và bảng không cần giải được. Đó là 27 câu hỏi "chữ số này đã gặp chưa?", nên ta giữ 27 tập hợp: 9 cho hàng, 9 cho cột và 9 cho các <Term vi="ô vuông 3×3">box</Term>. Mẹo then chốt là đánh số box: ô ở hàng `r`, cột `c` thuộc box `(r / 3) * 3 + c / 3` (chia lấy phần nguyên), đánh số từ 0 ở góc trên bên trái tới 8 ở góc dưới bên phải, theo từng hàng. Chữ số chỉ có từ 1 tới 9, nên mỗi tập hợp là một mảng 9 giá trị <Term vi="đúng/sai">boolean</Term> thay cho <Term vi="tập hợp băm">hash set</Term>.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Chuẩn bị">Ba mảng `rows`, `cols`, `boxes`, mỗi mảng 9 × 9 giá trị `false`: `rows[r][d]` cho biết chữ số `d + 1` đã có trong hàng `r` chưa; `cols` và `boxes` tương tự.</Step>
+
+<Step title="Duyệt 81 ô">Bỏ qua ô trống `.`; với ô có chữ số, tính `d` (chữ số trừ 1) và `b = (r / 3) * 3 + c / 3`.</Step>
+
+<Step title="Kiểm tra">Nếu `rows[r][d]`, `cols[c][d]` hoặc `boxes[b][d]` đã là `true` thì chữ số bị lặp: trả về `false`.</Step>
+
+<Step title="Đánh dấu">Gán cả ba thành `true` rồi sang ô tiếp theo. Duyệt hết mà không gặp chữ số lặp: trả về `true`.</Step>
+
+</Steps>
+
+`r / 3` cho biết ô nằm ở dải box thứ mấy tính từ trên xuống, `c / 3` là cột box thứ mấy tính từ trái sang; mỗi dải có 3 box.
+
+<VarTable caption="Chỉ số box của một vài ô">
+
+| Ô (r, c) | r / 3 | c / 3 | Box = (r / 3) * 3 + c / 3 |
+| --- | --- | --- | --- |
+| (0, 0) | 0 | 0 | 0 |
+| (1, 5) | 0 | 1 | 1 |
+| (4, 4) | 1 | 1 | 4 |
+| (5, 8) | 1 | 2 | 5 |
+| (7, 2) | 2 | 0 | 6 |
+| (8, 8) | 2 | 2 | 8 |
+
+</VarTable>
+
+<Callout tone="warning">
+
+Trong Python phải viết `r // 3`: phép `/` cho ra số thực và làm hỏng chỉ số box. Trong Java và Go, chia hai số nguyên không âm đã tự bỏ phần lẻ.
+
+</Callout>
+
+<Complexity time="O(1)" space="O(1)" />
+
+Bảng luôn có 9 × 9 = 81 ô và ba mảng 81 giá trị, nên cả thời gian lẫn bộ nhớ đều là hằng số. Với một bảng `n × n` tổng quát, cách này tốn `O(n^2)` thời gian và bộ nhớ.
+
+<Solution />
+
+<Bilingual vi="Duyệt 81 ô một lần, giữ một tập hợp đã gặp cho mỗi hàng, mỗi cột và mỗi box 3×3, với box = (r / 3) * 3 + c / 3; chữ số đã có trong tập hợp của ô đó thì bảng không hợp lệ." en="Scan the 81 cells once, keeping a seen-set for every row, every column and every 3x3 box, where cell (r, c) belongs to box (r / 3) * 3 + c / 3 (integer division). A digit already in its row, column or box set makes the board invalid; empty cells are skipped. The board is fixed, so O(1)." />

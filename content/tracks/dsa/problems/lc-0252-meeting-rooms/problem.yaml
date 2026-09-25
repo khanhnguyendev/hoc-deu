@@ -1,0 +1,8 @@
+id: dsa:lc-0252
+leetcode: 252
+title: Meeting Rooms
+difficulty: E
+topic: intervals
+premium: true
+alternatives:
+  - { label: 'LintCode 920 (miễn phí)', url: 'https://www.lintcode.com/problem/920/' }

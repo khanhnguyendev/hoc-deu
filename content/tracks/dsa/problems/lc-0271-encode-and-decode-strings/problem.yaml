@@ -1,0 +1,8 @@
+id: dsa:lc-0271
+leetcode: 271
+title: Encode and Decode Strings
+difficulty: M
+topic: arrays-hashing
+premium: true
+alternatives:
+  - { label: 'LintCode 659 (miễn phí)', url: 'https://www.lintcode.com/problem/659/' }

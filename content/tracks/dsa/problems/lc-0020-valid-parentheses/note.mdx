@@ -1,0 +1,54 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mỗi dấu đóng phải khớp với dấu mở **gần nhất** còn chưa được đóng, tức là dấu mở xuất hiện sau cùng. Thứ tự này chính là cách một <Term vi="ngăn xếp">stack</Term> hoạt động: phần tử vào sau thì ra trước, gọi là <Term>LIFO</Term>. Gặp dấu mở thì đẩy nó vào stack; gặp dấu đóng thì dấu mở ở đỉnh stack phải cùng loại, và khi đó ta lấy nó ra. Duyệt hết chuỗi mà stack vẫn còn dấu mở nghĩa là có ngoặc chưa được đóng.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Bảng tra dấu mở">Tạo một <Term vi="bảng băm">hash map</Term> `opener` cho biết mỗi dấu đóng cần dấu mở nào: `)` cần `(`, `]` cần `[`, `}` cần `{`.</Step>
+
+<Step title="Gặp dấu mở">Đẩy nó vào stack rồi đi tiếp; thao tác này gọi là <Term>push</Term>.</Step>
+
+<Step title="Gặp dấu đóng">Nếu stack rỗng, hoặc đỉnh stack không phải dấu mở mà dấu đóng này cần, trả về `false` ngay. Nếu khớp, lấy dấu mở đó ra khỏi stack, tức <Term>pop</Term>.</Step>
+
+<Step title="Kiểm tra cuối">Hết chuỗi, trả về `true` khi và chỉ khi stack rỗng.</Step>
+
+</Steps>
+
+Chạy thử với `s = "{[]()}"`:
+
+<VarTable caption='s = "{[]()}"'>
+
+| Bước | Ký tự | Đỉnh stack | Hành động | Stack sau bước (đáy → đỉnh) |
+| --- | --- | --- | --- | --- |
+| 1 | `{` | — | Dấu mở: push | `{` |
+| 2 | `[` | `{` | Dấu mở: push | `{[` |
+| 3 | `]` | `[` | Khớp: pop | `{` |
+| 4 | `(` | `{` | Dấu mở: push | `{(` |
+| 5 | `)` | `(` | Khớp: pop | `{` |
+| 6 | `}` | `{` | Khớp: pop | rỗng |
+
+</VarTable>
+
+Hết chuỗi và stack rỗng: trả về `true`.
+
+<Callout tone="warning" title="Ba cách một chuỗi bị sai">
+
+- Gặp dấu đóng khi stack đang rỗng: không còn dấu mở nào để khớp.
+- Đỉnh stack là dấu mở khác loại, như trong `[(])`: dấu `]` gặp `(` ở đỉnh.
+- Hết chuỗi mà stack còn dấu mở: có ngoặc chưa được đóng.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi ký tự được push hoặc pop nhiều nhất một lần; stack dài nhất khi chuỗi toàn dấu mở, tới `n` phần tử.
+
+<Solution />
+
+<Bilingual vi="Duyệt chuỗi với một stack: gặp dấu mở thì push vào; gặp dấu đóng thì đỉnh stack phải là dấu mở cùng loại để pop ra, nếu không thì chuỗi sai; cuối cùng stack phải rỗng." en="Scan the string with a stack. Push every opening bracket. For a closing bracket, the top of the stack must be the matching opener, so pop it; if the stack is empty or the top differs, the string is invalid. At the end the stack must be empty. O(n) time and space." />

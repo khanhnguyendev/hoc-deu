@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Lượng nước giữa hai cột bằng chiều cao cột **thấp hơn** nhân với khoảng cách giữa chúng. Bắt đầu với bể chứa rộng nhất — hai cột ở hai đầu — rồi thu hẹp dần bằng <Term vi="hai con trỏ">two pointers</Term>. Mẹo then chốt: luôn dịch cột thấp hơn vào trong. Nếu giữ lại cột thấp, mọi bể hẹp hơn dùng nó đều không cao hơn nó mà lại hẹp hơn, nên không thể tốt hơn bể vừa tính; bỏ cột đó đi là an toàn.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Bắt đầu ở hai đầu">`left = 0`, `right = n - 1`, `best = 0`.</Step>
+
+<Step title="Tính diện tích">Diện tích là `min(height[left], height[right]) * (right - left)`; cập nhật `best`.</Step>
+
+<Step title="Dịch cột thấp hơn">Nếu `height[left] < height[right]` thì tăng `left`, ngược lại giảm `right`. Khi hai cột cao bằng nhau, dịch bên nào cũng được.</Step>
+
+<Step title="Dừng">Khi `left` gặp `right`, `best` là đáp án.</Step>
+
+</Steps>
+
+Chạy thử với `height = [1, 6, 3, 8, 4, 2]`:
+
+<VarTable caption="height = [1, 6, 3, 8, 4, 2]">
+
+| Bước | left | right | Hai cột | Diện tích | `best` | Hành động |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 5 | 1 và 2 | 1 × 5 = 5 | 5 | Cột trái thấp hơn: tăng `left` |
+| 2 | 1 | 5 | 6 và 2 | 2 × 4 = 8 | 8 | Cột phải thấp hơn: giảm `right` |
+| 3 | 1 | 4 | 6 và 4 | 4 × 3 = 12 | 12 | Cột phải thấp hơn: giảm `right` |
+| 4 | 1 | 3 | 6 và 8 | 6 × 2 = 12 | 12 | Cột trái thấp hơn: tăng `left` |
+| 5 | 2 | 3 | 3 và 8 | 3 × 1 = 3 | 12 | Cột trái thấp hơn: tăng `left`, hai con trỏ gặp nhau |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Thử mọi cặp cột cũng cho đáp án đúng nhưng tốn `O(n^2)`. Chính lập luận "cột thấp hơn không thể cho bể lớn hơn nữa" là thứ đưa bài này về `O(n)`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi bước một con trỏ tiến một ô vào trong, nên có nhiều nhất `n - 1` bước.
+
+<Solution />
+
+<Bilingual vi="Bắt đầu với hai cột ở hai đầu, tính diện tích theo cột thấp hơn, rồi luôn dịch cột thấp hơn vào trong vì giữ nó lại không thể cho bể chứa lớn hơn." en="Start with a pointer at each end, the widest container. Its area is the shorter wall times the distance. Always move the shorter wall inward, since keeping it can only give narrower containers that are no taller. O(n) time, O(1) space." />

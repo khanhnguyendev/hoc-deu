@@ -1,0 +1,53 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Trong <Term vi="ký pháp Ba Lan ngược">Reverse Polish Notation</Term>, toán tử đứng sau hai toán hạng của nó, nên mỗi toán tử luôn dùng hai giá trị gần nhất chưa được dùng tới. "Gần nhất" là dấu hiệu của một <Term vi="ngăn xếp">stack</Term>: gặp số thì đẩy vào; gặp toán tử thì lấy hai giá trị ở đỉnh ra, tính, rồi đẩy kết quả vào lại. Hết dãy, giá trị còn trong stack là đáp án. Hai chỗ dễ sai là thứ tự toán hạng của `-` và `/`, và phép chia số nguyên, vốn phải làm tròn về phía 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Gặp số">Token nào không phải một trong bốn toán tử là một số, kể cả số âm như `"-4"`: chuyển nó thành số nguyên và đẩy vào stack, tức <Term>push</Term>.</Step>
+
+<Step title="Gặp toán tử">Lấy hai giá trị ở đỉnh ra, tức hai lần <Term>pop</Term>. Giá trị lấy ra **đầu tiên** là toán hạng bên phải `right`, giá trị thứ hai là toán hạng bên trái `left`.</Step>
+
+<Step title="Tính và đẩy lại">Tính `left op right`, với `op` là toán tử vừa gặp, và đẩy kết quả vào stack. Phép chia làm tròn về phía 0.</Step>
+
+<Step title="Kết quả">Hết dãy token, trả về giá trị ở đỉnh stack.</Step>
+
+</Steps>
+
+Chạy thử với `tokens = ["7", "-3", "/", "4", "*", "2", "-"]`, tức `((7 / -3) * 4) - 2`:
+
+<VarTable caption='tokens = ["7", "-3", "/", "4", "*", "2", "-"]'>
+
+| Token | Hành động | Stack sau bước (đáy → đỉnh) |
+| --- | --- | --- |
+| `"7"` | Số: push | `7` |
+| `"-3"` | Số âm, không phải toán tử: push | `7, -3` |
+| `"/"` | `right = -3`, `left = 7`: `7 / -3 = -2`, làm tròn về 0 | `-2` |
+| `"4"` | Số: push | `-2, 4` |
+| `"*"` | `right = 4`, `left = -2`: `-2 * 4 = -8` | `-8` |
+| `"2"` | Số: push | `-8, 2` |
+| `"-"` | `right = 2`, `left = -8`: `-8 - 2 = -10` | `-10` |
+
+</VarTable>
+
+Kết quả là `-10`.
+
+<Callout tone="warning" title="Phép chia trong Python">
+
+Java và Go chia số nguyên bằng cách bỏ phần thập phân, tức làm tròn về phía 0: `7 / -3` cho `-2`. Toán tử `//` của Python lại làm tròn xuống, về phía âm vô cùng: `7 // -3` cho `-3`, và ví dụ trên sẽ ra `-14` thay vì `-10`. Vì vậy lời giải Python chia hai trị tuyệt đối, `abs(left) // abs(right)`, rồi đổi dấu thương khi `left` và `right` trái dấu.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi token được xử lý một lần với vài thao tác `O(1)`. Stack chứa nhiều nhất các số của dãy, khoảng một nửa số token.
+
+<Solution />
+
+<Bilingual vi="Duyệt các token với một stack số: gặp số thì push; gặp toán tử thì pop toán hạng phải rồi toán hạng trái, tính và push kết quả, với phép chia làm tròn về 0; giá trị còn lại trong stack là đáp án." en="Scan the tokens with a stack of numbers. Push each number. For an operator, pop the right operand first, then the left one, apply the operator and push the result; division truncates toward zero. The value left on the stack is the answer. O(n) time and space." />

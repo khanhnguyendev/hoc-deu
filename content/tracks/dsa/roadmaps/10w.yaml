@@ -1,0 +1,190 @@
+# The DSA 10-week roadmap (platform design §3.4, §5.3; task 3.6).
+# core and recap are the input of the §5.10/§5.11 simulation (plan-sim.py W10), pinned by
+# tools/content/dsa-content.test.ts. A recap entry without a mode introduces its problem.
+# bonus: the selected NeetCode 150 problems (decision 29, Q2), each in its topic's week.
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    core:
+      - dsa:lc-0217 # Contains Duplicate (E)
+      - dsa:lc-0242 # Valid Anagram (E)
+      - dsa:lc-0001 # Two Sum (E)
+      - dsa:lc-0049 # Group Anagrams (M)
+      - dsa:lc-0347 # Top K Frequent Elements (M)
+      - dsa:lc-0238 # Product of Array Except Self (M)
+      - dsa:lc-0128 # Longest Consecutive Sequence (M)
+      - dsa:lc-0036 # Valid Sudoku (M)
+    bonus: []
+    recap:
+      - { item: dsa:lc-0271 } # Encode and Decode Strings (M), introduced here
+      - { item: dsa:lc-0128, mode: redo } # Longest Consecutive Sequence (M)
+      - { item: dsa:lc-0049, mode: explain-aloud } # Group Anagrams (M)
+  - week: 2
+    topics: [two-pointers, sliding-window]
+    core:
+      - dsa:lc-0125 # Valid Palindrome (E)
+      - dsa:lc-0121 # Best Time to Buy and Sell Stock (E)
+      - dsa:lc-0167 # Two Sum II - Input Array Is Sorted (M)
+      - dsa:lc-0015 # 3Sum (M)
+      - dsa:lc-0011 # Container With Most Water (M)
+      - dsa:lc-0003 # Longest Substring Without Repeating Characters (M)
+      - dsa:lc-0424 # Longest Repeating Character Replacement (M)
+      - dsa:lc-0042 # Trapping Rain Water (H)
+    bonus:
+      - dsa:lc-0076 # Minimum Window Substring (H)
+    recap:
+      - { item: dsa:lc-0001, mode: explain-aloud } # Two Sum (E)
+      - { item: dsa:lc-0567 } # Permutation in String (M), introduced here
+      - { item: dsa:lc-0347, mode: redo } # Top K Frequent Elements (M)
+  - week: 3
+    topics: [stack, binary-search]
+    core:
+      - dsa:lc-0020 # Valid Parentheses (E)
+      - dsa:lc-0704 # Binary Search (E)
+      - dsa:lc-0155 # Min Stack (M)
+      - dsa:lc-0739 # Daily Temperatures (M)
+      - dsa:lc-0875 # Koko Eating Bananas (M)
+      - dsa:lc-0153 # Find Minimum in Rotated Sorted Array (M)
+      - dsa:lc-0981 # Time Based Key-Value Store (M)
+      - dsa:lc-0084 # Largest Rectangle in Histogram (H)
+    bonus:
+      - dsa:lc-0853 # Car Fleet (M)
+      - dsa:lc-0033 # Search in Rotated Sorted Array (M)
+    recap:
+      - { item: dsa:lc-0424, mode: redo } # Longest Repeating Character Replacement (M)
+      - { item: dsa:lc-0150 } # Evaluate Reverse Polish Notation (M), introduced here
+      - { item: dsa:lc-0238, mode: redo } # Product of Array Except Self (M)
+  - week: 4
+    topics: [linked-list]
+    core:
+      - dsa:lc-0206 # Reverse Linked List (E)
+      - dsa:lc-0021 # Merge Two Sorted Lists (E)
+      - dsa:lc-0141 # Linked List Cycle (E)
+      - dsa:lc-0019 # Remove Nth Node From End of List (M)
+      - dsa:lc-0143 # Reorder List (M)
+      - dsa:lc-0002 # Add Two Numbers (M)
+      - dsa:lc-0146 # LRU Cache (M)
+      - dsa:lc-0023 # Merge k Sorted Lists (H)
+    bonus:
+      - dsa:lc-0287 # Find the Duplicate Number (M)
+    recap:
+      - { item: dsa:lc-0074 } # Search a 2D Matrix (M), introduced here
+      - { item: dsa:lc-0003, mode: redo } # Longest Substring Without Repeating Characters (M)
+      - { item: dsa:lc-0138 } # Copy List with Random Pointer (M), introduced here
+  - week: 5
+    topics: [trees]
+    core:
+      - dsa:lc-0226 # Invert Binary Tree (E)
+      - dsa:lc-0104 # Maximum Depth of Binary Tree (E)
+      - dsa:lc-0100 # Same Tree (E)
+      - dsa:lc-0543 # Diameter of Binary Tree (E)
+      - dsa:lc-0102 # Binary Tree Level Order Traversal (M)
+      - dsa:lc-0098 # Validate Binary Search Tree (M)
+      - dsa:lc-0230 # Kth Smallest Element in a BST (M)
+      - dsa:lc-0124 # Binary Tree Maximum Path Sum (H)
+    bonus:
+      - dsa:lc-0110 # Balanced Binary Tree (E)
+      - dsa:lc-0235 # Lowest Common Ancestor of a Binary Search Tree (M)
+      - dsa:lc-1448 # Count Good Nodes in Binary Tree (M)
+      - dsa:lc-0105 # Construct Binary Tree from Preorder and Inorder Traversal (M)
+      - dsa:lc-0208 # Implement Trie (Prefix Tree) (M)
+      - dsa:lc-0211 # Design Add and Search Words Data Structure (M)
+    recap:
+      - { item: dsa:lc-0146, mode: redo } # LRU Cache (M)
+      - { item: dsa:lc-0199 } # Binary Tree Right Side View (M), introduced here
+      - { item: dsa:lc-0128, mode: redo } # Longest Consecutive Sequence (M)
+  - week: 6
+    topics: [heap]
+    core:
+      - dsa:lc-0703 # Kth Largest Element in a Stream (E)
+      - dsa:lc-1046 # Last Stone Weight (E)
+      - dsa:lc-0973 # K Closest Points to Origin (M)
+      - dsa:lc-0215 # Kth Largest Element in an Array (M)
+      - dsa:lc-0621 # Task Scheduler (M)
+      - dsa:lc-0355 # Design Twitter (M)
+      - dsa:lc-0295 # Find Median from Data Stream (H)
+    bonus: []
+    recap:
+      - { item: dsa:lc-0347, mode: redo } # Top K Frequent Elements (M)
+      - { item: dsa:lc-0230, mode: redo } # Kth Smallest Element in a BST (M)
+      - { item: dsa:lc-0981, mode: redo } # Time Based Key-Value Store (M)
+  - week: 7
+    topics: [backtracking]
+    core:
+      - dsa:lc-0078 # Subsets (M)
+      - dsa:lc-0039 # Combination Sum (M)
+      - dsa:lc-0046 # Permutations (M)
+      - dsa:lc-0090 # Subsets II (M)
+      - dsa:lc-0040 # Combination Sum II (M)
+      - dsa:lc-0079 # Word Search (M)
+      - dsa:lc-0017 # Letter Combinations of a Phone Number (M)
+      - dsa:lc-0051 # N-Queens (H)
+    bonus:
+      - dsa:lc-0131 # Palindrome Partitioning (M)
+    recap:
+      - { item: dsa:lc-0022 } # Generate Parentheses (M), introduced here
+      - { item: dsa:lc-0572 } # Subtree of Another Tree (E), introduced here
+      - { item: dsa:lc-0215, mode: redo } # Kth Largest Element in an Array (M)
+  - week: 8
+    topics: [graphs]
+    core:
+      - dsa:lc-0200 # Number of Islands (M)
+      - dsa:lc-0695 # Max Area of Island (M)
+      - dsa:lc-0133 # Clone Graph (M)
+      - dsa:lc-0994 # Rotting Oranges (M)
+      - dsa:lc-0417 # Pacific Atlantic Water Flow (M)
+      - dsa:lc-0207 # Course Schedule (M)
+      - dsa:lc-0210 # Course Schedule II (M)
+      - dsa:lc-0127 # Word Ladder (H)
+    bonus:
+      - dsa:lc-0130 # Surrounded Regions (M)
+      - dsa:lc-0684 # Redundant Connection (M)
+      - dsa:lc-0743 # Network Delay Time (M)
+    recap:
+      - { item: dsa:lc-0079, mode: redo } # Word Search (M)
+      - { item: dsa:lc-0102, mode: redo } # Binary Tree Level Order Traversal (M)
+      - { item: dsa:lc-0739, mode: redo } # Daily Temperatures (M)
+  - week: 9
+    topics: [dp-1d]
+    core:
+      - dsa:lc-0070 # Climbing Stairs (E)
+      - dsa:lc-0198 # House Robber (M)
+      - dsa:lc-0213 # House Robber II (M)
+      - dsa:lc-0005 # Longest Palindromic Substring (M)
+      - dsa:lc-0091 # Decode Ways (M)
+      - dsa:lc-0322 # Coin Change (M)
+      - dsa:lc-0139 # Word Break (M)
+      - dsa:lc-0300 # Longest Increasing Subsequence (M)
+    bonus:
+      - dsa:lc-0746 # Min Cost Climbing Stairs (E)
+      - dsa:lc-0152 # Maximum Product Subarray (M)
+      - dsa:lc-0416 # Partition Equal Subset Sum (M)
+    recap:
+      - { item: dsa:lc-0994, mode: redo } # Rotting Oranges (M)
+      - { item: dsa:lc-0647 } # Palindromic Substrings (M), introduced here
+      - { item: dsa:lc-0042, mode: redo } # Trapping Rain Water (H)
+  - week: 10
+    topics: [dp-2d, intervals, greedy]
+    core:
+      - dsa:lc-0062 # Unique Paths (M)
+      - dsa:lc-1143 # Longest Common Subsequence (M)
+      - dsa:lc-0056 # Merge Intervals (M)
+      - dsa:lc-0057 # Insert Interval (M)
+      - dsa:lc-0435 # Non-overlapping Intervals (M)
+      - dsa:lc-0253 # Meeting Rooms II (M)
+      - dsa:lc-0053 # Maximum Subarray (M)
+      - dsa:lc-0763 # Partition Labels (M)
+    bonus:
+      - dsa:lc-0309 # Best Time to Buy and Sell Stock with Cooldown (M)
+      - dsa:lc-0518 # Coin Change II (M)
+      - dsa:lc-0494 # Target Sum (M)
+      - dsa:lc-0072 # Edit Distance (M)
+      - dsa:lc-0252 # Meeting Rooms (E)
+      - dsa:lc-0055 # Jump Game (M)
+      - dsa:lc-0045 # Jump Game II (M)
+      - dsa:lc-0134 # Gas Station (M)
+    recap:
+      - { item: dsa:lc-0146, mode: redo } # LRU Cache (M)
+      - { item: dsa:lc-0295, mode: redo } # Find Median from Data Stream (H)
+      - { item: dsa:lc-0380 } # Insert Delete GetRandom O(1) (M), introduced here

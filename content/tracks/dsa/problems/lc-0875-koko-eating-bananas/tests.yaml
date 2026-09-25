@@ -1,0 +1,18 @@
+signature:
+  { kind: function, name: minEatingSpeed, params: { piles: 'int[]', h: int }, returns: int }
+cases:
+  - { name: example-1, input: { piles: [3, 6, 7, 11], h: 8 }, expected: 4 }
+  - { name: example-2, input: { piles: [30, 11, 23, 4, 20], h: 5 }, expected: 30 }
+  - { name: example-3, input: { piles: [30, 11, 23, 4, 20], h: 6 }, expected: 23 }
+  - { name: single-pile, input: { piles: [1], h: 1 }, expected: 1 }
+  # one hour per pile: the speed must be the largest pile
+  - { name: h-equals-piles, input: { piles: [3, 6, 7, 11], h: 4 }, expected: 11 }
+  # k = 3 needs 3 * 333333334 = 1000000002 hours, k = 4 needs 750000000
+  - name: max-values
+    input: { piles: [1000000000, 1000000000, 1000000000], h: 1000000000 }
+    expected: 4
+  # k = 3 fits (3 * 268435456 = 805306368 hours), k = 2 does not (1207959552); at k = 1 the
+  # total 2415919104 exceeds a 32-bit int, which guards a lo <= hi search that sums hours in an int
+  - name: int-overflow-guard
+    input: { piles: [805306368, 805306368, 805306368], h: 1000000000 }
+    expected: 3

@@ -1,0 +1,10 @@
+signature: { kind: function, name: maxProfit, params: { prices: 'int[]' }, returns: int }
+compare: exact
+cases:
+  - { name: example-1, input: { prices: [7, 1, 5, 3, 6, 4] }, expected: 5 }
+  - { name: example-2, input: { prices: [7, 6, 4, 3, 1] }, expected: 0 }
+  - { name: single-day, input: { prices: [5] }, expected: 0 }
+  - { name: all-equal, input: { prices: [4, 4, 4] }, expected: 0 }
+  - { name: lowest-price-after-highest, input: { prices: [2, 4, 1] }, expected: 2 }
+  - { name: later-lower-buy-is-not-better, input: { prices: [3, 2, 6, 5, 0, 3] }, expected: 4 }
+  - { name: constraint-bounds, input: { prices: [10000, 0, 10000] }, expected: 10000 }

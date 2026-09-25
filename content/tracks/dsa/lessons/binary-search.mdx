@@ -1,0 +1,171 @@
+---
+id: dsa:lesson-binary-search
+format: pattern
+topic: binary-search
+title: 'Binary Search: mỗi bước bỏ một nửa'
+anchor: dsa:lc-0704
+practice: dsa:lc-0875
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="tìm kiếm nhị phân">binary search</Term> khi gặp một trong các dấu hiệu sau:
+
+- Dữ liệu **đã được sắp xếp**, kể cả khi bị xoay (dịch vòng), và cần tìm một giá trị hay một vị trí.
+- Đề yêu cầu thời gian `O(log n)`, hoặc có nhiều truy vấn trên cùng một dữ liệu đã sắp xếp, nên không thể duyệt lại từng phần tử cho mỗi truy vấn.
+- Cần tìm vị trí **đầu tiên** hay **cuối cùng** thỏa một điều kiện trong một mảng có thứ tự, như mốc thời gian cuối cùng không vượt quá một thời điểm.
+- Chỉ cần nhìn phần tử ở giữa là biết chắc nửa nào không thể chứa đáp án.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Nhìn vào phần tử ở giữa, mình có loại **chắc chắn** được một nửa không? Nếu có, sau mỗi bước đoạn cần tìm còn một nửa, và `n` phần tử chỉ cần khoảng `log2(n)` bước.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Bạn cần tra chữ "mango" trong một cuốn từ điển Anh – Việt bản giấy dày 1.000 trang. Không ai lật từng trang từ đầu. Bạn mở khoảng giữa cuốn và thấy các từ bắt đầu bằng "l": "mango" đứng sau, nên cả nửa đầu cuốn bị gạt đi. Mở tiếp khoảng giữa nửa sau và thấy "p": lần này bỏ phần phía sau. Mỗi lần mở, số trang còn phải tìm giảm một nửa, 1.000 rồi 500 rồi 250…, nên chỉ sau khoảng 10 lần mở là tới đúng trang.
+
+Cách này chạy được vì các từ đã **xếp theo thứ tự chữ cái**. Với một xấp giấy lộn xộn, nhìn một trang ở giữa không cho biết gì về các trang còn lại.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Binary Search: tìm chỉ số của `target` trong một mảng tăng dần, trả về `-1` nếu không có. Mỗi hàng là một bước.
+
+<VarTable caption="nums = [1, 4, 6, 9, 11, 15, 20, 27], target = 20">
+
+| Bước | lo | hi | mid | `nums[mid]` | Hành động | Đoạn còn lại |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 7 | 3 | 9 | Nhỏ hơn 20: `lo = 4` | `[11, 15, 20, 27]` |
+| 2 | 4 | 7 | 5 | 15 | Nhỏ hơn 20: `lo = 6` | `[20, 27]` |
+| 3 | 6 | 7 | 6 | 20 | Bằng 20: trả về 6 | — |
+
+</VarTable>
+
+Mảng có 8 phần tử nhưng chỉ cần 3 bước: mỗi bước, đoạn còn lại ngắn đi một nửa.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Chọn bất biến">Phát biểu một <Term vi="bất biến">invariant</Term>, điều luôn đúng suốt vòng lặp: nếu `target` có trong mảng thì nó nằm trong `nums[lo..hi]`, tính cả hai đầu. Lúc đầu `lo = 0` và `hi = n - 1`.</Step>
+
+<Step title="Lấy phần tử giữa">Chừng nào đoạn còn phần tử, tức `lo <= hi`, tính `mid = lo + (hi - lo) // 2`.</Step>
+
+<Step title="Loại một nửa, kể cả mid">Bằng `target` thì trả về `mid`. Nhỏ hơn thì mọi phần tử từ `lo` tới `mid` đều quá nhỏ: `lo = mid + 1`. Lớn hơn thì mọi phần tử từ `mid` tới `hi` đều quá lớn: `hi = mid - 1`.</Step>
+
+<Step title="Dừng khi đoạn rỗng">Khi `lo > hi`, bất biến cho biết `target` không có trong mảng: trả về `-1`.</Step>
+
+</Steps>
+
+### Vì sao luôn dừng
+
+Mỗi vòng lặp loại cả `mid`, nên đoạn `[lo, hi]` ngắn đi ít nhất một phần tử và còn không quá một nửa độ dài cũ. Nếu viết `lo = mid` thay cho `lo = mid + 1`, khi đoạn còn hai phần tử thì `mid` bằng `lo`, đoạn không ngắn đi, và vòng lặp chạy mãi.
+
+### Các biến thể trong tuần
+
+- **Find Minimum in Rotated Sorted Array:** so `nums[mid]` với `nums[hi]` để biết điểm gãy nằm ở nửa nào. Vì `mid` có thể chính là đáp án, vòng lặp dùng `lo < hi` với `hi = mid`, và dừng khi đoạn còn một phần tử.
+- **Time Based Key-Value Store:** tìm phần tử **cuối cùng** có <Term vi="mốc thời gian">timestamp</Term> không vượt quá mốc được hỏi: gặp phần tử hợp lệ thì ghi lại, rồi tìm tiếp bên phải.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải Python của Binary Search. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import List
+
+
+class Solution:
+    def search(self, nums: List[int], target: int) -> int:
+        # The target, if present, always lies in nums[lo..hi].
+        lo, hi = 0, len(nums) - 1
+        while lo <= hi:
+            mid = lo + (hi - lo) // 2
+            if nums[mid] == target:
+                return mid
+            if nums[mid] < target:
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return -1
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(log n)" space="O(1)" />
+
+Sau mỗi bước, đoạn cần tìm còn không quá một nửa, nên vòng lặp chạy khoảng `log2(n) + 1` lần. Ngoài `lo`, `hi` và `mid`, không cần thêm bộ nhớ.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Trên dữ liệu đã sắp xếp, so target với phần tử giữa đoạn đang xét rồi bỏ nửa chắc chắn không chứa nó, lặp lại cho tới khi tìm thấy hoặc đoạn rỗng." en="On sorted data, compare the target with the middle element of the current range and discard the half that cannot contain it. Repeat until the target is found or the range is empty. Each step halves the range: O(log n) time and O(1) space." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0875" />
+
+Thử Koko Eating Bananas: hãy viết cách vét cạn trước, rồi tự hỏi: một lần kiểm tra nào có thể loại đi cả một nửa số trường hợp?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Một mảng đã sắp xếp có khoảng 1.000.000 phần tử. Binary search cần nhiều nhất khoảng bao nhiêu lần xét phần tử giữa?" answer="a">
+
+<Choice id="a">Khoảng 20</Choice>
+
+<Choice id="b">Khoảng 1.000</Choice>
+
+<Choice id="c">Khoảng 500.000</Choice>
+
+</Question>
+
+<Question prompt="Đoạn đang xét tính cả lo và hi. Vòng lặp nên chạy khi nào?" answer="b">
+
+<Choice id="a">Khi `lo < hi`</Choice>
+
+<Choice id="b">Khi `lo <= hi`</Choice>
+
+<Choice id="c">Khi `hi - lo > 1`</Choice>
+
+</Question>
+
+<Question prompt="Thấy nums[mid] nhỏ hơn target. Vì sao gán lo = mid + 1 chứ không phải lo = mid?" answer="b">
+
+<Choice id="a">Để chạy nhanh hơn một chút</Choice>
+
+<Choice id="b">`mid` đã bị loại; giữ nó lại có thể khiến vòng lặp chạy mãi</Choice>
+
+<Choice id="c">Vì chỉ số của mảng tính từ 1</Choice>
+
+</Question>
+
+<Question prompt="Trong Find Minimum in Rotated Sorted Array, nums[mid] lớn hơn nums[hi] cho biết điều gì?" answer="c">
+
+<Choice id="a">Giá trị nhỏ nhất là `nums[mid]`</Choice>
+
+<Choice id="b">Giá trị nhỏ nhất nằm bên trái `mid`</Choice>
+
+<Choice id="c">Giá trị nhỏ nhất nằm bên phải `mid`</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

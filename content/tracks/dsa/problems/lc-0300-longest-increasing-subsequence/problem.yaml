@@ -1,0 +1,5 @@
+id: dsa:lc-0300
+leetcode: 300
+title: Longest Increasing Subsequence
+difficulty: M
+topic: dp-1d

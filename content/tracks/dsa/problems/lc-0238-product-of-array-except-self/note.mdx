@@ -1,0 +1,46 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Tích mọi phần tử trừ `nums[i]` bằng (tích các phần tử bên trái `i`) nhân (tích các phần tử bên phải `i`). Bài không cho dùng phép chia, và chia cũng hỏng ngay khi mảng có số 0. Vì vậy ta tính <Term vi="tích tiền tố">prefix product</Term> và <Term vi="tích hậu tố">suffix product</Term>. Đây là phần "Arrays" của chủ đề Arrays & Hashing: không cần <Term vi="bảng băm">hash map</Term>, chỉ cần tính trước một lượt để mỗi vị trí đọc ra kết quả trong `O(1)`. Mẹo để bộ nhớ thêm chỉ là `O(1)`: ghi tích bên trái thẳng vào mảng kết quả ở lượt đi, rồi nhân tích bên phải vào ở lượt về bằng một biến `right`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Lượt đi, từ trái sang phải">`answer[0] = 1` và `answer[i] = answer[i - 1] * nums[i - 1]`: `answer[i]` là tích mọi phần tử bên trái `i`.</Step>
+
+<Step title="Lượt về, từ phải sang trái">Giữ `right` là tích các phần tử bên phải `i`, bắt đầu bằng 1. Tại mỗi `i`: `answer[i] *= right`, rồi `right *= nums[i]`.</Step>
+
+<Step title="Trả về">Sau lượt về, `answer[i]` là tích bên trái nhân tích bên phải.</Step>
+
+</Steps>
+
+Trong bảng: cột "Tích trái" là `answer[i]` sau lượt đi; cột `right` là tích các phần tử bên phải `i` lúc lượt về tới `i`; cột "Kết quả" là `answer[i]` sau lượt về. Lượt về đi từ hàng cuối lên hàng đầu.
+
+<VarTable caption="nums = [2, 3, 4, 5]">
+
+| i | nums[i] | Tích trái | right | Kết quả |
+| --- | --- | --- | --- | --- |
+| 0 | 2 | 1 | 60 | 60 |
+| 1 | 3 | 2 | 20 | 40 |
+| 2 | 4 | 6 | 5 | 30 |
+| 3 | 5 | 24 | 1 | 24 |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Số 0 không cần xử lý riêng: tích bên trái và tích bên phải tự mang số 0 tới đúng những vị trí có kết quả bằng 0.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Hai lượt duyệt, mỗi lượt `O(n)`. Bộ nhớ `O(1)` là bộ nhớ thêm, không tính mảng `answer` (vốn phải trả về): ngoài nó chỉ có một biến `right`.
+
+<Solution />
+
+<Bilingual vi="Kết quả ở mỗi vị trí là tích bên trái nhân tích bên phải: lượt đi ghi tích tiền tố vào mảng kết quả, lượt về nhân thêm tích hậu tố giữ trong một biến." en="Each answer is the product of everything to its left times everything to its right. A left-to-right pass writes the prefix products into the output; a right-to-left pass multiplies in a running suffix product. No division, O(n) time, O(1) extra space besides the output." />

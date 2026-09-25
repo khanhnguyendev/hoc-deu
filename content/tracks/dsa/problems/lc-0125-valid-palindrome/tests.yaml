@@ -1,0 +1,10 @@
+signature: { kind: function, name: isPalindrome, params: { s: string }, returns: bool }
+compare: exact
+cases:
+  - { name: example-1, input: { s: 'A man, a plan, a canal: Panama' }, expected: true }
+  - { name: example-2, input: { s: 'race a car' }, expected: false }
+  - { name: example-3, input: { s: ' ' }, expected: true }
+  - { name: single-character, input: { s: 'a' }, expected: true }
+  - { name: digit-and-letter, input: { s: '0P' }, expected: false }
+  - { name: underscore-is-not-alphanumeric, input: { s: 'ab_a' }, expected: true }
+  - { name: mixed-case-and-digits, input: { s: 'A1b2B1a' }, expected: true }

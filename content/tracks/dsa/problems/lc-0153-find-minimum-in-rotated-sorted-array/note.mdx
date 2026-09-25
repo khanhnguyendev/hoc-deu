@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Một mảng tăng dần bị xoay gồm hai đoạn tăng dần nối nhau, và giá trị nhỏ nhất là phần tử đầu của đoạn thứ hai, ngay sau "điểm gãy"; nếu phép xoay đưa mảng về đúng thứ tự ban đầu thì chỉ còn một đoạn, và giá trị nhỏ nhất là phần tử đầu tiên. Ta so phần tử giữa với phần tử cuối của đoạn đang xét; các giá trị đều khác nhau và `mid < hi`, nên hai số này không bao giờ bằng nhau. Nếu `nums[mid] > nums[hi]` thì điểm gãy nằm giữa `mid` và `hi`, nên giá trị nhỏ nhất ở bên phải `mid`; nếu không thì `nums[mid..hi]` đã tăng dần và giá trị nhỏ nhất là `mid` hoặc nằm bên trái nó. Mỗi bước bỏ được khoảng một nửa, nên đây vẫn là <Term vi="tìm kiếm nhị phân">binary search</Term>, chỉ khác ở câu hỏi đặt ra với phần tử giữa trên một <Term vi="mảng đã sắp xếp bị xoay">rotated sorted array</Term>.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đặt biên">`lo = 0` và `hi = len(nums) - 1`; giá trị nhỏ nhất luôn nằm trong `nums[lo..hi]`.</Step>
+
+<Step title="Điểm gãy ở bên phải">Chừng nào `lo < hi`, lấy `mid = lo + (hi - lo) // 2`. Nếu `nums[mid] > nums[hi]`, `mid` không thể là giá trị nhỏ nhất: đặt `lo = mid + 1`.</Step>
+
+<Step title="Nửa phải đã tăng dần">Ngược lại `nums[mid] < nums[hi]`, nên `nums[mid..hi]` tăng dần và `mid` có thể chính là đáp án: đặt `hi = mid`, giữ `mid` lại.</Step>
+
+<Step title="Dừng">Khi `lo == hi`, đoạn chỉ còn một phần tử: trả về `nums[lo]`.</Step>
+
+</Steps>
+
+Chạy thử với `nums = [5, 6, 8, 9, 1, 3]`:
+
+<VarTable caption="nums = [5, 6, 8, 9, 1, 3]">
+
+| lo | hi | mid | `nums[mid]` | `nums[hi]` | Hành động |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 5 | 2 | 8 | 3 | `8 > 3`: `lo = 3` |
+| 3 | 5 | 4 | 1 | 3 | `1 < 3`: `hi = 4` |
+| 3 | 4 | 3 | 9 | 1 | `9 > 1`: `lo = 4` |
+| 4 | 4 | — | — | — | Trả về `nums[4] = 1` |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao so với phần tử cuối?">
+
+Nếu so `nums[mid]` với `nums[lo]`, kết quả `nums[mid] > nums[lo]` xảy ra cả khi đoạn không bị xoay (giá trị nhỏ nhất ở `lo`, bên trái) lẫn khi điểm gãy nằm bên phải `mid`, nên không biết bỏ nửa nào. So với `nums[hi]` thì không có trường hợp mơ hồ đó: đoạn từ `mid` tới `hi` hoặc tăng dần, hoặc chứa điểm gãy.
+
+</Callout>
+
+<Complexity time="O(log n)" space="O(1)" />
+
+Mỗi bước đoạn `[lo, hi]` còn khoảng một nửa, nên có khoảng `log2(n)` bước; chỉ cần vài biến.
+
+<Solution />
+
+<Bilingual vi="Mảng xoay gồm tối đa hai đoạn tăng dần; so phần tử giữa với phần tử cuối của đoạn đang xét: lớn hơn thì giá trị nhỏ nhất nằm bên phải mid, không thì nó là mid hoặc nằm bên trái, thu hẹp tới khi còn một phần tử." en="A rotated sorted array is at most two ascending runs, and the minimum is where the last run starts. Binary search: if the middle value is greater than the range's last value, the minimum lies right of mid; otherwise it is mid or lies left of it. Stop when one element is left. O(log n) time." />

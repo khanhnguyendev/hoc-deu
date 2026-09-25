@@ -1,0 +1,52 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Hình chữ nhật lớn nhất luôn cao đúng bằng một cột nào đó, và với chiều cao ấy nó kéo sang hai bên cho tới trước cột **thấp hơn** gần nhất ở mỗi phía. Vậy với mỗi cột, cần biết cột thấp hơn gần nhất ở bên trái và bên phải. Giữ một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term> chứa chỉ số các cột, chiều cao tăng dần từ đáy lên đỉnh. Khi gặp cột `i` không cao hơn cột ở đỉnh, lấy cột ở đỉnh ra và tính hình chữ nhật cao bằng nó, từ ngay sau cột bên dưới nó trong stack tới cột `i - 1`. Một cột ảo cao 0 ở cuối, gọi là <Term vi="phần tử canh">sentinel</Term>, buộc mọi cột còn lại phải được lấy ra.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Duyệt thêm một cột 0">Cho `i` chạy từ 0 tới `n`; `current = heights[i]`, riêng khi `i == n` thì `current = 0`.</Step>
+
+<Step title="Lấy ra các cột không thấp hơn">Chừng nào stack chưa rỗng và cột ở đỉnh cao ít nhất bằng `current`, lấy chỉ số đó ra và gọi chiều cao của nó là `height`. Hình chữ nhật cao `height` được tính tới cột `i - 1`: nếu cột `i` thấp hơn hẳn, đó đúng là mép phải; nếu cột `i` cao bằng, phần còn thiếu bên phải sẽ được tính sau (xem ghi chú bên dưới).</Step>
+
+<Step title="Tính diện tích">Mép trái `left` là chỉ số ở đỉnh mới cộng 1, hoặc 0 nếu stack đã rỗng. Diện tích là `height * (i - left)`; cập nhật `best`.</Step>
+
+<Step title="Đẩy cột hiện tại">Đẩy `i` vào stack; chiều cao trong stack vẫn tăng dần.</Step>
+
+</Steps>
+
+Chạy thử với `heights = [3, 1, 4, 5, 2]`:
+
+<VarTable caption="heights = [3, 1, 4, 5, 2]">
+
+| i | Cột hiện tại | Lấy ra: chiều cao × chiều rộng | best | Stack sau bước (chỉ số) |
+| --- | --- | --- | --- | --- |
+| 0 | 3 | — | 0 | `[0]` |
+| 1 | 1 | cột 0: 3 × 1 = 3 | 3 | `[1]` |
+| 2 | 4 | — | 3 | `[1, 2]` |
+| 3 | 5 | — | 3 | `[1, 2, 3]` |
+| 4 | 2 | cột 3: 5 × 1 = 5; cột 2: 4 × 2 = 8 | 8 | `[1, 4]` |
+| 5 (cột ảo) | 0 | cột 4: 2 × 3 = 6; cột 1: 1 × 5 = 5 | 8 | `[5]` |
+
+</VarTable>
+
+Kết quả là 8: hình chữ nhật cao 4 phủ hai cột cao 4 và 5.
+
+<Callout tone="tip" title="Vì sao lấy ra cả cột cao bằng cột hiện tại?">
+
+Một cột bằng chiều cao với cột hiện tại bị lấy ra sớm, nên có thể tính thiếu chiều rộng ở bên phải. Không sao: cột hiện tại cao bằng nó và có cùng mép trái, nên khi tới lượt bị lấy ra, nó sẽ tính đủ chiều rộng, hoặc lại chuyển tiếp cho cột cao bằng nó tiếp theo. Cột cuối cùng của một dãy cột cao bằng nhau bị lấy ra bởi một cột thấp hơn hẳn hoặc bởi cột ảo, nên nó tính đúng toàn bộ chiều rộng. Lấy ra cả cột cao bằng còn giữ cho chiều cao trong stack luôn tăng hẳn, nên cột ngay bên dưới luôn thấp hơn, đúng là mép trái cần tìm.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi chỉ số, kể cả cột ảo, được <Term vi="đẩy vào">push</Term> một lần và <Term vi="lấy ra">pop</Term> nhiều nhất một lần. Stack chứa tới `n` chỉ số khi chiều cao tăng dần.
+
+<Solution />
+
+<Bilingual vi="Giữ stack chỉ số các cột có chiều cao tăng dần; gặp cột không cao hơn đỉnh thì lấy đỉnh ra và tính hình chữ nhật cao bằng nó, kéo từ sau đỉnh mới tới trước cột hiện tại; một cột 0 ở cuối lấy ra phần còn lại." en="Keep a stack of bar indices with increasing heights. When the current bar is no taller than the top bar, pop the top: its rectangle spans from just after the new top's index to just before the current bar. A final bar of height 0 pops the rest. Track the largest area. O(n) time and space." />

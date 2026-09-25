@@ -1,0 +1,51 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Một chuỗi là <Term>palindrome</Term> khi đọc xuôi hay đọc ngược đều giống nhau. Ở bài này ta chỉ xét chữ cái và chữ số, và không phân biệt chữ hoa với chữ thường. Thay vì tạo một chuỗi mới đã lọc rồi đảo ngược, ta dùng <Term vi="hai con trỏ">two pointers</Term>: một con trỏ đi từ đầu, một con trỏ đi từ cuối, bỏ qua các ký tự không cần xét và so sánh từng cặp. Chỉ cần một cặp khác nhau là biết ngay chuỗi không phải palindrome.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đặt hai con trỏ">`left = 0` ở đầu chuỗi và `right = len(s) - 1` ở cuối chuỗi.</Step>
+
+<Step title="Bỏ qua ký tự thừa">Nếu `s[left]` không phải chữ cái hay chữ số thì tăng `left`; nếu `s[right]` không phải thì giảm `right`. Mỗi vòng chỉ dịch một con trỏ rồi xét lại.</Step>
+
+<Step title="So sánh một cặp">Khi cả hai đều là chữ hoặc số, đổi về chữ thường rồi so sánh: khác nhau thì trả về `false`, giống nhau thì dịch cả hai con trỏ vào giữa.</Step>
+
+<Step title="Kết thúc">Khi `left` gặp hoặc vượt qua `right`, mọi cặp đều đã khớp: trả về `true`.</Step>
+
+</Steps>
+
+Chạy thử với `s = "Top, spot!"`. Bỏ dấu câu và dấu cách, chuỗi còn lại là `topspot`, đọc ngược vẫn vậy.
+
+<VarTable caption='s = "Top, spot!"'>
+
+| Bước | left | right | `s[left]` | `s[right]` | Hành động |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 9 | `T` | `!` | `!` không phải chữ hay số: giảm `right` |
+| 2 | 0 | 8 | `T` | `t` | Giống nhau khi không phân biệt hoa thường: dịch cả hai |
+| 3 | 1 | 7 | `o` | `o` | Giống nhau: dịch cả hai |
+| 4 | 2 | 6 | `p` | `p` | Giống nhau: dịch cả hai |
+| 5 | 3 | 5 | `,` | `s` | `,` không phải chữ hay số: tăng `left` |
+| 6 | 4 | 5 | dấu cách | `s` | Dấu cách cũng bị bỏ qua: tăng `left` |
+| 7 | 5 | 5 | — | — | `left` gặp `right`: trả về `true` |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Cách lọc chuỗi rồi so với chuỗi đảo ngược cũng đúng và dễ viết, nhưng tốn thêm `O(n)` bộ nhớ cho chuỗi mới. Hai con trỏ làm việc ngay trên chuỗi gốc nên chỉ cần `O(1)`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi ký tự được một trong hai con trỏ đi qua nhiều nhất một lần, và ta không tạo chuỗi phụ nào.
+
+<Solution />
+
+<Bilingual vi="Dùng hai con trỏ đi từ hai đầu chuỗi, bỏ qua ký tự không phải chữ hoặc số, so sánh từng cặp không phân biệt hoa thường; gặp một cặp khác nhau thì chuỗi không phải palindrome." en="Move two pointers inward from both ends of the string, skipping characters that are not letters or digits, and compare each pair case-insensitively. Any mismatch means it is not a palindrome. This takes O(n) time and O(1) extra space." />

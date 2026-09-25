@@ -1,0 +1,15 @@
+# The Sunday mock interview (platform design §5.6): a repeatable prompt, chosen by its tag from
+# roadmap week 3 on (weeklyTemplate in track.yaml).
+- id: dsa:prompt-mock-interview
+  tag: mock-interview
+  repeatable: true
+  minutes: 45
+  instruction:
+    vi: 'Chọn bài Medium bạn đã học mà lâu nhất chưa gặp lại. Giải trong khoảng 30 phút rồi giải thích cách làm bằng tiếng Anh, như đang phỏng vấn.'
+    en: 'Pick the Medium problem you have not seen for the longest. Solve it in about 30 minutes, then explain your approach aloud in English, as in an interview.'
+  rubric:
+    - 'Hỏi lại cho rõ đề, nêu input, output và edge case trước khi code'
+    - 'Nói ý tưởng và time/space complexity dự kiến trước khi code'
+    - 'Code chạy đúng với các ví dụ trong khoảng 30 phút'
+    - 'Tự kiểm tra code bằng một ví dụ và một edge case'
+    - 'Giải thích mạch lạc bằng tiếng Anh từ đầu đến cuối'

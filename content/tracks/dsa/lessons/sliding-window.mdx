@@ -1,0 +1,171 @@
+---
+id: dsa:lesson-sliding-window
+format: pattern
+topic: sliding-window
+title: 'Sliding Window: trượt một đoạn liên tiếp'
+anchor: dsa:lc-0121
+practice: dsa:lc-0003
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="cửa sổ trượt">sliding window</Term> khi gặp một trong các dấu hiệu sau:
+
+- Đề hỏi về một **đoạn liên tiếp** — <Term vi="mảng con liên tiếp">subarray</Term> hay <Term vi="chuỗi con liên tiếp">substring</Term> — dài nhất, ngắn nhất, tốt nhất, hoặc có tồn tại hay không.
+- Khi thêm một phần tử bên phải và bỏ một phần tử bên trái, ta cập nhật được ngay "trạng thái" của đoạn, như tổng hay bảng đếm ký tự.
+- Cách vét cạn, thử mọi cặp điểm đầu và điểm cuối, tốn `O(n^2)` hoặc hơn.
+- Đoạn cần tìm có độ dài cố định, như tìm một hoán vị của chuỗi này trong chuỗi kia, hoặc co giãn theo một điều kiện.
+
+<Callout tone="tip" title="Kiểm tra nhanh">
+
+Nếu đề cho phép chọn một dãy con không liền nhau — một <Term vi="dãy con">subsequence</Term> — thì đó không phải sliding window.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Bạn ngồi trên tàu và nhìn ra một ô cửa kính. Dọc đường ray có cột điện sơn đỏ, có cột sơn trắng. Mỗi lúc, một cột mới hiện ra ở mép phải và một cột cũ khuất đi ở mép trái. Muốn biết trong khung đang có bao nhiêu cột sơn đỏ, bạn không đếm lại từ đầu: chỉ cộng một nếu cột vừa vào sơn đỏ, và trừ một nếu cột vừa ra sơn đỏ.
+
+Với cửa sổ co giãn, bạn được kéo mép trái lên khi khung không còn hợp lệ — chẳng hạn khi trong khung có quá ba cột sơn đỏ — và mở rộng mép phải khi mọi thứ vẫn ổn. Cả hai mép chỉ đi về phía trước, không bao giờ quay lại.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Best Time to Buy and Sell Stock. Mép trái của cửa sổ là ngày mua, mép phải là ngày bán; khi gặp một giá thấp hơn giá mua, mép trái nhảy tới ngày đó. Trong lời giải, mép trái chỉ cần được nhớ qua giá của nó — chính là biến `cheapest`.
+
+<VarTable caption="prices = [4, 6, 2, 5, 9, 3]">
+
+| Ngày bán (`right`) | Giá | Ngày mua (`left`) | Lãi nếu bán hôm nay | Lãi tốt nhất |
+| --- | --- | --- | --- | --- |
+| 0 | 4 | 0 | 0 | 0 |
+| 1 | 6 | 0 | 2 | 2 |
+| 2 | 2 | 2 — giá mới thấp hơn | 0 | 2 |
+| 3 | 5 | 2 | 3 | 3 |
+| 4 | 9 | 2 | 7 | 7 |
+| 5 | 3 | 2 | 1 | 7 |
+
+</VarTable>
+
+Lãi lớn nhất là 7: mua ở ngày 2 với giá 2, bán ở ngày 4 với giá 9.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Chọn trạng thái">Xác định cần biết gì về cửa sổ để kiểm tra điều kiện, như tổng hay bảng đếm ký tự. Trạng thái phải cập nhật được khi thêm hoặc bỏ **một** phần tử.</Step>
+
+<Step title="Mở rộng mép phải">Tăng `right` từng bước và đưa phần tử mới vào trạng thái.</Step>
+
+<Step title="Thu mép trái khi vi phạm">Chừng nào cửa sổ còn vi phạm điều kiện, bỏ phần tử ở `left` khỏi trạng thái và tăng `left`. Có bài cho phép nhảy thẳng `left` tới vị trí mới: ở Best Time to Buy and Sell Stock, `left` nhảy tới ngày có giá thấp hơn, nên trạng thái chỉ là giá tại `left`.</Step>
+
+<Step title="Ghi nhận đáp án">Khi cửa sổ đã hợp lệ, cập nhật đáp án từ độ dài `right - left + 1` hoặc từ trạng thái.</Step>
+
+</Steps>
+
+### Hai dạng cửa sổ
+
+- **Co giãn:** độ dài thay đổi theo điều kiện, như Longest Substring Without Repeating Characters hay Longest Repeating Character Replacement.
+- **Cố định:** độ dài không đổi, mỗi bước một phần tử vào và một phần tử ra, như Permutation in String.
+
+### Vì sao nhanh
+
+`left` và `right` chỉ tiến về phía trước. Mỗi phần tử vào cửa sổ một lần và ra nhiều nhất một lần, nên dù có một vòng `while` lồng bên trong, tổng số bước vẫn là `O(n)`.
+
+</Section>
+
+<Section kind="code">
+
+Mẫu cho cửa sổ co giãn, ở đây trạng thái là tổng của đoạn. Lời giải đầy đủ của Best Time to Buy and Sell Stock bằng ba ngôn ngữ nằm trong ghi chú của bài.
+
+```python
+from typing import List
+
+
+def longest_window(nums: List[int], limit: int) -> int:
+    # nums are non-negative, limit >= 0; returns the longest subarray with sum <= limit.
+    left = 0
+    window_sum = 0  # the window's state
+    best = 0
+    for right in range(len(nums)):
+        window_sum += nums[right]  # grow: nums[right] enters
+        while window_sum > limit:  # shrink until the window is valid again
+            window_sum -= nums[left]  # nums[left] leaves
+            left += 1
+        best = max(best, right - left + 1)  # nums[left:right + 1] is valid
+    return best
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi phần tử vào và ra khỏi cửa sổ nhiều nhất một lần. Bộ nhớ là `O(1)` khi trạng thái chỉ là một con số; nếu trạng thái là bảng đếm ký tự thì bộ nhớ là `O(k)`, với `k` là số ký tự khác nhau.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Giữ một cửa sổ liên tiếp: mở rộng mép phải từng bước, dời mép trái khi cửa sổ vi phạm điều kiện, và cập nhật trạng thái của cửa sổ thay vì tính lại từ đầu." en="Keep a contiguous window over the input. Extend the right edge one step at a time, move the left edge forward whenever the window breaks the rule, and update the window's state instead of recomputing it. Each element enters once and leaves at most once: O(n) time." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0003" />
+
+Thử Longest Substring Without Repeating Characters: trạng thái là các ký tự đang nằm trong cửa sổ — khi ký tự mới bị lặp, mép trái phải dời tới đâu?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Dấu hiệu nào gợi ý nên dùng sliding window?" answer="a">
+
+<Choice id="a">Đề hỏi đoạn liên tiếp dài nhất thỏa một điều kiện</Choice>
+
+<Choice id="b">Đề hỏi mọi tập con của một mảng</Choice>
+
+<Choice id="c">Mảng đã sắp xếp và cần một cặp có tổng cho trước</Choice>
+
+</Question>
+
+<Question prompt="Trong Best Time to Buy and Sell Stock, gặp một giá thấp hơn giá mua hiện tại thì làm gì?" answer="b">
+
+<Choice id="a">Bỏ qua ngày đó</Choice>
+
+<Choice id="b">Dời ngày mua, tức mép trái, tới ngày đó</Choice>
+
+<Choice id="c">Bán ngay trong ngày đó</Choice>
+
+</Question>
+
+<Question prompt="Vì sao vòng while thu mép trái không làm thuật toán thành O(n^2)?" answer="c">
+
+<Choice id="a">Vì vòng while chạy đúng một lần ở mỗi bước</Choice>
+
+<Choice id="b">Vì đầu vào luôn nhỏ</Choice>
+
+<Choice id="c">Vì `left` chỉ tiến lên, nên cả thuật toán tăng `left` nhiều nhất `n` lần</Choice>
+
+</Question>
+
+<Question prompt="Permutation in String dùng loại cửa sổ nào?" answer="a">
+
+<Choice id="a">Cố định, dài bằng `s1`</Choice>
+
+<Choice id="b">Co giãn, dài nhất có thể</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

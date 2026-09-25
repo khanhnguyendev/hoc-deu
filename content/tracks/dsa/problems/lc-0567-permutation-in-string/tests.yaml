@@ -1,0 +1,11 @@
+signature:
+  { kind: function, name: checkInclusion, params: { s1: string, s2: string }, returns: bool }
+compare: exact
+cases:
+  - { name: example-1, input: { s1: 'ab', s2: 'eidbaooo' }, expected: true }
+  - { name: example-2, input: { s1: 'ab', s2: 'eidboaoo' }, expected: false }
+  - { name: s1-longer-than-s2, input: { s1: 'abc', s2: 'ab' }, expected: false }
+  - { name: single-character, input: { s1: 'a', s2: 'b' }, expected: false }
+  - { name: whole-s2-is-a-permutation, input: { s1: 'abc', s2: 'cba' }, expected: true }
+  - { name: match-at-the-end, input: { s1: 'adc', s2: 'dcda' }, expected: true }
+  - { name: duplicate-counts-matter, input: { s1: 'aab', s2: 'abbab' }, expected: false }

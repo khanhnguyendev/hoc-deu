@@ -1,0 +1,9 @@
+signature: { kind: function, name: maxArea, params: { height: 'int[]' }, returns: int }
+compare: exact
+cases:
+  - { name: example-1, input: { height: [1, 8, 6, 2, 5, 4, 8, 3, 7] }, expected: 49 }
+  - { name: example-2, input: { height: [1, 1] }, expected: 1 }
+  - { name: zero-heights, input: { height: [0, 0] }, expected: 0 }
+  - { name: decreasing, input: { height: [5, 4, 3, 2, 1] }, expected: 6 }
+  - { name: inner-pair-wins, input: { height: [1, 2, 4, 3] }, expected: 4 }
+  - { name: tall-walls-apart, input: { height: [2, 3, 10, 5, 7, 8, 9] }, expected: 36 }

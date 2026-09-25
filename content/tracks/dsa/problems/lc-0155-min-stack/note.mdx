@@ -1,0 +1,51 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đây là một bài thiết kế lớp: `push`, `pop`, `top` và `getMin` đều phải chạy trong `O(1)`. Một <Term vi="ngăn xếp">stack</Term> thường đã làm được ba thao tác đầu, nhưng muốn biết giá trị nhỏ nhất thì phải quét cả stack. Mẹo then chốt: lưu mỗi phần tử thành một cặp `(val, minimum)`, trong đó `minimum` là giá trị nhỏ nhất của stack tính từ đáy lên tới chính phần tử đó. Stack chỉ thay đổi ở đỉnh, nên các cặp bên dưới không bao giờ bị sửa và `minimum` của chúng luôn đúng; `getMin` chỉ việc đọc cặp ở đỉnh.
+
+## Cách làm
+
+<Steps>
+
+<Step title="push(val)">Nếu stack rỗng thì `minimum = val`; nếu không, `minimum` là số nhỏ hơn giữa `val` và `minimum` của cặp ở đỉnh. Đẩy cặp `(val, minimum)` vào stack.</Step>
+
+<Step title="pop()">Bỏ cặp ở đỉnh. Cặp mới ở đỉnh đã lưu sẵn giá trị nhỏ nhất của phần còn lại, nên không phải tính lại gì.</Step>
+
+<Step title="top()">Trả về `val` của cặp ở đỉnh.</Step>
+
+<Step title="getMin()">Trả về `minimum` của cặp ở đỉnh.</Step>
+
+</Steps>
+
+`pop`, `top` và `getMin` chỉ được gọi khi stack có phần tử, nên lời giải không cần kiểm tra stack rỗng ở ba thao tác này.
+
+<VarTable caption="push(4), push(6), push(1), getMin(), pop(), getMin(), top()">
+
+| Thao tác | Stack sau thao tác (đáy → đỉnh) | Kết quả |
+| --- | --- | --- |
+| `push(4)` | `(4, 4)` | — |
+| `push(6)` | `(4, 4) (6, 4)` | — |
+| `push(1)` | `(4, 4) (6, 4) (1, 1)` | — |
+| `getMin()` | không đổi | 1 |
+| `pop()` | `(4, 4) (6, 4)` | — |
+| `getMin()` | không đổi | 4 |
+| `top()` | không đổi | 6 |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao không chỉ giữ một biến min?">
+
+Một biến `min` cập nhật dễ khi <Term vi="đẩy vào">push</Term>, nhưng khi <Term vi="lấy ra">pop</Term> đúng phần tử nhỏ nhất thì không biết giá trị nhỏ nhất tiếp theo là gì nếu không quét lại cả stack. Khi mỗi cặp tự nhớ `minimum` của phần stack tính tới nó, pop chỉ cần bỏ cặp ở đỉnh. Push hai lần cùng một giá trị nhỏ nhất cũng không sao: pop một bản thì bản còn lại vẫn mang đúng `minimum`.
+
+</Callout>
+
+<Complexity time="O(1) mỗi thao tác" space="O(n)" />
+
+Mỗi thao tác chỉ đọc hoặc sửa đỉnh stack. Với `n` phần tử đang có, stack giữ `n` cặp: gấp đôi số giá trị, nhưng vẫn là `O(n)`.
+
+<Solution />
+
+<Bilingual vi="Mỗi phần tử của stack lưu cặp (giá trị, giá trị nhỏ nhất tính tới nó): push lấy số nhỏ hơn giữa giá trị mới và min ở đỉnh, pop bỏ cặp ở đỉnh, top và getMin đọc cặp ở đỉnh." en="Store each stack entry as a pair: the value and the minimum of the stack up to that entry. Push takes the smaller of the new value and the top pair's minimum; pop removes the top pair; top and getMin read the top pair. Every operation is O(1) time; the stack uses O(n) space." />

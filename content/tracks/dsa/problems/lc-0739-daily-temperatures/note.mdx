@@ -1,0 +1,52 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Với mỗi ngày, cần biết phải chờ bao nhiêu ngày mới có một ngày ấm hơn. Cách vét cạn, với mỗi ngày, quét các ngày sau nó và tốn `O(n^2)`. Thay vào đó, giữ một <Term vi="ngăn xếp">stack</Term> chứa chỉ số của những ngày **đang chờ** một ngày ấm hơn. Khi ngày mới ấm hơn ngày ở đỉnh, ngày ở đỉnh đã có đáp án: lấy nó ra, ghi khoảng cách, rồi xét tiếp đỉnh mới. Vì vậy, nhiệt độ trong stack không bao giờ tăng từ đáy lên đỉnh; đây là một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term>.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">`answer` gồm `n` số 0, và stack `waiting` rỗng.</Step>
+
+<Step title="Giải quyết những ngày đang chờ">Với ngày `day` có nhiệt độ `temp`: chừng nào stack chưa rỗng và ngày ở đỉnh lạnh hơn `temp`, lấy chỉ số `earlier` ra và ghi `answer[earlier] = day - earlier`.</Step>
+
+<Step title="Xếp hàng chờ">Đẩy `day` vào stack: giờ tới lượt nó chờ một ngày ấm hơn.</Step>
+
+<Step title="Những ngày còn lại">Hết mảng, các ngày còn trong stack không có ngày nào ấm hơn ở phía sau; `answer` của chúng giữ nguyên 0.</Step>
+
+</Steps>
+
+Chạy thử với `temperatures = [70, 68, 72, 71, 69, 75]`; cột cuối ghi các ngày trong stack theo dạng `ngày:nhiệt độ`:
+
+<VarTable caption="temperatures = [70, 68, 72, 71, 69, 75]">
+
+| Ngày | Nhiệt độ | Lấy ra và ghi đáp án | Stack sau bước (đáy → đỉnh) |
+| --- | --- | --- | --- |
+| 0 | 70 | — | `0:70` |
+| 1 | 68 | — | `0:70, 1:68` |
+| 2 | 72 | ngày 1: `2 - 1 = 1`; ngày 0: `2 - 0 = 2` | `2:72` |
+| 3 | 71 | — | `2:72, 3:71` |
+| 4 | 69 | — | `2:72, 3:71, 4:69` |
+| 5 | 75 | ngày 4: 1; ngày 3: 2; ngày 2: 3 | `5:75` |
+
+</VarTable>
+
+Kết quả là `[2, 1, 3, 2, 1, 0]`; ngày 5 còn lại trong stack nên giữ 0.
+
+<Callout tone="tip" title="Nhiệt độ bằng nhau">
+
+Một ngày chỉ được lấy ra khi nó **lạnh hơn hẳn** ngày mới. Ngày có nhiệt độ bằng không được tính là ấm hơn, nên ngày ở đỉnh tiếp tục chờ, và ngày mới nằm lên trên nó.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi chỉ số được <Term vi="đẩy vào">push</Term> đúng một lần và <Term vi="lấy ra">pop</Term> nhiều nhất một lần, nên vòng `while` bên trong, cộng qua mọi ngày, chạy không quá `n` lần. Stack chứa tới `n` chỉ số khi nhiệt độ giảm dần; mảng `answer` là kết quả nên không tính.
+
+<Solution />
+
+<Bilingual vi="Giữ một stack chỉ số các ngày chưa gặp ngày ấm hơn; mỗi ngày mới lấy ra mọi ngày lạnh hơn ở đỉnh, ghi khoảng cách ngày cho chúng, rồi tự vào stack." en="Keep a stack of the indices of days still waiting for a warmer day. For each new day, while the top day is colder, pop it and set its answer to the difference of their indices, then push the new day. Days left on the stack keep 0. Each index is pushed and popped at most once: O(n) time." />

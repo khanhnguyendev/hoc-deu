@@ -1,0 +1,12 @@
+signature:
+  { kind: function, name: largestRectangleArea, params: { heights: 'int[]' }, returns: int }
+cases:
+  - { name: example-1, input: { heights: [2, 1, 5, 6, 2, 3] }, expected: 10 }
+  - { name: example-2, input: { heights: [2, 4] }, expected: 4 }
+  - { name: single-zero, input: { heights: [0] }, expected: 0 }
+  - { name: all-duplicates, input: { heights: [3, 3, 3, 3] }, expected: 12 }
+  # a zero-height bar splits the histogram
+  - { name: zero-splits, input: { heights: [2, 0, 2] }, expected: 2 }
+  # 3 * 3 from the last three bars
+  - { name: increasing, input: { heights: [1, 2, 3, 4, 5] }, expected: 9 }
+  - { name: max-heights, input: { heights: [10000, 10000, 10000] }, expected: 30000 }

@@ -1,0 +1,58 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đây là dạng **gom nhóm** của Arrays & Hashing: tìm một <Term>key</Term> giống hệt nhau cho mọi chuỗi trong cùng một nhóm, rồi dùng <Term vi="bảng băm">hash map</Term> `key → danh sách chuỗi`. Các <Term>anagram</Term> có cùng số lần xuất hiện của từng chữ cái, nên bộ đếm 26 chữ cái là key lý tưởng: hai chuỗi có cùng bộ đếm khi và chỉ khi chúng là anagram của nhau. Chỉ cần duyệt danh sách một lượt.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đếm chữ cái">Với mỗi chuỗi, đếm số lần xuất hiện của từng chữ từ `a` tới `z` vào một mảng 26 ô.</Step>
+
+<Step title="Biến bộ đếm thành key">Key phải so sánh được theo nội dung: Python đổi mảng thành `tuple`, Java đổi thành chuỗi bằng `Arrays.toString`, còn Go dùng luôn mảng cố định `[26]int` vì mảng này so sánh được.</Step>
+
+<Step title="Gom nhóm">Thêm chuỗi vào danh sách của key đó; key chưa có thì tạo danh sách mới.</Step>
+
+<Step title="Trả về">Trả về mọi danh sách trong map; thứ tự các nhóm và thứ tự trong nhóm không quan trọng.</Step>
+
+</Steps>
+
+Trong bảng dưới, key chỉ ghi các chữ cái có số đếm khác 0.
+
+<VarTable caption="strs = [abc, bca, xy, cab, yx, z]">
+
+| Chuỗi | Key | Nhóm của key sau bước này |
+| --- | --- | --- |
+| `abc` | a1 b1 c1 | `[abc]` |
+| `bca` | a1 b1 c1 | `[abc, bca]` |
+| `xy` | x1 y1 | `[xy]` |
+| `cab` | a1 b1 c1 | `[abc, bca, cab]` |
+| `yx` | x1 y1 | `[xy, yx]` |
+| `z` | z1 | `[z]` |
+
+</VarTable>
+
+Kết quả: ba nhóm `[abc, bca, cab]`, `[xy, yx]` và `[z]`.
+
+<Callout tone="warning">
+
+Đừng dùng tổng mã ký tự làm key: `ad` và `bc` có cùng tổng (97 + 100 = 98 + 99) nhưng không phải anagram. Key phải giữ đủ thông tin về **từng** chữ cái.
+
+</Callout>
+
+<Callout tone="tip">
+
+Sắp xếp các ký tự của chuỗi (`bca` thành `abc`) cũng cho một key đúng, nhưng tốn `O(k log k)` cho mỗi chuỗi thay vì `O(k)` như khi đếm.
+
+</Callout>
+
+<Complexity time="O(n·k)" space="O(n·k)" />
+
+Với `n` chuỗi dài nhiều nhất `k` ký tự: mỗi chuỗi được đếm trong `O(k)` và tạo key 26 ô (bảng chữ cái cố định nên là hằng số). Map giữ lại toàn bộ các chuỗi, nên bộ nhớ cũng là `O(n·k)`.
+
+<Solution />
+
+<Bilingual vi="Dùng bộ đếm 26 chữ cái của mỗi chuỗi làm key trong hash map: các anagram có cùng bộ đếm nên rơi vào cùng một danh sách; cuối cùng trả về các danh sách đó." en="Anagrams have identical letter counts, so use each string's 26-letter count as a hash map key and append the string to that key's list. After one pass, the lists in the map are the groups. For n strings of length up to k, this takes O(n·k) time and space." />

@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Nếu bán vào một ngày, lãi tốt nhất có thể là giá ngày đó trừ đi giá **thấp nhất** của các ngày trước đó. Vì vậy chỉ cần duyệt giá một lượt, nhớ giá rẻ nhất đã gặp, và ở mỗi ngày hỏi: "bán hôm nay thì lãi bao nhiêu?". Đây là một dạng <Term vi="cửa sổ trượt">sliding window</Term>: mép trái là ngày mua, mép phải là ngày bán. Khi gặp một giá rẻ hơn giá ngày mua, mép trái nhảy thẳng tới ngày đó, vì từ đây về sau mua ở giá mới luôn lãi hơn.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">`cheapest = prices[0]` là giá mua tốt nhất đến giờ; `best = 0` vì không giao dịch thì lãi bằng 0.</Step>
+
+<Step title="Cập nhật ngày mua">Với mỗi `price`, nếu nó rẻ hơn `cheapest` thì đó là ngày mua mới: gán `cheapest = price`.</Step>
+
+<Step title="Thử bán hôm nay">Lãi nếu bán hôm nay là `price - cheapest`; giữ giá trị lớn nhất trong `best`.</Step>
+
+<Step title="Trả kết quả">Hết mảng, `best` là lãi lớn nhất. Nếu giá chỉ đi xuống thì `best` vẫn là 0.</Step>
+
+</Steps>
+
+Chạy thử với `prices = [5, 3, 6, 1, 7]`:
+
+<VarTable caption="prices = [5, 3, 6, 1, 7]">
+
+| Ngày | `price` | `cheapest` | `price - cheapest` | `best` |
+| --- | --- | --- | --- | --- |
+| 0 | 5 | 5 | 0 | 0 |
+| 1 | 3 | 3 | 0 | 0 |
+| 2 | 6 | 3 | 3 | 3 |
+| 3 | 1 | 1 | 0 | 3 |
+| 4 | 7 | 1 | 6 | 6 |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Ngày mua luôn đứng trước hoặc trùng ngày bán, vì `cheapest` chỉ lấy từ các ngày đã đi qua. Vì thế thuật toán không bao giờ "bán trước khi mua"; mua và bán cùng ngày chỉ cho lãi 0, không ảnh hưởng đáp án.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Một vòng lặp qua `n` ngày và chỉ giữ hai biến.
+
+<Solution />
+
+<Bilingual vi="Duyệt giá một lượt, nhớ giá thấp nhất đã gặp làm giá mua; mỗi ngày tính lãi nếu bán hôm nay và giữ mức lãi lớn nhất." en="Scan the prices once and keep the lowest price seen so far as the buy price. Each day, the profit of selling today is the price minus that minimum; keep the largest. The buy day never comes after the sell day. O(n) time, O(1) space." />

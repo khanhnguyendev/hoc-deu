@@ -1,0 +1,11 @@
+signature: { kind: function, name: lengthOfLongestSubstring, params: { s: string }, returns: int }
+compare: exact
+cases:
+  - { name: example-1, input: { s: 'abcabcbb' }, expected: 3 }
+  - { name: example-2, input: { s: 'bbbbb' }, expected: 1 }
+  - { name: example-3, input: { s: 'pwwkew' }, expected: 3 }
+  - { name: empty-string, input: { s: '' }, expected: 0 }
+  - { name: single-space, input: { s: ' ' }, expected: 1 }
+  - { name: left-edge-never-moves-back, input: { s: 'abba' }, expected: 2 }
+  - { name: restart-after-repeat, input: { s: 'dvdf' }, expected: 3 }
+  - { name: digits-and-symbols, input: { s: 'a1!a 1' }, expected: 4 }

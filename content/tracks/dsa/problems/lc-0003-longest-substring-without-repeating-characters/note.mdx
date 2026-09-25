@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đây là bài <Term vi="cửa sổ trượt">sliding window</Term> điển hình trên một <Term vi="chuỗi con liên tiếp">substring</Term>: giữ cửa sổ từ `left` tới `right` luôn không có ký tự trùng, và mở rộng `right` từng bước. Một <Term vi="bảng băm">hash map</Term> lưu vị trí gần nhất của mỗi ký tự. Khi ký tự mới đã xuất hiện **bên trong** cửa sổ, mép trái nhảy thẳng tới ngay sau vị trí cũ đó, thay vì bỏ từng ký tự một. Đáp án là độ dài lớn nhất mà cửa sổ từng đạt.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Chuẩn bị">`last_seen` rỗng, `left = 0`, `best = 0`.</Step>
+
+<Step title="Mở rộng mép phải">Với mỗi vị trí `right` và ký tự `c` tại đó, xem `c` đã từng xuất hiện chưa.</Step>
+
+<Step title="Nhảy mép trái khi cần">Nếu vị trí cũ của `c` lớn hơn hoặc bằng `left`, tức là còn nằm trong cửa sổ, gán `left` bằng vị trí đó cộng 1. Nếu vị trí cũ nằm trước `left` thì bỏ qua: `left` không bao giờ lùi.</Step>
+
+<Step title="Ghi nhận">Gán `last_seen[c] = right` và cập nhật `best = max(best, right - left + 1)`.</Step>
+
+</Steps>
+
+Chạy thử với `s = "abba"` — ví dụ cho thấy vì sao cần điều kiện "còn nằm trong cửa sổ":
+
+<VarTable caption='s = "abba"'>
+
+| right | Ký tự | Vị trí trước đó | left | Cửa sổ | `best` |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `a` | — | 0 | `a` | 1 |
+| 1 | `b` | — | 0 | `ab` | 2 |
+| 2 | `b` | 1 | 2 | `b` | 2 |
+| 3 | `a` | 0, trước `left` nên bỏ qua | 2 | `ba` | 2 |
+
+</VarTable>
+
+<Callout tone="warning">
+
+Ở bước cuối, nếu không kiểm tra vị trí cũ còn trong cửa sổ hay không, `left` sẽ lùi về 1. Cửa sổ `bba` có ký tự lặp và đáp án sai thành 3.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(min(n, k))" />
+
+Mỗi ký tự được xét đúng một lần. `last_seen` chứa nhiều nhất `min(n, k)` ký tự, với `k` là số ký tự khác nhau có thể xuất hiện.
+
+<Solution />
+
+<Bilingual vi="Giữ một cửa sổ không có ký tự lặp và một hash map lưu vị trí gần nhất của từng ký tự; khi ký tự mới đã có trong cửa sổ, dời mép trái tới ngay sau vị trí cũ đó." en="Slide a window that never contains a repeated character, with a hash map of each character's last index. When the new character already appears inside the window, jump the left edge just past that index. The answer is the longest window seen. O(n) time." />
