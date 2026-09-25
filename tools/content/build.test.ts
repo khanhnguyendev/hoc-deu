@@ -360,6 +360,19 @@ describe('buildContent — a failing fixture', () => {
     expect(existsSync(path.join(root, '.generated'))).toBe(false)
   })
 
+  it('reports a deeply nested MDX file by name instead of crashing (final review M1)', async () => {
+    const root = fixtureRoot('ok')
+    const file = 'content/tracks/dsa/problems/lc-0001-two-sum/note.mdx'
+    const note = readFileSync(path.join(root, file), 'utf8')
+    writeFileSync(path.join(root, file), `${note}\n${'> '.repeat(3000)}deep\n`)
+    const result = await buildContent({ repoRoot: root, check: false })
+    expect(result.ok).toBe(false)
+    expect(result.issues).toEqual([
+      expect.objectContaining({ file, message: 'nesting too deep (more than 64 levels)' }),
+    ])
+    expect(existsSync(path.join(root, '.generated'))).toBe(false)
+  })
+
   it('reads a fixture in place through contentDir, with repo-relative file names', async () => {
     const outDir = path.join(tempDir(), 'out')
     const result = await buildContent({

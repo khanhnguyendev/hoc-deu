@@ -70,17 +70,48 @@ function locate(error: ParseError): { line?: number; column?: number } {
   return match ? { line: Number(match[1]), column: Number(match[2]) } : {}
 }
 
+/**
+ * How deep a tree may nest (ancestors of a node). Real content stays far below it; the content tools
+ * walk trees recursively, so a deeper file (3000 nested `>`, say) would overflow the stack and crash
+ * `content:build` without naming the file (final review M1).
+ */
+export const MAX_NESTING = 64
+const TOO_DEEP = `nesting too deep (more than ${MAX_NESTING} levels)`
+
+/** The first node nested deeper than `MAX_NESTING`, found without recursion; null if none. */
+function tooDeep(tree: MdxRoot): MdxNode | null {
+  const stack: [MdxNode, number][] = [[tree, 0]]
+  for (let entry = stack.pop(); entry !== undefined; entry = stack.pop()) {
+    const [node, depth] = entry
+    if (depth > MAX_NESTING) return node
+    for (const child of node.children ?? []) stack.push([child, depth + 1])
+  }
+  return null
+}
+
+const isStackOverflow = (error: unknown): boolean =>
+  error instanceof RangeError && /call stack/i.test(error.message)
+
 /** Parse content MDX (frontmatter + GFM + MDX syntax) into its syntax tree; nothing is compiled or
- *  run. A syntax error becomes one issue. */
+ *  run. A syntax error, or nesting deeper than `MAX_NESTING`, becomes one issue. */
 export async function parseMdx(file: string, source: string): Promise<ParseResult> {
+  let tree: MdxRoot
   try {
-    const tree = processor.parse({ path: file, value: source }) as unknown as MdxRoot
-    recordRawAlt(tree, source)
-    return { ok: true, tree }
+    tree = processor.parse({ path: file, value: source }) as unknown as MdxRoot
   } catch (error) {
+    // Deeper than the parser itself can go: far past the cap below.
+    if (isStackOverflow(error)) return { ok: false, issue: { file, message: TOO_DEEP } }
     if (!isParseError(error)) throw error
     return { ok: false, issue: { file, ...locate(error), message: error.reason } }
   }
+  const deep = tooDeep(tree)
+  if (deep !== null) {
+    const start = deep.position?.start
+    const at = start === undefined ? {} : { line: start.line, column: start.column }
+    return { ok: false, issue: { file, ...at, message: TOO_DEEP } }
+  }
+  recordRawAlt(tree, source)
+  return { ok: true, tree }
 }
 
 /** Set `rawAlt` on every image: the source between `![` and the last `](` of the image. */
