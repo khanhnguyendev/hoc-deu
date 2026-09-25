@@ -11,3 +11,8 @@ cases:
   - name: max-values
     input: { piles: [1000000000, 1000000000, 1000000000], h: 1000000000 }
     expected: 4
+  # k = 3 fits (3 * 268435456 = 805306368 hours), k = 2 does not (1207959552); at k = 1 the
+  # total 2415919104 exceeds a 32-bit int, which guards a lo <= hi search that sums hours in an int
+  - name: int-overflow-guard
+    input: { piles: [805306368, 805306368, 805306368], h: 1000000000 }
+    expected: 3

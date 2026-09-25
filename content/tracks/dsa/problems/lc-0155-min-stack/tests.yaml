@@ -25,3 +25,8 @@ cases:
     ops: [MinStack, push, push, getMin, pop, getMin, top]
     args: [[], [3], [1], [], [], [], []]
     expected: [null, null, null, 1, null, 3, 3]
+  # the int extremes: a minimum kept as a difference (val - min) overflows a 32-bit int
+  - name: int-extremes
+    ops: [MinStack, push, push, getMin, pop, getMin]
+    args: [[], [2147483647], [-2147483648], [], [], []]
+    expected: [null, null, null, -2147483648, null, 2147483647]

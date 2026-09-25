@@ -7,5 +7,9 @@ cases:
   - { name: example-5, input: { s: '([)]' }, expected: false }
   - { name: single-open, input: { s: '(' }, expected: false }
   - { name: close-first, input: { s: ')(' }, expected: false }
+  # a closer arrives after every opener is matched: the stack is empty
+  - { name: extra-close, input: { s: '())' }, expected: false }
+  # a closer that does not match the top must fail, not be skipped
+  - { name: mismatched-close, input: { s: '(])' }, expected: false }
   - { name: nested-all-kinds, input: { s: '{[()()]}' }, expected: true }
   - { name: unclosed-at-end, input: { s: '(([]' }, expected: false }
