@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi as mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi as mock } from 'vitest'
 import type { AccountStatus, Role } from '@/lib/auth/dal'
 import { Toaster } from '@/components/ui/toaster'
 import type { AdminActionResult } from '../actions'
@@ -38,6 +38,34 @@ function setup(status: AccountStatus, role: Role = 'learner', result?: AdminActi
   )
   return { setUserStatus, setUserRole, user: userEvent.setup() }
 }
+
+/**
+ * Every focus move during a test lands on an element of that test. A dialog still open when a test
+ * ends closes on cleanup, and Radix hands focus back to its opener a macrotask later: without the
+ * flush below, that landed inside the next test, on a detached button, at a moment set by the load
+ * (the "Duyệt" focus test failed once in 3.9a).
+ */
+const strayFocus: string[] = []
+beforeEach(() => {
+  strayFocus.length = 0
+  const focus = HTMLElement.prototype.focus
+  mock.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+    this: HTMLElement,
+    options,
+  ) {
+    if (!this.isConnected) strayFocus.push(`${this.tagName} "${this.textContent ?? ''}"`)
+    focus.call(this, options)
+  })
+})
+afterEach(async () => {
+  const stray = [...strayFocus]
+  mock.restoreAllMocks()
+  // Unmount here (the setup file's cleanup then has nothing left) and let Radix's close-focus timer
+  // run inside this test.
+  cleanup()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(stray, 'focus moved to an element no longer in the document').toEqual([])
+})
 
 const group = () => screen.getByRole('group', { name: `Thao tác với ${NAME}` })
 const buttonNames = () =>
@@ -175,7 +203,8 @@ describe('UserRowActions — keyboard focus follows the row (WCAG 2.4.3)', () =>
     const { rerender } = render(<Row key="pending" status="pending" />)
     await user.click(screen.getByRole('button', { name: 'Duyệt' }))
     rerender(<Row key="active" status="active" />)
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
+    // The new row's effect runs inside rerender's act: focus is there at once, nothing to wait for.
+    expect(document.activeElement).toBe(screen.getByTestId('row'))
   })
 
   it('focuses the row after a confirmed "Tạm khoá" moved it', async () => {
@@ -233,6 +262,6 @@ describe('UserRowActions — keyboard focus follows the row (WCAG 2.4.3)', () =>
     await screen.findAllByText('Đã đổi.')
     // Another admin had rejected the account; the revalidated list shows it there.
     rerender(<Row key="rejected" status="rejected" result={failed} />)
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('row')))
+    expect(document.activeElement).toBe(screen.getByTestId('row'))
   })
 })
