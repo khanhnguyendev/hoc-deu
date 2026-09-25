@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { expectNoAxeViolations } from './support/axe'
+import { gotoHydrated } from './support/hydration'
 import { expect, test } from './support/test'
 
 // Entry names straight from the registry source, so a new entry is checked without editing this file.
@@ -66,7 +67,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       test(`${overlay.name} open passes axe (full page, aria-hidden-focus disabled)`, async ({
         page,
       }) => {
-        await page.goto('/dev/components')
+        await gotoHydrated(page, '/dev/components')
         await overlay.open(page)
         await expectNoAxeViolations(page, { disableRules: ['aria-hidden-focus'] })
       })
@@ -80,7 +81,7 @@ test.describe('dialog footer on a phone', () => {
   test('tab order follows the visual order of the footer buttons (WCAG 2.4.3)', async ({
     page,
   }) => {
-    await page.goto('/dev/components')
+    await gotoHydrated(page, '/dev/components')
     await page.getByRole('button', { name: 'Mở hộp thoại' }).click()
     const boxes = await page
       .locator('[data-slot="dialog-footer"] button')
@@ -116,7 +117,7 @@ test.describe('theme toggle on a phone', () => {
 
 test.describe('RadioGroup keyboard selection', () => {
   test('ArrowDown moves selection to the next item, ArrowUp moves it back', async ({ page }) => {
-    await page.goto('/dev/components')
+    await gotoHydrated(page, '/dev/components')
     const group = page.getByRole('radiogroup', { name: 'Mức độ ưu tiên' })
     const low = group.getByRole('radio', { name: 'Thấp' })
     const medium = group.getByRole('radio', { name: 'Vừa' })

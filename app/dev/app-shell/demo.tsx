@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/patterns/page-header'
 import { Section } from '@/components/patterns/section'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
+import { HydrationMarker } from '../hydration-marker'
 
 const TODAY = '2026-02-04'
 const DAYS: HeatmapDay[] = Array.from({ length: 120 }, (_, i) => ({
@@ -20,6 +21,7 @@ const DAYS: HeatmapDay[] = Array.from({ length: 120 }, (_, i) => ({
 export function AppShellDemo() {
   return (
     <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin>
+      <HydrationMarker />
       <div className="flex flex-col gap-6">
         <PageHeader
           title="Hôm nay học gì?"

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { vi } from '@/lib/i18n/vi'
+import { HydrationMarker } from '../hydration-marker'
 import { CATALOG } from './registry'
 
 const slug = (name: string) => name.toLowerCase()
@@ -13,6 +14,7 @@ const slug = (name: string) => name.toLowerCase()
 export function Catalog() {
   return (
     <TooltipProvider>
+      <HydrationMarker />
       <div className="mx-auto flex w-full max-w-app flex-col gap-8 px-4 py-6 md:px-6 lg:flex-row lg:px-8">
         <nav
           aria-label={vi.dev.catalogNav}
