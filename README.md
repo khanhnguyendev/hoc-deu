@@ -12,16 +12,24 @@ v1.1 — a daily AI bot that personalises plans and grows the shared content.
 
 ## Development
 
-Requirements: Node ≥ 22.12, pnpm 11.
+Requirements: Node ≥ 22.12, pnpm 11, [Docker](https://www.docker.com/) (for the local Supabase
+stack).
 
 ```bash
 pnpm install
+cp .env.example .env.local   # then fill in the Supabase values `pnpm db:start` prints
 pnpm dev          # http://localhost:3000
 pnpm verify       # typecheck, lint (ESLint + Prettier), unit tests, build
+pnpm db:start     # start the local Supabase stack (db, kong, gotrue, postgrest)
+pnpm db:reset     # re-apply migrations and seed data
+pnpm test:db      # pgTAP tests against the local stack
 pnpm test:e2e     # Playwright + axe (run `pnpm exec playwright install chromium` once)
+pnpm verify:full  # verify + test:db + test:e2e — needs the local stack running
 ```
 
 Contributor and agent rules live in [CLAUDE.md](CLAUDE.md).
+
+Staging environment setup (Supabase, Vercel, OAuth): [docs/ops/staging.md](docs/ops/staging.md).
 
 ## License
 

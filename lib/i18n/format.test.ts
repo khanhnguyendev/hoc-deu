@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   formatDay,
   formatDayLong,
+  formatDayTimeIn,
+  formatFinishEstimate,
   formatMinutes,
   formatMonth,
   formatMonthShort,
   formatNumber,
+  formatWeeks,
+  variantLabel,
 } from './format'
 
 const originalTz = process.env.TZ
@@ -68,5 +72,67 @@ describe('local-day formatting', () => {
 
   it('rejects anything but YYYY-MM-DD', () => {
     expect(() => formatDay('2026-1-1')).toThrow(/YYYY-MM-DD/)
+  })
+})
+
+describe('formatWeeks', () => {
+  it('defaults to one decimal, vi-VN comma', () => {
+    expect(formatWeeks(12.4)).toBe('12,4 tuần')
+  })
+
+  it('rounds to whole weeks with fractionDigits 0', () => {
+    expect(formatWeeks(11.6, 0)).toBe('12 tuần')
+  })
+})
+
+describe('formatFinishEstimate', () => {
+  it('§5.11 simulated-finish sentence', () => {
+    expect(
+      formatFinishEstimate({
+        budgetMinutes: 60,
+        variantLabel: '8 tuần',
+        medianWeeks: 11.6,
+        p90Weeks: 12.4,
+      }),
+    ).toBe('Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)')
+  })
+})
+
+describe('variantLabel', () => {
+  it('turns a `<n>w` roadmap id into Vietnamese', () => {
+    expect(variantLabel('8w')).toBe('8 tuần')
+    expect(variantLabel('10w')).toBe('10 tuần')
+  })
+
+  it('leaves any other id unchanged', () => {
+    expect(variantLabel('custom')).toBe('custom')
+  })
+})
+
+describe('formatDayTimeIn', () => {
+  it('shows the date and 24-hour time an instant reads on a clock in the zone', () => {
+    expect(formatDayTimeIn('2026-09-24T21:00:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '04:00',
+    })
+    expect(formatDayTimeIn('2026-09-24T11:00:00.000Z', 'America/Los_Angeles')).toEqual({
+      day: '24 tháng 9, 2026',
+      time: '04:00',
+    })
+  })
+
+  it('reads midnight as 00:00, never 24:00', () => {
+    expect(formatDayTimeIn('2026-09-24T17:00:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '00:00',
+    })
+  })
+
+  it('does not depend on the runtime zone (TZ)', () => {
+    process.env.TZ = 'Pacific/Kiritimati'
+    expect(formatDayTimeIn('2026-09-24T21:30:00.000Z', 'Asia/Ho_Chi_Minh')).toEqual({
+      day: '25 tháng 9, 2026',
+      time: '04:30',
+    })
   })
 })

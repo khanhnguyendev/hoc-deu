@@ -1,0 +1,9 @@
+id: demo-bad-accent
+status: active
+title: { vi: 'Demo', en: 'Demo' }
+accent: purple
+itemTypes: [lesson]
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+roadmaps: [{ id: 8w }]
+weeklyTemplate:
+  mon-fri: [{ kind: review }]

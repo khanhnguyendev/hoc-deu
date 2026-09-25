@@ -58,6 +58,18 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<Card><CardHeader><CardTitle>…</CardTitle></CardHeader><CardContent>…</CardContent></Card>`
 - **Accessibility:** title is a heading; interactive cards wrap a link or button
 
+### Checkbox
+
+- **Layer:** ui
+- **File:** `components/ui/checkbox.tsx`
+- **Props:** Radix Checkbox.Root props (`checked`, `onCheckedChange`, `disabled`, `aria-invalid`, …)
+- **Variants:** —
+- **States:** unchecked, checked (`bg-primary`), disabled, invalid (`border-danger`)
+- **Usage:** `<Label htmlFor="agree">Đồng ý</Label><Checkbox id="agree" checked={v} onCheckedChange={setV} />`
+- **Accessibility:** `role="checkbox"`, `aria-checked`, Space toggles; 20 px box with a transparent
+  ≥ 44 px hit area (same technique as FilterChip) — stacking two or more bare checkboxes needs the
+  same `gap-8` spacing as RadioGroup (below) so the transparent hit areas don't overlap
+
 ### Dialog
 
 - **Layer:** ui
@@ -101,6 +113,17 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<Label htmlFor="note">Ghi chú</Label>`
 - **Accessibility:** clicking focuses the control; never replace with a placeholder
 
+### NativeSelect
+
+- **Layer:** ui
+- **File:** `components/ui/native-select.tsx`
+- **Props:** select props (`aria-invalid` for errors)
+- **Variants:** —
+- **States:** default, focus-visible, disabled, invalid (`border-danger`)
+- **Usage:** `<Label htmlFor="tz">Múi giờ</Label><NativeSelect id="tz">…</NativeSelect>`
+- **Accessibility:** native `<select>` (role `combobox`), so long lists (≈ 420 time zones) keep the
+  platform picker on phones; always paired with a visible Label
+
 ### Progress
 
 - **Layer:** ui
@@ -110,6 +133,22 @@ from `lib/i18n/vi.ts`.
 - **States:** 0–100 %
 - **Usage:** `<Progress value={40} aria-label="Tiến độ tuần" />`
 - **Accessibility:** `progressbar` with `aria-valuenow`; needs a label
+
+### RadioGroup
+
+- **Layer:** ui
+- **File:** `components/ui/radio-group.tsx`
+- **Props:** Radix RadioGroup props (`value`, `onValueChange`, …); `RadioGroupItem` (`value`,
+  `disabled`, …)
+- **Variants:** —
+- **States:** unchecked, checked (`border-primary` + filled dot), disabled, invalid
+- **Usage:** `<RadioGroup aria-label="Ưu tiên" value={v} onValueChange={setV}><RadioGroupItem id="x" value="x" /><Label htmlFor="x">…</Label></RadioGroup>`
+- **Accessibility:** `radiogroup`/`radio` roles, roving tabindex, arrow keys move focus; items are
+  20 px with a transparent ≥ 44 px hit area (`before:-inset-3`, 12 px each side), so the default
+  stack is `gap-8` (32 px): 12 + 12 px of hit-area overreach + 8 px clearance = 32 px, keeping
+  adjacent 44 px hit areas from overlapping (DESIGN_SYSTEM §5, same math as FilterChip) — a
+  consumer that wraps each item in a ChoiceCard (the card is the target, not the bare radio)
+  overrides the gap with `className` (`tailwind-merge`)
 
 ### Separator
 
@@ -201,15 +240,23 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/app-shell/index.tsx`
-- **Props:** `user: { name: string }`, `isAdmin: boolean`, `title: string` (mobile top bar),
-  `onSignOut?: () => void`, `children`
+- **Props:** `user: { name: string }`, `isAdmin: boolean`, `onSignOut?: () => Promise<void>`,
+  `children` — the mobile top bar's title is not a prop: `TopBar` derives it from `usePathname()`
+  via `NAV_ITEMS` + `ADMIN_ITEMS`, falling back to "Học Đều" (M1 deferred #5, ruling R3)
 - **Variants:** sidebar (≥ 1024 px, collapsible 240 → 64 px) · top bar + bottom nav (< 1024 px)
 - **States:** current route (`aria-current="page"`, `primary-soft`), collapsed, admin / learner
-- **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} title="Hôm nay">…</AppShell>`
+- **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
 - **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
-  menu with "Quản trị" for admins only; bottom nav 56 px; `main` and the root scroll padding keep
-  content and focus clear of the top bar and bottom nav
+  menu with "Quản trị" for admins only; "Đăng xuất" is invoked as `() => void onSignOut()` from
+  `DropdownMenuItem onSelect` (Radix passes a non-serializable Event, and `onSignOut` takes none);
+  bottom nav 56 px; `main` and the root scroll padding keep content and focus clear of the top bar
+  and bottom nav
+- **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
+  lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
+- **Toasts:** mounts the one `Toaster` of the signed-in pages (task 2.8) — layouts and pages may
+  not import `components/ui`, so a feature's `toast()` (e.g. the approval queue) needs no mount of
+  its own; the catalog's boxed demo therefore shows a second copy of catalog toasts
 
 ### Banner
 
@@ -235,16 +282,31 @@ from `lib/i18n/vi.ts`.
   a visible detail line (not a live region — the focused day already announces itself); legend;
   table view ("Xem dạng bảng"); the year view starts scrolled to today
 
+### ChoiceCard
+
+- **Layer:** pattern
+- **File:** `components/patterns/choice-card.tsx`
+- **Props:** `htmlFor: string`, `control: ReactNode`, `title: ReactNode`, `description?: ReactNode`
+- **Variants:** —
+- **States:** unselected, selected (`has-data-[state=checked]:border-primary` + `bg-primary-soft`)
+- **Usage:** `<ChoiceCard htmlFor="dsa" control={<Checkbox id="dsa" .../>} title="DSA" description="…" />`
+- **Accessibility:** a `<label>` card ≥ 44 px; clicking anywhere toggles the control (native label
+  behaviour); selected state is never colour alone — the control itself shows the check
+
 ### ConfirmDialog
 
 - **Layer:** pattern
 - **File:** `components/patterns/confirm-dialog.tsx`
 - **Props:** `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `onConfirm`,
-  `cancelLabel?`, `tone?: 'default' | 'destructive'`, `pending?`
+  `cancelLabel?`, `tone?: 'default' | 'destructive'`, `pending?`, `onCloseAutoFocus?: (event:
+  Event) => void` — runs once the dialog has closed; calling `event.preventDefault()` keeps the
+  focus where the handler put it (e.g. UserRowActions moves it to a row that changed section)
 - **Variants:** default · destructive
 - **States:** closed, open, pending (confirm busy, cancel disabled, cannot close)
 - **Usage:** `<ConfirmDialog open={open} … tone="destructive" onConfirm={remove} />`
-- **Accessibility:** `alertdialog` named by its title; focus trapped and restored
+- **Accessibility:** `alertdialog` named by its title; focus trapped, and restored on close to the
+  control that had it when the dialog opened — it is opened without a `DialogTrigger`, so Radix
+  alone would drop focus to `<body>` (WCAG 2.4.3, task 2.8 fix round 1)
 
 ### DataList
 
@@ -301,6 +363,64 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** toggle button named by its status label; 32 px visual with a transparent hit
   area of at least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never
   overlap
+
+### FocusLayout
+
+- **Layer:** pattern
+- **File:** `components/patterns/focus-layout.tsx`
+- **Props:** `children`, `width?: 'narrow' | 'wide'` (`max-w-md` / `max-w-2xl`, default `narrow`),
+  `headerActions?: ReactNode`
+- **Variants:** narrow · wide
+- **States:** static
+- **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
+  `/onboarding`)
+- **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
+  landmark
+- **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
+  DESIGN_SYSTEM §5)
+
+### FormActions
+
+- **Layer:** pattern
+- **File:** `components/patterns/form-actions.tsx`
+- **Props:** `error: string | null` (the form-level failure), `children` (the buttons),
+  `label?: string` (names the buttons as a `group`, e.g. "Thao tác với {title}")
+- **Variants:** unnamed row · named group
+- **States:** no failure (an empty, zero-height alert region) · failed (a danger Banner above the
+  buttons)
+- **Usage:** `<FormActions error={failure}><Button type="submit" loading={pending}>Lưu</Button></FormActions>`
+  (the settings forms)
+- **Accessibility:** the failure sits in an always-mounted `role="alert"` region, so it is
+  announced when it appears — a toast is never the only feedback for a failed save (DESIGN_SYSTEM
+  §9); the region and the buttons share one block, so the empty region adds no gap to a flex form
+
+### FormErrorSummary
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/form-error-summary.tsx`
+- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`
+- **Variants:** —
+- **States:** empty (renders nothing), has errors
+- **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
+  forms, e.g. onboarding)
+- **Accessibility:** `role="alert"`, focused when the error set changes; each message links to
+  `#fieldId`
+
+### FormField
+
+- **Layer:** pattern
+- **File:** `components/patterns/form-field.tsx`
+- **Props:** `id: string`, `label: string`, `description?: string`, `error?: string`,
+  `required?: boolean`, `children: (control) => ReactNode`; `FormFieldError`: `id?: string`,
+  `children` (the message)
+- **Variants:** —
+- **States:** default, with description, with error (`aria-invalid`, `text-danger` + icon)
+- **Usage:** `<FormField id="email" label="Email" error={err}>{(control) => <Input {...control} />}</FormField>`
+  · a checkbox or radio group (no single control to label) puts `<FormFieldError id={errId}>` under
+  the group and `aria-describedby={errId}` on it (the onboarding wizard)
+- **Accessibility:** label above the field; `aria-describedby` joins the description and error
+  ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"; `FormFieldError` is the
+  same error line (`text-danger` + icon, never colour alone)
 
 ### LoadingState
 
@@ -364,6 +484,19 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<StatusPill status="weak" />`
 - **Accessibility:** colour + icon + label, never colour alone
 
+### StepIndicator
+
+- **Layer:** pattern
+- **File:** `components/patterns/step-indicator.tsx`
+- **Props:** `steps: readonly string[]`, `current: number` (0-based)
+- **Variants:** —
+- **States:** per step: upcoming, current (larger dot)
+- **Usage:** `<StepIndicator steps={['Thông tin', 'Lộ trình', 'Lịch học', 'Xác nhận']} current={1} />`
+  (onboarding wizard)
+- **Accessibility:** visible text "Bước {n}/{total}: {label}"; `<ol>` of step dots,
+  `aria-current="step"` on the current one; never colour alone — the current dot is larger and the
+  label is text
+
 ### StreakBadge
 
 - **Layer:** pattern
@@ -386,4 +519,293 @@ from `lib/i18n/vi.ts`.
 
 ## features
 
-_None yet — M2 adds the first feature components._
+### OnboardingWizard
+
+- **Layer:** feature (`features/onboarding`, client)
+- **File:** `features/onboarding/components/onboarding-wizard.tsx`
+- **Props:** `tracks: TrackOption[]`, `timeZones: readonly string[]` (built on the server), `now:
+  string` (server clock, ISO), `requestId: string` (per render, decision 9), `action: (state,
+  formData) => Promise<OnboardingState>` — all but the action come from `getOnboardingData()`; the
+  action comes in as a prop, so the catalog passes a no-op; `initialState?: OnboardingState` (the
+  catalog's error state)
+- **Variants:** the steps shown follow the selection — "Chọn lộ trình" → "Thời gian mỗi ngày" →
+  "Phiên bản lộ trình" (only for a track with more than one roadmap) → "Lịch học" → "Ngôn ngữ lập
+  trình" (only when a selected track has code languages) → "Xem trước tuần học"
+- **States:** per step: default, field errors (under the field + FormErrorSummary at the top);
+  variant follows the minutes (`defaultVariant`) until the learner picks one, then it sticks
+  (ADR-0015); time zone `Asia/Ho_Chi_Minh` on the server render, then the browser's canonical zone
+  when the list has it (`useSyncExternalStore`, no hydration mismatch); submitting ("Bắt đầu học"
+  busy, "Quay lại" disabled); server error (summary, back to the step of the first field in
+  error; a form error such as the quota stays on the last step)
+- **Usage:** `<FocusLayout width="wide"><PageHeader … /><OnboardingWizard {...await
+  getOnboardingData()} action={completeOnboarding} /></FocusLayout>`
+  (`app/(onboarding)/onboarding/page.tsx`)
+- **Accessibility:** one `<form>` (`noValidate`, checks are the wizard's); StepIndicator "Bước
+  n/total"; each step's h2 takes focus on every step change (not on the first render); the track
+  and language choices are ChoiceCards in a group named by the step heading, with the error line
+  in `aria-describedby`; Enter in a field moves on like "Tiếp tục" (only the last step submits);
+  summary links to a field on another step open that step and focus the field; the submit button
+  keeps focus while busy (`aria-busy`) and ignores a second press
+
+### VariantPicker
+
+- **Layer:** feature (`features/tracks`, client; exported from `features/tracks/index.ts`)
+- **File:** `features/tracks/components/variant-picker.tsx`
+- **Props:** `trackId: string`, `name: string`, `roadmaps: TrackOption['roadmaps']`,
+  `budgetMinutes: number`, `value: string`, `onValueChange: (id) => void`, `aria-labelledby?` /
+  `aria-label?` (the group's name — one is needed), `aria-describedby?` (an error line under the
+  group, settings)
+- **Variants:** with the simulated finish (a track with a projection table, DSA) · without (English)
+- **States:** each roadmap unselected / selected (ChoiceCard)
+- **Usage:** `<VariantPicker trackId="dsa" name="variant-dsa" roadmaps={track.roadmaps}
+  budgetMinutes={60} value={variant} onValueChange={setVariant} aria-labelledby={headingId} />`
+  (onboarding, settings)
+- **Accessibility:** `radiogroup` of ChoiceCard-wrapped radios (the card is the target, so the
+  group uses `gap-3`); each radio is named "8 tuần" / "10 tuần" followed by its finish line
+  ("Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)", §5.11)
+
+### WeeklyTemplatePreview
+
+- **Layer:** feature (`features/tracks`, server-compatible — no hooks; exported from
+  `features/tracks/index.ts`)
+- **File:** `features/tracks/components/weekly-template-preview.tsx`
+- **Props:** `title: string`, `accent: string` (`track-N`), `days: TemplateDay[]`
+  (`describeWeeklyTemplate`), `throttle: string[]` (`describeThrottle`)
+- **Variants:** with / without the throttle section ("Giới hạn thẻ mới")
+- **States:** static (read-only; editing the template is later, §0)
+- **Usage:** `<WeeklyTemplatePreview title={track.title} accent={track.accent}
+  days={track.template} throttle={track.throttle} />` (onboarding's last step, settings)
+- **Accessibility:** a Card with the track title as h3 and a 4 px track stripe (the title carries
+  the name, never colour alone); days as a `<dl>` (day → list of blocks)
+
+### UserQueue
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/user-queue.tsx`
+- **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
+  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended') => Promise<AdminActionResult>`,
+  `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the server actions come in as
+  props (passed on to `UserRowActions`), so the catalog passes no-ops
+- **Variants:** none
+- **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
+  khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
+  duyệt." for the queue); a row shows the name (the e-mail when there is none), the e-mail, "Tham
+  gia {day}" (the sign-up's calendar day in Asia/Ho_Chi_Minh, `formatDay`), a "Quản trị viên"
+  Badge for admins, and `UserRowActions` — the acting admin's own row shows a "Bạn" Badge and no
+  actions (decision 17)
+- **Usage:** `<PageHeader title="Người dùng" /><UserQueue users={await listUsers()}
+  setUserStatus={setUserStatus} setUserRole={setUserRole} />` (`app/(admin)/admin/users/page.tsx`)
+- **Accessibility:** each section is a region named by its h2; the empty-state titles are h3;
+  rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone;
+  each row's content is a programmatic focus target (`id={userRowId(user.id)}`, `tabIndex={-1}`,
+  `features/admin/components/user-row-id.ts`) that UserRowActions focuses after an action
+
+### UserRowActions
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/user-row-actions.tsx`
+- **Props:** `user: { id, name, status: AccountStatus, role: Role }`, `setUserStatus`,
+  `setUserRole` (as UserQueue)
+- **Variants:** one button set per status (decision 17): pending — "Duyệt", "Từ chối"; active —
+  "Tạm khoá" and "Đặt làm quản trị" (learner) or "Bỏ quyền quản trị" (admin); suspended or
+  rejected — "Kích hoạt lại". "Duyệt" / "Kích hoạt lại" are `secondary`, the rest `outline`
+- **States:** idle; running (the pressed button shows its spinner, the others are disabled);
+  confirming — "Từ chối", "Tạm khoá" and the role changes open a ConfirmDialog first
+  (destructive, except "Đặt làm quản trị"), pending while the action runs; failed — the message
+  also stays in the row (`text-danger` + icon), because a toast is never the only feedback for a
+  failure (DESIGN_SYSTEM §9)
+- **Usage:** rendered by UserQueue for every row but the admin's own
+- **Accessibility:** the buttons sit in a `group` named "Thao tác với {name}", so each "Duyệt" is
+  announced with its account; the result is a toast in the polite live region (the AppShell's
+  Toaster); the confirm dialog is an `alertdialog` named "Từ chối tài khoản của {name}?" (etc.),
+  focus trapped. **Focus after an action** (WCAG 2.4.3): once the list shows the row in another
+  status or role — moved to another section (a new instance mounts there) or changed in place —
+  keyboard focus goes to that row's target (scrolled into view only as far as needed); a
+  cancelled dialog or a failure that changes nothing returns focus to the pressed button (the
+  role button is keyed by its slot, so promote ↔ demote keeps the same element); names are
+  inserted literally (a replacer function, so `$&` in a display name stays text)
+
+### Landing
+
+- **Layer:** feature (`features/auth`)
+- **File:** `features/auth/components/landing.tsx`
+- **Props:** `deleted?: boolean` (default `false`; `?account=deleted`, §4.6)
+- **Variants:** default · deleted (an info Banner "Tài khoản của bạn đã được xoá." above the
+  wordmark)
+- **States:** static
+- **Usage:** `<FocusLayout><Landing deleted={params.account === 'deleted'} /></FocusLayout>`
+  (`app/(public)/page.tsx`, signed-out only — a signed-in visitor is redirected to
+  `homePathFor(user)` before this renders)
+- **Accessibility:** one h1 ("Học Đều"); "Đăng nhập" is a link styled as a button (`buttonVariants`)
+  to `/sign-in`
+
+### PendingStatus
+
+- **Layer:** feature (`features/auth`)
+- **File:** `features/auth/components/pending-status.tsx`
+- **Props:** `PendingStatus`: `status: 'pending' | 'rejected' | 'suspended'` (never `active` — the
+  page redirects first). `SignOutButton`: `signOut: () => Promise<void>`
+- **Variants:** one per status, copy from `vi.account[status]`
+- **States:** static; `SignOutButton` default / hover / focus-visible (Button `outline`)
+- **Usage:** `<FocusLayout headerActions={<SignOutButton signOut={signOut} />}><PendingStatus
+  status={user.status} /><StatusWatcher /></FocusLayout>` (`app/(account)/pending/page.tsx`) —
+  `SignOutButton` goes in `headerActions` because the page itself may not import `components/ui`
+- **Accessibility:** one h1 (PageHeader, the status title) with its description; the sign-out
+  button is a submit button of its own form (`action={signOut}`)
+
+### SignInPanel
+
+- **Layer:** feature (`features/auth`, client)
+- **File:** `features/auth/components/sign-in-panel.tsx`
+- **Props:** `next: string | null` (a path already checked with `safeNextPath`), `oauthError:
+  boolean` (`/sign-in?error=oauth`), `testLogin: boolean` (`serverEnv().authTestLogin`),
+  `signInWithProvider: (formData) => Promise<void>`, `signInWithTestLogin: (state, formData) =>
+  Promise<TestLoginState>` — the server actions come in as props, so the catalog passes no-ops
+- **Variants:** providers only · with the test login (local and CI)
+- **States:** default; OAuth error (danger Banner "Đăng nhập không thành công. Bạn thử lại nhé.");
+  submitting (the pressed button shows its spinner); test-login error ("Email hoặc mật khẩu không
+  đúng.")
+- **Usage:** `<FocusLayout><SignInPanel next={next} oauthError={error === 'oauth'}
+  testLogin={serverEnv().authTestLogin} signInWithProvider={signInWithProvider}
+  signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
+- **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
+  GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
+  form named by its h2 "Đăng nhập thử nghiệm", with labelled, required e-mail and password fields
+  (`autocomplete` username / current-password) and its error in an always-mounted `role="alert"`
+  region, so it is announced when it appears
+
+### StatusWatcher
+
+- **Layer:** feature (`features/auth`, client)
+- **File:** `features/auth/components/status-watcher.tsx`
+- **Props:** none
+- **Variants:** none
+- **States:** renders nothing — it exists only for its effect
+- **Usage:** `<StatusWatcher />` inside `/pending` (`app/(account)/pending/page.tsx`); refreshes
+  the server page (`router.refresh()`) every 30 s, on `focus` and when the tab becomes visible
+  again, so the redirect to the user's home path fires as soon as an admin approves the account
+- **Accessibility:** no visible output, nothing to announce
+
+### AdminLink
+
+- **Layer:** feature (`features/settings`, server-compatible — no hooks)
+- **File:** `features/settings/components/admin-link.tsx`
+- **Props:** `isAdmin: boolean` (`SessionUser.isAdmin`)
+- **Variants:** admin (the row) · learner (renders nothing)
+- **States:** default, hover (`surface-muted`), focus-visible
+- **Usage:** `<AdminLink isAdmin={data.user.isAdmin} />` right under the PageHeader of
+  `app/(app)/settings/page.tsx`
+- **Accessibility:** a link to `/admin` (≥ 44 px) named "Quản trị" followed by its description;
+  the icons are decorative. It exists because the bottom navigation has no admin item, so admin
+  pages stay reachable on a phone (DESIGN_SYSTEM §5)
+
+### ScheduleForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/schedule-form.tsx`
+- **Props:** `schedule: Schedule` (in force now), `pendingSchedule: (Schedule & { effectiveAt })
+  | null`, `timeZones: readonly string[]` (built on the server), `requestId: string` (per render,
+  decision 9), `updateSchedule: SettingsAction` — the action comes in as a prop, so the catalog
+  passes a no-op
+- **Variants:** no change pending · a change pending (the fields show the pending values, which a
+  save is compared with, and an info Banner "Thay đổi áp dụng từ {ngày} lúc {giờ} (giờ {múi giờ
+  cũ}) — ngày đang học không bị ảnh hưởng.", on the clock of the zone in force, §5.9)
+- **States:** idle; saving ("Lưu lịch học" busy); saved (toast; the page re-renders and the fields
+  follow the saved values); failed (danger Banner in an always-mounted `role="alert"` region, field
+  errors under the fields)
+- **Usage:** `<ScheduleForm schedule={data.schedule} pendingSchedule={data.pendingSchedule}
+  timeZones={data.timeZones} requestId={data.requestId} updateSchedule={updateSchedule} />`
+- **Accessibility:** a `form` named "Lịch học"; labelled native selects (time zone — a saved zone
+  the list lacks is still listed — and day start with its helper); `aria-invalid` and the error in
+  `aria-describedby`; submits through `onSubmit` (no form reset), and ignores a second submit while
+  saving
+
+### TrackSettings
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/track-settings.tsx`
+- **Props:** `tracks: SettingsTrack[]` (every active track with the learner's enrollment — only
+  active and paused ones are shown), `requestId: string`, `updateTrack: SettingsAction`,
+  `setTrackStatus: SettingsAction`
+- **Variants:** per track: active ("Đang học" `success` Badge; "Tạm dừng", "Gỡ lộ trình") · paused
+  ("Tạm dừng" `warning` Badge; "Tiếp tục", "Gỡ lộ trình"); a track with several roadmaps shows the
+  VariantPicker, one roadmap shows it as text (TrackBudgetFields)
+- **States:** empty (EmptyState "Bạn chưa học lộ trình nào"); per track: saving ("Lưu" busy), a
+  status change running (the pressed button busy, the other disabled), confirming the removal
+  (destructive ConfirmDialog "Gỡ lộ trình {title}?"), failed (danger Banner in the track, under
+  `role="alert"`, and field errors); the weekly template and throttle are read-only
+  (WeeklyTemplatePreview "Mẫu tuần"; editing is later, §0)
+- **Usage:** `<TrackSettings tracks={data.tracks} requestId={data.requestId}
+  updateTrack={updateTrack} setTrackStatus={setTrackStatus} />`
+- **Accessibility:** each track is a region named by its h3 title; its form is named the same; the
+  status buttons sit in a group "Thao tác với {title}". "Tạm dừng" and "Tiếp tục" are one button
+  (keyed by its slot), so it keeps focus when the status flips; after a removal the list itself
+  (`tabIndex={-1}`) takes focus, since the removed track's buttons are gone (WCAG 2.4.3); results
+  are toasts, failures also stay in the track
+
+### TrackBudgetFields
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/track-budget-fields.tsx`
+- **Props:** `track: Pick<TrackOption, 'id' | 'roadmaps'>`, `minutes: string` (as typed),
+  `onMinutesChange`, `variant: string`, `onVariantChange`, `fallbackMinutes: number` (the budget
+  the finish line uses while the typed minutes are not a valid budget), `errors: Record<string,
+  string>` (`budgetMinutes`, `roadmapVariant`)
+- **Variants:** several roadmaps (VariantPicker with the simulated finish, §5.11) · one roadmap
+  (text, sent through a hidden field)
+- **States:** default; with field errors
+- **Usage:** inside a settings form — TrackSettings and AddTrackForm: `<TrackBudgetFields
+  track={option} minutes={minutes} onMinutesChange={setMinutes} variant={variant}
+  onVariantChange={setVariant} fallbackMinutes={60} errors={errors} />`
+- **Accessibility:** a labelled number field "Số phút mỗi ngày" with its helper; the variant
+  radiogroup is named "Phiên bản lộ trình" by a visible line and points `aria-describedby` at its
+  error; the form values are named `budgetMinutes` and `roadmapVariant`
+
+### AddTrackForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/add-track-form.tsx`
+- **Props:** `tracks: SettingsTrack[]` (removed and never-enrolled tracks are offered),
+  `schedule: Schedule` (in force: today and the date range), `now: string`, `requestId: string`,
+  `enrollTrack: SettingsAction`
+- **Variants:** a removed track ("Đã gỡ" Badge; starts from its last minutes and variant —
+  re-adding keeps the history, §5.9) · a never-enrolled track (the suggested-minutes Badge;
+  default minutes, the variant following the minutes until picked, ADR-0015)
+- **States:** empty (EmptyState "Bạn đang học tất cả lộ trình hiện có"); idle; adding ("Thêm lộ
+  trình" busy); added (toast; the track moves to TrackSettings); failed (danger Banner under
+  `role="alert"`, field errors)
+- **Usage:** `<AddTrackForm tracks={data.tracks} schedule={data.schedule} now={data.now}
+  requestId={data.requestId} enrollTrack={enrollTrack} />`
+- **Accessibility:** a `form` named "Thêm lộ trình"; the tracks are ChoiceCard radios in a group
+  "Lộ trình"; the start date is a labelled date field (today to 60 days ahead, decision 22); when
+  the last candidate is added and the form goes away, its container takes focus
+
+### CodeLanguageForm
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/code-language-form.tsx`
+- **Props:** `codeLanguage: CodeLanguage | null` (`null` reads as Python), `requestId: string`,
+  `updateCodeLanguage: SettingsAction`
+- **Variants:** —
+- **States:** idle; saving ("Lưu" busy); saved (toast); failed (danger Banner under
+  `role="alert"`, the error under the group)
+- **Usage:** `<CodeLanguageForm codeLanguage={data.user.codeLanguage} requestId={data.requestId}
+  updateCodeLanguage={updateCodeLanguage} />`
+- **Accessibility:** a `form` and a radiogroup both named "Ngôn ngữ lập trình"; Python / Java /
+  Go as ChoiceCard radios (the card is the target, `gap-3`)
+
+### DeleteAccount
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/delete-account.tsx`
+- **Props:** `deleteAccount: SettingsAction` — the action comes in as a prop, so the catalog
+  passes a no-op; "what is deleted" is the Section's own description, above this (§4.6)
+- **Variants:** —
+- **States:** idle; confirming (destructive ConfirmDialog "Xoá tài khoản vĩnh viễn?", restating the
+  consequences and the privacy sentence); a successful delete redirects away (`/?account=deleted`),
+  so it is never seen here; failed (danger Banner under `role="alert"`, the dialog closes)
+- **Usage:** `<DeleteAccount deleteAccount={deleteAccount} />` (`app/(app)/settings/page.tsx`,
+  the last Section)
+- **Accessibility:** an info Banner states the backup-retention notice: "Dữ liệu đã xoá vẫn có thể
+  tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."; "Xoá vĩnh viễn" is destructive and asks
+  first, like TrackSettings' "Gỡ lộ trình"

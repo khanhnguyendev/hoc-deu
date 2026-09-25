@@ -1,0 +1,71 @@
+-- Shared pgTAP helpers, included by every test file (`\ir _helpers.psql`) inside its
+-- transaction, so they are rolled back with the test.
+create schema if not exists tests;
+grant usage on schema tests to anon, authenticated, service_role;
+create or replace function tests.helpers_loaded() returns boolean language sql as $$ select true $$;
+
+-- Creates an auth user (the profile trigger fires), then sets status/role directly. Pass null for
+-- p_status or p_role to keep what the sign-up trigger set. Call it as `postgres` (after
+-- tests.clear_authentication() when a test has switched roles).
+create or replace function tests.create_user(
+  p_email text, p_status text default 'active', p_role text default 'learner',
+  p_meta jsonb default '{}'::jsonb
+) returns uuid language plpgsql as $$
+declare
+  v_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (
+    id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at,
+    updated_at, raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token,
+    email_change, email_change_token_new, email_change_token_current
+  ) values (
+    v_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', p_email,
+    extensions.crypt('test-password-123', extensions.gen_salt('bf')), now(), now(), now(),
+    '{"provider":"email","providers":["email"]}'::jsonb, p_meta, '', '', '', '', ''
+  );
+  if p_status is not null or p_role is not null then
+    update public.profiles
+    set status = coalesce(p_status, status), role = coalesce(p_role, role)
+    where id = v_id;
+  end if;
+  return v_id;
+end $$;
+
+-- Switches the transaction to `authenticated` with the user's JWT claims.
+create or replace function tests.authenticate_as(p_user uuid) returns void language plpgsql as $$
+declare
+  v_email text;
+begin
+  -- Back to the session user first, so the lookup works when switching between users.
+  execute 'set local role none';
+  select email into v_email from auth.users where id = p_user;
+  if not found then
+    raise exception 'tests.authenticate_as: no auth user %', p_user;
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', p_user, 'role', 'authenticated', 'email', v_email)::text,
+    true
+  );
+  execute 'set local role authenticated';
+end $$;
+
+create or replace function tests.authenticate_as_service_role() returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  execute 'set local role service_role';
+end $$;
+
+-- Back to `postgres` (the session user) with no JWT claims.
+create or replace function tests.clear_authentication() returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', '', true);
+  execute 'set local role none';
+end $$;
+
+grant execute on function
+  tests.create_user(text, text, text, jsonb),
+  tests.authenticate_as(uuid),
+  tests.authenticate_as_service_role(),
+  tests.clear_authentication()
+to anon, authenticated, service_role;

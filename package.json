@@ -18,9 +18,17 @@
     "tokens:sync": "python3 docs/design/assets/gen_tokens.py && tsx tools/tokens/cli.ts",
     "test:e2e": "playwright test",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "verify:full": "pnpm verify && pnpm test:e2e"
+    "verify:full": "pnpm verify && pnpm test:db && pnpm test:e2e",
+    "db:start": "supabase start -x studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,postgres-meta,supavisor,mailpit",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local --schema public > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
+    "db:fixtures": "tsx tools/db/local-day-parity-cli.ts",
+    "test:db": "supabase test db"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.47.0",
@@ -29,8 +37,11 @@
     "radix-ui": "1.6.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "server-only": "0.0.1",
     "sonner": "2.0.8",
-    "tailwind-merge": "3.7.0"
+    "tailwind-merge": "3.7.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
@@ -48,6 +59,7 @@
     "jsdom": "30.1.1",
     "prettier": "3.9.9",
     "prettier-plugin-tailwindcss": "0.8.1",
+    "supabase": "2.117.0",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "tw-animate-css": "1.4.0",

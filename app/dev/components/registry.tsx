@@ -7,17 +7,23 @@ import type * as React from 'react'
 import { AppShell } from '@/components/patterns/app-shell'
 import { Banner } from '@/components/patterns/banner'
 import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar-heatmap'
+import { ChoiceCard } from '@/components/patterns/choice-card'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
+import { FocusLayout } from '@/components/patterns/focus-layout'
+import { FormActions } from '@/components/patterns/form-actions'
+import { FormErrorSummary } from '@/components/patterns/form-error-summary'
+import { FormField } from '@/components/patterns/form-field'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { PageHeader } from '@/components/patterns/page-header'
 import { ProgressRing } from '@/components/patterns/progress-ring'
 import { Section } from '@/components/patterns/section'
 import { StatCard } from '@/components/patterns/stat-card'
+import { StepIndicator } from '@/components/patterns/step-indicator'
 import { STATUS_PILL, StatusPill, type PillStatus } from '@/components/patterns/status-pill'
 import { StreakBadge } from '@/components/patterns/streak-badge'
 import { ThemeToggle } from '@/components/patterns/theme-toggle'
@@ -32,6 +38,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -54,7 +61,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Progress } from '@/components/ui/progress'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
@@ -70,6 +79,28 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { AdminActionResult } from '@/features/admin/actions'
+import { UserQueue } from '@/features/admin/components/user-queue'
+import { UserRowActions } from '@/features/admin/components/user-row-actions'
+import type { AdminUserRow } from '@/features/admin/queries'
+import { Landing } from '@/features/auth/components/landing'
+import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
+import { SignInPanel } from '@/features/auth/components/sign-in-panel'
+import { StatusWatcher } from '@/features/auth/components/status-watcher'
+import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
+import type { OnboardingState } from '@/features/onboarding/schema'
+import { AddTrackForm } from '@/features/settings/components/add-track-form'
+import { AdminLink } from '@/features/settings/components/admin-link'
+import { CodeLanguageForm } from '@/features/settings/components/code-language-form'
+import { DeleteAccount } from '@/features/settings/components/delete-account'
+import { ScheduleForm } from '@/features/settings/components/schedule-form'
+import { TrackBudgetFields } from '@/features/settings/components/track-budget-fields'
+import { TrackSettings } from '@/features/settings/components/track-settings'
+import type { SettingsAction, SettingsTrack } from '@/features/settings/schema'
+import { VariantPicker } from '@/features/tracks/components/variant-picker'
+import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
+import type { TrackOption } from '@/lib/content/track-options'
+import { vi } from '@/lib/i18n/vi'
 
 /**
  * Every component with its variants and states (platform design §7.7). `file` must match the
@@ -196,6 +227,83 @@ function ConfirmDemo() {
   )
 }
 
+function CheckboxDemo() {
+  const [checked, setChecked] = useState(true)
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        id="demo-checkbox"
+        checked={checked}
+        onCheckedChange={(v) => setChecked(v === true)}
+      />
+      <Label htmlFor="demo-checkbox">Nhận email nhắc học</Label>
+    </div>
+  )
+}
+
+const PRIORITY_LABEL = { low: 'Thấp', medium: 'Vừa', high: 'Cao' } as const
+
+function RadioGroupDemo() {
+  const [value, setValue] = useState<keyof typeof PRIORITY_LABEL>('low')
+  return (
+    <RadioGroup
+      aria-label="Mức độ ưu tiên"
+      value={value}
+      onValueChange={(next) => setValue(next as keyof typeof PRIORITY_LABEL)}
+    >
+      {(Object.keys(PRIORITY_LABEL) as (keyof typeof PRIORITY_LABEL)[]).map((option) => (
+        <div key={option} className="flex items-center gap-2">
+          <RadioGroupItem id={`demo-radio-${option}`} value={option} disabled={option === 'high'} />
+          <Label htmlFor={`demo-radio-${option}`}>{PRIORITY_LABEL[option]}</Label>
+        </div>
+      ))}
+    </RadioGroup>
+  )
+}
+
+function FormFieldDemo() {
+  return (
+    <div className="grid w-full max-w-sm gap-4">
+      <FormField id="demo-form-field" label="Email" description="Dùng để đăng nhập" required>
+        {(control) => <Input {...control} type="email" placeholder="ban@vidu.com" />}
+      </FormField>
+      <FormField
+        id="demo-form-field-error"
+        label="Số phút mỗi ngày"
+        error="Chọn từ 10 đến 240 phút."
+      >
+        {(control) => <Input {...control} inputMode="numeric" defaultValue="5" />}
+      </FormField>
+    </div>
+  )
+}
+
+function ChoiceCardDemo() {
+  const [checked, setChecked] = useState(true)
+  return (
+    <div className="grid w-full max-w-sm gap-3">
+      <ChoiceCard
+        htmlFor="demo-choice-dsa"
+        control={
+          <Checkbox
+            id="demo-choice-dsa"
+            checked={checked}
+            onCheckedChange={(v) => setChecked(v === true)}
+          />
+        }
+        title="DSA"
+        description="Cấu trúc dữ liệu và giải thuật"
+      />
+      <ChoiceCard
+        htmlFor="demo-choice-eng"
+        control={<Checkbox id="demo-choice-eng" checked={false} onCheckedChange={() => {}} />}
+        title="English for IT"
+        description="Từ vựng và giao tiếp kỹ thuật"
+      />
+    </div>
+  )
+}
+
 const PROBLEMS = [
   { id: 'dsa:lc-0001', title: 'Two Sum', status: 'strong' as PillStatus },
   { id: 'dsa:lc-0242', title: 'Valid Anagram', status: 'weak' as PillStatus },
@@ -203,6 +311,193 @@ const PROBLEMS = [
 ]
 
 const emptyCards = <EmptyState icon={Inbox} title="Không có thẻ nào đến hạn" />
+
+/** The admin actions as no-ops: they "succeed" and toast, but nothing changes. */
+const demoSetUserStatus = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.admin.results.approved,
+})
+const demoSetUserRole = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.admin.results.promoted,
+})
+const demoFailure = async (): Promise<AdminActionResult> => ({
+  ok: false,
+  message: vi.admin.errors.changed,
+})
+
+const demoUser = (user: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): AdminUserRow => ({
+  email: `${user.id}@example.test`,
+  displayName: null,
+  role: 'learner',
+  status: 'active',
+  createdAt: '2026-01-12T02:00:00Z',
+  approvedAt: null,
+  onboardedAt: null,
+  isSelf: false,
+  ...user,
+})
+
+// Row names are constants: e2e/components.spec.ts reads every quoted `name` property in this
+// file as a catalog entry name.
+const DEMO_LEARNER = 'Trần Thị Bình'
+const DEMO_OTHER_ADMIN = 'Lê Văn Dũng'
+
+const DEMO_ADMIN_USERS: AdminUserRow[] = [
+  demoUser({
+    id: 'binh',
+    displayName: DEMO_LEARNER,
+    status: 'pending',
+    createdAt: '2026-02-02T09:30:00Z',
+  }),
+  demoUser({ id: 'cuong', status: 'pending', createdAt: '2026-02-03T20:00:00Z' }),
+  demoUser({ id: 'an', displayName: DEMO_USER, role: 'admin', isSelf: true }),
+  demoUser({ id: 'dung', displayName: DEMO_OTHER_ADMIN, role: 'admin' }),
+  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
+  demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
+]
+
+/** The two real tracks as the onboarding loader returns them (`loadTrackOptions()`). */
+const DEMO_TRACKS: TrackOption[] = [
+  {
+    id: 'dsa',
+    title: 'Cấu trúc dữ liệu & Giải thuật',
+    accent: 'track-1',
+    defaultBudgetMinutes: 60,
+    roadmaps: [{ id: '8w', recommendedBelowMinutes: 75 }, { id: '10w' }],
+    codeLanguages: ['python', 'java', 'go'],
+    template: [
+      { label: 'Thứ 2 – Thứ 6', blocks: ['Ôn tập (tối đa 15 phút)', 'Bài mới'] },
+      { label: 'Thứ 7', blocks: ['Ôn tập'] },
+      { label: 'Chủ nhật', blocks: ['Phỏng vấn thử · 45 phút (từ tuần 3)', 'Ôn lại 3 bài'] },
+    ],
+    throttle: [],
+  },
+  {
+    id: 'english',
+    title: 'Tiếng Anh cho môi trường IT',
+    accent: 'track-2',
+    defaultBudgetMinutes: 25,
+    roadmaps: [{ id: '10w' }],
+    codeLanguages: [],
+    template: [
+      {
+        label: 'Thứ 2 – Thứ 6',
+        blocks: ['Bài tập · 5 phút', 'Shadowing · 3 phút', 'Ôn tập', 'Bài mới'],
+      },
+      { label: 'Thứ 7', blocks: ['Ôn tập'] },
+      { label: 'Chủ nhật', blocks: ['Nhiệm vụ cuối tuần · 15 phút', 'Ôn tập'] },
+    ],
+    throttle: [
+      'Tối đa 8 thẻ mới mỗi ngày',
+      'Trên 40 thẻ cần ôn: 4 thẻ mới mỗi ngày',
+      'Trên 60 thẻ cần ôn: tạm dừng thẻ mới',
+    ],
+  },
+]
+const [DEMO_DSA, DEMO_ENGLISH] = DEMO_TRACKS as [TrackOption, TrackOption]
+const DEMO_TIME_ZONES = ['Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Europe/London']
+const DEMO_NOW = `${DEMO_TODAY}T03:00:00.000Z`
+const DEMO_REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
+const DEMO_ONBOARDING_ERROR: OnboardingState = {
+  status: 'error',
+  formError: vi.errors.quotaExceeded,
+  fieldErrors: { startDate: vi.onboarding.errors.startDateTooLate },
+}
+
+/** The onboarding action as a no-op: "Bắt đầu học" returns to the wizard unchanged. */
+const demoCompleteOnboarding = async (): Promise<OnboardingState> => ({ status: 'idle' })
+const demoFailOnboarding = async (): Promise<OnboardingState> => DEMO_ONBOARDING_ERROR
+
+/** The settings actions as no-ops: they "succeed" (a toast), or fail with a field error. */
+const demoSettingsSave: SettingsAction = async () => ({ ok: true, message: 'Đã lưu (bản demo).' })
+const demoSettingsFailure: SettingsAction = async () => ({
+  ok: false,
+  message: vi.settings.errors.fields,
+  fieldErrors: { budgetMinutes: vi.onboarding.errors.minutes },
+})
+const demoDeleteAccountFailure: SettingsAction = async () => ({
+  ok: false,
+  message: vi.settings.deleteAccount.failed,
+})
+const DEMO_VN_SCHEDULE = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
+const DEMO_SETTINGS_TRACKS: SettingsTrack[] = [
+  {
+    option: DEMO_DSA,
+    enrollment: {
+      status: 'active',
+      budgetMinutes: 60,
+      roadmapVariant: '8w',
+      startDate: DEMO_TODAY,
+    },
+  },
+  {
+    option: DEMO_ENGLISH,
+    enrollment: {
+      status: 'paused',
+      budgetMinutes: 25,
+      roadmapVariant: '10w',
+      startDate: DEMO_TODAY,
+    },
+  },
+]
+/** DSA removed, English never enrolled: both are offered under "Thêm lộ trình". */
+const DEMO_ADDABLE_TRACKS: SettingsTrack[] = [
+  {
+    option: DEMO_DSA,
+    enrollment: {
+      status: 'removed',
+      budgetMinutes: 90,
+      roadmapVariant: '10w',
+      startDate: DEMO_TODAY,
+    },
+  },
+  { option: DEMO_ENGLISH, enrollment: null },
+]
+
+function TrackBudgetFieldsDemo({ track, minutes }: { track: TrackOption; minutes: string }) {
+  const [typed, setTyped] = useState(minutes)
+  const [variant, setVariant] = useState(track.roadmaps[0]?.id ?? '')
+  return (
+    <form aria-label={track.title} className="flex w-full max-w-xl flex-col gap-4">
+      <TrackBudgetFields
+        track={track}
+        minutes={typed}
+        onMinutesChange={setTyped}
+        variant={variant}
+        onVariantChange={setVariant}
+        fallbackMinutes={Number(minutes)}
+        errors={{}}
+      />
+    </form>
+  )
+}
+
+function VariantPickerDemo({
+  track,
+  budgetMinutes,
+}: {
+  track: TrackOption
+  budgetMinutes: number
+}) {
+  const [value, setValue] = useState(track.roadmaps[0]?.id ?? '')
+  return (
+    <div className="flex w-full max-w-xl flex-col gap-2">
+      <p id={`demo-variant-${track.id}`} className="font-medium">
+        {track.title} · {budgetMinutes} phút/ngày
+      </p>
+      <VariantPicker
+        trackId={track.id}
+        name={`demo-variant-${track.id}`}
+        roadmaps={track.roadmaps}
+        budgetMinutes={budgetMinutes}
+        value={value}
+        onValueChange={setValue}
+        aria-labelledby={`demo-variant-${track.id}`}
+      />
+    </div>
+  )
+}
 
 export const CATALOG: Entry[] = [
   {
@@ -312,6 +607,33 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'Checkbox',
+    layer: 'ui',
+    file: 'components/ui/checkbox.tsx',
+    demos: [
+      {
+        title: 'Checked, unchecked, disabled, invalid',
+        render: () => (
+          <div className="flex flex-col gap-3">
+            <CheckboxDemo />
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-off" />
+              <Label htmlFor="demo-checkbox-off">Chưa chọn</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-disabled" disabled checked />
+              <Label htmlFor="demo-checkbox-disabled">Đã tắt</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="demo-checkbox-invalid" aria-invalid />
+              <Label htmlFor="demo-checkbox-invalid">Bắt buộc chọn</Label>
+            </div>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
     name: 'Dialog',
     layer: 'ui',
     file: 'components/ui/dialog.tsx',
@@ -376,6 +698,43 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'NativeSelect',
+    layer: 'ui',
+    file: 'components/ui/native-select.tsx',
+    demos: [
+      {
+        title: 'Default, invalid, disabled',
+        render: () => (
+          <div className="grid w-full max-w-sm gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-tz">Múi giờ</Label>
+              <NativeSelect id="demo-select-tz" defaultValue="Asia/Ho_Chi_Minh">
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+                <option value="Asia/Bangkok">Asia/Bangkok</option>
+                <option value="America/St_Johns">America/St_Johns</option>
+              </NativeSelect>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-invalid">Múi giờ</Label>
+              <NativeSelect id="demo-select-invalid" aria-invalid defaultValue="">
+                <option value="" disabled>
+                  Chọn múi giờ
+                </option>
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+              </NativeSelect>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="demo-select-disabled">Múi giờ (khoá)</Label>
+              <NativeSelect id="demo-select-disabled" disabled defaultValue="Asia/Ho_Chi_Minh">
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+              </NativeSelect>
+            </div>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
     name: 'Progress',
     layer: 'ui',
     file: 'components/ui/progress.tsx',
@@ -394,6 +753,12 @@ export const CATALOG: Entry[] = [
         ),
       },
     ],
+  },
+  {
+    name: 'RadioGroup',
+    layer: 'ui',
+    file: 'components/ui/radio-group.tsx',
+    demos: [{ title: 'Vertical stack of options, one disabled', render: () => <RadioGroupDemo /> }],
   },
   {
     name: 'Separator',
@@ -567,7 +932,7 @@ export const CATALOG: Entry[] = [
         render: () => (
           // transform-gpu makes this box the containing block of the fixed bottom navigation.
           <div className="relative h-96 w-full transform-gpu overflow-hidden rounded-lg border border-border">
-            <AppShell user={{ name: DEMO_USER }} isAdmin title="Hôm nay" onSignOut={() => {}}>
+            <AppShell user={{ name: DEMO_USER }} isAdmin onSignOut={async () => {}}>
               <PageHeader title="Hôm nay học gì?" />
             </AppShell>
           </div>
@@ -613,6 +978,12 @@ export const CATALOG: Entry[] = [
         render: () => <CalendarHeatmap days={DEMO_DAYS} today={DEMO_TODAY} label="Lịch học mẫu" />,
       },
     ],
+  },
+  {
+    name: 'ChoiceCard',
+    layer: 'patterns',
+    file: 'components/patterns/choice-card.tsx',
+    demos: [{ title: 'Selected and unselected', render: () => <ChoiceCardDemo /> }],
   },
   {
     name: 'ConfirmDialog',
@@ -724,6 +1095,84 @@ export const CATALOG: Entry[] = [
         render: () => <FilterChipDemo />,
       },
     ],
+  },
+  {
+    name: 'FocusLayout',
+    layer: 'patterns',
+    file: 'components/patterns/focus-layout.tsx',
+    demos: [
+      {
+        title: 'Wordmark, skip link, centred main (narrow)',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout>
+              <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+      {
+        title: 'Wide, with header actions',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout width="wide" headerActions={<Button variant="outline">Trợ giúp</Button>}>
+              <p className="text-center text-sm text-muted-foreground">Nội dung trang rộng.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FormActions',
+    layer: 'patterns',
+    file: 'components/patterns/form-actions.tsx',
+    demos: [
+      {
+        title: 'Không có lỗi: chỉ các nút',
+        render: () => (
+          <FormActions error={null}>
+            <Button>Lưu</Button>
+          </FormActions>
+        ),
+      },
+      {
+        title: 'Lưu thất bại: thông báo ngay trên các nút',
+        render: () => (
+          <FormActions error={vi.errors.saveFailed} label="Thao tác với DSA">
+            <Button variant="outline">Tạm dừng</Button>
+            <Button variant="outline">Gỡ lộ trình</Button>
+          </FormActions>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FormErrorSummary',
+    layer: 'patterns',
+    file: 'components/patterns/form-error-summary.tsx',
+    demos: [
+      {
+        title: 'Two errors',
+        render: () => (
+          <div className="w-full max-w-sm">
+            <FormErrorSummary
+              title={vi.forms.errorSummaryTitle}
+              errors={[
+                { fieldId: 'demo-form-field-error', message: 'Chọn từ 10 đến 240 phút.' },
+                { fieldId: 'demo-select-invalid', message: 'Chọn một múi giờ hợp lệ.' },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FormField',
+    layer: 'patterns',
+    file: 'components/patterns/form-field.tsx',
+    demos: [{ title: 'Required, description and error', render: () => <FormFieldDemo /> }],
   },
   {
     name: 'LoadingState',
@@ -842,6 +1291,19 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
+    name: 'StepIndicator',
+    layer: 'patterns',
+    file: 'components/patterns/step-indicator.tsx',
+    demos: [
+      {
+        title: 'Step 2 of 4',
+        render: () => (
+          <StepIndicator steps={['Thông tin', 'Lộ trình', 'Lịch học', 'Xác nhận']} current={1} />
+        ),
+      },
+    ],
+  },
+  {
     name: 'StreakBadge',
     layer: 'patterns',
     file: 'components/patterns/streak-badge.tsx',
@@ -852,5 +1314,434 @@ export const CATALOG: Entry[] = [
     layer: 'patterns',
     file: 'components/patterns/theme-toggle.tsx',
     demos: [{ title: 'Light, dark, system', render: () => <ThemeToggle /> }],
+  },
+  {
+    name: 'SignInPanel',
+    layer: 'features',
+    file: 'features/auth/components/sign-in-panel.tsx',
+    demos: [
+      {
+        title: 'Providers only (production)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <SignInPanel
+              next={null}
+              oauthError={false}
+              testLogin={false}
+              signInWithProvider={async () => {}}
+              signInWithTestLogin={async () => ({ error: null })}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'OAuth error and the test login (submitting shows the wrong-password error)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <SignInPanel
+              next="/today"
+              oauthError
+              testLogin
+              signInWithProvider={async () => {}}
+              signInWithTestLogin={async () => ({ error: vi.auth.wrongCredentials })}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Landing',
+    layer: 'features',
+    file: 'features/auth/components/landing.tsx',
+    demos: [
+      {
+        title: 'Wordmark, positioning line, "Đăng nhập"',
+        render: () => (
+          <div className="w-full max-w-md">
+            <Landing />
+          </div>
+        ),
+      },
+      {
+        title: 'Với thông báo đã xoá tài khoản (?account=deleted)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <Landing deleted />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'PendingStatus',
+    layer: 'features',
+    file: 'features/auth/components/pending-status.tsx',
+    demos: [
+      {
+        title: 'Chờ duyệt, kèm nút đăng xuất (headerActions)',
+        render: () => (
+          <div className="flex w-full max-w-md flex-col gap-4">
+            <SignOutButton signOut={async () => {}} />
+            <PendingStatus status="pending" />
+          </div>
+        ),
+      },
+      {
+        title: 'Bị từ chối và tạm khoá',
+        render: () => (
+          <div className="flex w-full max-w-md flex-col gap-6">
+            <PendingStatus status="rejected" />
+            <PendingStatus status="suspended" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'UserQueue',
+    layer: 'features',
+    file: 'features/admin/components/user-queue.tsx',
+    demos: [
+      {
+        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn không có thao tác',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <UserQueue
+              users={DEMO_ADMIN_USERS}
+              setUserStatus={demoSetUserStatus}
+              setUserRole={demoSetUserRole}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Không có tài khoản nào chờ duyệt',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <UserQueue
+              // Own ids: each row's id is its focus target, and ids are unique on the page.
+              users={DEMO_ADMIN_USERS.filter((user) => user.status !== 'pending').map((user) => ({
+                ...user,
+                id: `empty-queue-${user.id}`,
+              }))}
+              setUserStatus={demoSetUserStatus}
+              setUserRole={demoSetUserRole}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'UserRowActions',
+    layer: 'features',
+    file: 'features/admin/components/user-row-actions.tsx',
+    demos: [
+      {
+        title:
+          'Theo trạng thái: chờ duyệt, đang hoạt động (học viên, quản trị), tạm khoá, bị từ chối',
+        render: () => (
+          <div className="flex flex-col gap-4">
+            {(
+              [
+                ['pending', 'learner'],
+                ['active', 'learner'],
+                ['active', 'admin'],
+                ['suspended', 'learner'],
+                ['rejected', 'learner'],
+              ] as const
+            ).map(([status, role]) => (
+              <UserRowActions
+                key={`${status}-${role}`}
+                user={{ id: `${status}-${role}`, name: DEMO_LEARNER, status, role }}
+                setUserStatus={demoSetUserStatus}
+                setUserRole={demoSetUserRole}
+              />
+            ))}
+          </div>
+        ),
+      },
+      {
+        title: 'Thao tác thất bại: thông báo trong hàng và toast',
+        render: () => (
+          <UserRowActions
+            user={{ id: 'failed', name: DEMO_OTHER_ADMIN, status: 'pending', role: 'learner' }}
+            setUserStatus={demoFailure}
+            setUserRole={demoFailure}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    name: 'StatusWatcher',
+    layer: 'features',
+    file: 'features/auth/components/status-watcher.tsx',
+    demos: [
+      {
+        title: 'Không có giao diện — làm mới trang mỗi 30 giây, khi focus lại hoặc hiện lại',
+        render: () => (
+          <div className="text-sm text-muted-foreground">
+            <StatusWatcher />
+            <p>Không hiển thị gì (features/auth/components/status-watcher.tsx).</p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'OnboardingWizard',
+    layer: 'features',
+    file: 'features/onboarding/components/onboarding-wizard.tsx',
+    demos: [
+      {
+        title: 'Bước 1: chọn lộ trình (các bước sau mở khi bấm "Tiếp tục")',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={DEMO_TRACKS}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoCompleteOnboarding}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Lỗi từ máy chủ: tóm tắt ở đầu, quay về bước có lỗi đầu tiên',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={DEMO_TRACKS}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoFailOnboarding}
+              initialState={DEMO_ONBOARDING_ERROR}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VariantPicker',
+    layer: 'features',
+    file: 'features/tracks/components/variant-picker.tsx',
+    demos: [
+      {
+        title: 'DSA với 60 phút/ngày: thời gian hoàn thành mô phỏng cho từng phiên bản',
+        render: () => <VariantPickerDemo track={DEMO_DSA} budgetMinutes={60} />,
+      },
+      {
+        title: 'Lộ trình không có bảng mô phỏng (English): không có dòng hoàn thành',
+        render: () => <VariantPickerDemo track={DEMO_ENGLISH} budgetMinutes={25} />,
+      },
+    ],
+  },
+  {
+    name: 'WeeklyTemplatePreview',
+    layer: 'features',
+    file: 'features/tracks/components/weekly-template-preview.tsx',
+    demos: [
+      {
+        title: 'DSA (không giới hạn thẻ mới) và English (có giới hạn thẻ mới)',
+        render: () => (
+          <div className="grid w-full gap-4 md:grid-cols-2">
+            {DEMO_TRACKS.map((track) => (
+              <WeeklyTemplatePreview
+                key={track.id}
+                title={track.title}
+                accent={track.accent}
+                days={track.template}
+                throttle={track.throttle}
+              />
+            ))}
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'AdminLink',
+    layer: 'features',
+    file: 'features/settings/components/admin-link.tsx',
+    demos: [
+      {
+        title: 'Hàng "Quản trị" ở đầu Cài đặt (chỉ quản trị viên; học viên không thấy gì)',
+        render: () => (
+          <div className="w-full max-w-xl">
+            <AdminLink isAdmin />
+            <AdminLink isAdmin={false} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ScheduleForm',
+    layer: 'features',
+    file: 'features/settings/components/schedule-form.tsx',
+    demos: [
+      {
+        title: 'Lịch đang áp dụng, không có thay đổi chờ',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <ScheduleForm
+              schedule={DEMO_VN_SCHEDULE}
+              pendingSchedule={null}
+              timeZones={DEMO_TIME_ZONES}
+              requestId={DEMO_REQUEST_ID}
+              updateSchedule={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Có thay đổi đang chờ: thông báo ngày và giờ áp dụng theo múi giờ cũ',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <ScheduleForm
+              schedule={DEMO_VN_SCHEDULE}
+              pendingSchedule={{
+                timezone: 'Europe/London',
+                dayStartsAt: '05:00',
+                effectiveAt: '2026-02-04T21:00:00.000Z',
+              }}
+              timeZones={DEMO_TIME_ZONES}
+              requestId={DEMO_REQUEST_ID}
+              updateSchedule={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackSettings',
+    layer: 'features',
+    file: 'features/settings/components/track-settings.tsx',
+    demos: [
+      {
+        title: 'DSA đang học, English tạm dừng ("Lưu" bị lỗi để xem thông báo lỗi)',
+        render: () => (
+          <div className="w-full">
+            <TrackSettings
+              tracks={DEMO_SETTINGS_TRACKS}
+              requestId={DEMO_REQUEST_ID}
+              updateTrack={demoSettingsFailure}
+              setTrackStatus={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Chưa học lộ trình nào',
+        render: () => (
+          <div className="w-full">
+            <TrackSettings
+              tracks={DEMO_ADDABLE_TRACKS}
+              requestId={DEMO_REQUEST_ID}
+              updateTrack={demoSettingsSave}
+              setTrackStatus={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackBudgetFields',
+    layer: 'features',
+    file: 'features/settings/components/track-budget-fields.tsx',
+    demos: [
+      {
+        title: 'DSA: số phút và phiên bản với thời gian hoàn thành mô phỏng',
+        render: () => <TrackBudgetFieldsDemo track={DEMO_DSA} minutes="60" />,
+      },
+      {
+        title: 'English: một phiên bản, hiện dạng chữ',
+        render: () => <TrackBudgetFieldsDemo track={DEMO_ENGLISH} minutes="25" />,
+      },
+    ],
+  },
+  {
+    name: 'AddTrackForm',
+    layer: 'features',
+    file: 'features/settings/components/add-track-form.tsx',
+    demos: [
+      {
+        title: 'Lộ trình đã gỡ (DSA) và lộ trình chưa học (English)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <AddTrackForm
+              tracks={DEMO_ADDABLE_TRACKS}
+              schedule={DEMO_VN_SCHEDULE}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              enrollTrack={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Đang học tất cả lộ trình',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <AddTrackForm
+              tracks={DEMO_SETTINGS_TRACKS}
+              schedule={DEMO_VN_SCHEDULE}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              enrollTrack={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'CodeLanguageForm',
+    layer: 'features',
+    file: 'features/settings/components/code-language-form.tsx',
+    demos: [
+      {
+        title: 'Java đã lưu (chưa lưu ngôn ngữ nào thì hiện Python)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <CodeLanguageForm
+              codeLanguage="java"
+              requestId={DEMO_REQUEST_ID}
+              updateCodeLanguage={demoSettingsSave}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'DeleteAccount',
+    layer: 'features',
+    file: 'features/settings/components/delete-account.tsx',
+    demos: [
+      {
+        title: 'Mặc định (bấm "Xoá vĩnh viễn" để mở hộp thoại xác nhận)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <DeleteAccount deleteAccount={demoSettingsSave} />
+          </div>
+        ),
+      },
+      {
+        title: 'Xoá thất bại',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <DeleteAccount deleteAccount={demoDeleteAccountFailure} />
+          </div>
+        ),
+      },
+    ],
   },
 ]

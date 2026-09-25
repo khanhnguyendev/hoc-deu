@@ -9,6 +9,11 @@ async function ruleIds(code: string, filePath: string): Promise<string[]> {
   return (result?.messages ?? []).map((m) => m.ruleId ?? 'fatal')
 }
 
+async function layerMessages(code: string, filePath: string): Promise<string[]> {
+  const [result] = await eslint.lintText(code, { filePath })
+  return (result?.messages ?? []).filter((m) => m.ruleId === LAYERS).map((m) => m.message)
+}
+
 describe('layer rules (platform design §7.2)', () => {
   it('forbids ui primitives importing patterns', async () => {
     const ids = await ruleIds(
@@ -161,6 +166,55 @@ describe('layer rules (platform design §7.2)', () => {
     expect(ids).not.toContain(LAYERS)
   })
 
+  // M1 deferred #6: route handlers follow their own §7.2 row instead of being exempt.
+  it('forbids route handlers importing components', async () => {
+    const ids = await ruleIds(
+      "import { Button } from '@/components/ui/button'\nexport const x = Button\n",
+      'app/api/x/route.ts',
+    )
+    expect(ids).toContain(LAYERS)
+  })
+
+  it('lets route handlers use lib and a feature index', async () => {
+    const ids = await ruleIds(
+      "import { createClient } from '@/lib/supabase/server'\nimport { TodayPage } from '@/features/today'\nexport const x = [createClient, TodayPage]\n",
+      'app/api/x/route.ts',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it('checks .mjs files too', async () => {
+    const ids = await ruleIds(
+      "import { x } from '@/features/a/internal'\nexport const y = x\n",
+      'lib/x.mjs',
+    )
+    expect(ids).toContain(LAYERS)
+  })
+
+  it('lets .mjs files import what their layer allows', async () => {
+    const ids = await ruleIds(
+      "import { cn } from '@/lib/utils'\nexport const y = cn\n",
+      'lib/x.mjs',
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it("forbids 'use client' in the catalog's pages", async () => {
+    const ids = await ruleIds(
+      "'use client'\nexport default function P() { return <main /> }\n",
+      'app/dev/x/page.tsx',
+    )
+    expect(ids).toContain('no-restricted-syntax')
+  })
+
+  it('keeps className allowed in the catalog pages', async () => {
+    const ids = await ruleIds(
+      'export default function P() { return <main className="p-4" /> }\n',
+      'app/dev/x/page.tsx',
+    )
+    expect(ids).not.toContain('no-restricted-syntax')
+  })
+
   it('keeps lib/domain pure', async () => {
     const ids = await ruleIds(
       "import { cookies } from 'next/headers'\nexport const n = () => Date.now() + String(cookies)\n",
@@ -169,6 +223,60 @@ describe('layer rules (platform design §7.2)', () => {
     expect(
       ids.filter((id) => id === 'no-restricted-imports' || id === 'no-restricted-syntax'),
     ).toHaveLength(2)
+  })
+})
+
+// Owner review SF7: server configuration and the secret-key client never reach a client bundle.
+describe('client modules (owner review SF7)', () => {
+  const CLIENT_FILE = 'features/x/components/c.tsx'
+  const MESSAGE = 'Client modules must not import server configuration or the secret-key client.'
+
+  it.each([
+    ["import { serverEnv } from '@/lib/env'", '@/lib/env'],
+    [
+      "import { createAdminClient } from '../../../lib/supabase/admin'",
+      '../../../lib/supabase/admin',
+    ],
+    ["export { serverEnv } from '@/lib/env.ts'", '@/lib/env.ts'],
+    ["const m = import('@/lib/supabase/admin')", '@/lib/supabase/admin'],
+  ])("rejects %s in a 'use client' module", async (importLine, spec) => {
+    const messages = await layerMessages(
+      `'use client'\n${importLine}\nexport const x = 1\n`,
+      CLIENT_FILE,
+    )
+    expect(messages).toEqual([`'${spec}': ${MESSAGE}`])
+  })
+
+  it.each([
+    "import { serverEnv } from '@/lib/env'",
+    "import { createAdminClient } from '../../../lib/supabase/admin'",
+  ])('allows %s without the directive', async (importLine) => {
+    const ids = await ruleIds(`${importLine}\nexport const x = 1\n`, CLIENT_FILE)
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it("lets a 'use client' module import lib/utils", async () => {
+    const ids = await ruleIds(
+      "'use client'\nimport { cn } from '@/lib/utils'\nexport const x = cn\n",
+      CLIENT_FILE,
+    )
+    expect(ids).not.toContain(LAYERS)
+  })
+
+  it("finds 'use client' anywhere in the directive prologue", async () => {
+    const messages = await layerMessages(
+      "'use strict'\n'use client'\nimport { serverEnv } from '@/lib/env'\nexport const x = serverEnv\n",
+      CLIENT_FILE,
+    )
+    expect(messages).toEqual([`'@/lib/env': ${MESSAGE}`])
+  })
+
+  it("only treats a leading 'use client' as the directive", async () => {
+    const ids = await ruleIds(
+      "import { serverEnv } from '@/lib/env'\n'use client'\nexport const x = serverEnv\n",
+      CLIENT_FILE,
+    )
+    expect(ids).not.toContain(LAYERS)
   })
 })
 

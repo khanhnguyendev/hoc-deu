@@ -18,12 +18,7 @@ beforeEach(() => {
 
 function renderShell(isAdmin = false) {
   return render(
-    <AppShell
-      user={{ name: 'Nguyễn Văn An' }}
-      isAdmin={isAdmin}
-      title="Hôm nay"
-      onSignOut={() => {}}
-    >
+    <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin={isAdmin} onSignOut={async () => {}}>
       <p>Nội dung</p>
     </AppShell>,
   )
@@ -99,6 +94,36 @@ describe('AppShell navigation', () => {
     expect(screen.getByRole('main').id).toBe('main')
     expect(screen.getByText('Nội dung')).toBeTruthy()
   })
+
+  it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
+    renderShell()
+    const main = screen.getByRole('main')
+    for (const token of ['flex-col', 'gap-6', 'md:gap-8', 'lg:gap-10']) {
+      expect(main.className.split(' ')).toContain(token)
+    }
+  })
+})
+
+describe('TopBar title (M1 deferred #5, ruling R3)', () => {
+  it.each([
+    ['/today', 'Hôm nay'],
+    ['/review', 'Ôn tập'],
+    ['/t/dsa/items/dsa:lc-0001', 'Lộ trình'],
+    ['/settings', 'Cài đặt'],
+    ['/admin/users', 'Người dùng'],
+  ])('shows "%s" as "%s" in the mobile top bar', (pathname, title) => {
+    state.pathname = pathname
+    renderShell(true)
+    const topBar = screen.getByRole('banner')
+    expect(within(topBar).getByText(title)).toBeTruthy()
+  })
+
+  it('falls back to "Học Đều" on a path with no nav item', () => {
+    state.pathname = '/dev/app-shell'
+    renderShell()
+    const topBar = screen.getByRole('banner')
+    expect(within(topBar).getByText('Học Đều')).toBeTruthy()
+  })
 })
 
 describe('AccountMenu', () => {
@@ -115,12 +140,26 @@ describe('AccountMenu', () => {
     await user.click(within(menu).getByRole('menuitemradio', { name: 'Tối' }))
     expect(state.setTheme).toHaveBeenCalledWith('dark')
   })
+
+  it('calls onSignOut with no arguments (Radix onSelect passes a non-serializable Event)', async () => {
+    const onSignOut = vi.fn<() => Promise<void>>(async () => {})
+    const user = userEvent.setup()
+    render(
+      <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin={false} onSignOut={onSignOut}>
+        <p>Nội dung</p>
+      </AppShell>,
+    )
+    await user.click(screen.getAllByRole('button', { name: 'Tài khoản: Nguyễn Văn An' })[0]!)
+    const menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
+    expect(onSignOut).toHaveBeenCalledWith()
+  })
 })
 
 describe('AccountMenu avatar', () => {
   it('shows an icon instead of an empty avatar for an empty name', () => {
     render(
-      <AppShell user={{ name: '' }} isAdmin={false} title="Hôm nay">
+      <AppShell user={{ name: '' }} isAdmin={false}>
         <p>Nội dung</p>
       </AppShell>,
     )

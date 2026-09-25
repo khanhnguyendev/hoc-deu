@@ -19,7 +19,7 @@ export function Sidebar({
 }: {
   name: string
   isAdmin: boolean
-  onSignOut?: () => void
+  onSignOut?: () => Promise<void>
 }) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)

@@ -1,4 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expectNoAxeViolations } from './support/axe'
+import { gotoHydrated } from './support/hydration'
+import { expect, test } from './support/test'
 
 /** The page-level behaviour of the real AppShell (app/dev/app-shell). */
 const rect = (page: Page, selector: string) =>
@@ -13,7 +16,7 @@ test.describe('AppShell on a phone', () => {
   test('keyboard focus is never hidden under the top bar or the bottom navigation', async ({
     page,
   }) => {
-    await page.goto('/dev/app-shell')
+    await gotoHydrated(page, '/dev/app-shell')
     const nav = await rect(page, 'nav[aria-label="Điều hướng chính"]:visible')
     const header = await rect(page, 'header:visible')
     const hidden: string[] = []
@@ -36,7 +39,7 @@ test.describe('AppShell on a phone', () => {
   })
 
   test('toasts sit above the bottom navigation', async ({ page }) => {
-    await page.goto('/dev/app-shell')
+    await gotoHydrated(page, '/dev/app-shell')
     await page.getByRole('button', { name: 'Hiện thông báo' }).click()
     const nav = await rect(page, 'nav[aria-label="Điều hướng chính"]:visible')
     // Sonner slides toasts up from below; poll until the toast has settled.
@@ -87,7 +90,7 @@ for (const width of [768, 900, 1024]) {
     })
 
     test('toasts stay clear of the bottom navigation', async ({ page }) => {
-      await page.goto('/dev/app-shell')
+      await gotoHydrated(page, '/dev/app-shell')
       await page.getByRole('button', { name: 'Hiện thông báo' }).click()
       const navs = page.locator('nav[aria-label="Điều hướng chính"]:visible')
       const bottomNav = await navs.evaluateAll((els) =>
@@ -121,7 +124,7 @@ test.describe('AppShell on a short desktop window', () => {
   test.use({ viewport: { width: 1280, height: 420 } })
 
   test('the account menu stays reachable and the sidebar nav scrolls', async ({ page }) => {
-    await page.goto('/dev/app-shell')
+    await gotoHydrated(page, '/dev/app-shell')
     const account = page.locator('aside').getByRole('button', { name: /^Tài khoản/ })
     const box = await account.boundingBox()
     const height = await page.evaluate(() => window.innerHeight)
@@ -133,6 +136,33 @@ test.describe('AppShell on a short desktop window', () => {
     await expect(page.getByRole('menuitem', { name: 'Đăng xuất' })).toBeVisible()
   })
 })
+
+// M1 deferred #19: an open overlay hides the rest of the page with aria-hidden (focus trapped
+// inside, not `inert`), which axe reports as aria-hidden-focus — scanned as a full page with
+// only that rule disabled, so everything else on the page stays checked.
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`AccountMenu on /dev/app-shell (${colorScheme})`, () => {
+    test.use({ colorScheme })
+
+    test('open passes axe (full page, aria-hidden-focus disabled)', async ({ page }) => {
+      await gotoHydrated(page, '/dev/app-shell')
+      // The account menu renders in both the sidebar (>= 1024 px) and the mobile top bar; only
+      // one is visible at a given viewport (DESIGN_SYSTEM §5) — find it rather than assume which.
+      const buttons = page.getByRole('button', { name: /^Tài khoản/ })
+      const count = await buttons.count()
+      let account = buttons.first()
+      for (let i = 0; i < count; i++) {
+        if (await buttons.nth(i).isVisible()) {
+          account = buttons.nth(i)
+          break
+        }
+      }
+      await account.click()
+      await expect(page.getByRole('menuitem', { name: 'Đăng xuất' })).toBeVisible()
+      await expectNoAxeViolations(page, { disableRules: ['aria-hidden-focus'] })
+    })
+  })
+}
 
 test.describe('heatmap on a large touch screen', () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true, isMobile: true })

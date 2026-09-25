@@ -1,4 +1,5 @@
 import type * as React from 'react'
+import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { vi } from '@/lib/i18n/vi'
 import { BottomNav } from './bottom-nav'
@@ -7,20 +8,21 @@ import { TopBar } from './top-bar'
 
 /**
  * The signed-in frame (DESIGN_SYSTEM §5): sidebar from 1024 px; top bar + bottom navigation below;
- * a skip link; `main#main` padded so nothing hides behind the bottom navigation.
+ * a skip link; `main#main` padded so nothing hides behind the bottom navigation, stacking the
+ * page's sections with the section spacing (pages carry no classes of their own). The mobile top
+ * bar's title is derived from the path (R3), not passed in. It mounts the one `Toaster` of the
+ * signed-in pages (task 2.8): layouts and pages may not import `components/ui`, and the toaster
+ * already keeps clear of this shell's bottom navigation.
  */
 function AppShell({
   user,
   isAdmin,
-  title,
   onSignOut,
   children,
 }: {
   user: { name: string }
   isAdmin: boolean
-  /** Shown in the mobile top bar; the page still renders its own h1 (PageHeader). */
-  title: string
-  onSignOut?: () => void
+  onSignOut?: () => Promise<void>
   children: React.ReactNode
 }) {
   return (
@@ -34,17 +36,18 @@ function AppShell({
         </a>
         <Sidebar name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar title={title} name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
+          <TopBar name={user.name} isAdmin={isAdmin} onSignOut={onSignOut} />
           <main
             id="main"
             tabIndex={-1}
-            className="mx-auto w-full max-w-app flex-1 px-4 pt-4 pb-above-bottom-nav md:px-6 md:pt-6 lg:px-8 lg:pt-8 lg:pb-8"
+            className="mx-auto flex w-full max-w-app flex-1 flex-col gap-6 px-4 pt-4 pb-above-bottom-nav md:gap-8 md:px-6 md:pt-6 lg:gap-10 lg:px-8 lg:pt-8 lg:pb-8"
           >
             {children}
           </main>
         </div>
         <BottomNav />
       </div>
+      <Toaster />
     </TooltipProvider>
   )
 }

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { requireDevAccess } from '@/lib/auth/dal'
 import { AppShellDemo } from './demo'
 
 export const metadata: Metadata = { title: 'AppShell — Học Đều' }
 
-export default function AppShellPage() {
-  // Dev and preview only, like /dev/components (admin-only in production from task 2.8).
-  if (process.env.VERCEL_ENV === 'production') notFound()
+/** Like /dev/components: open in development and on previews, admin-only in production (§2.4). */
+export default async function AppShellPage() {
+  await requireDevAccess()
   return <AppShellDemo />
 }

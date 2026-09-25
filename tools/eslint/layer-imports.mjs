@@ -11,8 +11,14 @@ const MESSAGES = {
   utilsI18n: 'This layer may only use lib/utils and lib/i18n from lib/.',
   featureInternals: 'Import other features through their index.ts only.',
   uiInPages: 'Pages compose features and patterns, not ui primitives.',
+  componentsInApi: 'Route handlers are thin adapters: lib/* and feature index.ts, no components.',
   domain: 'lib/domain is pure: only lib/domain and zod.',
+  clientSecrets: 'Client modules must not import server configuration or the secret-key client.',
 }
+
+// Owner review SF7: `lib/env` is deliberately not `server-only` (decision 11), so the lint rule is
+// what keeps it — and the secret-key client — out of `'use client'` modules.
+const SERVER_ONLY_TARGETS = ['lib/env', 'lib/supabase/admin']
 
 const under = (p, dir) => p === dir || p.startsWith(`${dir}/`)
 const stripIndex = (p) =>
@@ -27,6 +33,16 @@ function target(spec, file) {
   return null
 }
 
+/** The directive prologue: the leading `'use …'` string statements (`'use strict'; 'use client'`). */
+function directives(body) {
+  const found = []
+  for (const statement of body) {
+    if (statement.type !== 'ExpressionStatement' || typeof statement.directive !== 'string') break
+    found.push(statement.directive)
+  }
+  return found
+}
+
 /** `features/<name>` for any path inside a feature, else null. */
 const featureOf = (p) => (under(p, 'features') ? (p.split('/')[1] ?? null) : null)
 
@@ -36,8 +52,11 @@ export function violation(file, to) {
 
   if (under(file, 'lib/domain')) return under(to, 'lib/domain') ? null : MESSAGES.domain
   if (under(file, 'app')) {
-    if (under(file, 'app/api') || under(file, 'app/dev')) return null
-    if (under(to, 'components/ui')) return MESSAGES.uiInPages
+    // The catalog renders every layer (§7.2 row `app/dev/components`).
+    if (under(file, 'app/dev')) return null
+    if (under(file, 'app/api')) {
+      if (under(to, 'components')) return MESSAGES.componentsInApi
+    } else if (under(to, 'components/ui')) return MESSAGES.uiInPages
   }
   if (!under(file, 'app') && under(to, 'app')) return MESSAGES.app
 
@@ -73,10 +92,13 @@ const imports = {
   },
   create(context) {
     const file = path.relative(context.cwd, context.filename).split(path.sep).join('/')
+    const clientModule = directives(context.sourceCode.ast.body).includes('use client')
     const check = (source) => {
       if (source?.type !== 'Literal' || typeof source.value !== 'string') return
       const to = target(source.value, file)
-      const message = to === null ? null : violation(file, to)
+      if (to === null) return
+      const clientSecret = clientModule && SERVER_ONLY_TARGETS.some((dir) => under(to, dir))
+      const message = clientSecret ? MESSAGES.clientSecrets : violation(file, to)
       if (message !== null)
         context.report({ node: source, message: `'${source.value}': ${message}` })
     }

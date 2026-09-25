@@ -45,6 +45,34 @@ export function formatDay(isoDay: string): string {
   return format(isoDay, { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+const pad = (value: string) => value.padStart(2, '0')
+
+/**
+ * The date (`formatDay`) and 24-hour time (`04:00`) an instant reads on a clock in `timeZone` —
+ * e.g. when a schedule change takes effect, in the zone in force (§5.9). Independent of the
+ * runtime's own zone.
+ */
+export function formatDayTimeIn(
+  instant: string | Date,
+  timeZone: string,
+): { day: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(new Date(instant))
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '00'
+  return {
+    day: formatDay(`${part('year')}-${pad(part('month'))}-${pad(part('day'))}`),
+    time: `${pad(part('hour'))}:${pad(part('minute'))}`,
+  }
+}
+
 /** `Thứ Ba, 3 tháng 2, 2026` */
 export function formatDayLong(isoDay: string): string {
   return format(isoDay, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -58,4 +86,35 @@ export function formatMonth(isoDay: string): string {
 /** `Th2` — compact month labels above the heatmap's year view (ICU's short form is `Tháng 2`). */
 export function formatMonthShort(isoDay: string): string {
   return `Th${new Date(utcOf(isoDay)).getUTCMonth() + 1}`
+}
+
+/** `12,4 tuần` (§5.11 simulated-finish estimate); `fractionDigits` (default 1) is exact, not a max. */
+export function formatWeeks(weeks: number, fractionDigits: 0 | 1 = 1): string {
+  const value = formatNumber(weeks, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+  return `${value} tuần`
+}
+
+/**
+ * `Với 60 phút/ngày, lộ trình 8 tuần thường hoàn thành sau ~12 tuần (90 %: ~12,4 tuần)` (§5.11):
+ * the median rounds to whole weeks, the p90 keeps one decimal.
+ */
+export function formatFinishEstimate(input: {
+  budgetMinutes: number
+  variantLabel: string
+  medianWeeks: number
+  p90Weeks: number
+}): string {
+  const budget = `${formatNumber(input.budgetMinutes)} phút`
+  const median = formatWeeks(input.medianWeeks, 0)
+  const p90 = formatWeeks(input.p90Weeks)
+  return `Với ${budget}/ngày, lộ trình ${input.variantLabel} thường hoàn thành sau ~${median} (90 %: ~${p90})`
+}
+
+/** `8w` → `8 tuần`; any other roadmap id is shown unchanged. */
+export function variantLabel(variantId: string): string {
+  const match = /^(\d+)w$/.exec(variantId)
+  return match !== null ? `${match[1]} tuần` : variantId
 }

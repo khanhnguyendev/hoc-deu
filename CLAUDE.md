@@ -21,12 +21,17 @@ pnpm lint           # ESLint (layer, token, style rules) + Prettier check
 pnpm test           # Vitest (*.test.ts in Node, *.test.tsx in jsdom)
 pnpm build          # next build (works offline: fonts are self-hosted in app/fonts)
 pnpm test:e2e       # Playwright + axe
-pnpm verify:full    # verify + e2e
+pnpm db:start       # start the local Supabase stack (db, kong, gotrue, postgrest)
+pnpm db:stop        # stop it
+pnpm db:reset       # re-apply migrations and seed data
+pnpm db:types       # regenerate lib/supabase/database.types.ts from the local schema
+pnpm test:db        # pgTAP tests (supabase test db) — needs pnpm db:start
+pnpm verify:full    # verify + test:db + test:e2e — needs pnpm db:start
 pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
 
-Later milestones add `pnpm test:db`, `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
+Later milestones add `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
 
 ## Component layers (enforced by ESLint — platform design §7.2)
 
@@ -68,8 +73,16 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 
 - **Server Components by default.** `'use client'` only on interactive leaf components — never on
   `page.tsx` or `layout.tsx`. Browser APIs (`window`, `localStorage`, …) only in client components.
-- Every server action and route handler calls a guard first (`requireUser`, `requireActive`,
-  `requireAdmin`, `requireBotToken`, `requireCronSecret` or `publicRoute()`).
+- Every server action, route handler and `features/*/queries.ts` loader calls a guard first
+  (`requireUser`, `requireActive`, `requireOnboarded`, `requireAdmin`, `requireDevAccess`,
+  `requireBotToken`, `requireCronSecret` or `publicRoute()`), **awaited** (only `publicRoute()` is
+  synchronous) — enforced by `tools/guards/server-guards.ts` (ADR-0006). Guards `redirect()` /
+  `notFound()` by throwing: never call them inside `try`/`catch`.
+- Supabase on the server: `createClient()` (`lib/supabase/server.ts`, RLS applies) for everything
+  done for a user; `createAdminClient()` (`lib/supabase/admin.ts`, secret key) only for system, bot
+  and admin writes. `'use client'` modules never import `lib/env` or `lib/supabase/admin` (ESLint).
+- A feature `index.ts` imported by client components must not re-export `server-only` modules;
+  server loaders live in `lib/` or the feature's `queries.ts`.
 - `lib/domain` is pure TypeScript: no React/Next/Supabase imports, no date library, no
   `Date.now()` / `new Date()` — `now` and `localDay` are parameters.
 
@@ -83,7 +96,11 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 ## Safety
 
 - **Never read or commit `.env*`, `docs/credentials/` or any secret.** Never print secrets.
+  `.env.example` is the committed template; every other `.env*` stays unread.
 - Per-user data never goes into the repo; `supabase/seed.sql` holds synthetic users only.
+- **Never edit a migration that is merged to `main`;** add a new migration
+  (`create or replace …`). CI resets the database from scratch, so an edited old migration passes
+  CI but diverges staging and production.
 - **No new dependencies without asking the owner** (approved list: platform design §7.10).
 - Do not pull `v1.1` or `later` features into v1.0 (release scope table, platform design §0).
 

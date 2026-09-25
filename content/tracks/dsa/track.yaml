@@ -1,0 +1,63 @@
+id: dsa
+status: active
+title: { vi: 'Cấu trúc dữ liệu & Giải thuật', en: 'Data Structures & Algorithms' }
+accent: track-1
+itemTypes: [lesson, problem, prompt, flashcard]
+codeLanguages: [python, java, go]
+srs:
+  intervals: [7, 21, 60]
+  relearnDays: 3
+  masteredAfter: 2
+  byType: { flashcard: { intervals: [1, 3, 7, 14], relearnDays: 1 } }
+review: { recallMinutes: 5, redoFactor: 0.6 }
+topics: # technical terms stay English (DESIGN_SYSTEM §11); signals arrive in M3
+  - { id: arrays-hashing, title: { vi: 'Arrays & Hashing', en: 'Arrays & Hashing' }, requires: [] }
+  - {
+      id: two-pointers,
+      title: { vi: 'Two Pointers', en: 'Two Pointers' },
+      requires: [arrays-hashing],
+    }
+  - {
+      id: sliding-window,
+      title: { vi: 'Sliding Window', en: 'Sliding Window' },
+      requires: [arrays-hashing],
+    }
+  - { id: stack, title: { vi: 'Stack', en: 'Stack' }, requires: [arrays-hashing] }
+  - {
+      id: binary-search,
+      title: { vi: 'Binary Search', en: 'Binary Search' },
+      requires: [arrays-hashing],
+    }
+  - { id: linked-list, title: { vi: 'Linked List', en: 'Linked List' }, requires: [two-pointers] }
+  - { id: trees, title: { vi: 'Trees', en: 'Trees' }, requires: [linked-list, binary-search] }
+  - {
+      id: heap,
+      title: { vi: 'Heap / Priority Queue', en: 'Heap / Priority Queue' },
+      requires: [trees],
+    }
+  - { id: tries, title: { vi: 'Tries', en: 'Tries' }, requires: [trees] }
+  - { id: backtracking, title: { vi: 'Backtracking', en: 'Backtracking' }, requires: [trees] }
+  - { id: graphs, title: { vi: 'Graphs', en: 'Graphs' }, requires: [trees, backtracking] }
+  - {
+      id: dp-1d,
+      title: { vi: '1-D Dynamic Programming', en: '1-D Dynamic Programming' },
+      requires: [backtracking],
+    }
+  - {
+      id: dp-2d,
+      title: { vi: '2-D Dynamic Programming', en: '2-D Dynamic Programming' },
+      requires: [dp-1d],
+    }
+  - { id: intervals, title: { vi: 'Intervals', en: 'Intervals' }, requires: [heap] }
+  - { id: greedy, title: { vi: 'Greedy', en: 'Greedy' }, requires: [heap] }
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates:
+  lesson: 25
+  problem: { new: { E: 20, M: 35, H: 50 } }
+  prompt: 10
+roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]
+weeklyTemplate:
+  mon-fri: [{ kind: review, maxMinutes: 15 }, { kind: new }]
+  sat: [{ kind: review }]
+  sun:
+    [{ kind: practice, tag: mock-interview, minutes: 45, fromWeek: 3 }, { kind: recap, count: 3 }]

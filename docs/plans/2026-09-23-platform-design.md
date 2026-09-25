@@ -2078,7 +2078,9 @@ Each layer may only import from the layers above it.
   paths or the importer's own feature). Built-in `no-restricted-imports` keeps the package bans
   for `lib/domain`.
 - ESLint `no-restricted-syntax`: no `className` prop in `app/**` (except `app/layout.tsx`, which
-  sets the font classes on `<html>`/`<body>`); no `'use client'` in `page.tsx` / `layout.tsx`;
+  sets the font classes on `<html>`/`<body>`; `app/global-error.tsx`, which replaces the root
+  layout and sets them too; and `app/dev/**`, the component catalog — M1 review); no
+  `'use client'` in `page.tsx` / `layout.tsx` (including `app/dev/**`);
   `style` props hold only CSS custom properties (§7.3).
 - Architecture tests (`tools/guards/*.test.ts`, Vitest):
   - every `'use server'` module (repo-wide) and every route handler calls a guard (§2.2: DAL
