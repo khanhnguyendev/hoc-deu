@@ -5,7 +5,8 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(62);
 
--- A learner event as the app sends it (lib/events/apply.ts): snake_case keys, rules_version 1.
+-- A learner event as the app sends it (lib/events/apply.ts): snake_case keys, rules_version 1 —
+-- an older client's; the events trigger stores the current rules_version() (2, task 4.9a).
 create function tests.event(
   p_id text, p_type text, p_track text default null, p_payload jsonb default '{}'::jsonb
 ) returns jsonb language sql immutable as $$
@@ -40,10 +41,10 @@ select results_eq(
   $$select id, type, track_id, source, actor_id, rules_version from public.events$$,
   format(
     $$values ('40000000-0000-4000-8000-000000000001'::uuid, 'track.enrolled'::text, 'dsa'::text,
-              'learner'::text, %L::uuid, 1)$$,
+              'learner'::text, %L::uuid, 2)$$,
     :'learner'
   ),
-  'and exactly one event: source learner, actor_id the user'
+  'and exactly one event: source learner, actor_id the user, the current rules_version'
 );
 
 -- 2. Idempotent retries: the same id is a no-op; an id another user already used is a conflict.

@@ -817,6 +817,10 @@ All in the `public` schema with RLS on.
   redo and a deep-dive lesson) plus `estMinutes`, `recapWeek` (recap) and `shadowing` (card IDs);
   `roadmap_weeks` holds per track `{ variant, week, dueCount, newPerDay, throttled, reviewDebt }`;
   `rationale` and `bot_run_id` arrive with the bot tables (task 6.2)
+- **Plans are never pruned** (implementation plan Part B-M4 decision 35): `events.plan_id`
+  references `day_plans` on delete cascade, so deleting a plan would silently delete the
+  source-of-truth events that name it. A `BEFORE DELETE` trigger raises `plans_are_permanent` for
+  any direct delete, whatever the role; only the account-deletion cascade (§4.6) removes plans.
 
 **`item_state`** (derived)
 

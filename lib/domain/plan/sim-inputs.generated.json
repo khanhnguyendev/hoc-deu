@@ -1,5 +1,5 @@
 {
-  "rulesVersion": 1,
+  "rulesVersion": 2,
   "trackId": "dsa",
   "srs": {
     "intervals": [7, 21, 60],

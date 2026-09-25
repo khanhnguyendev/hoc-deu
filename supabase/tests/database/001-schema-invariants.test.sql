@@ -13,13 +13,15 @@ create extension if not exists pgtap with schema extensions;
 -- admin_set_status and admin_set_role (the admin functions check the caller themselves); 2.8
 -- adds admin_list_users (checks is_admin() itself). The final M2 list (2.4-2.8):
 -- is_active, is_admin, local_day, user_local_day, learner_event_types, rules_version, apply_event,
--- admin_set_status, admin_set_role, admin_list_users.
+-- admin_set_status, admin_set_role, admin_list_users. 4.9a adds mark_plan_seen (checks the caller
+-- itself) and plan_lock_key (the invoker apply_event takes the plan lock as the learner).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
   ('local_day'), ('user_local_day'), ('learner_event_types'), ('rules_version'),
   ('apply_event'), ('admin_set_status'), ('admin_set_role'),
-  ('admin_list_users');
+  ('admin_list_users'),
+  ('mark_plan_seen'), ('plan_lock_key');
 
 select plan(6);
 

@@ -68,10 +68,10 @@ select results_eq(
     where id = '00000000-0000-4000-8000-000000000001'$$,
   format(
     $$values ('learner'::text, %L::uuid, now(),
-              public.local_day(now(), 'Pacific/Pago_Pago', '12:00'), 1, '{}'::jsonb)$$,
+              public.local_day(now(), 'Pacific/Pago_Pago', '12:00'), 2, '{}'::jsonb)$$,
     :'learner'
   ),
-  'it is stored as learner, by the user, at now(), on their local day, with rules_version 1 (not 999)'
+  'it is stored as learner, by the user, at now(), on their local day, with rules_version 2 (not 999)'
 );
 
 -- 2. [RF-1] local_day follows the schedule version in force at occurred_at. (Section 1 covers a

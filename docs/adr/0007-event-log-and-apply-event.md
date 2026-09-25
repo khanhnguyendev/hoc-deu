@@ -37,6 +37,11 @@ Options considered:
   (`too_many_pending_schedules`). The row an upsert would update is not counted, so re-enrolling a
   track or replacing a pending schedule change always works; a per-user advisory lock makes the
   counts hold under concurrency. `lib/events/apply.ts` maps both codes to Vietnamese messages.
+- **The derived tables are bounded like the state tables** (implementation plan Part B-M4
+  decision 11, task 4.9a): for `authenticated` writes, `item_state` holds at most 5000 rows per
+  user (`too_many_items`), a new `daily_activity` row must be within one day of the user's local
+  day (`invalid_local_day`) and a `plan_block_state` row must name a block of the user's own plan
+  (`unknown_block`); `UPDATE` is granted per column, never on a key column.
 - **The domain is pure TypeScript** (`lib/domain`: no React, Next, Supabase, date library or
   clock reads). The server loads state, computes the new derived rows in TypeScript and sends
   them with the event.

@@ -61,6 +61,15 @@ describe('SQL and TypeScript stay in sync', () => {
     expect(/^\s*select\s+(\d+)\s*;?\s*$/i.exec(body)?.[1]).toBe(String(RULES_VERSION))
   })
 
+  // Decision 18: pgTAP 070 asserts that the running database's rules_version() returns this
+  // literal, so the constant, the migrations and the live function cannot disagree unnoticed.
+  it('pgTAP 070 checks the running rules_version() against RULES_VERSION', () => {
+    const pgtap = readFileSync('supabase/tests/database/070-derived-tables.test.sql', 'utf8')
+    expect(/select is\(\s*public\.rules_version\(\),\s*(\d+)/.exec(pgtap)?.[1]).toBe(
+      String(RULES_VERSION),
+    )
+  })
+
   it('profiles.code_language allows exactly CODE_LANGUAGES', () => {
     const [list] = lastCheck(
       migrationsSql(),
