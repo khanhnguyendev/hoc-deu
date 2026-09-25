@@ -52,7 +52,12 @@ function planWriteResult(data: Json | null): {
   throw new EventError('unknown')
 }
 
-/** plan.generated through apply_system_event (secret-key client, after requireActive). */
+/**
+ * plan.generated through apply_system_event (secret-key client, after requireActive). Every plan
+ * is built for today, so the event carries `local_day` = its plan date (decision 10): a request
+ * that crosses the day start (the plan built for D, stored after D's end) raises `day_changed`
+ * instead of storing D's plan on D + 1 — the caller rebuilds for the new day.
+ */
 export async function storePlan(
   admin: SupabaseClient<Database>,
   userId: string,
@@ -72,6 +77,7 @@ export async function storePlan(
     id: eventId,
     type: 'plan.generated',
     payload: { mode, planVersion: expectedVersion + 1 },
+    localDay: plan.planDate,
   })
   // The engine's blocks and snapshots are plain JSON (lib/domain/plan/types.ts), camelCase inside.
   const row: { [column: string]: Json } = {

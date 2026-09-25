@@ -5,7 +5,13 @@ import { RULES_VERSION } from '@/lib/domain/rules'
 import { vi as copy } from '@/lib/i18n/vi'
 import type { Database } from '@/lib/supabase/database.types'
 import { EventError, type EventErrorCode } from './apply'
-import { storedPlanFromRow, storePlan, type DayPlanRow, type PlanWriteOutcome } from './plans'
+import {
+  storedPlanFromRow,
+  storePlan,
+  type DayPlanRow,
+  type PlanWriteMode,
+  type PlanWriteOutcome,
+} from './plans'
 
 const EVENT_ID = '0b8e5f5c-6f7a-4c8e-9a4b-2d6f1e3c9a10'
 const USER_ID = '7d4c2b1a-3e5f-4a6b-8c9d-0e1f2a3b4c5d'
@@ -98,7 +104,7 @@ async function eventError(promise: Promise<unknown>): Promise<EventError> {
 }
 
 describe('storePlan (plan.generated through apply_system_event)', () => {
-  it('sends a baseline plan: the row, payload { mode, planVersion 1 } and p_expected 0', async () => {
+  it('sends a baseline plan: the row, payload { mode, planVersion 1 }, local_day and p_expected 0', async () => {
     const { client, calls } = fakeClient(
       answer({ outcome: 'applied', plan_id: PLAN_ID, versions: { [`day_plans:${DAY}`]: 1 } }),
     )
@@ -118,6 +124,7 @@ describe('storePlan (plan.generated through apply_system_event)', () => {
           p_event: {
             id: EVENT_ID,
             type: 'plan.generated',
+            local_day: DAY,
             payload: { mode: 'baseline', planVersion: 1 },
             rules_version: RULES_VERSION,
           },
@@ -139,7 +146,7 @@ describe('storePlan (plan.generated through apply_system_event)', () => {
       expectedVersion: 0,
     })
     expect(calls[0]?.args).toMatchObject({
-      p_event: { payload: { mode: 'resume', planVersion: 1 } },
+      p_event: { local_day: DAY, payload: { mode: 'resume', planVersion: 1 } },
       p_expected: { [`day_plans:${DAY}`]: 0 },
     })
   })
@@ -153,10 +160,27 @@ describe('storePlan (plan.generated through apply_system_event)', () => {
       expectedVersion: 2,
     })
     expect(calls[0]?.args).toMatchObject({
-      p_event: { payload: { mode: 'rebuild', planVersion: 3 } },
+      p_event: { local_day: DAY, payload: { mode: 'rebuild', planVersion: 3 } },
       p_expected: { [`day_plans:${DAY}`]: 2 },
     })
   })
+
+  // Decision 10 (final review M-3): every plan is built for today, so its planDate is the local
+  // day the caller computed. A request that crosses the day start gets day_changed from the
+  // database instead of storing yesterday's plan on today.
+  it.each<PlanWriteMode>(['baseline', 'resume', 'rebuild'])(
+    'sends local_day = the plan date with a %s plan',
+    async (mode) => {
+      const { client, calls } = fakeClient(answer({ outcome: 'applied', plan_id: PLAN_ID }))
+      await storePlan(client, USER_ID, {
+        eventId: EVENT_ID,
+        plan: { ...PLAN, planDate: '2026-10-01' },
+        mode,
+        expectedVersion: mode === 'rebuild' ? 1 : 0,
+      })
+      expect(calls[0]?.args).toMatchObject({ p_event: { local_day: '2026-10-01' } })
+    },
+  )
 
   it.each<[PlanWriteOutcome, string | null]>([
     ['applied', PLAN_ID],
@@ -207,6 +231,7 @@ describe('storePlan (plan.generated through apply_system_event)', () => {
 
   it.each<[EventErrorCode, string]>([
     ['version_conflict', copy.errors.saveFailed],
+    ['day_changed', copy.errors.saveFailed],
     ['invalid_event', copy.errors.saveFailed],
     ['inactive', copy.errors.notAllowed],
     ['id_conflict', copy.errors.saveFailed],

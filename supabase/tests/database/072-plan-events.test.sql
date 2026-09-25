@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(73);
+select plan(76);
 
 -- Task 4.9c: apply_system_event stores the day's plan (plan.generated) and the auto check-in
 -- (platform design §2.3, §4.3, §4.4, §5.4, §5.5; implementation plan Part B-M4 decisions 10, 12,
@@ -130,6 +130,7 @@ to authenticated, service_role;
 select tests.create_user('plan-events-learner@hocdeu.test') as learner \gset
 select tests.create_user('plan-events-other@hocdeu.test') as other \gset
 select tests.create_user('plan-events-suspended@hocdeu.test', 'suspended') as suspended \gset
+select tests.create_user('plan-events-crossing@hocdeu.test') as crossing \gset
 -- Every user here has the default schedule, so they share one local day.
 select to_char(public.user_local_day(:'learner', now()), 'YYYY-MM-DD') as today \gset
 select to_char(public.user_local_day(:'learner', now()) - 1, 'YYYY-MM-DD') as yesterday \gset
@@ -296,6 +297,51 @@ select results_eq(
   ),
   '... with a plan of its own (a resume is stored as source baseline)'
 );
+
+-- ---------------------------------------------------------------------------------------------
+-- 2a. Decision 10 (final review M-3): storePlan sends local_day = the plan date. A plan built for
+--     D and stored after D's day start raises day_changed and stores nothing; one whose local_day
+--     is the database's is stored.
+-- ---------------------------------------------------------------------------------------------
+select tests.authenticate_as_service_role();
+select throws_ok(
+  format(
+    $$select public.apply_system_event(%L,
+        tests.sys_event(
+          '72000000-0000-4000-8000-000000000021', 'plan.generated',
+          tests.generated('baseline', 1), p_local_day => %L),
+        tests.plan_changes(%2$L, tests.blocks(%2$L, 30), tests.weeks(1)),
+        tests.plan_expected(%2$L, 0))$$,
+    :'crossing', :'yesterday'
+  ),
+  'P0001', 'day_changed',
+  'plan.generated for yesterday with local_day yesterday (a request that crossed the day start) '
+  'raises day_changed'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select (select count(*)::int from public.day_plans where user_id = %L),
+             (select count(*)::int from public.events where user_id = %L)$$,
+    :'crossing', :'crossing'
+  ),
+  $$values (0, 0)$$,
+  '... and stores no plan and no event'
+);
+select tests.authenticate_as_service_role();
+select is(
+  public.apply_system_event(
+    :'crossing',
+    tests.sys_event(
+      '72000000-0000-4000-8000-000000000022', 'plan.generated', tests.generated('baseline', 1),
+      p_local_day => :'today'),
+    tests.plan_changes(:'today', tests.blocks(:'today', 30), tests.weeks(1)),
+    tests.plan_expected(:'today', 0)
+  ) - 'plan_id',
+  jsonb_build_object('outcome', 'applied', 'versions', tests.plan_expected(:'today', 1)),
+  'plan.generated for today with local_day today is stored'
+);
+select tests.clear_authentication();
 
 -- ---------------------------------------------------------------------------------------------
 -- 3. rebuild of an untouched plan (decision 12): its generation event and a bot's plan.ai_*
