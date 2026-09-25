@@ -195,6 +195,21 @@ describe('testsFileSchema — design-class cases', () => {
     expect(result.success).toBe(true)
   })
 
+  it('defaults an omitted constructor to no parameters (not the inherited Object.prototype.constructor)', () => {
+    const signature = {
+      kind: 'design-class',
+      className: 'Codec',
+      methods: encodeDecode.signature.methods,
+    }
+    const parsed = testsFileSchema.parse({ ...encodeDecode, signature })
+    expect(parsed.signature).toMatchObject({ kind: 'design-class', constructor: {} })
+  })
+
+  it('still rejects a constructor that is not a parameter map', () => {
+    const signature = { ...encodeDecode.signature, constructor: 'Codec()' }
+    expect(testsFileSchema.safeParse({ ...encodeDecode, signature }).success).toBe(false)
+  })
+
   it('rejects ops[0] !== className', () => {
     const cases = encodeDecode.cases.map((c, i) =>
       i === 0 ? { ...c, ops: ['NotCodec', 'encode', 'decode'] } : c,

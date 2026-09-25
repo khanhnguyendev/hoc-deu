@@ -97,10 +97,18 @@ const methodSchema = z.strictObject({
   returns: returnsSchema,
 })
 
+/** Every plain object inherits `constructor` (`Object.prototype.constructor`), so an omitted key
+ * reaches the schema as that function, never `undefined`: read it as "no parameters". Parsed YAML
+ * never holds a function. */
+const constructorSchema = z.preprocess(
+  (value) => (typeof value === 'function' ? undefined : value),
+  paramsSchema.default({}),
+)
+
 const designClassSignatureSchema = z.strictObject({
   kind: z.literal('design-class'),
   className: z.string().regex(/^[A-Z][A-Za-z0-9]*$/, 'must be PascalCase'),
-  constructor: paramsSchema.default({}),
+  constructor: constructorSchema,
   methods: z.record(identifierSchema, methodSchema),
 })
 
