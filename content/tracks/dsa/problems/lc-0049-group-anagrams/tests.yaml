@@ -20,3 +20,4 @@ cases:
       input: { strs: [aab, aba, abb, bab] },
       expected: [[aab, aba], [abb, bab]],
     }
+  - { name: equal-letter-sums, input: { strs: [ad, bc, cb] }, expected: [[ad], [bc, cb]] }

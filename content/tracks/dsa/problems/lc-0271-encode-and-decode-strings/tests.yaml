@@ -27,3 +27,31 @@ cases:
     ops: [Codec, encode, decode]
     args: [[], [['hello world', ' ', 'a,b;c', '"quoted"', '::']], [{ $result: 1 }]]
     expected: [null, { $any: true }, ['hello world', ' ', 'a,b;c', '"quoted"', '::']]
+  # Separator characters a join/split codec might pick: '|', newline, tab, backslash, '||'.
+  - name: delimiter-characters
+    ops: [Codec, encode, decode]
+    args: [[], [['a|b', "x\ny", "\t", '\', '||', '']], [{ $result: 1 }]]
+    expected: [null, { $any: true }, ['a|b', "x\ny", "\t", '\', '||', '']]
+  # '12#' × 50 = 150 characters (limit 200): its length needs three digits.
+  - name: long-string
+    ops: [Codec, encode, decode]
+    args:
+      [
+        [],
+        [
+          [
+            '12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#',
+            x,
+          ],
+        ],
+        [{ $result: 1 }],
+      ]
+    expected:
+      [
+        null,
+        { $any: true },
+        [
+          '12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#12#',
+          x,
+        ],
+      ]
