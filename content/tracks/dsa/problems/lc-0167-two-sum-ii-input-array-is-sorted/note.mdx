@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Mảng đã được <Term vi="sắp xếp">sort</Term> tăng dần, nên không cần <Term>hash map</Term> như bài Two Sum. Đây là mẫu <Term vi="hai con trỏ">two pointers</Term> kinh điển: đặt một con trỏ ở số nhỏ nhất, một con trỏ ở số lớn nhất rồi xem tổng. Tổng nhỏ hơn `target` thì cần tăng tổng, nên dịch con trỏ trái sang phải; tổng lớn hơn thì dịch con trỏ phải sang trái. Mỗi bước loại được một số chắc chắn không nằm trong đáp án, nên chỉ cần một lượt duyệt và bộ nhớ `O(1)`.
+Mảng đã được sắp xếp tăng dần, nên không cần <Term vi="bảng băm">hash map</Term> như bài Two Sum. Đây là mẫu <Term vi="hai con trỏ">two pointers</Term> kinh điển: đặt một con trỏ ở số nhỏ nhất, một con trỏ ở số lớn nhất rồi xem tổng. Tổng nhỏ hơn `target` thì cần tăng tổng, nên dịch con trỏ trái sang phải; tổng lớn hơn thì dịch con trỏ phải sang trái. Mỗi bước loại được một số chắc chắn không nằm trong đáp án, nên chỉ cần một lượt duyệt và bộ nhớ `O(1)`.
 
 ## Cách làm
 

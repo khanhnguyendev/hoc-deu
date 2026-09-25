@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Đây là bài <Term vi="cửa sổ trượt">sliding window</Term> điển hình trên một <Term vi="chuỗi con liên tiếp">substring</Term>: giữ cửa sổ từ `left` tới `right` luôn không có ký tự trùng, và mở rộng `right` từng bước. Một <Term>hash map</Term> lưu vị trí gần nhất của mỗi ký tự. Khi ký tự mới đã xuất hiện **bên trong** cửa sổ, mép trái nhảy thẳng tới ngay sau vị trí cũ đó, thay vì bỏ từng ký tự một. Đáp án là độ dài lớn nhất mà cửa sổ từng đạt.
+Đây là bài <Term vi="cửa sổ trượt">sliding window</Term> điển hình trên một <Term vi="chuỗi con liên tiếp">substring</Term>: giữ cửa sổ từ `left` tới `right` luôn không có ký tự trùng, và mở rộng `right` từng bước. Một <Term vi="bảng băm">hash map</Term> lưu vị trí gần nhất của mỗi ký tự. Khi ký tự mới đã xuất hiện **bên trong** cửa sổ, mép trái nhảy thẳng tới ngay sau vị trí cũ đó, thay vì bỏ từng ký tự một. Đáp án là độ dài lớn nhất mà cửa sổ từng đạt.
 
 ## Cách làm
 

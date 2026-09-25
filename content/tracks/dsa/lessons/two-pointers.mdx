@@ -14,7 +14,7 @@ Nghĩ tới <Term vi="hai con trỏ">two pointers</Term> khi gặp một trong c
 - Mảng hoặc chuỗi **đã được sắp xếp**, và đề hỏi về một cặp (hay một bộ ba) có tổng cho trước.
 - Cần so sánh hai phần tử ở hai đầu rồi tiến dần vào giữa, như khi kiểm tra một <Term>palindrome</Term>.
 - Ở mỗi bước có một lý do chắc chắn để **loại** phần tử ở một đầu: tổng quá nhỏ, cột quá thấp…
-- Cần bộ nhớ thêm `O(1)`, thay cho một <Term>hash map</Term>.
+- Cần bộ nhớ thêm `O(1)`, thay cho một <Term vi="bảng băm">hash map</Term>.
 
 <Callout tone="tip" title="Câu hỏi then chốt">
 
@@ -69,38 +69,38 @@ Bài mẫu là Two Sum II: mảng đã sắp xếp, đáp án đánh số từ 1
 
 </Steps>
 
-#### Vì sao đúng
+### Vì sao đúng
 
 Giả sử `numbers[left] + numbers[right]` nhỏ hơn `target`. Mọi số còn lại đều không lớn hơn `numbers[right]`, nên `numbers[left]` đi với số nào cũng thiếu: bỏ nó không làm mất đáp án. Khi tổng lớn hơn `target`, lập luận đối xứng cho `numbers[right]`.
 
-#### Các biến thể trong tuần
+### Các biến thể trong tuần
 
 - **Valid Palindrome:** so sánh hai ký tự ở hai đầu, bỏ qua ký tự không phải chữ hoặc số.
-- **3Sum:** cố định một số, rồi chạy hai con trỏ trên phần còn lại.
 - **Container With Most Water** và **Trapping Rain Water:** luôn dịch phía có cột thấp hơn.
 
 </Section>
 
 <Section kind="code">
 
-Mẫu tổng quát trên mảng đã sắp xếp. Lời giải đầy đủ của Two Sum II bằng ba ngôn ngữ nằm trong ghi chú của bài.
+Mẫu hai con trỏ, viết cho chính bài mẫu Two Sum II. Bản Java và Go nằm trong ghi chú của bài.
 
 ```python
 from typing import List
 
 
-def pair_with_sum(nums: List[int], target: int) -> List[int]:
-    # nums is sorted in ascending order; the result holds 0-based indices.
-    left, right = 0, len(nums) - 1
-    while left < right:
-        total = nums[left] + nums[right]
-        if total == target:
-            return [left, right]
-        if total < target:
-            left += 1  # too small even with the largest number left
-        else:
-            right -= 1  # too large even with the smallest number left
-    return []  # no pair adds up to target
+class Solution:
+    def twoSum(self, numbers: List[int], target: int) -> List[int]:
+        # numbers is sorted in ascending order; the answer is 1-indexed.
+        left, right = 0, len(numbers) - 1
+        while left < right:
+            total = numbers[left] + numbers[right]
+            if total == target:
+                return [left + 1, right + 1]
+            if total < target:
+                left += 1  # too small even with the largest remaining number
+            else:
+                right -= 1  # too large even with the smallest remaining number
+        return []
 ```
 
 </Section>
@@ -123,7 +123,7 @@ Mỗi bước, một trong hai con trỏ tiến một ô vào trong, nên có nh
 
 <Practice problem="dsa:lc-0015" />
 
-Thử 3Sum: sắp xếp mảng, cố định số nhỏ nhất của bộ ba, rồi dùng đúng mẫu trên cho phần còn lại — nhớ bỏ qua các giá trị trùng.
+Thử 3Sum: làm sao đưa bài toán bộ ba về đúng bài toán tìm cặp ở trên, và làm sao để không trả về cùng một bộ ba hai lần?
 
 </Section>
 

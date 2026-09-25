@@ -12,13 +12,13 @@ practice: dsa:lc-0003
 Nghĩ tới <Term vi="cửa sổ trượt">sliding window</Term> khi gặp một trong các dấu hiệu sau:
 
 - Đề hỏi về một **đoạn liên tiếp** — <Term vi="mảng con liên tiếp">subarray</Term> hay <Term vi="chuỗi con liên tiếp">substring</Term> — dài nhất, ngắn nhất, tốt nhất, hoặc có tồn tại hay không.
-- Khi thêm một phần tử bên phải và bỏ một phần tử bên trái, ta cập nhật được ngay "trạng thái" của đoạn: tổng, bảng đếm ký tự, giá thấp nhất…
+- Khi thêm một phần tử bên phải và bỏ một phần tử bên trái, ta cập nhật được ngay "trạng thái" của đoạn, như tổng hay bảng đếm ký tự.
 - Cách vét cạn, thử mọi cặp điểm đầu và điểm cuối, tốn `O(n^2)` hoặc hơn.
 - Đoạn cần tìm có độ dài cố định, như tìm một hoán vị của chuỗi này trong chuỗi kia, hoặc co giãn theo một điều kiện.
 
 <Callout tone="tip" title="Kiểm tra nhanh">
 
-Nếu đề cho phép chọn các phần tử không liền nhau thì đó không phải sliding window.
+Nếu đề cho phép chọn một dãy con không liền nhau — một <Term vi="dãy con">subsequence</Term> — thì đó không phải sliding window.
 
 </Callout>
 
@@ -26,15 +26,15 @@ Nếu đề cho phép chọn các phần tử không liền nhau thì đó khôn
 
 <Section kind="analogy">
 
-Bạn ngồi trên tàu và nhìn ra một ô cửa kính. Mỗi lúc, một cột điện mới hiện ra ở mép phải và một cột cũ khuất đi ở mép trái. Muốn biết trong khung đang có bao nhiêu cột, bạn không đếm lại từ đầu: chỉ cộng cột vừa vào và trừ cột vừa ra.
+Bạn ngồi trên tàu và nhìn ra một ô cửa kính. Dọc đường ray có cột điện sơn đỏ, có cột sơn trắng. Mỗi lúc, một cột mới hiện ra ở mép phải và một cột cũ khuất đi ở mép trái. Muốn biết trong khung đang có bao nhiêu cột sơn đỏ, bạn không đếm lại từ đầu: chỉ cộng một nếu cột vừa vào sơn đỏ, và trừ một nếu cột vừa ra sơn đỏ.
 
-Với cửa sổ co giãn, bạn được kéo mép trái lên khi khung không còn hợp lệ — chẳng hạn khi trong khung có hai cột giống hệt nhau — và mở rộng mép phải khi mọi thứ vẫn ổn. Cả hai mép chỉ đi về phía trước, không bao giờ quay lại.
+Với cửa sổ co giãn, bạn được kéo mép trái lên khi khung không còn hợp lệ — chẳng hạn khi trong khung có quá ba cột sơn đỏ — và mở rộng mép phải khi mọi thứ vẫn ổn. Cả hai mép chỉ đi về phía trước, không bao giờ quay lại.
 
 </Section>
 
 <Section kind="visual">
 
-Bài mẫu là Best Time to Buy and Sell Stock. Mép trái của cửa sổ là ngày mua, mép phải là ngày bán; khi gặp một giá thấp hơn giá mua, mép trái nhảy tới ngày đó.
+Bài mẫu là Best Time to Buy and Sell Stock. Mép trái của cửa sổ là ngày mua, mép phải là ngày bán; khi gặp một giá thấp hơn giá mua, mép trái nhảy tới ngày đó. Trong lời giải, mép trái chỉ cần được nhớ qua giá của nó — chính là biến `cheapest`.
 
 <VarTable caption="prices = [4, 6, 2, 5, 9, 3]">
 
@@ -57,22 +57,22 @@ Lãi lớn nhất là 7: mua ở ngày 2 với giá 2, bán ở ngày 4 với gi
 
 <Steps>
 
-<Step title="Chọn trạng thái">Xác định cần biết gì về cửa sổ để kiểm tra điều kiện: tổng, bảng đếm, giá thấp nhất… Trạng thái phải cập nhật được khi thêm hoặc bỏ **một** phần tử.</Step>
+<Step title="Chọn trạng thái">Xác định cần biết gì về cửa sổ để kiểm tra điều kiện, như tổng hay bảng đếm ký tự. Trạng thái phải cập nhật được khi thêm hoặc bỏ **một** phần tử.</Step>
 
 <Step title="Mở rộng mép phải">Tăng `right` từng bước và đưa phần tử mới vào trạng thái.</Step>
 
-<Step title="Thu mép trái khi vi phạm">Chừng nào cửa sổ còn vi phạm điều kiện, bỏ phần tử ở `left` khỏi trạng thái và tăng `left`. Có bài cho phép nhảy thẳng `left` tới vị trí mới, như ngày có giá thấp hơn.</Step>
+<Step title="Thu mép trái khi vi phạm">Chừng nào cửa sổ còn vi phạm điều kiện, bỏ phần tử ở `left` khỏi trạng thái và tăng `left`. Có bài cho phép nhảy thẳng `left` tới vị trí mới: ở Best Time to Buy and Sell Stock, `left` nhảy tới ngày có giá thấp hơn, nên trạng thái chỉ là giá tại `left`.</Step>
 
 <Step title="Ghi nhận đáp án">Khi cửa sổ đã hợp lệ, cập nhật đáp án từ độ dài `right - left + 1` hoặc từ trạng thái.</Step>
 
 </Steps>
 
-#### Hai dạng cửa sổ
+### Hai dạng cửa sổ
 
 - **Co giãn:** độ dài thay đổi theo điều kiện, như Longest Substring Without Repeating Characters hay Longest Repeating Character Replacement.
-- **Cố định:** luôn dài `k`, mỗi bước một phần tử vào và một phần tử ra, như Permutation in String.
+- **Cố định:** độ dài không đổi, mỗi bước một phần tử vào và một phần tử ra, như Permutation in String.
 
-#### Vì sao nhanh
+### Vì sao nhanh
 
 `left` và `right` chỉ tiến về phía trước. Mỗi phần tử vào cửa sổ một lần và ra nhiều nhất một lần, nên dù có một vòng `while` lồng bên trong, tổng số bước vẫn là `O(n)`.
 
@@ -87,7 +87,7 @@ from typing import List
 
 
 def longest_window(nums: List[int], limit: int) -> int:
-    # Longest run of consecutive non-negative numbers whose sum is at most limit.
+    # nums are non-negative, limit >= 0; returns the longest subarray with sum <= limit.
     left = 0
     window_sum = 0  # the window's state
     best = 0
@@ -112,7 +112,7 @@ Mỗi phần tử vào và ra khỏi cửa sổ nhiều nhất một lần. Bộ
 
 <Section kind="bilingual">
 
-<Bilingual vi="Giữ một cửa sổ liên tiếp: mở rộng mép phải từng bước, dời mép trái khi cửa sổ vi phạm điều kiện, và cập nhật trạng thái của cửa sổ thay vì tính lại từ đầu." en="Keep a contiguous window over the input. Extend the right edge one step at a time, move the left edge forward whenever the window breaks the rule, and update the window's state instead of recomputing it. Each element enters and leaves once: O(n) time." />
+<Bilingual vi="Giữ một cửa sổ liên tiếp: mở rộng mép phải từng bước, dời mép trái khi cửa sổ vi phạm điều kiện, và cập nhật trạng thái của cửa sổ thay vì tính lại từ đầu." en="Keep a contiguous window over the input. Extend the right edge one step at a time, move the left edge forward whenever the window breaks the rule, and update the window's state instead of recomputing it. Each element enters once and leaves at most once: O(n) time." />
 
 </Section>
 

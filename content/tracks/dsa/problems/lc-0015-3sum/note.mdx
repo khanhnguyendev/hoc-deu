@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Sau khi <Term vi="sắp xếp">sort</Term> mảng và cố định số nhỏ nhất của bộ ba là `nums[i]`, việc còn lại là tìm hai số ở bên phải có tổng bằng `-nums[i]` — chính là bài Two Sum II trên mảng đã sắp xếp, giải bằng <Term vi="hai con trỏ">two pointers</Term>. Phần khó là không để bộ ba bị lặp: bỏ qua `nums[i]` nếu nó bằng số ngay trước, và sau mỗi bộ ba tìm được thì cho `left` vượt qua các giá trị trùng. Thêm một mẹo dừng sớm: khi `nums[i] > 0` thì cả ba số đều dương, không thể có tổng bằng 0.
+Sau khi sắp xếp mảng và cố định số nhỏ nhất của bộ ba là `nums[i]`, việc còn lại là tìm hai số ở bên phải có tổng bằng `-nums[i]` — chính là bài Two Sum II trên mảng đã sắp xếp, giải bằng <Term vi="hai con trỏ">two pointers</Term>. Phần khó là không để bộ ba bị lặp: bỏ qua `nums[i]` nếu nó bằng số ngay trước, và sau mỗi bộ ba tìm được thì cho `left` vượt qua các giá trị trùng. Thêm một mẹo dừng sớm: khi `nums[i] > 0` thì cả ba số đều dương, không thể có tổng bằng 0.
 
 ## Cách làm
 
@@ -40,7 +40,7 @@ Kết quả: `[[-2, 0, 2], [-1, 0, 1]]`.
 
 <Callout tone="tip">
 
-Hãy bỏ trùng ngay trong lúc duyệt thay vì gom mọi bộ ba vào một <Term>set</Term> rồi lọc: vừa nhanh hơn, vừa không phải băm cả danh sách.
+Hãy bỏ trùng ngay trong lúc duyệt thay vì gom mọi bộ ba vào một <Term vi="tập hợp băm">hash set</Term> rồi lọc: đỡ tốn bộ nhớ và không phải đổi từng bộ ba sang <Term>tuple</Term> để băm.
 
 </Callout>
 
@@ -50,4 +50,4 @@ Sắp xếp tốn `O(n log n)`; mỗi `i` chạy một lượt hai con trỏ `O(
 
 <Solution />
 
-<Bilingual vi="Sắp xếp mảng, cố định số nhỏ nhất của bộ ba, rồi dùng hai con trỏ trên phần bên phải để tìm hai số còn lại; bỏ qua các giá trị trùng để không lặp bộ ba." en="Sort the array, fix each number as the smallest of the triplet, and find the other two with two pointers on the part to its right: move left when the sum is too small, right when it is too large. Skip equal neighbours to avoid duplicates. O(n^2) time." />
+<Bilingual vi="Sắp xếp mảng, cố định số nhỏ nhất của bộ ba, rồi dùng hai con trỏ trên phần bên phải để tìm hai số còn lại; bỏ qua các giá trị trùng để không lặp bộ ba." en="Sort the array, fix each number as the smallest of the triplet, and find the other two with two pointers on the part to its right: advance the left pointer when the sum is too small, move the right pointer back when it is too large. Skip equal neighbours to avoid duplicates. O(n^2) time." />

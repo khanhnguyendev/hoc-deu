@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Nếu bán vào một ngày, lãi tốt nhất có thể là giá ngày đó trừ đi giá **thấp nhất** của các ngày trước đó. Vì vậy chỉ cần duyệt giá một lượt, nhớ giá rẻ nhất đã gặp, và ở mỗi ngày hỏi: "bán hôm nay thì lãi bao nhiêu?". Đây là một dạng <Term vi="cửa sổ trượt">sliding window</Term>: mép trái là ngày mua, mép phải là ngày bán. Khi gặp một giá rẻ hơn ngày mua, mép trái nhảy thẳng tới ngày đó, vì từ đây về sau mua ở giá mới luôn lãi hơn.
+Nếu bán vào một ngày, lãi tốt nhất có thể là giá ngày đó trừ đi giá **thấp nhất** của các ngày trước đó. Vì vậy chỉ cần duyệt giá một lượt, nhớ giá rẻ nhất đã gặp, và ở mỗi ngày hỏi: "bán hôm nay thì lãi bao nhiêu?". Đây là một dạng <Term vi="cửa sổ trượt">sliding window</Term>: mép trái là ngày mua, mép phải là ngày bán. Khi gặp một giá rẻ hơn giá ngày mua, mép trái nhảy thẳng tới ngày đó, vì từ đây về sau mua ở giá mới luôn lãi hơn.
 
 ## Cách làm
 
