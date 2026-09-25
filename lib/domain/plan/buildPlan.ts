@@ -177,6 +177,11 @@ function take(setup: TrackSetup, progress: Progress, selection: Selection): Prog
   return { ...progress, budget: spend(progress.budget, selection), planned, newSrs }
 }
 
+/** The new-item cap left for this track today; null = no cap. */
+function newCapLeft(setup: TrackSetup, progress: Progress): number | null {
+  return setup.newCap === null ? null : Math.max(0, setup.newCap - progress.newSrs)
+}
+
 /** The selection's items as plan block items. */
 function itemsOf(selection: Selection): PlanBlockItem[] {
   return selection.picked.map(({ itemId, mode, minutes, overBudget }) =>
@@ -188,12 +193,14 @@ function itemsOf(selection: Selection): PlanBlockItem[] {
 // Step 3: practice blocks
 // ---------------------------------------------------------------------------------------------
 
-/** The practice block's item: by `itemType`, else by `tag`; null when none, or when it is already
- *  in the plan (a template may repeat a block). */
+/** The practice block's item: by `itemType`, else by `tag`; null when none, when it is already in
+ *  the plan (a template may repeat a block), or when it is a new SRS item (not introduced) and the
+ *  track's new-item cap is used up — a custom template's `itemType: 'flashcard'` block spends the
+ *  cap like a new block (§5.4 throttle; `take` counts it). */
 function practicePick(
   setup: TrackSetup,
   block: TemplateBlockOf<'practice'>,
-  planned: ReadonlySet<string>,
+  progress: Progress,
 ): string | null {
   const { ctx, enrollment, week } = setup
   const input = {
@@ -208,7 +215,9 @@ function practicePick(
       : block.tag !== undefined
         ? pickByTag({ ...input, tag: block.tag })
         : null
-  return pick !== null && !planned.has(pick) ? pick : null
+  if (pick === null || progress.planned.has(pick)) return null
+  const newSrs = ctx.items[pick] === undefined && (ctx.catalog.items[pick]?.srs ?? null) !== null
+  return newSrs && newCapLeft(setup, progress) === 0 ? null : pick
 }
 
 /** Step 3: a practice block — its item, or for the shadowing tag the cards step 8 fills; dropped
@@ -219,7 +228,7 @@ function placePractice(
   block: TemplateBlockOf<'practice'>,
   progress: Progress,
 ): Placed {
-  const itemId = practicePick(setup, block, progress.planned)
+  const itemId = practicePick(setup, block, progress)
   const shadowing = itemId === null && block.tag === SHADOWING_TAG
   if (itemId === null && !shadowing) return { draft: null, progress }
 
@@ -378,11 +387,6 @@ function placeRecap(setup: TrackSetup, count: number, progress: Progress): Place
 // ---------------------------------------------------------------------------------------------
 // Step 6: new blocks
 // ---------------------------------------------------------------------------------------------
-
-/** The new-item cap left for this track today; null = no cap. */
-function newCapLeft(setup: TrackSetup, progress: Progress): number | null {
-  return setup.newCap === null ? null : Math.max(0, setup.newCap - progress.newSrs)
-}
 
 /** The first new item is forced only in the track's first new selection, and only while the
  *  overshoot is unused (§5.4 step 5, decision 13). */

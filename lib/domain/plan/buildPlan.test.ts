@@ -665,6 +665,39 @@ describe('buildPlan — template details', () => {
     expect(plan.blocks.map((block) => block.id)).toEqual(['2026-09-28:dsa:new:1'])
   })
 
+  // §5.4 throttle: a practice block that picks a new SRS item (a custom `itemType: 'flashcard'`)
+  // spends the new-item cap like a new block, and places nothing once the cap is used up.
+  it('a practice pick of a new SRS card counts against newPerDay and is not placed at 0', () => {
+    const template: PlanWeeklyTemplate = {
+      'mon-fri': [{ kind: 'practice', itemType: 'flashcard', minutes: 5 }],
+    }
+    const newSrs = (plan: DayPlan): string[] =>
+      plan.blocks
+        .flatMap((block) => block.items)
+        .filter((planned) => planned.mode === 'new' && CATALOG.items[planned.itemId]?.srs != null)
+        .map((planned) => planned.itemId)
+
+    const capZero = buildPlan(
+      englishOnly({}, enrollment('english', { weeklyTemplate: template, newPerDay: 0 })),
+    )
+    expect(capZero.blocks.some((block) => block.kind === 'practice')).toBe(false)
+    expect(newSrs(capZero)).toEqual([])
+
+    // newPerDay 1: the practice block takes e1, and the spill adds no second card.
+    const capOne = buildPlan(
+      englishOnly({}, enrollment('english', { weeklyTemplate: template, newPerDay: 1 })),
+    )
+    expect(capOne.blocks[0]).toStrictEqual({
+      id: '2026-09-28:english:practice:1',
+      trackId: 'english',
+      kind: 'practice',
+      estMinutes: 5,
+      itemType: 'flashcard',
+      items: [item('english:e1', 'new', 5)],
+    })
+    expect(newSrs(capOne)).toEqual(['english:e1'])
+  })
+
   it('an introduced practice item is placed in review mode', () => {
     const template: PlanWeeklyTemplate = {
       'mon-fri': [{ kind: 'practice', itemType: 'exercise', minutes: 5 }],

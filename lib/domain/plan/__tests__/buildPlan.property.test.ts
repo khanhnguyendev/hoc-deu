@@ -309,13 +309,14 @@ function checkInvariants(ctx: PlanContext, plan: DayPlan): void {
   const shown = [...ids, ...plan.blocks.flatMap((block) => block.shadowing ?? [])]
   for (const id of shown) expect(catalog.items[id]?.status, `I5 ${id}`).toBe('active')
 
-  // (I6) SRS items in new blocks ≤ the snapshot's newPerDay.
+  // (I6) new-mode SRS items in any block (a custom practice block's included, §5.4 throttle) ≤ the
+  // snapshot's newPerDay.
   for (const [trackId, snapshot] of Object.entries(plan.tracks)) {
     if (snapshot.newPerDay === null) continue
     const newSrs = plan.blocks
-      .filter((block) => block.trackId === trackId && block.kind === 'new')
+      .filter((block) => block.trackId === trackId)
       .flatMap((block) => block.items)
-      .filter((planned) => catalog.items[planned.itemId]?.srs != null)
+      .filter((planned) => planned.mode === 'new' && catalog.items[planned.itemId]?.srs != null)
     expect(newSrs.length, `I6 ${trackId}`).toBeLessThanOrEqual(snapshot.newPerDay)
   }
 }
