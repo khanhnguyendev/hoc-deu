@@ -1,4 +1,12 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -143,6 +151,78 @@ describe('buildContent — the ok fixture', () => {
       'content/ids.lock: `dsa:lc-0015` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)',
     ])
     expect(parseLock(lockOf(root) ?? '').lock.published).toContain('dsa:lc-0015')
+  })
+})
+
+describe('buildContent — ids.lock removals wait for content that loads cleanly', () => {
+  it('hides a removal while another issue exists, then reports it in both modes', async () => {
+    const root = fixtureRoot('ok')
+    await buildContent({ repoRoot: root, check: false })
+    const lock = lockOf(root)
+    rmSync(path.join(root, 'content/tracks/dsa/problems/lc-0015-3sum'), { recursive: true })
+    const problem = path.join(
+      root,
+      'content/tracks/dsa/problems/lc-0217-contains-duplicate/problem.yaml',
+    )
+    const good = readFileSync(problem, 'utf8')
+    writeFileSync(problem, good.replace('difficulty: E', 'difficulty: X'))
+
+    const held = await buildContent({ repoRoot: root, check: false })
+    expect(held.issues.map((issue) => `${issue.file} ${issue.path ?? ''}`)).toEqual([
+      'content/tracks/dsa/problems/lc-0217-contains-duplicate/problem.yaml difficulty',
+    ])
+    expect(held.lock.removed).toEqual(['dsa:lc-0015', 'dsa:lc-0217'])
+    expect(lockOf(root)).toBe(lock)
+
+    writeFileSync(problem, good)
+    const removal =
+      'content/ids.lock: `dsa:lc-0015` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)'
+    for (const check of [false, true]) {
+      const result = await buildContent({ repoRoot: root, check })
+      expect(result.issues.map(formatIssue)).toEqual([removal])
+      expect(lockOf(root)).toBe(lock)
+    }
+  })
+})
+
+describe('buildContent — ids.lock encoding', () => {
+  it('an ids.lock that is not valid UTF-8 is one issue, in both modes', async () => {
+    const root = fixtureRoot('ok')
+    writeFileSync(path.join(root, 'content/ids.lock'), Buffer.from([0x5b, 0xff, 0x5d, 0x0a]))
+    for (const check of [false, true]) {
+      const result = await buildContent({ repoRoot: root, check })
+      expect(result.issues).toEqual([
+        { file: 'content/ids.lock', message: 'is not valid UTF-8 — save the file as UTF-8' },
+      ])
+    }
+  })
+})
+
+describe('buildContent — determinism', () => {
+  it('two runs over the ok fixture write byte-identical files', async () => {
+    const root = fixtureRoot('ok')
+    const out = path.join(root, '.generated')
+    const snapshot = () =>
+      Object.fromEntries(
+        readdirSync(out, { recursive: true, withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => {
+            const file = path.join(entry.parentPath, entry.name)
+            return [path.relative(out, file), readFileSync(file, 'utf8')]
+          }),
+      )
+    await buildContent({ repoRoot: root, check: false })
+    const first = snapshot()
+    await buildContent({ repoRoot: root, check: false })
+    expect(snapshot()).toEqual(first)
+    expect(Object.keys(first).sort()).toEqual([
+      'catalog.json',
+      'catalog.ts',
+      'code.ts',
+      path.join('code', 'dsa', 'lc-0001.ts'),
+      path.join('code', 'dsa', 'lesson-two-pointers.ts'),
+      'mdx.ts',
+    ])
   })
 })
 

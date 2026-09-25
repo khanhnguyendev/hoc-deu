@@ -44,11 +44,27 @@ old history to a new item.
 
 ## Consequences
 
-- Events, SRS state and notes can reference an ID forever; renaming a file means keeping its ID,
-  which the file rules make visible in review.
+- Events, SRS state and notes can reference an ID forever. Because the file names the ID,
+  **renaming a lesson or deck file, or a problem folder, changes the item's ID**: the renamed file
+  is a new item (its learners' history does not follow it), and the old ID fails the build until
+  it is moved to `[retired]` in the same change. So files are renamed only when a new ID is meant.
 - Every content PR that adds items also changes `content/ids.lock` — a reviewable list of what
   becomes permanent. On the content branches only the controller commits the lock, so parallel
   content tasks never conflict on it (decision 8).
 - Removing content takes a deliberate, reviewed step (`status: retired` or a hand edit of the
   lock). A mistakenly published ID cannot be taken back, only retired.
 - Custom items and content can never collide, whatever either side names its items.
+
+## Limits
+
+- **The lock only knows what is committed.** A change that deletes an item **and** its
+  `[published]` line together passes `pnpm content:build`. For the bot's `claude/*` branches the
+  v1.1 `path-guard` check rejects any removal from `ids.lock` (platform design §6.6); a human PR
+  relies on review of the `ids.lock` diff, where a removed line is visible.
+
+## Merge conflicts in `ids.lock`
+
+Two branches that both add IDs conflict in `content/ids.lock`. Take either side, run
+`pnpm content:build` (a local run re-adds every ID found in `content/**`, sorted), and commit the
+result. If the build then reports an ID "no longer in content/**", the side you dropped had moved it
+to `[retired]`: move it there again.

@@ -146,6 +146,20 @@ describe('diffLock and lockIssues', () => {
     expect(updated(parseLock(text).lock, diff.added)).toBe(lockText(['dsa:lc-0001', 'dsa:lc-0002']))
   })
 
+  it('a CRLF file is not normalised: check mode fails, a local run rewrites it with LF', () => {
+    const lf = lockText(['dsa:lc-0001'])
+    const crlf = lf.replaceAll('\n', '\r\n')
+    const { lock, issues } = parseLock(crlf)
+    expect(issues).toEqual([])
+    expect(lock.published).toEqual(['dsa:lc-0001'])
+    const diff = diffLock(lock, ['dsa:lc-0001'], crlf)
+    expect(diff.normalized).toBe(false)
+    expect(lockIssues(diff, true).map((issue) => issue.message)).toEqual([
+      'content/ids.lock is not normalised — run `pnpm content:build`',
+    ])
+    expect(updated(lock, diff.added)).toBe(lf)
+  })
+
   it('a missing file is not normalised', () => {
     expect(diffLock(EMPTY, [], '').normalized).toBe(false)
     expect(diffLock(EMPTY, [], formatLock(EMPTY)).normalized).toBe(true)

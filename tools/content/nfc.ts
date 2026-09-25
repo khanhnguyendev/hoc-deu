@@ -36,9 +36,24 @@ export function nfcSourceIssue(file: string, source: string): ContentIssue | nul
   return { file, line: index + 1, message: NOT_NFC }
 }
 
+/** Fails on invalid bytes (never U+FFFD) and keeps a leading BOM, so `bomIssue` can report it. */
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+
+/** A file's bytes as text, or an issue when they are not valid UTF-8. */
+export function decodeUtf8(
+  file: string,
+  bytes: Uint8Array,
+): { ok: true; text: string } | { ok: false; issue: ContentIssue } {
+  try {
+    return { ok: true, text: UTF8.decode(bytes) }
+  } catch {
+    return { ok: false, issue: { file, message: 'is not valid UTF-8 — save the file as UTF-8' } }
+  }
+}
+
 /** A leading byte order mark (U+FEFF): invisible, and not part of the text. */
 export function bomIssue(file: string, source: string): ContentIssue | null {
-  return source.startsWith('﻿')
+  return source.startsWith('\uFEFF')
     ? {
         file,
         line: 1,

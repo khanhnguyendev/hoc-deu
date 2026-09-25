@@ -15,6 +15,7 @@ import { createHighlighter } from './highlight'
 import { diffLock, formatLock, lockIssues, parseLock, type LockDiff } from './ids-lock'
 import { formatIssue, sortIssues, type ContentIssue } from './issues'
 import { loadContent, type LoadedContent, type LoadedMdx } from './load'
+import { decodeUtf8 } from './nfc'
 
 export type BuildOptions = {
   repoRoot: string
@@ -128,7 +129,10 @@ export async function buildContent(options: BuildOptions): Promise<BuildResult> 
   // Step 9: ids.lock (decision 8).
   const lockPath = path.join(contentDir, 'ids.lock')
   const lockFile = path.relative(repoRoot, lockPath).split(path.sep).join('/')
-  const lockText = existsSync(lockPath) ? readFileSync(lockPath, 'utf8') : ''
+  const read = existsSync(lockPath)
+    ? decodeUtf8(lockFile, readFileSync(lockPath))
+    : { ok: true as const, text: '' }
+  const lockText = read.ok ? read.text : ''
   const parsedLock = parseLock(lockText)
   const lock = diffLock(
     parsedLock.lock,
@@ -139,8 +143,13 @@ export async function buildContent(options: BuildOptions): Promise<BuildResult> 
   const checkedLock = loaded.issues.length > 0 ? { ...lock, removed: [] } : lock
   const issues = sortIssues([
     ...loaded.issues,
-    ...parsedLock.issues.map((message) => ({ file: lockFile, message })),
-    ...lockIssues(checkedLock, options.check, lockFile),
+    // An undecodable lock is its one issue: nothing in it can be compared.
+    ...(read.ok
+      ? [
+          ...parsedLock.issues.map((message) => ({ file: lockFile, message })),
+          ...lockIssues(checkedLock, options.check, lockFile),
+        ]
+      : [read.issue]),
   ])
 
   if (issues.length > 0) {

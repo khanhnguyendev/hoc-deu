@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MDX_COMPONENT_NAMES, type MdxComponentName } from '@/lib/content/mdx-components'
+import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
 import {
   CODE_LANGS,
   CONTENT_IMAGE_BASE_URL,
@@ -44,6 +45,8 @@ describe('MDX_COMPONENTS', () => {
 describe('code languages and image rules', () => {
   it('allows the three solution languages and plain text', () => {
     expect(CODE_LANGS).toEqual(['python', 'java', 'go', 'text'])
+    // Derived from the platform's code languages, so the two lists cannot drift.
+    expect(CODE_LANGS).toEqual([...CODE_LANGUAGES, 'text'])
     expect(IMAGE_EXTENSIONS).toEqual(['svg', 'png', 'webp', 'jpg'])
   })
 

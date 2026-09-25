@@ -1,7 +1,8 @@
 // The MDX allowlist (platform design §3.5, §3.6 step 3): it lives in code, outside content/**, so a
 // content PR cannot widen what content may do. `next.config.ts` imports this file too, so it keeps
-// to relative imports and has no dependencies.
+// to relative imports (no `@/` alias); its one runtime import, lib/domain/settings, needs only zod.
 import type { MdxComponentName } from '../../lib/content/mdx-components'
+import { CODE_LANGUAGES } from '../../lib/domain/settings'
 
 export type MdxContext = 'lesson' | 'note'
 
@@ -120,8 +121,8 @@ export const MDX_COMPONENTS: { readonly [K in MdxComponentName]: ComponentRule }
   Term: { attributes: { vi: {} }, contexts: BOTH, display: 'inline', children: 'text' },
 }
 
-/** Fenced code languages: the three solution languages and plain text. */
-export const CODE_LANGS: readonly string[] = ['python', 'java', 'go', 'text']
+/** Fenced code languages: the platform's code languages (CODE_LANGUAGES) and plain text. */
+export const CODE_LANGS: readonly string[] = [...CODE_LANGUAGES, 'text']
 
 /** OD3: the one allow-listed image source, committed as data (a public URL — no key). If it is ever
  *  set to '', every MDX image is rejected (tested with an injected base). */

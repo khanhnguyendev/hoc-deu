@@ -4,7 +4,7 @@
  * rules of decision 9, and check every MDX file. Every issue is collected; nothing throws on bad
  * content.
  */
-import { readdirSync, readFileSync, type Dirent } from 'node:fs'
+import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import path from 'node:path'
 import { isAlias, LineCounter, parseDocument, visit } from 'yaml'
 import type { z } from 'zod'
@@ -45,7 +45,7 @@ import { sortIssues, type ContentIssue } from './issues'
 import { mdxFacts, type MdxFacts } from './mdx/facts'
 import { parseMdx, type MdxRoot } from './mdx/parse'
 import { checkMdx } from './mdx/safety'
-import { bomIssue, nfcIssues, nfcSourceIssue } from './nfc'
+import { bomIssue, decodeUtf8, nfcIssues, nfcSourceIssue } from './nfc'
 
 export type LoadOptions = { repoRoot: string; contentDir: string }
 
@@ -92,6 +92,8 @@ export type LoadedContent = {
 // -----------------------------------------------------------------------------------------------
 
 const IMAGES_IN_GIT = 'images live in the content-images bucket, not in git (OD3, ADR-0011)'
+/** Content files are small text; a bigger file is a mistake (or an attempt to slow the build). */
+const MAX_FILE_BYTES = 512 * 1024
 const IMAGE_FILE = /\.(?:svg|png|webp|jpe?g|gif)$/i
 /** macOS Finder metadata: git-ignored, so it never reaches CI; not a content file. */
 const OS_METADATA = '.DS_Store'
@@ -211,6 +213,23 @@ function scan(loader: Loader, dir: string): Dirent[] {
   })
 }
 
+/** A content file's text: at most 512 KB of valid UTF-8; otherwise an issue and null. */
+function readText(loader: Loader, abs: string): string | null {
+  const file = labelOf(loader, abs)
+  const size = statSync(abs).size
+  if (size > MAX_FILE_BYTES) {
+    loader.issues.push({
+      file,
+      message: `is ${Math.ceil(size / 1024)} KB — a content file is at most ${MAX_FILE_BYTES / 1024} KB`,
+    })
+    return null
+  }
+  const decoded = decodeUtf8(file, readFileSync(abs))
+  if (decoded.ok) return decoded.text
+  loader.issues.push(decoded.issue)
+  return null
+}
+
 // -----------------------------------------------------------------------------------------------
 // YAML (§3.6: a safe parser) and Zod
 // -----------------------------------------------------------------------------------------------
@@ -220,24 +239,52 @@ const CORE_TAGS: ReadonlySet<string> = new Set(
   ['map', 'seq', 'str', 'null', 'bool', 'int', 'float'].map((name) => `tag:yaml.org,2002:${name}`),
 )
 const ANCHORS = 'YAML anchors (&) and aliases (*) are not allowed — write each value out'
+const DIRECTIVES =
+  'YAML directives (%YAML, %TAG) are not allowed — content is YAML 1.2 (core schema)'
+
+/**
+ * The line of a directive (`%YAML 1.1`, `%TAG …`) in the prologue, before any content, or null.
+ * Unpinned, `%YAML 1.1` switches a file to YAML 1.1 types (`yes` → true, `1:20` → 80) with no tag
+ * to see; `parseYaml` pins 1.2 core and rejects directives as well.
+ */
+function directiveLine(text: string): number | null {
+  const lines = text.split('\n')
+  for (const [index, line] of lines.entries()) {
+    if (line.startsWith('%')) return index + 1
+    if (line.trim() !== '' && !line.trimStart().startsWith('#')) return null
+  }
+  return null
+}
 
 type Parsed = { ok: true; value: unknown } | { ok: false }
 
 /**
- * Parse one YAML document: parse errors (duplicate keys included), anchors and aliases, and
- * non-core tags are issues, and then the value is not used. `lineOffset` places frontmatter lines
- * in their MDX file.
+ * Parse one YAML document as YAML 1.2 with the core schema: parse errors (duplicate keys
+ * included), directives, anchors and aliases, and non-core tags are issues, and then the value is
+ * not used. `lineOffset` places frontmatter lines in their MDX file.
  */
 function parseYaml(loader: Loader, file: string, text: string, lineOffset = 0): Parsed {
   const lineCounter = new LineCounter()
-  const doc = parseDocument(text, { uniqueKeys: true, prettyErrors: true, lineCounter })
+  const doc = parseDocument(text, {
+    version: '1.2',
+    schema: 'core',
+    uniqueKeys: true,
+    prettyErrors: true,
+    lineCounter,
+  })
   const issues: ContentIssue[] = []
   const at = (offset: number) => {
     const { line, col } = lineCounter.linePos(offset)
     return { line: line + lineOffset, column: col }
   }
 
+  const directive = directiveLine(text)
+  if (directive !== null) {
+    issues.push({ file, line: directive + lineOffset, column: 1, message: DIRECTIVES })
+  }
   for (const error of [...doc.errors, ...doc.warnings]) {
+    // An unknown directive is already the issue above.
+    if (directive !== null && error.code === 'BAD_DIRECTIVE') continue
     const start = error.linePos?.[0]
     // prettyErrors appends " at line L, column C:" and a source excerpt to the message.
     const message = (error.message.split('\n')[0] ?? '').replace(/ at line \d+, column \d+:$/, '')
@@ -272,10 +319,11 @@ function parseYaml(loader: Loader, file: string, text: string, lineOffset = 0): 
 /** Read a YAML file: a leading BOM, the YAML itself, then NFC of every string ([RF-3]). */
 function readYaml(loader: Loader, abs: string): Parsed {
   const file = labelOf(loader, abs)
-  const text = readFileSync(abs, 'utf8')
+  const text = readText(loader, abs)
+  if (text === null) return { ok: false }
   const bom = bomIssue(file, text)
   if (bom !== null) loader.issues.push(bom)
-  const parsed = parseYaml(loader, file, text.replace(/^﻿/, ''))
+  const parsed = parseYaml(loader, file, text.replace(/^\uFEFF/, ''))
   if (parsed.ok) loader.issues.push(...nfcIssues(file, parsed.value))
   return parsed
 }
@@ -357,7 +405,8 @@ type MdxSource = { file: string; tree: MdxRoot; frontmatter: { text: string; lin
 /** Read and parse an MDX file: BOM, NFC and syntax issues are reported; null when it cannot parse. */
 async function readMdx(loader: Loader, abs: string): Promise<MdxSource | null> {
   const file = labelOf(loader, abs)
-  const source = readFileSync(abs, 'utf8')
+  const source = readText(loader, abs)
+  if (source === null) return null
   for (const issue of [bomIssue(file, source), nfcSourceIssue(file, source)]) {
     if (issue !== null) loader.issues.push(issue)
   }
@@ -484,12 +533,8 @@ async function loadProblem(loader: Loader, track: Track, dir: string, name: stri
   const solutions: ProblemFiles['solutions'] = {}
   for (const language of CODE_LANGUAGES) {
     const solutionAbs = path.join(dir, SOLUTION_FILES[language])
-    if (files.has(SOLUTION_FILES[language])) {
-      solutions[language] = {
-        file: labelOf(loader, solutionAbs),
-        source: readFileSync(solutionAbs, 'utf8'),
-      }
-    }
+    const source = files.has(SOLUTION_FILES[language]) ? readText(loader, solutionAbs) : null
+    if (source !== null) solutions[language] = { file: labelOf(loader, solutionAbs), source }
   }
   loader.problemFiles.set(problem.id, { solutions, tests })
 
@@ -773,11 +818,23 @@ export async function loadContent({ repoRoot, contentDir }: LoadOptions): Promis
     problemFiles: new Map(),
   }
 
+  let hasTracks = false
   for (const entry of scan(loader, contentDir)) {
     const abs = path.join(contentDir, entry.name)
     if (entry.isFile() && (entry.name === 'LICENSE' || entry.name === 'ids.lock')) continue
-    if (entry.isDirectory() && entry.name === 'tracks') await loadTracks(loader, abs)
-    else unexpected(loader, abs, entry, ROOT_RULE)
+    if (entry.isDirectory() && entry.name === 'tracks') {
+      hasTracks = true
+      await loadTracks(loader, abs)
+    } else {
+      unexpected(loader, abs, entry, ROOT_RULE)
+    }
+  }
+  if (!hasTracks) {
+    report(
+      loader,
+      path.join(contentDir, 'tracks'),
+      `missing — ${ROOT_RULE}, and tracks/ is required`,
+    )
   }
 
   const items = uniqueItems(loader)

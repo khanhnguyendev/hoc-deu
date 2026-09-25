@@ -5,6 +5,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -524,9 +525,107 @@ describe('loadContent — more layout, YAML and MDX rules', () => {
     ])
   })
 
+  it('rejects YAML directives: %YAML 1.1 would turn `yes` into true (content is YAML 1.2 core)', async () => {
+    const root = copyWith('ok', {
+      'tracks/english/exercises/w01.yaml': [
+        '%YAML 1.1',
+        '---',
+        '- id: english:ex-w01-fill-1',
+        '  kind: fill-blank',
+        '  week: 1',
+        '  topic: standup',
+        "  instruction: { vi: 'Điền từ', en: 'Fill in' }",
+        "  text: 'Are you blocked? {{blank}}'",
+        '  answers: [yes]',
+        '',
+      ].join('\n'),
+      'tracks/dsa/problems/lc-0015-3sum/problem.yaml':
+        '# comment\n%TAG !e! tag:example.com,2000:\n---\nid: dsa:lc-0015\nleetcode: 15\ntitle: 3Sum\ndifficulty: M\ntopic: two-pointers\n',
+    })
+    const { issues, items } = await loadContent({
+      repoRoot: root,
+      contentDir: path.join(root, 'content'),
+    })
+    const message =
+      'YAML directives (%YAML, %TAG) are not allowed — content is YAML 1.2 (core schema)'
+    expect(issues).toEqual([
+      {
+        file: 'content/tracks/dsa/problems/lc-0015-3sum/problem.yaml',
+        line: 2,
+        column: 1,
+        message,
+      },
+      { file: 'content/tracks/english/exercises/w01.yaml', line: 1, column: 1, message },
+    ])
+    expect(items.some((item) => item.id === 'english:ex-w01-fill-1')).toBe(false)
+  })
+
+  it('rejects symbolic links and skips macOS .DS_Store files', async () => {
+    const root = copyWith('ok', {
+      '.DS_Store': 'Bud1',
+      'tracks/dsa/.DS_Store': 'Bud1',
+      'tracks/dsa/lessons/.DS_Store': 'Bud1',
+    })
+    expect(
+      (await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })).issues,
+    ).toEqual([])
+    symlinkSync(
+      path.join(root, 'content/tracks/dsa/prompts/mock-interview.yaml'),
+      path.join(root, 'content/tracks/dsa/prompts/linked.yaml'),
+    )
+    const { issues } = await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })
+    expect(issues).toEqual([
+      {
+        file: 'content/tracks/dsa/prompts/linked.yaml',
+        message: 'symbolic links are not allowed in content/',
+      },
+    ])
+  })
+
+  it('reports a file that is not valid UTF-8 (never decoded to U+FFFD)', async () => {
+    const root = copyWith('ok', {})
+    const bad = Buffer.from([0x69, 0x64, 0x3a, 0x20, 0xff, 0xfe, 0x0a])
+    writeFileSync(path.join(root, 'content/tracks/dsa/problems/lc-0015-3sum/problem.yaml'), bad)
+    writeFileSync(path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/solution.py'), bad)
+    writeFileSync(path.join(root, 'content/tracks/dsa/lessons/two-pointers.mdx'), bad)
+    const { issues } = await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })
+    const message = 'is not valid UTF-8 — save the file as UTF-8'
+    expect(issues).toEqual([
+      { file: 'content/tracks/dsa/lessons/two-pointers.mdx', message },
+      { file: 'content/tracks/dsa/problems/lc-0001-two-sum/solution.py', message },
+      { file: 'content/tracks/dsa/problems/lc-0015-3sum/problem.yaml', message },
+    ])
+  })
+
+  it('reports a file over the 512 KB cap', async () => {
+    const root = copyWith('ok', {
+      'tracks/dsa/problems/lc-0001-two-sum/note.mdx': `## Ý tưởng\n\n${'a'.repeat(600 * 1024)}\n`,
+    })
+    const { issues } = await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })
+    expect(issues).toEqual([
+      {
+        file: 'content/tracks/dsa/problems/lc-0001-two-sum/note.mdx',
+        message: 'is 601 KB — a content file is at most 512 KB',
+      },
+    ])
+  })
+
+  it('a content folder without tracks/ is an issue', async () => {
+    const root = copyWith('ok', {})
+    rmSync(path.join(root, 'content/tracks'), { recursive: true })
+    const { issues } = await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })
+    expect(issues).toEqual([
+      {
+        file: 'content/tracks',
+        message:
+          'missing — content/ holds only LICENSE, ids.lock and tracks/, and tracks/ is required',
+      },
+    ])
+  })
+
   it('an NFD string in YAML and a BOM are reported ([RF-3])', async () => {
     const root = copyWith('ok', {
-      'tracks/dsa/problems/lc-0015-3sum/problem.yaml': `﻿id: dsa:lc-0015\nleetcode: 15\ntitle: '${'Tổng ba số'.normalize('NFD')}'\ndifficulty: M\ntopic: two-pointers\n`,
+      'tracks/dsa/problems/lc-0015-3sum/problem.yaml': `\uFEFFid: dsa:lc-0015\nleetcode: 15\ntitle: '${'Tổng ba số'.normalize('NFD')}'\ndifficulty: M\ntopic: two-pointers\n`,
     })
     const { issues } = await loadContent({ repoRoot: root, contentDir: path.join(root, 'content') })
     const file = 'content/tracks/dsa/problems/lc-0015-3sum/problem.yaml'

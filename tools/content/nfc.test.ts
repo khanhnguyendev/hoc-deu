@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bomIssue, nfcIssues, nfcSourceIssue } from './nfc'
+import { bomIssue, decodeUtf8, nfcIssues, nfcSourceIssue } from './nfc'
 
 const FILE = 'content/tracks/english/decks/w01-standup.yaml'
 const NFD = 'Tiếng Việt'.normalize('NFD')
@@ -52,9 +52,23 @@ describe('nfcSourceIssue — every MDX source is NFC', () => {
   })
 })
 
+describe('decodeUtf8', () => {
+  it('decodes UTF-8 and keeps a leading BOM for bomIssue to see', () => {
+    const bytes = new TextEncoder().encode('\uFEFFTiếng Việt')
+    expect(decodeUtf8(FILE, bytes)).toEqual({ ok: true, text: '\uFEFFTiếng Việt' })
+  })
+
+  it('reports invalid UTF-8 instead of replacing it with U+FFFD', () => {
+    expect(decodeUtf8(FILE, new Uint8Array([0x61, 0xff, 0x62]))).toEqual({
+      ok: false,
+      issue: { file: FILE, message: 'is not valid UTF-8 — save the file as UTF-8' },
+    })
+  })
+})
+
 describe('bomIssue', () => {
   it('rejects a leading byte order mark', () => {
-    expect(bomIssue(FILE, '﻿id: x\n')).toEqual({
+    expect(bomIssue(FILE, '\uFEFFid: x\n')).toEqual({
       file: FILE,
       line: 1,
       column: 1,
