@@ -1,21 +1,21 @@
 -- Task 4.12: schedule-history floor and first-version lock (platform design §4.1, §5.9,
--- ADR-0017; rulings M4-R16, M4-R17). Once a learner has onboarded, a version they insert
--- (directly or through apply_event) never lands before a pending version, and takes effect no
--- earlier than the next day start of its predecessor (the latest earlier version, pending ones
--- included), after greatest(now(), its effective_at), minus 65 minutes — 5 minutes of slack for a
--- version written just before it takes effect, plus one hour for a day start inside a DST gap or
--- overlap, where Postgres and nextDayStart pick different instants — and never more than 5
--- minutes in the past; a pending version with a later one pending cannot change. Before
--- onboarding a learner's version takes effect no later than 5 minutes from now (the first at any
--- time before that, later ones up to 5 minutes back), under the per-user advisory lock.
--- service_role and definer functions keep the pre-4.12 rules.
+-- ADR-0017; rulings M4-R16 to M4-R19). Once a learner has onboarded, a version they insert
+-- (directly or through apply_event) never lands before a pending version, and takes effect inside
+-- [D − 65 minutes, D], D the next day start of its predecessor (the latest earlier version,
+-- pending ones included) as Postgres reads it at greatest(now(), its effective_at) — the hour for
+-- a day start inside a DST gap or overlap, where nextDayStart takes an earlier instant than
+-- Postgres, plus the 5 minutes of slack that admit a version up to 5 minutes before the write —
+-- and never more than 5 minutes in the past; a pending version with a later one pending cannot
+-- change. Before onboarding a learner's version takes effect no later than 5 minutes from now (the
+-- first at any time before that, later ones up to 5 minutes back), under the per-user advisory
+-- lock. service_role and definer functions keep the pre-4.12 rules.
 -- now() is the transaction's start: every statement below sees the same instant.
 begin;
 set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(49);
+select plan(48);
 
 select tests.create_user('floor@hocdeu.test') as floor \gset
 select tests.create_user('near@hocdeu.test') as near \gset
@@ -71,8 +71,9 @@ select ((public.user_local_day(:'vn', now()) + 1) + time '04:00') at time zone '
 select ((public.user_local_day(:'ny', now()) + 1) + time '02:30') at time zone 'America/New_York'
   as ny_nds \gset
 
--- 1. After onboarding, a later version takes effect no earlier than the next day start − 65
---    minutes (the M2 finding: a direct apply_event call could start one now()).
+-- 1. After onboarding, a later version takes effect inside [next day start − 65 minutes, next day
+--    start] (the M2 finding: a direct apply_event call could start one now(); M4-R19: or one in
+--    the middle of a later day).
 select tests.authenticate_as(:'floor');
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at) values (auth.uid(), now())$$,
@@ -108,6 +109,26 @@ select throws_ok(
   ),
   'P0001', 'schedule_backdated', 'a later version 65 minutes and 1 second before it raises'
 );
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at)
+      values (auth.uid(), %L::timestamptz + interval '1 second')$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated', 'a later version 1 second after the next day start raises'
+);
+select throws_ok(
+  format(
+    $$select public.apply_event(jsonb_build_object(
+        'id', '41300000-0000-4000-8000-000000000009', 'type', 'schedule.changed',
+        'rules_version', 1, 'payload', jsonb_build_object(
+          'timezone', 'Pacific/Pago_Pago', 'dayStartsAt', '12:00',
+          'effectiveAt', %L::timestamptz + interval '12 hours')))$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated',
+  'apply_event: Pago Pago 12:00 from the middle of the next day raises (review case B1)'
+);
 -- Each accepted early version goes again (as postgres), so none is pending before the next case.
 select lives_ok(
   format(
@@ -138,7 +159,7 @@ select lives_ok(
     $$insert into public.schedule_versions (user_id, effective_at) values (auth.uid(), %L)$$,
     :'nds'
   ),
-  'a later version at the next day start of the schedule in force is fine'
+  'a later version exactly at the next day start of the schedule in force is fine'
 );
 select lives_ok(
   format(
@@ -180,13 +201,22 @@ select throws_ok(
   'P0001', 'schedule_backdated',
   'a second pending version in the middle of P1''s first day (Pago Pago 12:00) raises'
 );
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L::timestamptz + interval '12 hours', 'Pacific/Pago_Pago', '12:00')$$,
+    :'nds2'
+  ),
+  'P0001', 'schedule_backdated',
+  '... and one in the middle of P1''s second day raises too (review case C)'
+);
 select lives_ok(
   format(
     $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
       values (auth.uid(), %L, 'Pacific/Pago_Pago', '12:00')$$,
     :'nds2'
   ),
-  'a second pending version P2 at P1''s next day start is fine'
+  'a second pending version P2 exactly at P1''s next day start is fine'
 );
 select throws_ok(
   format(
@@ -402,65 +432,58 @@ select is(
 );
 select tests.clear_authentication();
 
--- 5. TypeScript parity on the DST days. The nextDayStart values below were computed once with
---    `pnpm tsx -e` calling nextDayStart from lib/domain/time/localDay.ts; they are the values
---    lib/domain/time/localDay.test.ts pins ('nextDayStart'), so a change there fails first. The
---    rule's expression (at those instants: local_day in place of user_local_day) yields Postgres'
---    reading of the day start; nextDayStart takes the earliest instant whose local day is the next
---    one. Away from DST they agree; in a DST gap or overlap they differ by up to an hour, and the
---    settings flow's value must still pass the floor (expression − 65 minutes).
-select is(
-  ((public.local_day('2026-09-24T03:00:00Z', 'Asia/Ho_Chi_Minh', '04:00') + 1) + time '04:00')
-    at time zone 'Asia/Ho_Chi_Minh',
-  '2026-09-24T21:00:00Z'::timestamptz,
-  'Asia/Ho_Chi_Minh 04:00 at 2026-09-24T03:00Z: the expression gives 21:00Z, as nextDayStart does'
+-- 5. TypeScript parity at fixed instants (DST and odd offsets). `ts` is nextDayStart(at, zone,
+--    day start), computed once with `pnpm tsx -e` calling lib/domain/time/localDay.ts (the first
+--    three are also pinned in lib/domain/time/localDay.test.ts); `pg` is the rule's expression at
+--    `at` (local_day in place of user_local_day). The task 4.12 sweep compared the two for every
+--    picker zone × day start around each 2026 offset change: nextDayStart was never after
+--    Postgres, and more than 65 minutes before it only for Antarctica/Troll (2-hour shift), whose
+--    settings change is then rejected and succeeds the next day. The settings flow sends `ts`, so
+--    it must lie inside [pg − 65 minutes, pg].
+create temporary table _day_starts (
+  label text, at timestamptz, zone text, day_start time, ts timestamptz, pg timestamptz
+) on commit drop;
+insert into _day_starts values
+  ('Asia/Ho_Chi_Minh 04:00', '2026-09-24T03:00:00Z', 'Asia/Ho_Chi_Minh', '04:00',
+   '2026-09-24T21:00:00Z', '2026-09-24T21:00:00Z'),
+  ('America/New_York 02:30, spring-forward gap', '2026-03-07T12:00:00Z', 'America/New_York',
+   '02:30', '2026-03-08T07:00:00Z', '2026-03-08T07:30:00Z'),
+  ('America/New_York 01:30, fall-back overlap', '2026-10-31T12:00:00Z', 'America/New_York',
+   '01:30', '2026-11-01T05:30:00Z', '2026-11-01T06:30:00Z'),
+  ('America/St_Johns 02:30, gap at a half-hour offset', '2026-03-07T12:00:00Z',
+   'America/St_Johns', '02:30', '2026-03-08T05:30:00Z', '2026-03-08T06:00:00Z'),
+  ('Asia/Kolkata 04:00, half-hour offset', '2026-09-24T12:00:00Z', 'Asia/Kolkata', '04:00',
+   '2026-09-24T22:30:00Z', '2026-09-24T22:30:00Z'),
+  ('Pacific/Chatham 03:30, gap at a 45-minute offset', '2026-09-26T00:00:00Z',
+   'Pacific/Chatham', '03:30', '2026-09-26T14:00:00Z', '2026-09-26T14:45:00Z'),
+  ('Antarctica/Troll 02:30, 2-hour spring-forward gap', '2026-03-28T12:00:00Z',
+   'Antarctica/Troll', '02:30', '2026-03-29T01:00:00Z', '2026-03-29T02:30:00Z'),
+  ('Antarctica/Troll 02:00, 2-hour fall-back overlap', '2026-10-24T12:00:00Z',
+   'Antarctica/Troll', '02:00', '2026-10-25T00:00:00Z', '2026-10-25T02:00:00Z');
+select is_empty(
+  $$select label from _day_starts
+    where ((public.local_day(at, zone, day_start) + 1) + day_start) at time zone zone <> pg$$,
+  'the rule''s expression reads each fixture''s day start as pinned'
 );
-select ok(
-  '2026-09-24T21:00:00Z'::timestamptz >= (
-    ((public.local_day('2026-09-24T03:00:00Z', 'Asia/Ho_Chi_Minh', '04:00') + 1) + time '04:00')
-      at time zone 'Asia/Ho_Chi_Minh'
-  ) - interval '65 minutes',
-  '... and nextDayStart''s 2026-09-24T21:00Z passes the floor'
+select is_empty(
+  $$select label from _day_starts where ts > pg$$,
+  'nextDayStart is never after it: the settings flow''s value passes the ceiling'
 );
-select is(
-  ((public.local_day('2026-03-07T12:00:00Z', 'America/New_York', '02:30') + 1) + time '02:30')
-    at time zone 'America/New_York',
-  '2026-03-08T07:30:00Z'::timestamptz,
-  'America/New_York 02:30 (skipped on 8 March 2026): Postgres reads 02:30 as EST, 07:30Z'
+select results_eq(
+  $$select label from _day_starts where ts < pg - interval '65 minutes' order by label$$,
+  $$values ('Antarctica/Troll 02:00, 2-hour fall-back overlap'::text),
+           ('Antarctica/Troll 02:30, 2-hour spring-forward gap')$$,
+  'only Troll''s 2-hour shift puts nextDayStart below the floor (a known rejection)'
 );
-select ok(
-  '2026-03-08T07:00:00Z'::timestamptz >= (
-    ((public.local_day('2026-03-07T12:00:00Z', 'America/New_York', '02:30') + 1) + time '02:30')
-      at time zone 'America/New_York'
-  ) - interval '65 minutes',
-  '... and nextDayStart''s 2026-03-08T07:00Z (03:00 EDT) passes the floor'
-);
-select ok(
-  '2026-03-08T07:00:00Z'::timestamptz < (
-    ((public.local_day('2026-03-07T12:00:00Z', 'America/New_York', '02:30') + 1) + time '02:30')
-      at time zone 'America/New_York'
-  ) - interval '5 minutes',
-  '... which the 5-minute slack alone would have rejected'
-);
-select is(
-  ((public.local_day('2026-10-31T12:00:00Z', 'America/New_York', '01:30') + 1) + time '01:30')
-    at time zone 'America/New_York',
-  '2026-11-01T06:30:00Z'::timestamptz,
-  'America/New_York 01:30 (repeated on 1 November 2026): Postgres reads 01:30 as EST, 06:30Z'
-);
-select ok(
-  '2026-11-01T05:30:00Z'::timestamptz >= (
-    ((public.local_day('2026-10-31T12:00:00Z', 'America/New_York', '01:30') + 1) + time '01:30')
-      at time zone 'America/New_York'
-  ) - interval '65 minutes',
-  '... and nextDayStart''s 2026-11-01T05:30Z (the first 01:30, EDT) passes the floor'
-);
-select ok(
-  '2026-11-01T05:30:00Z'::timestamptz < (
-    ((public.local_day('2026-10-31T12:00:00Z', 'America/New_York', '01:30') + 1) + time '01:30')
-      at time zone 'America/New_York'
-  ) - interval '5 minutes',
-  '... which the 5-minute slack alone would have rejected'
+select results_eq(
+  $$select label from _day_starts where ts < pg - interval '5 minutes' order by label$$,
+  $$values ('America/New_York 01:30, fall-back overlap'::text),
+           ('America/New_York 02:30, spring-forward gap'),
+           ('America/St_Johns 02:30, gap at a half-hour offset'),
+           ('Antarctica/Troll 02:00, 2-hour fall-back overlap'),
+           ('Antarctica/Troll 02:30, 2-hour spring-forward gap'),
+           ('Pacific/Chatham 03:30, gap at a 45-minute offset')$$,
+  'the DST fixtures need the extra hour: the 5-minute slack alone would reject them'
 );
 
 -- 6. service_role and definer functions keep the pre-4.12 rules (e2e seeds an onboarded learner's

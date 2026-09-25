@@ -48,26 +48,30 @@ belonged to.
   may still be updated or deleted, but not moved into the past. `nextDayStart` in the server is
   the normal path; the trigger is the backstop.
 - **Since task 4.12 the database also enforces the next-day-start rule** (M2 deferred finding: a
-  direct `apply_event` call could start a later version at `now()` and move the learner's own
-  local day back; rulings M4-R16, M4-R17). Once `profiles.onboarded_at` is set, a version inserted
-  by `authenticated` (directly or through `apply_event`) never lands before an existing pending
-  version (other than the one an upsert replaces), and takes effect no earlier than the next day
-  start of its predecessor — the latest version with an earlier `effective_at`, pending ones
-  included, else the default schedule — after `greatest(now(), predecessor.effective_at)`, minus
-  **65 minutes**; and, as for every insert that is not an exempt first version, no more than 5
-  minutes in the past. The 5 minutes are slack for a version written just before it takes effect
-  (a request that crosses a day start gets `schedule_backdated`, which the settings form treats as
-  stale: a retry targets the next day start); the extra hour covers a day start inside a DST gap
-  or overlap, where Postgres and `nextDayStart` pick instants up to an hour apart. Such a learner
-  may change a pending version only while no later version is pending. Before onboarding, a
-  learner's version takes effect no later than 5 minutes from now; the first version may take
-  effect at any earlier time (the exemption is bounded by `onboarded_at`) and later ones no more
-  than 5 minutes back, so a retried onboarding still completes. Every insert runs its checks under
-  the per-user advisory lock the pending-version cap takes, so two concurrent first inserts cannot
-  both count as the first. `service_role` and SECURITY DEFINER functions keep the pre-4.12 rules.
-  `Antarctica/Troll` (a 2-hour DST shift) sees the settings flow's change rejected on the day
-  before its spring-forward day (day start 02:30: 90 minutes apart) and before its fall-back day
-  (day starts 01:00–02:30: 120 minutes); it succeeds the next day.
+  direct `apply_event` call could start a later version at `now()` and move the learner's own local
+  day back; rulings M4-R16 to M4-R19). Once `profiles.onboarded_at` is set, a version inserted by
+  `authenticated` (directly or through `apply_event`) never lands before an existing pending version
+  (other than the one an upsert replaces), and takes effect inside **[D − 65 minutes, D]**, where D
+  is the next day start of its predecessor — the latest version with an earlier `effective_at`,
+  pending ones included, else the default schedule — as Postgres reads it at `greatest(now(),
+  predecessor.effective_at)`: `((local_day(that instant) + 1) + day_starts_at) at time zone
+  timezone`. As for every insert that is not an exempt first version, it also takes effect no more
+  than 5 minutes before the write: slack that admits onboarding's "now − 1 minute" version and its
+  retries. A settings request that crosses a day start falls outside the window and gets
+  `schedule_backdated`, which the settings form treats as stale (a retry targets the next day
+  start). The hour below D covers a day start inside a DST gap or overlap, where Postgres reads the
+  later instant and `nextDayStart` the earliest one. A sweep of every picker zone × day start around
+  each 2026 offset change (task 4.12) found `nextDayStart` never after D, and more than 65 minutes
+  before it only for `Antarctica/Troll` (a 2-hour shift): its settings change is rejected on the day
+  before its spring-forward day (day start 02:30: 90 minutes) and before its fall-back day (day
+  starts 01:00–02:30: 120 minutes), and succeeds the next day. Such a learner may change a pending
+  version (time zone and day start only, by their column grant) only while no later version is
+  pending. Before onboarding, a learner's version takes effect no later than 5 minutes from now; the
+  first may take effect at any earlier time (the exemption is bounded by `onboarded_at`) and later
+  ones no more than 5 minutes back, so a retried onboarding still completes. Every insert runs its
+  checks under the per-user advisory lock the pending-version cap takes, so two concurrent first
+  inserts cannot both count as the first. `service_role` and SECURITY DEFINER functions keep the
+  pre-4.12 rules.
 
 ## Consequences
 

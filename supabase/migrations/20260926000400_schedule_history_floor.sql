@@ -14,40 +14,48 @@
 --   after this trigger: a learner never takes another user's lock.
 -- - The first version of a user (no row yet) may take effect at any time in the past while the
 --   profile's onboarded_at is null: there is no past day to protect yet.
--- - Any other version takes effect no more than 5 minutes in the past (unchanged): slack for a
---   version written just before it takes effect. A request that crosses a day start (computed
---   before it, stored after it) is rejected with schedule_backdated, which the settings form
---   treats as stale: re-rendered, a retry targets the next day start.
+-- - Any other version takes effect no more than 5 minutes before the write (unchanged): slack
+--   that admits onboarding's "now − 1 minute" version and its retries. A settings request that
+--   crosses a day start (computed before it, stored after it) falls outside the window below and
+--   gets schedule_backdated, which the settings form treats as stale: re-rendered, a retry
+--   targets the next day start.
 -- - Before onboarding (onboarded_at null), a learner's version (`authenticated`) takes effect no
 --   later than 5 minutes from now — onboarding sends now − 1 minute — so no version placed then
 --   can take effect after onboarding at an arbitrary instant (M4-R17). A later version keeps the
 --   5-minute rule only: onboarding retried from a fresh page (new event ids) sends another
 --   version "from a minute ago" (M4-R16).
 -- - Once onboarded_at is set, a learner's version (`authenticated`, directly or through the
---   SECURITY INVOKER apply_event), pending ones included (M4-R17):
+--   SECURITY INVOKER apply_event), pending ones included (M4-R17, M4-R19):
 --   - never lands before an existing pending version (other than the one an upsert replaces):
 --     the app always targets the earliest pending version's effective_at;
---   - takes effect no earlier than the next day start of its predecessor — the latest version
---     with an earlier effective_at, pending or not; the default schedule when none — after
---     greatest(now(), the predecessor's effective_at), minus 65 minutes: the 5 minutes above plus
---     one hour for a day start inside a DST gap or overlap, where Postgres (the instant below) and
---     nextDayStart (the earliest instant of the next local day) can differ by the DST shift. For
---     the version in force that is the next day start the settings flow computes. A zone whose
---     shift exceeds an hour, Antarctica/Troll (2 hours), sees the settings flow's value rejected
---     on the day before its spring-forward day (last Sunday of March; day start 02:30, 90
---     minutes) and before its fall-back day (last Sunday of October; day starts 01:00-02:30, 120
---     minutes); the change succeeds the next day.
+--   - takes effect inside [D − 65 minutes, D], where D is the next day start of its predecessor
+--     (the latest version with an earlier effective_at, pending or not; the default schedule
+--     when none) as Postgres reads it at greatest(now(), the predecessor's effective_at):
+--     ((local_day(that instant) + 1) + day_starts_at) at time zone timezone. So a version never
+--     starts after that day start of the schedule it follows, nor more than 65 minutes before
+--     it. The hour below D (plus the 5 minutes above) is for a day start inside a DST gap or
+--     overlap: there Postgres reads the later instant and nextDayStart (TypeScript) takes the
+--     earliest instant of the next local day, which the settings flow sends; for the version in
+--     force, D is the day start the settings flow computes. A sweep of every picker zone × day
+--     start around its 2026 offset changes (task 4.12 report) found nextDayStart never after D,
+--     and more than 65 minutes before it only for Antarctica/Troll (2-hour shift): its settings
+--     change is rejected on the day before its spring-forward day (last Sunday of March; day
+--     start 02:30, 90 minutes) and before its fall-back day (last Sunday of October; day starts
+--     01:00-02:30, 120 minutes), and succeeds the next day.
 -- - service_role and SECURITY DEFINER functions (current_user is their owner) keep the pre-4.12
 --   rules: the first version at any time, any other no more than 5 minutes in the past.
 -- On update the 000100 rules stay (only a pending version, never moved into the past), and an
 -- onboarded learner may change a pending version only while no later version is pending: the
--- later one's floor was measured from it (task 4.12 fix round 1).
+-- later one's window was measured from it (task 4.12 fix round 1). A learner cannot move a
+-- version's effective_at (their column grant is timezone and day_starts_at only), so the window
+-- checked on insert still holds after any update they can make.
 create or replace function public.schedule_versions_guard_history() returns trigger
 language plpgsql set search_path = '' as $$
 declare
   v_first boolean;
-  v_floor_applies boolean;
+  v_window_applies boolean;
   v_pred_at timestamptz;
+  v_day_start timestamptz;
   v_timezone text;
   v_day_starts_at time;
 begin
@@ -61,21 +69,21 @@ begin
     v_first := not exists (
       select 1 from public.schedule_versions v where v.user_id = new.user_id
     );
-    v_floor_applies := current_user = 'authenticated' and exists (
+    v_window_applies := current_user = 'authenticated' and exists (
       select 1 from public.profiles p where p.id = new.user_id and p.onboarded_at is not null
     );
-    if current_user = 'authenticated' and not v_floor_applies
+    if current_user = 'authenticated' and not v_window_applies
       and new.effective_at > now() + interval '5 minutes'
     then
       raise exception 'schedule_backdated';
     end if;
-    if v_first and not v_floor_applies then
+    if v_first and not v_window_applies then
       return new;
     end if;
     if new.effective_at < now() - interval '5 minutes' then
       raise exception 'schedule_backdated';
     end if;
-    if v_floor_applies then
+    if v_window_applies then
       if exists (
         select 1 from public.schedule_versions v
         where v.user_id = new.user_id and v.effective_at > now()
@@ -94,12 +102,13 @@ begin
         v_timezone := 'Asia/Ho_Chi_Minh';
         v_day_starts_at := time '04:00';
       end if;
-      if new.effective_at < (
-        (
-          (public.local_day(greatest(now(), v_pred_at), v_timezone, v_day_starts_at) + 1)
-          + v_day_starts_at
-        ) at time zone v_timezone
-      ) - interval '65 minutes' then
+      v_day_start := (
+        (public.local_day(greatest(now(), v_pred_at), v_timezone, v_day_starts_at) + 1)
+        + v_day_starts_at
+      ) at time zone v_timezone;
+      if new.effective_at < v_day_start - interval '65 minutes'
+        or new.effective_at > v_day_start
+      then
         raise exception 'schedule_backdated';
       end if;
     end if;

@@ -63,48 +63,48 @@ select is(
   '... but changes nothing'
 );
 
--- The pending versions below come after onboarding: before it a learner's version starts at most
--- 5 minutes ahead (4.12, 013). Each lies at or after the next day start of the version before it.
-update public.profiles set onboarded_at = now() where id in (:'learner', :'other');
+-- Before onboarding (none of these learners onboards) a learner's version takes effect at most 5
+-- minutes ahead (4.12, M4-R17), so the pending versions below lie minutes ahead; onboarded
+-- learners' versions wait for the next day start (013).
 
 -- 2. day_starts_at: 00:00-12:00 in 30-minute steps (decision 5).
 select tests.authenticate_as(:'learner');
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '1 day', '04:15')$$,
+    values (auth.uid(), now() + interval '1 minute', '04:15')$$,
   '23514',
   'new row for relation "schedule_versions" violates check constraint "day_starts_at_step"',
   'day_starts_at 04:15 is not on a 30-minute step'
 );
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '1 day', '13:00')$$,
+    values (auth.uid(), now() + interval '1 minute', '13:00')$$,
   '23514',
   'new row for relation "schedule_versions" violates check constraint "day_starts_at_step"',
   'day_starts_at 13:00 is after noon'
 );
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '1 day', '04:00:30')$$,
+    values (auth.uid(), now() + interval '1 minute', '04:00:30')$$,
   '23514',
   'new row for relation "schedule_versions" violates check constraint "day_starts_at_step"',
   'day_starts_at must be on a whole minute'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '1 day', '12:00')$$,
+    values (auth.uid(), now() + interval '1 minute', '12:00')$$,
   'day_starts_at 12:00 is allowed'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '2 days', '00:30')$$,
+    values (auth.uid(), now() + interval '2 minutes', '00:30')$$,
   'day_starts_at 00:30 is allowed'
 );
 
 -- 3. Time zones are validated against pg_timezone_names (decision 6).
 select throws_ok(
   $$update public.schedule_versions set timezone = 'Mars/Base'
-    where effective_at = now() + interval '2 days'$$,
+    where effective_at = now() + interval '2 minutes'$$,
   'P0001', 'invalid_timezone', 'an update to an unknown time zone raises invalid_timezone'
 );
 -- The learner's two pending versions go (as postgres), so the inserts below stay under the cap (§3b).
@@ -113,17 +113,17 @@ delete from public.schedule_versions where user_id = :'learner' and effective_at
 select tests.authenticate_as(:'learner');
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at, timezone)
-    values (auth.uid(), now() + interval '3 days', 'Mars/Base')$$,
+    values (auth.uid(), now() + interval '3 minutes', 'Mars/Base')$$,
   'P0001', 'invalid_timezone', 'an unknown time zone raises invalid_timezone'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, timezone)
-    values (auth.uid(), now() + interval '3 days', 'Asia/Saigon')$$,
+    values (auth.uid(), now() + interval '3 minutes', 'Asia/Saigon')$$,
   'Asia/Saigon is accepted'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, timezone)
-    values (auth.uid(), now() + interval '4 days', 'Asia/Ho_Chi_Minh')$$,
+    values (auth.uid(), now() + interval '4 minutes', 'Asia/Ho_Chi_Minh')$$,
   'Asia/Ho_Chi_Minh is accepted'
 );
 select results_eq(
@@ -137,12 +137,12 @@ select results_eq(
 -- 3b. At most 2 pending (future) versions per user (ruling R14); upserting one is not a new one.
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    values (auth.uid(), now() + interval '5 days')$$,
+    values (auth.uid(), now() + interval '5 minutes')$$,
   'P0001', 'too_many_pending_schedules', 'a third pending version raises too_many_pending_schedules'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at, day_starts_at)
-    values (auth.uid(), now() + interval '4 days', '06:00')
+    values (auth.uid(), now() + interval '4 minutes', '06:00')
     on conflict (user_id, effective_at) do update set day_starts_at = excluded.day_starts_at$$,
   'an upsert of a pending version at the cap is not a new version'
 );
@@ -154,12 +154,12 @@ select is(
 select tests.authenticate_as(:'other');
 select throws_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    select auth.uid(), now() + g * interval '1 day' from generate_series(1, 3) g$$,
+    select auth.uid(), now() + g * interval '1 minute' from generate_series(1, 3) g$$,
   'P0001', 'too_many_pending_schedules', 'one statement inserting 3 pending versions raises'
 );
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    select auth.uid(), now() + g * interval '1 day' from generate_series(1, 2) g$$,
+    select auth.uid(), now() + g * interval '1 minute' from generate_series(1, 2) g$$,
   'the cap is per user: another user inserts 2 pending versions'
 );
 
@@ -167,20 +167,21 @@ select lives_ok(
 --     delete a version (no grant: 42501 before any trigger runs).
 select tests.authenticate_as(:'learner');
 select throws_ok(
-  $$update public.schedule_versions set effective_at = now() + interval '6 days'
-    where effective_at = now() + interval '4 days'$$,
+  $$update public.schedule_versions set effective_at = now() + interval '6 minutes'
+    where effective_at = now() + interval '4 minutes'$$,
   '42501', 'permission denied for table schedule_versions',
   'authenticated cannot update effective_at'
 );
 select throws_ok(
   format(
-    $$update public.schedule_versions set user_id = %L where effective_at = now() + interval '4 days'$$,
+    $$update public.schedule_versions set user_id = %L
+      where effective_at = now() + interval '4 minutes'$$,
     :'other'
   ),
   '42501', 'permission denied for table schedule_versions', 'authenticated cannot update user_id'
 );
 select throws_ok(
-  $$delete from public.schedule_versions where effective_at = now() + interval '4 days'$$,
+  $$delete from public.schedule_versions where effective_at = now() + interval '4 minutes'$$,
   '42501', 'permission denied for table schedule_versions',
   'authenticated cannot delete a version, not even a pending one'
 );
@@ -356,10 +357,8 @@ select is(
   'the tracks are gone'
 );
 
--- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role. Until the
---    pending version this learner has not onboarded, so the 5-minute rule is the one that
---    applies; once onboarded_at is set, a learner's version also waits for the next day start
---    (013, 4.12).
+-- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role. This
+--    learner has not onboarded, so the 5-minute rules apply; onboarded learners: 013 (4.12).
 select tests.authenticate_as(:'history');
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
@@ -382,21 +381,19 @@ select lives_ok(
     values (auth.uid(), now() - interval '4 minutes')$$,
   'a version up to 5 minutes in the past is not backdated'
 );
-select tests.clear_authentication();
-update public.profiles set onboarded_at = now() where id = :'history';
-select tests.authenticate_as(:'history');
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
-    values (auth.uid(), now() + interval '1 day')$$,
-  'a pending version inserts (after onboarding)'
+    values (auth.uid(), now() + interval '1 minute')$$,
+  'a pending version inserts'
 );
 select lives_ok(
   $$update public.schedule_versions set day_starts_at = '05:00'
-    where effective_at = now() + interval '1 day'$$,
+    where effective_at = now() + interval '1 minute'$$,
   'a pending version may be updated'
 );
 select is(
-  (select day_starts_at from public.schedule_versions where effective_at = now() + interval '1 day'),
+  (select day_starts_at from public.schedule_versions
+    where effective_at = now() + interval '1 minute'),
   '05:00'::time,
   '... and the update is stored'
 );
@@ -418,7 +415,7 @@ select throws_ok(
 select throws_ok(
   format(
     $$update public.schedule_versions set effective_at = now() - interval '1 hour'
-      where user_id = %L and effective_at = now() + interval '1 day'$$,
+      where user_id = %L and effective_at = now() + interval '1 minute'$$,
     :'history'
   ),
   'P0001', 'schedule_backdated', 'a pending version cannot be moved into the past (postgres)'
@@ -442,7 +439,7 @@ select throws_ok(
 select lives_ok(
   format(
     $$delete from public.schedule_versions
-      where user_id = %L and effective_at = now() + interval '1 day'$$,
+      where user_id = %L and effective_at = now() + interval '1 minute'$$,
     :'history'
   ),
   'a pending version may be deleted'

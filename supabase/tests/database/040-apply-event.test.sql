@@ -19,8 +19,6 @@ select tests.create_user('apply-learner@hocdeu.test') as learner \gset
 select tests.create_user('apply-other@hocdeu.test') as other \gset
 select tests.create_user('apply-pending@hocdeu.test', 'pending') as pending \gset
 select tests.create_user('apply-schedule@hocdeu.test') as schedule_user \gset
--- Onboarded: before onboarding a learner's version may start at most 5 minutes ahead (4.12, 013).
-update public.profiles set onboarded_at = now() where id = :'schedule_user';
 select tests.create_user('apply-settings@hocdeu.test') as settings_user \gset
 select tests.create_user('apply-quota@hocdeu.test') as quota_user \gset
 
@@ -305,13 +303,14 @@ select results_eq(
 );
 
 -- 7. schedule.changed upserts the version for effectiveAt; the history and time-zone triggers
---    still apply, and their errors leave no event behind.
+--    still apply, and their errors leave no event behind. (Before onboarding a learner's version
+--    takes effect at most 5 minutes ahead, 4.12: the pending versions here lie minutes ahead.)
 select tests.authenticate_as(:'schedule_user');
 select is(
   public.apply_event(tests.event(
     gen_random_uuid()::text, 'schedule.changed', null,
     jsonb_build_object(
-      'timezone', 'Asia/Tokyo', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '1 day'
+      'timezone', 'Asia/Tokyo', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '1 minute'
     )
   )),
   '{"outcome": "applied", "versions": {}}'::jsonb,
@@ -319,14 +318,15 @@ select is(
 );
 select results_eq(
   $$select effective_at, timezone, day_starts_at from public.schedule_versions$$,
-  $$values (now() + interval '1 day', 'Asia/Tokyo'::text, '05:00'::time)$$,
+  $$values (now() + interval '1 minute', 'Asia/Tokyo'::text, '05:00'::time)$$,
   '... and inserts the version'
 );
 select is(
   public.apply_event(tests.event(
     gen_random_uuid()::text, 'schedule.changed', null,
     jsonb_build_object(
-      'timezone', 'Europe/Berlin', 'dayStartsAt', '06:30', 'effectiveAt', now() + interval '1 day'
+      'timezone', 'Europe/Berlin', 'dayStartsAt', '06:30',
+      'effectiveAt', now() + interval '1 minute'
     )
   )),
   '{"outcome": "applied", "versions": {}}'::jsonb,
@@ -334,14 +334,15 @@ select is(
 );
 select results_eq(
   $$select effective_at, timezone, day_starts_at from public.schedule_versions$$,
-  $$values (now() + interval '1 day', 'Europe/Berlin'::text, '06:30'::time)$$,
+  $$values (now() + interval '1 minute', 'Europe/Berlin'::text, '06:30'::time)$$,
   '... and replaces the first (one row)'
 );
 select throws_ok(
   $$select public.apply_event(tests.event(
       '40000000-0000-4000-8000-000000000007', 'schedule.changed', null,
       jsonb_build_object(
-        'timezone', 'Mars/Base', 'dayStartsAt', '05:00', 'effectiveAt', now() + interval '2 days')))$$,
+        'timezone', 'Mars/Base', 'dayStartsAt', '05:00',
+        'effectiveAt', now() + interval '2 minutes')))$$,
   'P0001', 'invalid_timezone', 'timezone Mars/Base raises invalid_timezone'
 );
 select is(
