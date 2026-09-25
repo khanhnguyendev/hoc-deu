@@ -149,6 +149,8 @@ describe('fence keys: content:build and the renderer agree (final review M3)', (
     ['a fence starting with a blank line', '```python\n\nx = 1\n```\n'],
     ['a text fence ending with a blank line', '```text\n[1] -> [1]\n\n```\n'],
     ['an empty fence', '```go\n```\n'],
+    ['a CRLF fence', '```python\r\nx = 1\r\n```\r\n'],
+    ['a fence with no newline at EOF', '```python\nx = 1\n```'],
   ])(
     '%s: build key = render key, and the highlighted lines match the plain ones',
     async (_, source) => {
