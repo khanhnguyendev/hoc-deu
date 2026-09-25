@@ -10136,3 +10136,2054 @@ are green (like #6). **Files:**
   endpoint), then `supabase db push` of the four M4 migrations (docs/ops/staging.md; linked CLI via
   the pooler, `.env.local` loaded into the shell, nothing printed), migration list local = remote; archive the ledger; update the
   memory file; write the M5 hand-off.
+
+## Part B-M5 — Dashboard, check-in, review → v1.0 launch, step by step
+
+Written at the start of M5 (2026-09-26) from the code merged in M0–M4 (`main` at `b05edc7`: PR #10
+plan engine, #9 M3 follow-ups), the M5 hand-off (owner items, the M4 final review's routed items
+M-4…M-13 and I-1, rulings M4-R20…R22) and the deferred minors earlier milestones routed to M5 tasks
+(M1 #8, #9, #15, #17, #22; the M2 final review's 5.1 / 5.2 / 5.6 / 5.8 triage; the M3 residuals),
+then revised the same day after an independent gate review ("approve after fixes": 8 blockers, 6
+important, 14 minor — all applied except one reviewer claim checked false, ledger ruling M5-R2).
+Executed **subagent-driven with parallel waves in git worktrees** (owner answer 2026-09-26; the
+Execution methods table said native): a fresh implementer and a fresh reviewer per task, the tasks
+of one wave in separate worktrees, then one whole-branch review on the most capable model, one fix
+pass and one re-review. **M5 stops for the owner's review before merge.**
+
+**Branch:** `feat/m5-dashboard` from `main` at `b05edc7`; this section is its first commit. One
+pull request, "M5: dashboard, check-in, review", merged only after the owner's review. Task 5.8b
+(launch) runs **after** the merge.
+
+**Scope.** The v1.0 learner loop on top of M4's engine: `/today` (today's plan, the paused and
+resumed states, "Học tiếp hôm nay", streak, per-track progress, due reviews, weak areas, the
+throttle message), check-in (one-tap, the sheet, the auto check-in) and item results for every
+item type, `/review`, "Học thêm" and off-plan study, "Bắt đầu lại", track-page progress and weak
+items, `/progress`, `/admin` and `/admin/content`, the maintenance cron, `/api/health`, backups
+and the restore test, and the launch runbook. Plus the housekeeping M5 owns: the simulation moves
+to `pnpm test:sim` (owner item b), the sandbox-audit tests pass as root (owner item a), the M4
+engine clean-up (M-8, M-11) and the M2 carry-overs. Nothing from v1.1 or "later": no AI plans, no
+mode badge (the "AI-personalized" badge is v1.1), no bot, no overrides, no custom items, no
+template or throttle editing UI.
+
+**Owner decisions** (raised with this section, as the hand-off asks; each task below implements
+the recommendation, and the task text says what changes if the owner picks another option):
+
+- **M-5 — the gate stays closed on a plan whose only blocks belong to a track since paused or
+  removed** (M4 final review; `gate.ts`). Yesterday's seen plan had only DSA blocks, none done;
+  today the learner has removed DSA. Spec-literal §5.2 keeps the gate closed: `/today` shows the
+  paused banner with blocks of a removed track, and the only ways out are checking in a removed
+  track's block or waiting three days for "Học tiếp hôm nay".
+  - **(A) Recommended — blocks of tracks that are no longer `active` do not hold the gate
+    closed.** A `done` / `partial` check-in on any block still opens it; when none exists, only
+    blocks of active tracks count, and a plan with no block of an active track is treated like an
+    empty plan (open). The paused view lists only active tracks' unfinished blocks. One optional
+    parameter on `gateStatus` / `unfinishedBlocks` (5.0a), used by 5.1a; ADR-0016 gains a paragraph.
+    Not a `RULES_VERSION` change (the gate reads history; it computes no derived rows).
+  - (B) Spec-literal: no change; the paused view shows the removed track's blocks and lets the
+    learner check them in. Delta: 5.0a drops the gate parameter and its tests; 5.1a passes no
+    `activeTrackIds` and drops its M-5 test; 5.1b's paused view shows every block and drops its
+    M-5 e2e. (Off-plan study also reopens the gate — decision 21 — so a learner is never stuck, only
+    sent a longer way round.)
+  - (C) A "Bỏ qua kế hoạch cũ" button that opens the gate by decree: rejected here — it needs a new
+    event type and lets a learner skip the gate at will, which §5.2 exists to prevent.
+- **M-6 — editing yesterday's `skipped` check-in to `done` today** (M4 final review; `gate.ts` +
+  decision 6: a block counts for the day of its **first** check-in, and that day never moves).
+  This is not an edge case: the paused view (§5.2) lists the last seen plan's unfinished blocks,
+  `skipped` ones included, so "I skipped everything yesterday, today I do one block" goes exactly
+  through this edit. Today it completes **yesterday** after the fact (the streak is repaired),
+  opens the gate with `resumedToday: false`, and a new plan is built today on top of the resumed
+  work — two days' work credited, one plan per day broken. A block never checked in, resumed the
+  same way, counts for today instead. Two paths, two results.
+  - **(a) Recommended — a skipped block that becomes `done` / `partial` on a later day counts for
+    that later day.** Its `checked_in_on` moves to the event's local day (only forward, only from
+    `skipped`); yesterday is recomputed without it (still not completed), today is completed, and
+    the gate sees `resumedToday` — no second plan today, exactly as for a never-checked-in block.
+    Cost: `project.ts` (5.0a) and `apply_derived_changes` (5.0b) change together, a column grant
+    plus a bounding trigger (5.0b), `RULES_VERSION` 3 with `pnpm sim:projections` (5.0b), and the
+    I-1 loader reads both days for such an edit (5.2a).
+  - (b) Spec-literal: keep decision 6. Delta: 5.0a drops the projection rule and its tests; 5.0b
+    drops items 1 and 3 of its migration (no `RULES_VERSION` 3, no `sim:projections`, no grant, no
+    trigger, no 070 column change) and their pgTAP cases; 5.2a's loader reads one day only; 5.2b
+    drops its M-6 e2e; ADR-0016 records that resuming through a skipped block completes the earlier
+    day.
+  - (c) Refuse the edit (a past day's skip stays a skip): rejected here — a plan whose blocks were
+    all skipped could then be left only through off-plan study (decision 21) or, after more than
+    two days, "Học tiếp hôm nay".
+  - **Under (a) and (b) alike:** doing every item of a block that is already checked in `skipped`
+    never checks it in again automatically — the auto check-in only fills a block with no check-in
+    (§5.5, decision 15). The paused learner taps "Sửa" on the block; the paused view says so next
+    to skipped blocks ("Đã bỏ qua — bấm Sửa khi bạn làm xong").
+
+**Execution schedule.** A task starts when every task it depends on has been cherry-picked onto
+`feat/m5-dashboard`; the waves below apply that rule in lockstep. "Stack" = the task uses the
+single local Supabase stack: **DB** = it adds a migration and runs `pnpm db:reset` / `pnpm test:db`
+(at most one per wave); **e2e** = it runs its own Playwright specs. Every stack command runs under
+the stack lock (decision 4), so several e2e tasks may share a wave.
+
+| Task | Depends on | Stack | Shared files it owns in its wave |
+| --- | --- | --- | --- |
+| 5.0 plan, docs, hot-file split (controller) | M4 merged | — | plan, spec, `CLAUDE.md`, `docs/design/DESIGN_SYSTEM.md`, `docs/adr/README.md`, `lib/i18n/vi.ts`, `lib/i18n/strings/*`, `app/dev/components/{registry.tsx,types.ts,entries/*}`, `tools/guards/component-catalog.test.ts`, `docs/design/COMPONENTS.md` |
+| 5.0a simulation runtime, engine clean-up, M-5 / M-6 engine | 5.0 | — | `lib/domain/**` except `rules.ts` and `plan/*.generated.json`; `lib/content/plan-catalog.ts` (+ test), `lib/content/schemas/manifest.ts`, `package.json`, `CLAUDE.md`, `tools/guards/package-scripts.test.ts` |
+| 5.0b SQL: plans and check-ins | 5.0 | DB | `supabase/migrations/20260927000100_*`, `supabase/tests/database/{001,030,040,041,070,071,072}-*.sql`, `lib/supabase/database.types.ts`, `lib/domain/rules.ts`, `lib/domain/plan/*.generated.json`, `tools/db/sql-sync.test.ts`, `lib/events/plans.ts` (+ test), `docs/adr/{0007,0017}-*.md` |
+| 5.0c sandbox-audit as root, `sim` CI job | 5.0 | — | `.github/workflows/ci.yml`, `tools/content-verify/sandbox-audit.test.ts` |
+| 5.0d M2 carry-overs: auth, onboarding, forms | 5.0 | e2e | `features/{auth,onboarding}/**`, `features/settings/{actions.ts,components/**}` (+ tests), `components/patterns/{form-error-summary.tsx,app-shell/**}`, `app/(public)/**`, `app/dev/components/registry.tsx`, `lib/i18n/vi.ts` (its `auth`, `account`, `settings`, `forms` strings), `e2e/{auth,onboarding,settings,admin}.spec.ts`, `docs/adr/0003-*.md` |
+| 5.1c real HTTP 404 | 5.0 | e2e | `app/(app)/loading.tsx` (deleted), `app/(app)/{today,tracks,settings}/loading.tsx`, `app/(app)/t/**`, `app/(app)/not-found.tsx`, `features/roadmap/{index.ts,components/**}`, `e2e/{not-found,tracks,items}.spec.ts` |
+| 5.1a plan service: `ensureToday`, resume, rebuild, seen | 5.0a | — | `lib/plans/**`, `features/today/{actions.ts,index.ts}` (+ test), `features/settings/{actions.ts,reads.ts}` (+ test) |
+| 5.7a ops: `ops_metrics`, cron, health | 5.0b | DB | `supabase/migrations/20260927000200_*`, `supabase/tests/database/{001,080}-*.sql`, `lib/supabase/database.types.ts`, `lib/env.ts` (+ test), `.env.example`, `vercel.json`, `tools/guards/server-guards.test.ts` |
+| 5.8a launch runbook, time-zone sweep, `global-error` theme | 5.0 | DB (read only: the sweep) | `app/global-error.tsx` (+ test), `docs/ops/{production,staging}.md`, `package.json` |
+| 5.1b `/today` | 5.1a | e2e | `features/today/**` (not `actions.ts`), `app/(app)/today/**`, `components/patterns/stat-card.tsx`, `e2e/support/plans.ts`, `lib/i18n/vi.test.ts` |
+| 5.2a check-in and result write path | 5.1a, 5.0b | — | `lib/events/load-derived.ts`, `features/checkin/{actions,schema,index}.ts` (+ tests), `lib/domain/plan/checkin.ts` |
+| 5.5 `/progress` | 5.1a | e2e | `features/progress/**`, `app/(app)/progress/**`, `components/patterns/calendar-heatmap/**`, `app/dev/components/{registry.tsx,page.tsx}`, `lib/domain/stats/streak.test.ts` |
+| 5.7b backups and restore test | 5.7a | DB (the local dry run resets the stack) | `.github/workflows/{backup,restore-test}.yml`, `tools/backup/**`, `docs/ops/backups.md` |
+| 5.2b check-in UI | 5.1b, 5.2a | e2e | `features/checkin/{components/**,index.ts}`, `features/today/{components/**,queries.ts,view-model.ts}`, `app/(app)/today/page.tsx` |
+| 5.2c item results UI | 5.1b, 5.2a | e2e | `features/items/**`, `features/roadmap/{queries.ts,index.ts,components/item-view.tsx,components/item-body.tsx}` (+ tests), `app/(app)/t/[trackId]/items/**`, `app/dev/components/registry.tsx` (the changed item components' demos) |
+| 5.6 admin overview and content | 5.1b, 5.7a | DB, e2e | `supabase/migrations/20260927000300_*`, `supabase/tests/database/{001,041,051}-*.sql`, `lib/supabase/database.types.ts`, `features/admin/**`, `app/(admin)/**`, `next.config.ts`, `tools/guards/next-config.test.ts`, `components/patterns/focus-layout.tsx`, `e2e/admin.spec.ts` — never `registry.tsx` (5.2c owns it in wave 4) |
+| 5.3 `/review` | 5.2c | e2e | `features/review/**`, `app/(app)/review/**` |
+| 5.4 "Học thêm", off-plan study, "Bắt đầu lại", track progress | 5.2b, 5.2c | e2e | `lib/plans/extra.ts`, `lib/domain/plan/extra.ts`, `features/checkin/actions.ts`, `features/today/**`, `features/roadmap/**`, `features/settings/{actions.ts,index.ts}`, `app/(app)/t/[trackId]/page.tsx`, `e2e/tracks.spec.ts` |
+| 5.8b launch **[owner]** | M5 merged | — | runbook steps only (no branch) |
+
+Each task also owns, without listing them, the files it creates and **its own area's** block of the
+split hot files (decision 3): `lib/i18n/strings/<area>.ts` (+ its test), `app/dev/components/entries/<area>.tsx`,
+its section of `COMPONENTS.md` (plus the existing entries of components it changes), its own
+`e2e/<area>.spec.ts` and `e2e/support/<area>.ts`, and the ADR files it writes.
+
+| Wave | Parallel tasks (one worktree each) | Stack users | Controller at the end of the wave |
+| --- | --- | --- | --- |
+| 0 | 5.0 (controller, in the integration worktree) | — | `pnpm verify` |
+| 1 | 5.0a ‖ 5.0b ‖ 5.0c ‖ 5.0d ‖ 5.1c | DB: 5.0b; e2e: 5.0d, 5.1c | `pnpm verify`, `pnpm db:reset && pnpm test:db`, `pnpm test:sim`, `pnpm test:e2e` |
+| 2 | 5.1a ‖ 5.7a ‖ 5.8a | DB: 5.7a | `pnpm verify`, `pnpm db:reset && pnpm test:db` |
+| 3 | 5.1b ‖ 5.2a ‖ 5.5 ‖ 5.7b | DB: 5.7b (dry run); e2e: 5.1b, 5.5 | `pnpm verify`, `pnpm test:e2e` |
+| 4 | 5.2b ‖ 5.2c ‖ 5.6 | DB: 5.6; e2e: 5.2b, 5.2c, 5.6 | `pnpm verify`, `pnpm db:reset && pnpm test:db`, `pnpm test:e2e` |
+| 5 | 5.3 ‖ 5.4 | e2e: 5.3, 5.4 | `pnpm verify:full` |
+| 6 | — | controller | whole-branch review, one fix pass, re-review, `verify:full`, PR, CI, **STOP** |
+
+- **Same-wave tasks share no file,** except the split hot files, where each task edits only its own
+  area's file or section (decision 3). New files belong to the task that creates them. Waves are
+  capped at five agents.
+- **Integration worktree:** `/Users/ryan/ws/hoc-deu-int-m5` (branch `feat/m5-dashboard`). The
+  controller never switches the main checkout again after this section's commit; it cherry-picks
+  reviewed commits into the integration worktree, checks that the tree equals the reviewed tree
+  (`git rev-parse HEAD^{tree}`), and verifies.
+- **Task worktrees:** `/Users/ryan/ws/hoc-deu-worktrees/wt-<task>`, created from the integration
+  branch head with `git worktree add … -b feat/m5-task-<task>`, then `pnpm install
+  --frozen-lockfile` and `pnpm content:build`; removed with their branch after the cherry-pick.
+
+**Decisions taken while writing (each is a ledger ruling; the owner can overturn any):**
+
+1. **Execution:** subagent-driven, parallel waves in worktrees (owner answer 2026-09-26, ruling
+   M5-R1; the plan's table said native).
+2. **Task splits.** Part A 5.1 → **5.1a** (the server plan service), **5.1b** (the `/today` screen),
+   **5.1c** (the real HTTP 404, M3 follow-up); 5.2 → **5.2a** (write path), **5.2b** (check-in UI),
+   **5.2c** (item results UI); 5.7 → **5.7a** (`ops_metrics`, cron, health) and **5.7b** (backups);
+   5.8 → **5.8a** (runbook and code, on the branch) and **5.8b** (the launch, after the merge). New
+   **5.0a–d** own the housekeeping: the simulation runtime and engine clean-up (owner item b, M-8,
+   M-11, the engine half of M-5 / M-6), the M5 SQL for plans and check-ins, the root-safe sandbox
+   tests and the `sim` CI job (owner item a), and the M2 carry-overs.
+3. **Hot shared files are split before the waves** (5.0), so parallel UI tasks never edit one file:
+   `vi.ts` includes one `lib/i18n/strings/<area>.ts` per area as a named key (`today`, `checkIn`, `outcomes`,
+   `review`, `progress`, `extra`, `adminOverview`), each created empty; the `/dev/components`
+   catalog concatenates `app/dev/components/entries/<area>.tsx` arrays (the catalog guard reads
+   them too; 5.0 also moves the demos of components a later wave changes while another task owns
+   `registry.tsx` — UserQueue, UserRowActions, FocusLayout → `entries/admin.tsx`); `COMPONENTS.md`
+   gains one empty section per area. A task edits only its own area's file or section; the
+   controller checks it in the diff before the cherry-pick.
+4. **One stack lock for every stack command.** `pnpm db:reset`, `pnpm test:db` and `pnpm test:e2e`
+   run only while holding `/Users/ryan/ws/hoc-deu-worktrees/E2E_LOCK` (an atomic `mkdir`; retry
+   every 30 s; `rmdir` when done, also on failure). At most one task per wave adds a migration.
+   Before an e2e run, port 3100 must be free (`lsof -ti :3100` empty): Playwright's
+   `reuseExistingServer` would otherwise test another worktree's server. A task runs only its own
+   spec files (`pnpm test:e2e e2e/<area>.spec.ts`); the controller runs the whole suite after the
+   wave. The e2e specs of different tasks create their own users, so they never share rows.
+5. **The server plan service lives in `lib/plans`** (server-only), not in a feature: `/today`, the
+   settings actions, check-in, results and "Học thêm" all need it, and features may not import each
+   other's internals (layer rule). Its functions take a user id from a guarded caller and call no
+   guard themselves; they create their own session and secret-key clients, and **first check that
+   the session's user (`getSessionUser()`, cached per request) is that id**, throwing otherwise —
+   so a caller's mistake can never write a plan for another user with the secret key.
+6. **`ensureToday` runs in the `/today` render** (§2.3 "created on first visit by an idempotent
+   `ensurePlan`"). A render that writes is safe here because the write is idempotent (one plan per
+   date, `plan_exists`). A default Next.js prefetch stops at `/today`'s `loading.tsx` and never runs
+   `ensureToday`; a full prefetch (`prefetch={true}`) would build the plan but never marks it seen —
+   only the browser effect does (ADR-0039, 5.1b).
+7. **Bounded reads.** `/today` reads today's plan, the last seen plan before today (one row), the
+   plans that contain a `recap` block (`blocks @> '[{"kind":"recap"}]'`, about one a week) with
+   their block states, every `item_state` row (capped at 5000 per user, decision 11 of M4 — read in
+   pages of 1000, because PostgREST returns at most `max_rows` = 1000 rows per request), the
+   enrollments, the schedule versions and 400 days of `daily_activity` — never every plan.
+8. **Plan event ids are random** (`crypto.randomUUID()`): two concurrent builds for one date give
+   one `applied` and one `plan_exists` with the stored plan's id. A deterministic id would turn the
+   second into `duplicate`, which carries no plan id.
+9. **M4-R21 is fixed on both sides.** SQL: `plan.generated` raises `day_changed` before it can
+   return `plan_exists` when the event's `local_day` is not the database's (5.0b). TypeScript:
+   `ensureToday` reads the stored plan back and checks its date is today, and on `day_changed`
+   recomputes today with a fresh clock and tries again (at most 2 retries, then the error state).
+10. **M-4 (unreadable plans).** A built plan is validated with `planBlockSchema` and
+    `trackSnapshotSchema` before `storePlan` (never store what cannot be read back); a stored row
+    that does not parse is rebuilt (`mode 'rebuild'` at its version) while untouched, and otherwise
+    `/today` shows its error state ("unreadable"). `toEnrollment` treats a template with a
+    `minutes` or `maxMinutes` above 600 as invalid (the track default applies), so a crafted
+    `track.updated` can no longer produce an unstorable plan (5.0a).
+11. **Settings rebuild only baseline plans.** After a successful settings event (budget, variant,
+    add, pause, resume, remove; reset in 5.4) the action calls `rebuildTodayIfUntouched`: today's
+    plan, when it exists and is untouched, is rebuilt with `version + 1`. A plan built by "Học tiếp
+    hôm nay" is never rebuilt (its latest `plan.generated` payload says `mode: 'resume'`; rebuilding
+    it through `buildPlan` would advance the roadmap past the stale items, §5.8).
+12. **No mode badge in v1.0.** The release table puts the "AI-personalized" badge in v1.1; every
+    v1.0 plan is baseline, so the dashboard shows none (§2.4's "mode badge" arrives with 6.5).
+13. **Check-ins go only to the plan the dashboard shows:** today's plan; the paused (last seen)
+    plan while the gate is closed; the resumed plan on a resume day. The action re-derives it on
+    the server; a check-in for any other plan is refused as stale (revalidate + message), so old
+    days cannot be edited from a stale tab.
+14. **A result finds its block on the server:** the first block of the current plan (13) that lists
+    the item — `?block=` on an item page only chooses between several. The event then carries that
+    `plan_id` and `block_id` (it touches the plan, §2.3). An item in no block of the current plan is
+    off-plan study (5.4).
+15. **The auto check-in rule (§5.5)**: a block is complete when every item is handled — its
+    `lastResultOn` is on or after the plan date, or its status is `skipped`. When a result completes
+    a block that has no check-in, the server records `block.checked_in { status: 'done', minutes:
+    checkInMinutes(block), auto: true }` through `apply_system_event` in the same action. For the
+    `extra` block the auto check-in is sent again whenever items are added while its check-in is
+    still `auto` (its minutes follow its items; a learner's edit is kept). Which blocks to check in
+    is decided **inside each retry attempt, on the reloaded rows**: a block that meanwhile got a
+    learner's (non-auto) check-in — the sheet racing the auto check-in — is left alone.
+16. **Event ids digest the payload** (M2 RF-2 "digest keys" minor): `deriveEventId(requestId,
+    <type>:<ids>:<payload digest>)`. The same tap twice records one event; a different grade in the
+    same render is a second event (logged; SRS counts the day's first result, §5.7). The server's
+    own follow-up events use keys that repeat exactly when the same work repeats: the auto check-in
+    `auto:<planId>:<blockId>:<minutes>:<itemCount>` (a re-send after more items is a new event),
+    "Học thêm" `extra:<planId>:<trackId>` (a double tap adds once), the off-plan attachment
+    `offplan:<planId>:<itemId>`.
+17. **Recall and explain-aloud grades are problem results** — `solved` / `hint` / `failed` with
+    `mode: 'recall'` (the payload's mode enum has no explain-aloud; §4.4 table), labelled "Nhớ rõ /
+    Nhớ một phần / Không nhớ". Redo keeps "Tự giải được / Cần gợi ý / Chưa giải được" with `mode:
+    'redo'`; a new problem sends no mode.
+18. **Solution-reveal nudge** (DESIGN_SYSTEM §9): revealing the solution before grading preselects
+    "Cần gợi ý" (`hint`); the learner may still choose any grade. ADR-0036 records that results stay
+    self-reported and that v1 has no offline queue.
+19. **Cards are graded where they are listed.** Due cards on `/review` (5.3) and card-only blocks
+    on `/today` (5.4) use one inline `CardSession` (5.2c: FlashcardView + three grade buttons, keys
+    1 / 2 / 3); a card never needs its own page to be graded. The flashcard page keeps its own grade
+    buttons.
+20. **"Học thêm"** is per track, on `/today` (plan and resumed states, not the paused view). It
+    appends the track's next new items — at least one, then until their minutes reach 10 — to the
+    track's `extra` block (`<planDate>:<trackId>:extra:1`). When the track's new-item cap is
+    throttled to 0 it adds nothing and says why, with a link to `/review` (§5.5 throttle).
+21. **Off-plan study** (§5.9) attaches the item to the current plan's `extra` block — today's plan,
+    or the paused plan (which reopens the gate, the next plan coming tomorrow) — and the auto
+    check-in follows (15). With no plan yet today, `ensureToday` builds it first.
+22. **`plan.extra_added` in SQL** (5.0b): `p_changes` holds the new `extra` block; SQL checks that it
+    only appends items to that track's `extra` block (or creates it), bumps the plan's `version`,
+    and stores the event with the `plan_id` (so the plan is touched). The `apply_system_event`
+    `plan_id` rule widens to this type (M4 hand-off).
+23. **M-5 (A)** and **M-6 (a)** as recommended above, pending the owner. `RULES_VERSION` becomes 3
+    with M-6 (a) (the check-in projection changes); 5.0b bumps TypeScript and SQL together and runs
+    `pnpm sim:projections` (ruling M4-R11).
+24. **`/progress`:** the heatmap shows all minutes (history, removed tracks included); the weekly
+    summary shows the enrolled (active and paused) tracks (§5.9 "excluded from summaries"); `?week=`
+    (a Monday) moves between weeks.
+25. **Content-coverage red warning** (`/admin`, `/admin/content`, §0): per track and variant, the
+    horizon is the highest roadmap week among learners with a plan in the last 14 days, plus 2 (a
+    roadmap week is about seven study days); every week up to the horizon with a missing pattern
+    lesson or a placed problem without a note is red. The weeks come from an aggregate `SECURITY
+    DEFINER` reader over each learner's latest plan snapshot — counts only, no learner rows.
+26. **Backup and restore-test status reach `/admin` through the maintenance cron**, which reads the
+    public GitHub API once a day into `ops_metrics`; `/admin` reads the database only. A per-render
+    GitHub call would hit the 60-an-hour unauthenticated limit on Vercel's shared addresses.
+27. **Backups (v1.0 simple, §2.3):** a data-only dump (`public` minus `event_quota`, plus
+    `auth.users` and `auth.identities`) — the schema comes from the migrations of the dump's commit;
+    the restore test starts the local Supabase stack in CI, applies the migrations, loads the data
+    and checks the row counts against the manifest. Artifacts: daily kept 14 days, Sunday's kept
+    90 days (the 500 MB artifact allowance, spec §9.3). The `backup` environment is limited to
+    `main`, so the first runs happen right after the merge (5.8b), against staging.
+28. **"Full e2e against staging" (Part A 5.8) becomes the owner's staging smoke checklist plus the
+    controller's rolled-back DB smoke:** staging has no test login (OAuth only, §2.3, ADR-0003), so
+    Playwright cannot sign in there. The full e2e runs in CI against the local stack.
+29. **The `sim` check is made required right after the merge** (5.8b), not before: a required check
+    that `main` does not run yet would block every other open pull request.
+30. **Parked M4 items get owners:** the schedule-row lock order (M4-R22, 40P01 on a crafted PATCH)
+    → 5.0b (a statement-level `BEFORE UPDATE` trigger takes the per-user schedule lock before any
+    row lock); composite same-user foreign keys `(plan_id, user_id)` → 5.0b; the
+    fall-back-overlap settings save rejected until the day start → documented as accepted in
+    ADR-0017 by 5.0b; the `CLAUDE.md` "hash-checked" wording for `sim-inputs.generated.json` →
+    5.0a; replay vs live ordering under a concurrent reset / resume (M-7, with the ms-vs-µs sort) →
+    new Part A backlog row **L1** (the drift check, release "later"), which 5.0 adds — the owner may
+    pull its code fix into 5.0b instead.
+31. **Routed minors from earlier milestones are owned here** (the M5 hand-off did not list them):
+    M2's 5.1 / 5.2 / 5.8 items (onboarding orphan enrollment and digest keys, StatusWatcher hidden
+    tab, FormErrorSummary refocus and field navigation, settings stale form state and
+    `aria-invalid`, the OAuth callback's bare 500, `signOut` errors, the sign-in landmark names, the
+    e2e gaps) → 5.0d; M2's quota #500 → 5.0b; M2's 5.6 items (`p_expected_from`, the focus
+    singleton, the Toaster on FocusLayout pages) → 5.6; M1 #15 → 5.1b, #8 / #9 / #22 → 5.5, #17 →
+    5.8a; M3's real "unlocked" derived-deck count → 5.4; M4 decision 24 (`mockInterviewProblem` on
+    the mock-interview prompt page) → 5.2c.
+32. **No new dependencies.** Grapheme counting uses `Intl.Segmenter`; the backup workflow installs
+    `postgresql-client` and `age` with `apt` on the runner (CI tools named by the spec, not packages
+    of this repo).
+
+**Review focus for M5** — inputs the spec implies but no happy-path test exercises; each line's test
+is in the task named (the plan-level RF lines are marked where they land):
+
+1. **A tab left open across the day start** — `/today` rendered yesterday, a check-in or "Học tiếp"
+   sent after the day start, a result recorded at 01:30 with `day_starts_at` 04:00: the write
+   counts for the right day, never lands on yesterday's plan as today's, and a `day_changed` is
+   retried, not shown (5.0b, 5.1a, 5.2a — **[RF-1]**).
+2. **Two tabs and double taps on the resume path** — one tab checks in the paused plan while the
+   other taps "Học tiếp hôm nay", the same grade tapped twice, a check-in racing its auto check-in:
+   one plan per day, one event per tap, `completed` and the streak right (5.1a, 5.2a, 5.2b —
+   **[RF-2]**, **[RF-5]**).
+3. **Studying off the plan** — an item opened from a track page or `/review` while a plan exists,
+   while the gate is closed, before today's plan exists: it lands in the right `extra` block, the
+   minutes are never counted twice, the gate reopens (5.4, 5.2a).
+4. **Settings changed mid-day** — budget down after one result, a track added after a check-in, a
+   track paused while its block is the only one in the paused plan, reset after studying: untouched
+   plans are rebuilt, touched and resume plans never, and the gate follows M-5 (5.1a, 5.4).
+5. **Nothing yet, and a year of history** — a brand-new learner, every track starting next week, no
+   `daily_activity`, an empty review queue; and a learner with 5000 item rows and 365 plans: every
+   screen shows a meaningful state and `/today` reads bounded rows (5.1a, 5.1b, 5.3, 5.5 —
+   **[RF-4]**).
+
+**Changes to the spec, Part A and the plan header** (applied in task 5.0): the "Execution status"
+bullet gains "M5: step-level detail in Part B-M5 (subagent-driven, parallel waves — owner answer
+2026-09-26)"; the Execution methods table moves M5 from the "M1, M5 — native" row to its own row
+"Subagent-driven, parallel waves in git worktrees (owner answer 2026-09-26)"; under the M5 table a
+note "**Part B-M5 changes to this table**" (decisions 2, 12, 28, 29) and a backlog table **"Later
+(after v1.1)"** with row **L1** — the drift check, which also fixes replay vs live ordering under a
+concurrent reset / resume (M-7: set `occurred_at := clock_timestamp()` after the quota upsert and
+raise `day_changed` if the local day moved) and the ms-vs-µs replay sort (decision 30); Part A row
+**6.5** gains "widen `apply_system_event`'s `plan_id` rule to `plan.ai_*` (5.0b widens it to
+`plan.extra_added`)"; spec §2.4's `/today` row is annotated "no mode badge in v1.0 — the badge is
+v1.1 (release table; Part B-M5 decision 12)"; spec §5.2 gains the M-5 ruling and §4.1 / §5.5 the
+M-6 ruling once the owner has decided; spec §5.4 step 1 is annotated with decision 9, and §2.3's
+"`/admin` shows the latest backup and restore-test status, read from the public GitHub API" with
+decision 26 (the maintenance cron reads it once a day into `ops_metrics`);
+`docs/adr/README.md` links rows 0005, 0029, 0031, 0034, 0036, 0038 and 0039 with their final file
+names (`0005-public-repo-encrypted-backups.md`, `0029-backups.md`, `0031-event-compaction-deferred.md`,
+`0034-maintenance-cron.md`, `0036-no-offline-queue.md`, `0038-release-boundary.md`,
+`0039-seen-at-browser-effect.md`) — tasks only create the files.
+
+**Subagent contract for every task** (M4's contract, plus the UI rules):
+
+- Read `CLAUDE.md`, the platform-design and DESIGN_SYSTEM sections the task cites, and this task's
+  text. TDD (superpowers:test-driven-development): the listed tests fail first. `pnpm verify` green
+  before the commit; plus `pnpm test:db` for a DB task and the task's own e2e specs for an e2e task,
+  each only while holding the stack lock (decision 4). Never read `.env*` other than the committed
+  `.env.example`, and never `docs/credentials/`. No subagents.
+- Work only in the worktree and branch named in your brief; commit there; never push; never touch
+  the main checkout, the integration worktree or another task's worktree. Change no dependency
+  (`pnpm install --frozen-lockfile` only); if something is missing, stop and report `BLOCKED`.
+- Edit only the shared files your task owns (the schedule table) and your own area's block of the
+  split hot files (decision 3); anything else shared → ask the controller.
+- **Layers and guards:** pages compose features and patterns — no `className`, no `components/ui`
+  imports in `app/**` pages; every `features/*/queries.ts` loader, server action and route handler
+  starts with an **awaited** guard (`requireOnboarded` for learner screens and actions,
+  `requireAdmin`, `requireCronSecret`, `publicRoute()`), never inside `try`/`catch`; a feature's
+  `index.ts` that client components import re-exports no `server-only` module (a server action a
+  client component needs comes from the page as a prop); `lib/plans` and `lib/events` are
+  server-only and called only from guarded code.
+- **UI:** strings in your area's `lib/i18n/strings/<area>.ts` (Vietnamese, NFC; English learning
+  content in `lang="en"`); token utilities only (no hex, `px`, arbitrary values); variants with
+  `cva`; loading, empty and error states for every data-driven component, each shown in
+  `/dev/components` (your `entries/<area>.tsx`) and covered by a render test; a `COMPONENTS.md`
+  entry in your section for every new or changed component, in the same commit; 44 px targets,
+  visible focus, `prefers-reduced-motion`, never colour alone. Every new page's e2e spec runs axe in
+  light and dark, desktop and mobile (`expectNoAxeViolationsInBothThemes`, both Playwright
+  projects).
+- **Writes:** every event id comes from `deriveEventId(requestId, key)` with the page's per-render
+  `requestId` (decision 16); derived writes always pass `localDay` and run inside `withRetry`
+  (M4-R15); plans only through `lib/events/plans.ts`. e2e cleanup deletes users
+  (`deleteTestUser`), never plans (decision 35 of M4; 5.1b adds the guard test).
+- **`lib/domain` rules** (M4's): imports only `lib/domain` and `zod`; no clock reads, no
+  `Math.random()`; no input mutated; no `case '<item type>'` outside `lib/content` and
+  `features/items`.
+- Merged migrations are never edited; a DB task adds its own migration (timestamps below) and runs
+  `pnpm db:types` (CI diffs it).
+- Report: files changed, the commit(s), the verification output (test counts; e2e spec names and
+  counts), and anything you decided that this section does not say.
+
+### Task 5.0: Plan commit, docs and the hot-file split (controller)
+
+**Files:**
+
+- Modify: this plan (header, Execution methods, Part A M5 notes, backlog row L1, row 6.5), spec
+  (§2.4 `/today` row, §5.2 / §4.1 / §5.5 once M-5 / M-6 are decided, §5.4 step 1),
+  `docs/adr/README.md`, `lib/i18n/vi.ts`, `app/dev/components/registry.tsx`,
+  `tools/guards/component-catalog.test.ts`, `docs/design/COMPONENTS.md`, `CLAUDE.md` and
+  DESIGN_SYSTEM §11 (strings live in `lib/i18n/vi.ts` **and the area files it spreads,
+  `lib/i18n/strings/*`**)
+- Create: `lib/i18n/strings/{today,check-in,outcomes,review,progress,extra,admin-overview}.ts`,
+  `app/dev/components/types.ts`,
+  `app/dev/components/entries/{today,check-in,outcomes,review,progress,extra,admin}.tsx`
+
+- [ ] **Step 1:** this section is the branch's first commit (`docs: Part B-M5 — dashboard,
+  check-in, review, launch`), pushed, and **the controller stops for the owner's review**. The
+  owner's rulings (M-5, M-6 and anything else) are applied to this section in a `docs:` commit
+  before step 2.
+- [ ] **Step 2: integration worktree** — `git worktree add /Users/ryan/ws/hoc-deu-int-m5
+  feat/m5-dashboard`, `pnpm install --frozen-lockfile`, `pnpm content:build`; the main checkout
+  goes back to `main`. Ledger line.
+- [ ] **Step 3: docs** — the "Changes to the spec, Part A and the plan header" paragraph above;
+  one commit `docs: M5 plan changes to the spec, Part A and the ADR index`.
+- [ ] **Step 4: strings split.** Move `vi.today` into its own file and create the other areas
+  empty; `vi.ts` imports them (a TypeScript error on `vi.review.x` until 5.3 adds `x` is the point):
+
+```ts
+// lib/i18n/strings/today.ts
+/** `/today` (Part B-M5 decision 3): only 5.1a, 5.1b and 5.4 edit this file, in their waves. */
+export const today = {
+  comingSoonTitle: 'Kế hoạch hôm nay sắp có',
+  comingSoonBody: 'Các khối học, check-in và thẻ cần ôn của bạn sẽ hiện ở đây.',
+} as const
+```
+
+```ts
+// lib/i18n/strings/check-in.ts — likewise outcomes.ts (outcomes), review.ts (review),
+// progress.ts (progress), extra.ts (extra), admin-overview.ts (adminOverview)
+/** Check-in: the sheet, one-tap and the write path's messages (tasks 5.2a, 5.2b). */
+export const checkIn = {} as const
+```
+
+  In `vi.ts`: `import { today } from './strings/today'` (and the six others); the `today: { … }`
+  block becomes `today,`; `checkIn, outcomes, review, progress, extra, adminOverview,` are added
+  after `items`. `vi.test.ts`'s `USED` list is unchanged; each area's task adds its own
+  `lib/i18n/strings/<area>.test.ts`.
+- [ ] **Step 5: catalog split.** `app/dev/components/types.ts` exports the two types `registry.tsx`
+  declares today (`Demo`, `Entry`, now exported); each `entries/<area>.tsx` is
+
+```tsx
+import type { Entry } from '../types'
+
+/** `/dev/components` entries of features/today (task 5.1b, Part B-M5 decision 3). */
+export const TODAY_ENTRIES: Entry[] = []
+```
+
+  (`CHECK_IN_ENTRIES`, `OUTCOME_ENTRIES`, `REVIEW_ENTRIES`, `PROGRESS_ENTRIES`, `EXTRA_ENTRIES`,
+  `ADMIN_ENTRIES`), and `registry.tsx` ends `export const CATALOG: Entry[] = [ …existing…,
+  ...TODAY_ENTRIES, ...CHECK_IN_ENTRIES, ...OUTCOME_ENTRIES, ...REVIEW_ENTRIES, ...PROGRESS_ENTRIES,
+  ...EXTRA_ENTRIES, ...ADMIN_ENTRIES ]`. `component-catalog.test.ts`: `catalogFiles()` reads
+  `registry.tsx` **and** every `app/dev/components/entries/*.tsx` (`readdirSync`), and a new case
+  pins that each entries file is imported by `registry.tsx`. The demos of `UserQueue`,
+  `UserRowActions` and `FocusLayout` (changed by 5.6 in wave 4, when 5.2c owns `registry.tsx`) move
+  from `registry.tsx` into `entries/admin.tsx` unchanged, with the demo data they use.
+- [ ] **Step 6: `COMPONENTS.md` sections** — at the end of `## features`, one heading per area
+  with a one-line intro that tasks never edit (they insert their entries below it):
+  `### Today components (\`features/today/components\`)` "Task 5.1b adds these entries (Part B-M5
+  decision 3).", then the same for Check-in (`features/checkin/components`, 5.2b), Item outcomes
+  (`features/items/components/outcome`, 5.2c), Review (`features/review/components`, 5.3), Progress
+  (`features/progress/components`, 5.5), Extra study (`features/today` / `features/roadmap`, 5.4)
+  and Admin overview (`features/admin/components`, 5.6).
+- [ ] **Step 7:** `pnpm verify` (the catalog page renders the same entries; `e2e/components.spec.ts`
+  needs no change). **Commit** `chore: split the M5 hot files by area (strings, catalog, docs)`.
+
+### Task 5.0a: Simulation runtime, engine clean-up, and the engine half of M-5 / M-6 — **owner item (b)**
+
+**Source:** owner item (b) (2026-09-26); M4 final review M-8 (test runtime), M-11 (duplication and
+export surface), M-4's optional clamp, M-5 and M-6 (owner decisions, recommendations A and a);
+the 4.6 "new queue rebuilt per selection" and 4.8 "simulate drops ignored" minors; ruling M4-R22's
+`CLAUDE.md` nit. **Spec:** §5.2, §5.5, §5.7, §5.10, §7.8. **Files:**
+
+- Create: `lib/domain/plan/track.ts` (the per-track internals `resume.ts` uses),
+  `lib/domain/compare.ts` (+ test)
+- Modify: `lib/domain/projection/project.ts` (+ test), `lib/domain/plan/{simulate,buildPlan,resume,
+  gate,history,queues,roadmap,practice}.ts` (+ tests), `lib/domain/plan/__tests__/simulation.{dsa,
+  english}.test.ts`, `lib/domain/{catalog,state,events}.ts`, `lib/domain/stats/weakTopics.ts`,
+  `lib/content/plan-catalog.ts` (+ test), `lib/content/schemas/manifest.ts`, `package.json`,
+  `tools/guards/package-scripts.test.ts`, `CLAUDE.md`, `docs/adr/0016-gate-on-last-seen-plan.md`
+
+**Interfaces:**
+
+```ts
+// lib/domain/compare.ts
+/** Code-unit order of two IDs (deterministic tie-breaks, Part B-M4 decision 29). */
+export function compareIds(a: string, b: string): number
+/** `record[key]` for an own key only, so an ID such as `constructor` finds nothing. */
+export function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
+
+// lib/domain/state.ts (added)
+export function isDoneOrPartial(status: CheckInStatus): boolean
+
+// lib/domain/catalog.ts (added) — the one throttle-rule schema (M-11); the manifest schema,
+// plan-catalog.ts and the track.updated payload import it.
+export const throttleRuleSchema: z.ZodType<ThrottleRule>
+export const throttleRulesSchema: z.ZodType<readonly ThrottleRule[]>
+
+// lib/domain/plan/gate.ts (M-5 A) — `activeTrackIds` omitted = every track counts (M4 behaviour)
+export function gateStatus(
+  plans: readonly StoredPlan[],
+  blocks: Readonly<Record<string, BlockState>>,
+  today: LocalDay,
+  activeTrackIds?: ReadonlySet<string>,
+): GateStatus
+export function unfinishedBlocks(
+  plan: StoredPlan,
+  blocks: Readonly<Record<string, BlockState>>,
+  activeTrackIds?: ReadonlySet<string>,
+): PlanBlock[]
+
+// lib/domain/projection/project.ts — unchanged public API (`project`, `projectEvent`), plus:
+/** The rows one event changes, computed from `state` without copying it (M-8). */
+export type RowChanges = {
+  readonly items: readonly ItemState[]
+  readonly removedItems: readonly string[]
+  readonly blocks: readonly BlockState[]
+  readonly days: readonly DailyActivity[]
+}
+export function projectChanges(
+  state: DerivedState,
+  event: DomainEvent,
+  catalog: PlanCatalog,
+): { readonly changes: RowChanges; readonly ignored: IgnoreReason | null }
+```
+
+`projectEvent` becomes `projectChanges` + an immutable apply; `simulate` keeps one mutable working
+copy and applies `projectChanges` to it in place (the `setItem` O(rows) copy was 58 % of the
+English simulation's time). One rule, two appliers: a property test runs 200 random event
+sequences through both and compares the final states. `simulate` throws on an `ignored` event
+(a simulation that feeds the engine events it ignores is broken, 4.8 minor). `buildPlan` builds a
+track's new-item queue once and slices it per selection (4.6 minor). `buildPlan.ts` keeps its
+public exports (`buildPlan`, `plannedMinutes`, `largestItemMinutes`, `checkInMinutes`, the types);
+the per-track internals move to `plan/track.ts`, which only `buildPlan.ts` and `resume.ts` import
+(an ESLint-free check: a `tools/guards/domain-purity.test.ts`-style case is **not** added — a
+comment on `track.ts` says who may import it).
+
+**M-6 (a) in the projection** — `projectCheckIn`: when the block's row exists, its status is
+`skipped`, the new status is `done` or `partial`, and `event.localDay > row.checkedInOn`, the block's
+`checkedInOn` becomes `event.localDay` and **both** days are recomputed (the old day loses the
+block; the new day gains it). Every other edit keeps `checkedInOn` (decision 6 of M4). This is the
+shared fixture 5.0b's pgTAP runs too:
+
+| Step | Event (local day) | Block b1 (dsa) after | Day D1 after | Day D2 after |
+| --- | --- | --- | --- | --- |
+| 1 | b1 `skipped`, 0 min (D1) | skipped, 0, on D1 | `{}`, not completed | — |
+| 2 | b1 `done`, 20 min (D2) | done, 20, **on D2** | `{}`, not completed | `{ dsa: 20 }`, completed |
+| 3 | b1 `partial`, 15 min (D3) | partial, 15, on D2 (not from skipped) | unchanged | `{ dsa: 15 }`, completed |
+
+plus: `done` on D1 then `skipped` on D2 → stays on D1 (D1 recomputed: not completed); `skipped` on
+D1 then `done` on D1 → stays on D1; `skipped` on D1 then `skipped` with new minutes on D2 → stays on
+D1.
+
+- [ ] **Step 1: Measure** — on the base commit, `time pnpm vitest run
+  lib/domain/plan/__tests__/simulation` (both files, 200 seeds) and `time pnpm test`; write both
+  into the report.
+- [ ] **Step 2: Failing tests:**
+  - `compare.test.ts`: `compareIds` order and `own` on `constructor` / `__proto__`;
+  - `project.test.ts`: the M-6 table above (each row) and the four extra cases; `projectChanges`
+    returns only the changed rows (an `item.result` → one item and one day); the property test
+    (both appliers agree over 200 seeded sequences from `mulberry32`);
+  - `gate.test.ts` (M-5 A): a seen yesterday plan with only `dsa` blocks, none checked in,
+    `activeTrackIds = {english}` → open, `resumedToday: false`; `dsa` + `english` blocks, none done
+    → closed; a `done` block of the removed `dsa` → open; `unfinishedBlocks` with the set drops the
+    `dsa` blocks; without the set every M4 case is unchanged; after the M-6 move (block `skipped`
+    on D1, `done` on D2, `checkedInOn` D2) `gateStatus(…, D2)` → open, `resumedToday: true`;
+  - `simulate.test.ts`: an event the engine ignores (an unknown item) throws, naming the reason;
+  - `plan-catalog.test.ts`: a template whose practice block has `minutes: 601` (or a review block
+    `maxMinutes: 601`) → the track default template (M-4); the three throttle-rule copies are one
+    schema (import identity);
+  - simulation files: `const FULL = process.env.SIM_FULL === '1'`; realistic seeds `FULL ? 200 :
+    20`; the threshold `describe` runs only when `FULL`; the reduced run asserts, for 20 realistic
+    seeds and the ideal learner: no ignored events (they throw), the §5.4 invariant on every day
+    (planned ≤ budget, or ≤ budget + the largest item), determinism (seed 0 twice → equal runs),
+    and the ideal learner's own thresholds (one seed, deterministic);
+  - `package-scripts.test.ts`: `test:sim` exists and is `SIM_FULL=1 vitest run
+    lib/domain/plan/__tests__/simulation`; `verify:full` runs `verify`, `test:sim`, `test:db`,
+    `test:e2e`.
+- [ ] **Step 3:** run — fail. **Step 4:** implement: `compare.ts`, `isDoneOrPartial`, the throttle
+  schema, `track.ts`, `projectChanges`, the simulation batch fold, the queue slice, the gate
+  parameter, the M-6 rule, the template bound in `toEnrollment`; replace the five `compare` /
+  `byId` copies, the two `own` copies, the two `doneOrPartial` copies and the two `isActive`
+  copies. `package.json`: `"test:sim": "SIM_FULL=1 vitest run lib/domain/plan/__tests__/simulation"`,
+  `"verify:full": "pnpm verify && pnpm test:sim && pnpm test:db && pnpm test:e2e"`.
+- [ ] **Step 5: Same results.** `pnpm sim:projections` → `git diff --exit-code
+  lib/domain/plan/*.generated.json` (the engine's numbers do not move); `pnpm test:sim` green;
+  measure again (step 1) — the report states both times. Target: the full simulation at most half
+  of step 1's time; the reduced simulation adds at most 5 s to `pnpm test`. A miss is reported with
+  a profile, not hidden.
+- [ ] **Step 6: Docs.** `CLAUDE.md`: `pnpm test:sim` in Commands ("the full §5.10 simulation, 200
+  seeds; CI job `sim`; `pnpm test` runs 20"), and the generated-code note says
+  `sim-inputs.generated.json` is compared by value (ruling M4-R22); ADR-0016 gains two paragraphs:
+  the M-5 rule (blocks of tracks no longer active never hold the gate closed) and the M-6 rule (a
+  skipped block resumed on a later day counts for that day, so resuming through it is
+  `resumedToday`).
+- [ ] **Step 7:** `pnpm verify`. **Commits** `perf(domain): simulation folds rows in place;
+  test:sim runs the full simulation`, `refactor(domain): one comparator, one throttle schema,
+  per-track internals in plan/track.ts`, `feat(domain): paused or removed tracks never hold the
+  gate closed (M-5)`, `feat(domain): a skipped block resumed on a later day counts for that day
+  (M-6)`.
+
+**If the owner picks M-5 (B)** drop the gate parameter and its tests; **M-6 (b)** drop the
+projection rule and its tests, and ADR-0016 records the spec-literal behaviour instead.
+
+### Task 5.0b: SQL for plans and check-ins
+
+**Source:** ruling M4-R21 (`plan_exists` before `day_changed`), the M4 hand-off (widen the
+`plan_id` rule for `plan.extra_added`, task 5.4), M-6 (a), parked items (M4-R22 lock order,
+composite same-user keys, the fall-back-overlap note), M2 minor "quota #500". **Spec:** §2.3,
+§4.3–§4.5, §5.5, §5.9; decisions 9, 22, 23, 30. **Files:**
+
+- Create: `supabase/migrations/20260927000100_m5_plans_and_checkins.sql`,
+  `supabase/tests/database/073-m5-plans-and-checkins.test.sql`
+- Modify: `supabase/tests/database/{001,030,040,041,070,071,072}-*.sql` — 040 / 070 / 071: the
+  running `rules_version()` is 3; **041** (lines ~171–177): its `not_implemented` case uses
+  `plan.ai_proposed` instead of `plan.extra_added`; **072** (~1055–1072): the enumerated list of
+  system types that raise `not_implemented` loses `plan.extra_added` (19 → 18) and the query's
+  `not in` list gains it; **070** (~102–126): the exact per-column UPDATE-grant list gains
+  `('plan_block_state', 'checked_in_on')`; **071** (~528): its owner-side fixture `update … set
+  checked_in_on = checked_in_on - 1` must still work (the new trigger acts only on `authenticated`
+  writes, below); **030**: the quota #500 case; `lib/supabase/database.types.ts`,
+  `lib/domain/rules.ts`, `lib/domain/plan/*.generated.json` (`pnpm sim:projections`),
+  `tools/db/sql-sync.test.ts`, `lib/events/plans.ts` (+ test), `docs/adr/0007-*.md`,
+  `docs/adr/0017-*.md`
+
+**The migration:**
+
+1. **`rules_version()` returns 3** (M-6 a), with `RULES_VERSION = 3` in `lib/domain/rules.ts` in
+   the same commit, and `pnpm sim:projections` (ruling M4-R11).
+2. **`apply_system_event`** (`create or replace`, same signature and grants), from the 000300 body:
+   - **M4-R21:** for `plan.generated`, right after the duplicate check (step 5) and before the
+     rebuild check or any write: when `p_event.local_day` is present and differs from
+     `public.user_local_day(p_user_id, now())` → `day_changed`. `plan_exists` can then only return
+     a plan of the database's own local day.
+   - **`plan.extra_added`** is implemented. `p_event`: `plan_id` and `track_id` required; payload
+     `{ itemIds }` — 1 to 20 distinct strings of 1–128 characters. `p_changes` = `[{ "table":
+     "day_plan_block", "row": <block> }]`, `p_expected` = `{ "day_plans:<plan_date>": n }`. The plan
+     must be the user's (else `invalid_event`); lock order as `block.checked_in` (the plan lock from
+     the plan's date, then the profile row, then the duplicate check); the plan's `version` must be
+     `n` (else `version_conflict`). The block must have `id` = `<plan_date>:<track_id>:extra:1`,
+     `kind` `extra`, `trackId` = `track_id`, a numeric `estMinutes`, and `items` whose `itemId`s are
+     distinct and equal the existing extra block's items (same objects, same order) followed by
+     exactly `payload.itemIds` in order (else `invalid_event`). The expected id and the `p_expected`
+     key build the date with `to_char(v_plan_date, 'YYYY-MM-DD')`, never `::text` (DateStyle —
+     ruling M4-R12). The block replaces the existing
+     extra block in place, or is appended to `blocks`; `version` becomes `n + 1`; the event is
+     stored with the `plan_id`; the result is `{ outcome: 'applied', plan_id, versions: {
+     "day_plans:<date>": n + 1 } }`. The `day_plans` size constraint still bounds the plan.
+   - The `plan_id` rule (step 2 of the function) allows `plan_id` on `block.checked_in` and
+     `plan.extra_added`; `plan.ai_*` stays `not_implemented` (owner 6.5).
+3. **M-6 (a)** — `apply_derived_changes` (`create or replace`, same signature): the
+   `plan_block_state` update sets `checked_in_on = case when b.status = 'skipped' and r.status in
+   ('done', 'partial') and p_local_day > b.checked_in_on then p_local_day else b.checked_in_on end`
+   (SQL applies the rule itself; the row's own `checked_in_on` is ignored as before). `grant update
+   (checked_in_on) on public.plan_block_state to authenticated` (the learner path runs as the
+   learner), bounded by a new `BEFORE UPDATE OF checked_in_on` trigger
+   `plan_block_state_check_in_day` that acts only when `current_user = 'authenticated'` and
+   `new.checked_in_on is distinct from old.checked_in_on` (the R14 pattern of M2: `apply_derived_changes`
+   always names the column in its SET list, so an unchanged value must pass; owner and secret-key
+   writes, such as 071's fixture, are not the learner's): such a change is allowed only from
+   `skipped` to `done` / `partial`, only forward, and only to `public.user_local_day(new.user_id,
+   now())`; anything else → `invalid_event`. ADR-0007's decision-6 paragraph gains the exception.
+4. **Quota #500** (M2 2.5b minor) — `events_enforce_quota` (`create or replace`): when the counter
+   passes 500, raise `quota_exceeded` only if no event with `new.id` exists yet; otherwise return
+   `new`, so the insert fails on `events_pkey` and `apply_event` answers `duplicate` (a same-user
+   double submit of event 500 is a duplicate, not a quota error). The counter increment rolls back
+   with the failed insert.
+5. **Composite same-user keys** (parked M4 item): `day_plans` gains `unique (id, user_id)`;
+   `plan_block_state (plan_id, user_id)` and `events (plan_id, user_id)` reference `day_plans (id,
+   user_id)` `on delete cascade` (`events` rows with a null `plan_id` are not checked — `MATCH
+   SIMPLE`). The single-column keys stay. Existing rows satisfy them (the insert triggers already
+   check the owner); 5.8b's runbook still runs the precheck before the production push.
+6. **Schedule lock order** (ruling M4-R22): a statement-level `BEFORE UPDATE` trigger on
+   `schedule_versions` takes `pg_advisory_xact_lock(hashtextextended('schedule_versions:' ||
+   auth.uid()::text, 0))` when `auth.uid()` is not null — the same key the row-level guard takes,
+   now before any row lock, so a learner's crafted update and their settings save queue instead of
+   deadlocking. The secret-key role (no `auth.uid()`) is unchanged.
+
+**TypeScript** — `lib/events/plans.ts` gains:
+
+```ts
+/** plan.extra_added through apply_system_event (5.4): `block` is the track's whole extra block
+ *  after the addition (planBlockSchema-validated here first); `itemIds` the items it appends. */
+export async function addExtraItems(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  input: {
+    readonly eventId: string
+    readonly planId: string
+    readonly planDate: LocalDay
+    readonly trackId: string
+    readonly block: PlanBlock
+    readonly itemIds: readonly string[]
+    /** The plan's current version. */
+    readonly expectedVersion: number
+    /** The day the caller computed the addition for (decision 10 of M4). */
+    readonly localDay: LocalDay
+  },
+): Promise<{ readonly outcome: 'applied' | 'duplicate'; readonly version: number | null }>
+```
+
+- [ ] **Step 1: Failing pgTAP** `073-m5-plans-and-checkins.test.sql`:
+  1. M4-R21: a baseline plan exists for D; a second `plan.generated` for D whose `local_day` is not
+     the database's → `day_changed` (not `plan_exists`); with the right `local_day` → `plan_exists`;
+  2. `plan.extra_added`: a new extra block → `applied`, version n + 1, the block appended, one
+     event with the `plan_id`; a second addition appending one more item → replaced in place;
+     re-sending the first item → `invalid_event`; a block whose earlier items differ → `invalid_event`;
+     a wrong block id or kind, 21 item IDs, a repeated ID → `invalid_event`; a stale expected
+     version → `version_conflict`; another user's plan → `invalid_event`; afterwards a `rebuild` of
+     the plan → `plan_in_use` (the extra event touches it); the same event id again → `duplicate`;
+  3. M-6 (a), the fixture table of 5.0a through `apply_event` as the learner (each row's
+     `plan_block_state` and `daily_activity`); a direct learner `update … set checked_in_on` that
+     breaks the rule (backwards, not from `skipped`, not today) → `invalid_event`; an `apply_event`
+     edit that keeps the day (a `done` block edited to `partial`) passes the trigger; the same
+     backwards update run as the owner (as 071 does) is not blocked;
+  4. quota #500: with the counter at 500 and an event `X` stored, a direct insert of `X` again →
+     `unique_violation` (23505), not `quota_exceeded`; a new id at 500 → `quota_exceeded` (as
+     before);
+  5. composite keys: a `plan_block_state` row or an event naming another user's plan (as the
+     secret-key role, bypassing the triggers) → `foreign_key_violation`;
+  6. the statement-level lock trigger exists on `schedule_versions` and fires `before update for
+     each statement`; `rules_version()` = 3 (070's assertion moves to 3).
+- [ ] **Step 2: Failing Vitest** — `plans.test.ts`: `addExtraItems` sends `p_event` with
+  `plan_id`, `track_id`, payload `{ itemIds }`, `local_day`, the block change and `p_expected`;
+  maps `applied` / `duplicate` and RPC errors; refuses a block that fails `planBlockSchema` and an
+  `itemIds` list outside 1–20 before any call (the SQL bound; the Zod payload schema stays as it is,
+  because `events.test.ts` uses this type as its 2048-byte probe — ruling M5-R2);
+  `sql-sync.test.ts` still pins `RULES_VERSION` to the last `rules_version()`.
+- [ ] **Step 3:** with the stack lock, `pnpm db:reset && pnpm test:db` — 073 fails. **Step 4:**
+  write the migration and `addExtraItems`; `RULES_VERSION = 3`; `pnpm sim:projections`; `pnpm
+  db:types`. **Step 5:** `pnpm test:db`, `pnpm verify` green; ADR-0007 (M-6 exception, the loader
+  note that a moved check-in reads both days) and ADR-0017 (the statement-level lock; the accepted
+  fall-back-overlap case: a settings save during the repeated hour of a fall-back day start can be
+  rejected until that day start, and succeeds after it — self-recovering, no fix).
+- [ ] **Step 6: Commits** `feat(db): day_changed before plan_exists, plan.extra_added`,
+  `feat(db): a skipped check-in resumed on a later day counts for that day (M-6, rules 3)`,
+  `fix(db): a duplicate at the quota limit is a duplicate`, `feat(db): same-user plan keys and the
+  schedule lock order`.
+
+**If the owner picks M-6 (b)**: items 1 and 3 are dropped (`RULES_VERSION` stays 2, no
+`sim:projections`), and so are the matching test cases.
+
+### Task 5.0c: Sandbox-audit tests as root, and the `sim` CI job — **owner item (a)**
+
+**Source:** owner item (a) (2026-09-26): `tools/content-verify/sandbox-audit.test.ts` (10 cases)
+fails as root, because root bypasses the permission checks the cases rely on; the Routine's cloud
+environment may run as root, which would break `pnpm verify` before bot content PRs (v1.1). Owner
+item (b): the full simulation is a required CI job (`sim`). **Files:**
+
+- Create: `tools/content-verify/test-support/permissions.ts` (+ test)
+- Modify: `tools/content-verify/sandbox-audit.test.ts`, any other test under `tools/` whose
+  assertion needs a permission denial (find them: `rg -n "chmod|EACCES|0o[0-7]{3}" tools --glob
+  '*.test.ts'`), `.github/workflows/ci.yml`
+
+```ts
+// tools/content-verify/test-support/permissions.ts
+/** Root ignores file modes, so a test that expects a permission denial cannot run as root. */
+export function runsAsRoot(getuid: (() => number) | undefined = process.getuid): boolean
+/** Printed once per skipped file: why, and where the cases still run. */
+export const ROOT_SKIP_MESSAGE =
+  'skipped: running as root bypasses the file-mode checks these cases rely on — they run in CI as a normal user (verify job) and in the content-verify job'
+```
+
+- [ ] **Step 1: Reproduce** the failure as root in a throwaway Linux container, so nothing touches
+  the worktree's `node_modules`: `docker run --rm -v "$PWD":/src:ro node:22 bash -c 'cp -r /src /w
+  && cd /w && rm -rf node_modules && corepack enable && pnpm install --frozen-lockfile && pnpm
+  content:build && pnpm vitest run tools'` — note the failing cases (expected: the 10 sandbox-audit
+  cases; list any others).
+- [ ] **Step 2: Failing test** `permissions.test.ts`: `runsAsRoot(() => 0)` → true, `() => 1000` →
+  false, `undefined` (Windows) → false.
+- [ ] **Step 3:** implement; `sandbox-audit.test.ts` (and every other file step 1 found) runs its
+  permission cases under `describe.skipIf(runsAsRoot())` and, when root, one `it` whose name is
+  `ROOT_SKIP_MESSAGE` (so the skip is visible in the report, never silent). Re-run step 1's
+  container command: all green, the skip message listed.
+- [ ] **Step 4: CI** (`ci.yml`): a new job `sim` (checkout, pnpm, node, `pnpm install
+  --frozen-lockfile`, `pnpm test:sim`, `timeout-minutes: 15`); in the `verify` job, after `pnpm
+  verify`, a step "Unit tests as root (owner item a)": `sudo env "PATH=$PATH" "$(command -v pnpm)"
+  exec vitest run` (the whole unit suite, the reduced simulation included). The `sim` job becomes a
+  required check right after the merge (decision 29; 5.8b).
+- [ ] **Step 5:** `pnpm verify`. **Commits** `test(content-verify): permission cases skip with a
+  message as root`, `ci: the full simulation job and the unit suite as root`. The PR's CI run is
+  the job's first run — the controller checks both logs.
+
+### Task 5.0d: M2 carry-overs — auth, onboarding, forms
+
+**Source:** the M2 final review's triage routed these minors to tasks 5.1, 5.2 and 5.8 (M2 ledger;
+the M5 hand-off did not list them — decision 31). Each item's first step is to confirm it is still
+open (M3 and M4 did not touch these files, but check). **Spec:** §2.2, §2.3, §2.5, DESIGN_SYSTEM
+§9–§10. **Files:**
+
+- Modify: `features/onboarding/{actions.ts,components/onboarding-wizard.tsx}` (+ tests),
+  `features/auth/{actions.ts,components/{status-watcher,sign-in-panel}.tsx}` (+ tests),
+  `components/patterns/app-shell/*` (the account menu's sign-out, + test),
+  `components/patterns/form-error-summary.tsx` (+ test), `features/settings/{actions.ts,
+  components/{add-track-form,track-settings,track-budget-fields}.tsx}` (+ tests),
+  `app/(public)/auth/callback/route.ts` (+ test), `app/dev/components/registry.tsx` (demos),
+  `lib/i18n/vi.ts` (+ `vi.test.ts`; new keys in the existing `auth`, `account`, `settings` and
+  `forms` namespaces), `docs/design/COMPONENTS.md` (the changed entries), `docs/adr/0003-*.md`,
+  `e2e/{auth,onboarding,settings,admin}.spec.ts`
+
+- [ ] **Onboarding (2.10):** (1) digest keys — each onboarding event id derives from
+  `requestId` and `type:trackId:<digest of the chosen fields>`, so an edited resubmit after a
+  partial failure records the new values instead of replaying the first ones (RF-2); (2) orphan
+  enrollments — before `onboarding.completed`, the action removes (`track.removed`) every active
+  enrollment the final selection does not contain, so a partial failure, a reload and a different
+  selection leave no extra track. Failing tests first (action unit tests: the second submit's
+  `track.enrolled` payload has the new budget; the unselected track gets `track.removed`).
+- [ ] **StatusWatcher (2.7b):** the 30 s interval refreshes only while `document.visibilityState
+  === 'visible'`; the catalog demo does not run a live interval (a `paused` demo prop or a mocked
+  router). Test with fake timers and a hidden document.
+- [ ] **FormErrorSummary (2.10):** a repeated identical server error re-focuses and re-announces
+  the summary (a submission counter in the key); a new `onNavigate(fieldId)` prop lets a form move
+  to a field on another step or section — onboarding and settings use it. Render tests; catalog
+  demo; `COMPONENTS.md` entry updated.
+- [ ] **Settings forms (2.11):** the add-track form clears its errors and pending state when the
+  candidate track changes; a status change's failure alert survives the row re-rendering (it lives
+  in the list, keyed by track); the variant radios carry `aria-invalid` with a field error. Tests.
+  (The M2 "STALE set omits `schedule_in_force` / `schedule_backdated` / `too_many_pending_schedules`"
+  item is already fixed in `features/settings/actions.ts` — confirm, and add a unit test per code
+  if one is missing.)
+- [ ] **OAuth callback (2.7a):** a failure after the code exchange (bootstrap, profile read) signs
+  out locally and redirects to `signInErrorPath(next)` instead of a bare 500; ADR-0003 gains a line.
+  Route-handler unit test with the failing read.
+- [ ] **Sign-out (2.7a, 2.7b, 2.11b):** `signOut` checks `{ error }`: on a failure it signs out
+  locally (`scope: 'local'`) so the cookies go, then redirects as before; the account menu awaits
+  the action and shows a toast if it rejects; `deleteAccount` handles its local sign-out error the
+  same way. The global scope stays the default (owner decision at M2 left open; recorded here as a
+  ruling the owner can overturn). Tests.
+- [ ] **Landmarks (2.7a):** the sign-in panel's section and its test-login form get distinct
+  accessible names.
+- [ ] **e2e gaps (2.7a, 2.8):** after sign-in the app reads the fresh profile (assert no request
+  to `/pending` for an active user); a hidden `next=//evil.test` injected into the test-login form
+  lands on the home path; a bootstrapped, not-yet-onboarded admin reaches `/onboarding` and
+  `/admin/users`.
+- [ ] `pnpm verify`; with the stack lock `pnpm test:e2e e2e/{auth,onboarding,settings,admin}.spec.ts`.
+  **Commits** one per bullet group (`fix(onboarding): …`, `fix(auth): …`, `fix(forms): …`,
+  `test(e2e): …`).
+
+### Task 5.1c: The real HTTP 404 for unknown tracks and items
+
+**Source:** M3 follow-up (task 3.4b review, Part B-M4 decision 28): `/t/<unknown>` and an unknown or
+hidden item render the Vietnamese 404 with HTTP **200** and `noindex`, because the `(app)` group's
+`loading.tsx` wraps every page in a Suspense boundary, so the response has started streaming when
+`notFound()` runs. **Spec:** §2.4, §7.5. **Files:**
+
+- Delete: `app/(app)/loading.tsx`
+- Create: `app/(app)/{today,tracks,settings}/loading.tsx` (the group's skeleton, per segment)
+- Create: `features/roadmap/components/item-body.tsx` (+ test)
+- Modify: `app/(app)/t/[trackId]/page.tsx`, `app/(app)/t/[trackId]/items/[itemId]/page.tsx`,
+  `app/(app)/not-found.tsx` (its comment), `features/roadmap/{index.ts,components/item-view.tsx}`
+  (+ tests), `e2e/{not-found,tracks,items}.spec.ts`
+
+**The rule** (recorded in the not-found comment): a route that can answer 404 has **no**
+`loading.tsx` on its segment or above it inside `(app)`; its page validates the params first —
+the existing loaders (`getTrackPage`, `getItemPage`) already return null for an unknown, hidden
+(draft for a learner) or mismatched ID — and calls `notFound()` before anything suspends. Slow
+parts render inside a `<Suspense fallback={<LoadingState …/>}>` in a feature component: the item
+page's MDX body and code (`renderItemPage`) move into a new async server component `ItemBody`
+(`features/roadmap/components/item-body.tsx`); `ItemView` keeps its props (`page: ReactNode`) and
+wraps `page` in the Suspense boundary; the route passes `<ItemBody … />` as `page`. (Its catalog
+demo in `registry.tsx`, which 5.0d owns in this wave, needs no change.) Routes that never 404 (`/today`, `/tracks`, `/settings`, and later `/review`,
+`/progress`) keep a `loading.tsx` on their own segment.
+
+- [ ] **Step 1: Failing e2e** (`not-found.spec.ts`, signed-in learner): `/t/khong-co` → status 404
+  and the Vietnamese 404 heading; `/t/dsa/items/dsa:lc-9999` → 404; `/t/dsa/items/<an
+  english item>` (track mismatch) → 404; a draft item for a learner → 404 (the fixture the tracks
+  spec already uses); an existing track and item → 200. `tracks.spec.ts` / `items.spec.ts`: remove
+  any assertion of the old 200 + `noindex` behaviour.
+- [ ] **Step 2:** with the stack lock, run them — the 404 cases fail (200). **Step 3:** implement
+  the rule; unit tests for the Suspense split (`ItemView` renders the fallback, then the body).
+  **Step 4:** the specs pass on both projects; `/today`, `/tracks` and `/settings` still show their
+  skeletons (`loading.tsx` present; a render test per file); axe on the 404 in both themes.
+- [ ] **Step 5:** `pnpm verify`. **Commit** `fix(app): unknown tracks and items answer HTTP 404`.
+
+### Task 5.1a: The plan service — `ensureToday`, "Học tiếp hôm nay", rebuilds, seen
+
+**Source:** Part A 5.1; M4 hand-off: `resumedToday` (decision 32), settings rebuilds while untouched,
+`markPlanSeen` + the M4-R21 date check, M-4, M-5; decisions 5–11. **Spec:** §2.3, §5.1–§5.4,
+§5.8, §5.9. **Files:**
+
+- Create: `lib/plans/{catalog,reads,today,current,resume,rebuild}.ts` (+ a `*.test.ts` each),
+  `lib/testing/fake-supabase.ts` (+ test), `features/today/{actions.ts,index.ts}`
+  (+ `actions.test.ts`)
+- Modify: `features/settings/{actions.ts,reads.ts}` (+ `actions.test.ts`)
+
+**`lib/testing/fake-supabase.ts`** — a small in-memory stand-in for `SupabaseClient<Database>`
+used by the `lib/plans` and `lib/events` tests (5.2a reuses it): tables as arrays of rows;
+`from(t).select(cols).eq / neq / lt / lte / gt / gte / in / is / not('seen_at', 'is', null) /
+contains(col, value) / order(col, { ascending }) / limit(n)` then `await`, `.maybeSingle()`,
+`.single()`; `rpc(name, args)` answered by a per-test handler (`fake.onRpc('apply_system_event',
+(args) => …)`); every call recorded (`fake.calls`) so tests can assert the queries made; a
+`range(from, to)`; and PostgREST's row cap — a request without `range` returns at most 1000 rows
+(`max_rows`, `supabase/config.toml`), so a loader that forgets to page fails its test. Only the
+methods these tests use; anything else throws `not supported by the fake`.
+
+**Interfaces:**
+
+```ts
+// lib/plans/catalog.ts
+/** The engine's catalog (`toPlanCatalog(getCatalog())`), built once per server process. */
+export function planCatalog(): PlanCatalog
+
+// lib/plans/reads.ts — server-only; the caller is guarded and passes the session client (RLS)
+type Client = SupabaseClient<Database>
+export async function readScheduleVersions(supabase: Client, userId: string): Promise<ScheduleVersion[]>
+/** Every enrollment (removed ones too), through `toEnrollment`; unknown tracks dropped. */
+export async function readEnrollments(supabase: Client, userId: string, catalog: PlanCatalog): Promise<Enrollment[]>
+/** Pages with .order('item_id').range(…) in chunks of 1000 (PostgREST max_rows), up to the 5000-row
+ *  cap (decision 7). /review (5.3) and the track page (5.4) read item states through it too. */
+export async function readItemStates(supabase: Client, userId: string): Promise<Record<string, ItemState>>
+export type PlanRead = { readonly row: DayPlanRow; readonly plan: StoredPlan | null }
+export async function readPlan(supabase: Client, userId: string, planDate: LocalDay): Promise<PlanRead | null>
+export async function readPlanById(supabase: Client, userId: string, planId: string): Promise<PlanRead | null>
+/** The seen plan with the latest plan_date before `today` (§5.2) — one row. */
+export async function readLastSeenPlan(supabase: Client, userId: string, today: LocalDay): Promise<PlanRead | null>
+/** Keyed by blockKey(planId, blockId). */
+export async function readBlockStates(supabase: Client, planIds: readonly string[]): Promise<Record<string, BlockState>>
+/** Plans with a recap block (jsonb containment) and their block states — recapWeeksDone's input. */
+export async function readRecapHistory(supabase: Client, userId: string): Promise<{ plans: StoredPlan[]; blocks: Record<string, BlockState> }>
+export async function readDailyActivity(supabase: Client, userId: string, from: LocalDay): Promise<Record<LocalDay, DailyActivity>>
+/** The `mode` of the plan's latest `plan.generated` event (decision 11), null when none. */
+export async function readPlanMode(supabase: Client, userId: string, planId: string): Promise<'baseline' | 'resume' | 'rebuild' | null>
+/** The learner's local day now: localDay(now, scheduleAt(versions, now)). */
+export function todayOf(versions: readonly ScheduleVersion[], now: Date): LocalDay
+
+// lib/plans/today.ts
+export type TodayState =
+  | { readonly kind: 'plan'; readonly plan: StoredPlan; readonly blocks: Readonly<Record<string, BlockState>> }
+  /** Gate open with resumedToday (decision 32 of M4): the last seen plan is today's work. */
+  | { readonly kind: 'resumed'; readonly plan: StoredPlan; readonly blocks: Readonly<Record<string, BlockState>> }
+  | {
+      readonly kind: 'paused'
+      readonly plan: StoredPlan
+      readonly unfinished: readonly PlanBlock[]
+      readonly blocks: Readonly<Record<string, BlockState>>
+      readonly daysSince: number
+      readonly offerResume: boolean
+    }
+  | { readonly kind: 'notStarted'; readonly startDate: LocalDay }
+  | { readonly kind: 'noTracks' }
+  /** Today's stored plan cannot be read and is in use (M-4, decision 10). */
+  | { readonly kind: 'unreadable' }
+export type TodayData = {
+  readonly today: LocalDay
+  readonly now: string
+  readonly state: TodayState
+  readonly catalog: PlanCatalog
+  readonly enrollments: readonly Enrollment[]
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly versions: readonly ScheduleVersion[]
+}
+/** §5.4 steps 1–4 for the signed-in learner `userId` (the caller ran requireOnboarded). */
+export async function ensureToday(userId: string, now?: Date): Promise<TodayData>
+
+// lib/plans/current.ts
+export type CurrentPlan = {
+  readonly kind: 'today' | 'paused' | 'resumed'
+  readonly plan: StoredPlan
+  readonly blocks: Readonly<Record<string, BlockState>>
+}
+/** The plan check-ins and results go to (decision 13): today's plan; else the last seen plan when
+ *  the gate is closed or resumed today; else null (today's plan is not built yet). Builds nothing. */
+export async function currentPlan(
+  supabase: Client, userId: string, today: LocalDay, activeTrackIds: ReadonlySet<string>,
+): Promise<CurrentPlan | null>
+
+// lib/plans/resume.ts
+export type ResumeOutcome = 'created' | 'exists' | 'not_offered'
+/** "Học tiếp hôm nay" (§5.8): only while the gate is closed and offerResume. */
+export async function resumeToday(userId: string, now?: Date): Promise<ResumeOutcome>
+
+// lib/plans/rebuild.ts
+export type RebuildOutcome = 'rebuilt' | 'no_plan' | 'in_use' | 'resume_plan' | 'unchanged'
+/** Rebuilds today's plan while it is untouched and not a resume plan (decision 11). Never throws
+ *  an EventError: a failed rebuild leaves the stored plan (the change applies tomorrow). */
+export async function rebuildTodayIfUntouched(userId: string, now?: Date): Promise<RebuildOutcome>
+
+// features/today/actions.ts — 'use server'
+/** <MarkPlanSeen>'s action (§5.2, ADR-0039): mark_plan_seen for the caller's own plan. */
+export async function markPlanSeen(planId: string): Promise<void>
+export type ResumeResult = { readonly ok: boolean; readonly message: string }
+/** "Học tiếp hôm nay": resumeToday, then revalidatePath('/today'). */
+export async function resumeTodayAction(): Promise<ResumeResult>
+```
+
+**`ensureToday(userId, now = new Date())`** — the session client for reads, the secret-key client
+only for `storePlan`; every `lib/plans` entry point first checks `(await getSessionUser())?.id ===
+userId` and throws otherwise (decision 5):
+
+1. Read the schedule versions, enrollments and item states; `today = todayOf(versions, now)`;
+   `active` = the enrollments with status `active`.
+2. **Today's plan exists** (`readPlan(today)`): readable → `{ kind: 'plan' }` with its block
+   states. Unreadable (`plan === null`, M-4) → untouched (no block state, no event naming it but
+   its `plan.generated`) → rebuild it (`storePlan` mode `rebuild`, `expectedVersion` = the row's
+   version) and read it again; touched, or the rebuild fails → `{ kind: 'unreadable' }`.
+3. No active enrollment → `noTracks`. Every active enrollment starts after today →
+   `notStarted` with the earliest start date (§5.4 step 2).
+4. Gate (`gateStatus([lastSeen], blocks, today, activeTrackIds)` — M-5 A): closed → `paused` with
+   `unfinishedBlocks(…, activeTrackIds)`, `daysSince`, `offerResume`; open with `resumedToday` →
+   `resumed` (no new plan, decision 32). An **unreadable** last seen plan counts as a plan without
+   blocks — the gate is open (as for an empty plan, M4's RF-4 rule) and it is never shown.
+5. Build: `recapDone = recapWeeksDone(recap history)`, `buildPlan({ planDate: today, catalog,
+   enrollments, items, recapDone })`; validate every block with `planBlockSchema` and every
+   snapshot with `trackSnapshotSchema` (a failure throws — a bug, the route's error boundary);
+   `storePlan(admin, userId, { eventId: crypto.randomUUID(), plan, mode: 'baseline',
+   expectedVersion: 0 })`.
+6. `applied` / `plan_exists` → `readPlanById` of the returned id; its `planDate` must equal `today`
+   (M4-R21's TypeScript half); `day_changed`, or a date mismatch → start again at step 1 with
+   `new Date()` (at most 2 retries; then throw). An empty plan (no blocks) is stored like any plan
+   — it keeps the gate open tomorrow (RF-4).
+
+**`resumeToday`** repeats steps 1–4 and continues only for `paused` with `offerResume`:
+`buildResumePlan(ctx, lastSeen)` → validate → `storePlan(mode 'resume')` → `created` (or `exists`
+on `plan_exists`, e.g. a double tap); anything else → `not_offered`. **`rebuildTodayIfUntouched`**:
+no plan for today → `no_plan`; `readPlanMode` = `resume` → `resume_plan`; build as step 5 (the
+current enrollments); blocks and snapshots equal to the stored ones → `unchanged`; else `storePlan
+(mode 'rebuild', expectedVersion)` → `rebuilt` / `in_use` (`plan_in_use`); a `version_conflict`
+or `day_changed` → retried once through `withRetry`, then `in_use`. **`currentPlan`** is steps 1,
+2 and 4 without building; an unreadable today's plan gives null (check-ins and results are
+refused as stale while `/today` shows its error state). The settings actions (`updateTrack`, `enrollTrack`, `setTrackStatus`)
+call `rebuildTodayIfUntouched(user.id)` after a successful event (decision 11), before
+`revalidatePath`; its outcome never changes the action's message. `features/settings/reads.ts`
+re-exports `readScheduleVersions` from `lib/plans/reads` (one copy); its `readEnrollments` (the
+settings projection, a different shape) and `readLastPausedDay` stay.
+
+- [ ] **Step 1: Failing tests** (fake Supabase, fixed `now`):
+  - `ensureToday`: a new learner (two active tracks starting today, no rows) → one `storePlan`
+    call with blocks for both tracks, `{ kind: 'plan' }`; a second call → reads the stored plan, no
+    second `storePlan`; every track starting in 3 days → `notStarted` with that date, no write; no
+    active track → `noTracks`; **[RF-5]** a seen plan 3 days old with no check-in → `paused`,
+    `offerResume: true`, `daysSince: 3`, no write; 2 days old → `offerResume: false`; decision 32:
+    yesterday's seen plan with a `done` block checked in today → `resumed`, no write; M-5 A:
+    yesterday's seen plan with only blocks of a now-removed track → a new plan is built; M-4: an
+    unreadable untouched row → one `rebuild` then `plan`; unreadable and touched → `unreadable`;
+    M4-R21: `storePlan` answering `plan_exists` with a plan dated yesterday → one retry with a new
+    clock, then `plan`; `day_changed` twice then success → `plan`; three times → throws; a plan that
+    fails `planBlockSchema` (a stubbed engine result) is never stored; **[RF-1]** `now` = 01:30 in
+    Ho Chi Minh with day start 04:00 → `today` is the previous date;
+  - `resumeToday`: paused + offer → `storePlan` with mode `resume` and exactly the stale plan's
+    not-introduced new items; paused without offer, open, or resumed → `not_offered`, no write;
+    `plan_exists` → `exists`;
+  - `rebuildTodayIfUntouched`: untouched baseline plan and a changed budget → `rebuilt` with
+    `expectedVersion` = the row's version; same inputs → `unchanged`, no write; a resume plan →
+    `resume_plan`, no write; `plan_in_use` → `in_use`; no plan → `no_plan`;
+  - `currentPlan`: today's plan → `today`; none and the gate closed → `paused` with the last seen
+    plan; none and resumed → `resumed`; none and the gate open → null;
+  - `readRecapHistory` asks for `blocks` containing `[{ kind: 'recap' }]` only; `readLastSeenPlan`
+    asks for `seen_at` not null, `plan_date < today`, newest first, limit 1 (decision 7);
+    `readItemStates` returns all 1001 rows of a 1001-row user and all 5000 of a 5000-row user (the
+    fake caps an unpaged request at 1000); an unreadable last seen plan → the gate is open;
+    every entry point throws when `userId` is not the session's user;
+  - `markPlanSeen`: guard first; calls `mark_plan_seen` with the id; a non-UUID → no call;
+    `resumeTodayAction`: guard, outcome → Vietnamese message (strings in `lib/i18n/strings/today.ts`
+    — 5.1a adds only its action messages there), `revalidatePath('/today')`;
+  - settings: after a successful `track.updated`, `track.enrolled`, `track.paused`, `track.resumed`,
+    `track.removed` the action calls `rebuildTodayIfUntouched` once; after a failed event, never.
+- [ ] **Step 2:** run — fail. **Step 3:** implement (fake first, with its own small test).
+  **Step 4:** pass; `pnpm verify` (the server-guards test covers `features/today/actions.ts`).
+- [ ] **Step 5: Commits** `feat(plans): ensureToday, resume, rebuild and the current plan`,
+  `feat(today): markPlanSeen and resumeToday actions`, `feat(settings): rebuild today's plan while
+  it is untouched`.
+
+### Task 5.1b: `/today` — **Writes ADR-0039**
+
+**Source:** Part A 5.1; M4 hand-off: the throttle message from the plan's `tracks` snapshot, the
+practice `overBudget` hint (M4-R10), `<MarkPlanSeen>`, e2e cleanup never deletes plans; M1 #15
+(StatCard `tracking-tight` on numbers only, DESIGN_SYSTEM §4.3); decisions 6, 12. **Spec:** §2.4,
+§5.2, §5.4–§5.6, §5.8, §5.9; DESIGN_SYSTEM §9 (PlanBlockCard, Banners, StatCard, StreakBadge).
+**Files:**
+
+- Create: `features/today/{queries.ts,view-model.ts}` (+ tests),
+  `features/today/components/{today-view,plan-block-card,block-item-list,paused-banner,
+  resume-button,mark-plan-seen,today-stats,weak-areas,throttle-notice,shadowing-sentences,
+  today-empty}.tsx` (+ tests), `app/(app)/today/{page,error}.tsx` (the page replaces the
+  placeholder; `loading.tsx` exists since 5.1c), `e2e/today.spec.ts`, `e2e/support/plans.ts`,
+  `tools/guards/e2e-cleanup.test.ts`, `docs/adr/0039-seen-at-browser-effect.md`,
+  `lib/i18n/strings/today.test.ts`
+- Modify: `features/today/index.ts`, `lib/i18n/strings/today.ts` (drop the two placeholder keys),
+  `lib/i18n/vi.test.ts` (its `USED` list drops `today.comingSoonTitle` / `today.comingSoonBody`),
+  `components/patterns/stat-card.tsx` (+ test), `app/dev/components/entries/today.tsx`,
+  `docs/design/COMPONENTS.md` (Today section; StatCard entry)
+
+**Interfaces:**
+
+```ts
+// features/today/view-model.ts (pure; tested without React)
+export type BlockView = {
+  readonly block: PlanBlock
+  readonly trackTitle: string
+  readonly accent: string
+  /** "Ôn tập", "Bài mới", "Ôn tuần 1", "Mock interview", "Shadowing", "Học thêm", … */
+  readonly kindLabel: string
+  readonly minutes: number
+  /** DESIGN_SYSTEM "dài hơn thời gian dự kiến": a new item flagged overBudget, or a practice
+   *  block longer than the track's budget (M4-R10). */
+  readonly overBudget: boolean
+  readonly checkIn: BlockState | null
+  /** Item links: `/t/<track>/items/<id>?block=<blockId>&mode=<mode>`. */
+  readonly items: readonly { readonly itemId: string; readonly mode: ItemMode; readonly href: string }[]
+}
+export type TrackProgressView = {
+  readonly trackId: string
+  readonly title: string
+  readonly accent: string
+  readonly week: number
+  readonly weeks: number
+  /** Introduced core items / core items of the variant (0–1). */
+  readonly progress: number
+  readonly dueCount: number
+  /** "Đang có {n} thẻ cần ôn — tạm giảm thẻ mới." when the plan's snapshot says throttled. */
+  readonly throttleMessage: string | null
+}
+export type TodayPage = {
+  readonly data: TodayData
+  readonly blocks: readonly BlockView[]
+  readonly tracks: readonly TrackProgressView[]
+  readonly streak: number
+  readonly weakTopics: readonly { readonly title: string; readonly trackTitle: string; readonly count: number }[]
+  /** The plan <MarkPlanSeen> marks: today's plan when the state is `plan`, else null. */
+  readonly markSeenPlanId: string | null
+  /** Per render (decision 16): the check-in and "Học thêm" forms derive event ids from it. */
+  readonly requestId: string
+}
+export function buildTodayPage(data: TodayData, dailyActivity: Readonly<Record<LocalDay, DailyActivity>>, requestId: string): TodayPage
+
+// features/today/queries.ts
+/** requireOnboarded → ensureToday → 400 days of daily_activity → buildTodayPage. */
+export async function getToday(): Promise<TodayPage>
+```
+
+**Components** (feature layer; DESIGN_SYSTEM §9): `TodayView` (server) composes the states:
+`plan` / `resumed` → stats, weak areas, throttle notices, the blocks (a `resumed` header says "Bạn
+đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai."); `paused` → `PausedBanner`
+(`warning-soft`, icon + "Lộ trình đang tạm dừng — hoàn thành ít nhất một phần để tiếp tục" + the
+plan's original date + the "Học tiếp hôm nay" `ResumeButton` when `offerResume`) above the
+unfinished blocks; `notStarted` → EmptyState "Bắt đầu vào {date}"; `noTracks` → EmptyState with a
+link to `/settings`; an empty plan → EmptyState "Hôm nay không có bài nào"; `unreadable` →
+ErrorState. `PlanBlockCard`: 4 px track stripe, kind label, minutes, the over-budget hint, the item
+list (rows through the registry's `Row` with the item's state and mode; a problem without a
+visible note shows "Chưa có ghi chú" — RF-4), and an **`actions` slot** (5.2b puts the one-tap
+check-in there; until then the slot is empty) plus the checked-in status row. A card-only block's
+list is the same rows until 5.4 renders 5.2c's `CardSession` there (decision 19).
+`ShadowingSentences`: the example sentences of the block's `shadowing` cards, `lang="en"`.
+`MarkPlanSeen` (client leaf): calls `markPlanSeen(planId)` once in `useEffect`, renders nothing —
+the action comes from the page as a prop. `ResumeButton` (client): calls `resumeTodayAction` (a
+prop), pending state, the result in a polite live region. `TodayStats`: StreakBadge + StatCards
+(due reviews linking to `/review`, per-track progress with a ProgressRing). `WeakAreas`: topics with
+≥ 2 Weak items (`weakTopics` over active tracks), each a link to its track. No mode badge (decision
+12).
+
+- [ ] **Step 1: Failing unit tests:** `buildTodayPage` — the block views (labels, hrefs with
+  `block` and `mode`, `overBudget` for a flagged new item and for a 45-minute mock interview on a
+  30-minute budget, not for a 15-minute block on 30); the track views (week, weeks, progress from
+  introduced core items, `throttleMessage` only when the snapshot is `throttled`, with its
+  `dueCount`); `streak` from `daily_activity` and the schedule versions (a single skipped date from
+  a schedule change does not break it); weak topics over active tracks only; `markSeenPlanId` only
+  in the `plan` state. Render tests for every component and state (loading, empty, error where
+  data-driven); `StatCard` puts `tracking-tight` on the number only (#15); `MarkPlanSeen` calls the
+  action once, also after a re-render.
+- [ ] **Step 2: Failing e2e** `today.spec.ts` (helpers in `e2e/support/plans.ts`: seed plans,
+  block states and item states with the secret key, and read `day_plans` rows; every test deletes
+  its user, never a plan):
+  - **[RF-4]** a new learner (DSA + English, starting today) → blocks of both tracks, streak 0; a
+    learner starting in 5 days → "Bắt đầu vào …", and no plan row; a seeded plan whose problem
+    has no note → its row says "Chưa có ghi chú";
+  - **[RF-5]** a seen plan 3 days old with nothing done → the paused banner with its date and
+    "Học tiếp hôm nay" → click → today's plan (one `day_plans` row for today); reload and click
+    again (if still shown) → still one row; 2 days old → no resume button;
+  - decision 32: yesterday's seen plan with a block checked in `done` today → the resumed header,
+    no plan row for today;
+  - M-5 A: yesterday's seen plan with only DSA blocks, DSA removed → today's plan is built;
+  - ADR-0039: visit `/tracks` (the nav's "Hôm nay" link is prefetched up to `/today`'s loading
+    state) → no plan with `seen_at` set exists; open `/today` → today's plan has `seen_at` set;
+  - axe in light and dark on the plan, paused, resumed and not-started states, both projects.
+  - `tools/guards/e2e-cleanup.test.ts`: no file under `e2e/` deletes from `day_plans` (decision 35
+    of M4).
+- [ ] **Step 3:** run — fail. **Step 4:** implement; strings in `lib/i18n/strings/today.ts` (+ its
+  test); catalog entries (`entries/today.tsx`: every component, every state, light and dark);
+  `COMPONENTS.md` Today section and the StatCard change. **Step 5: ADR-0039**: `seen_at` is set only
+  by `<MarkPlanSeen>`'s effect after the browser renders `/today` — never by `ensureToday` (also
+  run by prefetches, "Học thêm" and rebuilds) — so the gate only counts plans a learner has seen;
+  consequences: a default prefetch stops at `/today`'s loading state and builds nothing; a full
+  prefetch (`prefetch={true}`, not used) could build an unseen plan; an AI plan never opened never
+  closes the gate.
+  Status: accepted.
+- [ ] **Step 6:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/today.spec.ts`. **Commits**
+  `feat(today): the dashboard, paused and resumed states (ADR-0039)`, `test(e2e): today, resume
+  and seen_at`.
+
+### Task 5.2a: The check-in and result write path
+
+**Source:** Part A 5.2; M4 final review I-1 (one loader for ADR-0007's row contract, with a test for
+two plans checked in on the same day), decision 34 (`checkInMinutes`), ruling M4-R15 (derived writes
+always carry `localDay`, inside `withRetry`), M-6 (a); M2 minor "digest keys" (decision 16);
+decisions 13–17. **Spec:** §4.4, §5.5, §5.7, §5.9; RF-1, RF-2, RF-3. **Files:**
+
+- Create: `lib/events/load-derived.ts` (+ test), `lib/domain/plan/checkin.ts` (+ test),
+  `features/checkin/{actions,schema,index}.ts` (+ `actions.test.ts`, `schema.test.ts`),
+  `lib/i18n/strings/check-in.test.ts`
+- Modify: `lib/i18n/strings/check-in.ts` (the write path's messages), `docs/adr/0007-*.md` (the
+  loader exists: `lib/events/load-derived.ts`)
+
+**Interfaces:**
+
+```ts
+// lib/domain/plan/checkin.ts (pure)
+/** Handled for a plan dated `planDate` (decision 15): a result on or after that day, or skipped. */
+export function itemHandled(itemId: string, planDate: LocalDay, items: Readonly<Record<string, ItemState>>): boolean
+/** The plan's blocks that list `itemId`, in plan order. */
+export function blocksWithItem(plan: StoredPlan, itemId: string): PlanBlock[]
+/** Blocks of `plan` listing `itemId` whose items are all handled and that have no check-in yet
+ *  (§5.5). The `extra` block also when its check-in is `auto` and its minutes no longer equal
+ *  checkInMinutes(block) (decision 15). */
+export function blocksToAutoCheckIn(
+  plan: StoredPlan,
+  blocks: Readonly<Record<string, BlockState>>,
+  items: Readonly<Record<string, ItemState>>,
+  itemId: string,
+): PlanBlock[]
+
+// lib/events/load-derived.ts (server-only) — ADR-0007 "Loading derived state"
+export type DerivedLoad =
+  | { readonly kind: 'item'; readonly itemId: string; readonly localDay: LocalDay; readonly outcome: boolean }
+  | {
+      readonly kind: 'block'
+      readonly planId: string
+      readonly blockId: string
+      readonly localDay: LocalDay
+      readonly status: CheckInStatus
+    }
+/** Exactly the rows the event reads (ADR-0007): an item outcome → the item's row and the day's row
+ *  (`outcome: false` for skip / re-add → the item's row only); a check-in → the block's row, every
+ *  block row of the user counted for the block's day (its existing checked_in_on, else localDay),
+ *  of every plan, and that day's row — and, when M-6 (a) moves the block (existing row skipped,
+ *  status done / partial, localDay later), the same for localDay too. */
+export async function loadDerivedFor(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  load: DerivedLoad,
+): Promise<{ readonly state: DerivedState; readonly versions: VersionMap }>
+
+// features/checkin/schema.ts
+export const NOTE_MAX_GRAPHEMES = 280
+/** NFC, trimmed; empty → undefined. */
+export function normalizeNote(raw: string): string | undefined
+/** User-perceived characters (Intl.Segmenter, 'vi', grapheme). */
+export function graphemeCount(text: string): number
+export const checkInInputSchema: z.ZodType<CheckInInput>
+export type CheckInInput = {
+  readonly requestId: string
+  readonly planId: string
+  readonly blockId: string
+  readonly status: CheckInStatus
+  /** Omitted = checkInMinutes(block) (one-tap, decision 34 of M4). */
+  readonly minutes?: number
+  readonly note?: string
+}
+export type Outcome =
+  | { readonly type: 'item.result'; readonly result: ResultName; readonly mode?: 'recall' | 'redo' }
+  | { readonly type: 'lesson.completed'; readonly quizScore?: number }
+  | { readonly type: 'exercise.submitted'; readonly kind: string; readonly grade: 'pass' | 'close' | 'miss' }
+  | { readonly type: 'prompt.completed'; readonly selfRating?: 1 | 2 | 3 }
+  | { readonly type: 'item.skipped' }
+  | { readonly type: 'item.readded' }
+export type OutcomeInput = {
+  readonly requestId: string
+  readonly itemId: string
+  /** From `?block=`: prefers this block when several list the item (decision 14). */
+  readonly blockId?: string
+  readonly outcome: Outcome
+}
+export const outcomeInputSchema: z.ZodType<OutcomeInput>
+/** decision 16: `<type>:<ids>:<sha-256 of the canonical payload JSON, 16 hex>`. */
+export function outcomeKey(input: OutcomeInput): string
+export function checkInKey(input: CheckInInput & { readonly minutes: number }): string
+
+// features/checkin/actions.ts — 'use server'
+export type CheckInResult = { readonly ok: boolean; readonly message: string }
+export type OutcomeResult = {
+  readonly ok: boolean
+  readonly message: string
+  /** Blocks the server checked in automatically after this result (§5.5). */
+  readonly autoCheckedIn: readonly string[]
+}
+export async function checkInBlock(input: CheckInInput): Promise<CheckInResult>
+export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
+```
+
+**`checkInBlock`:** `requireOnboarded`; parse (a note is NFC-normalised, at most 280 graphemes
+**and** at most 1000 UTF-16 units — the payload schema's bound — so the event payload stays under
+its 2048-byte limit; one message "Ghi chú quá dài" for either — RF-3); then `withRetry(async () =>
+{ … })`, where **each attempt** recomputes `today` from a fresh clock, calls `currentPlan`
+(decision 13) — which must still be the plan named (else the action ends with `ok: false`, "Kế
+hoạch đã thay đổi — tải lại trang", `revalidatePath('/today')`, nothing written) — finds the block
+in it, defaults `minutes` to `checkInMinutes(block)`, and runs `loadDerivedFor(block load) →
+project(state, event) → derivedWrite → applyLearnerEvent(supabase, { id: deriveEventId(requestId,
+checkInKey(…)), type: 'block.checked_in', planId, blockId, trackId, payload, localDay: today },
+write)`; `duplicate` is success; `revalidatePath('/today')`. So a `day_changed` retries against
+the plan that is current on the new day (RF-1): yesterday's plan is never checked in as if it were
+today's.
+
+**`recordOutcome`:** `requireOnboarded`; parse; then `withRetry`, where **each attempt** recomputes
+`today`, calls `currentPlan`, and resolves the block — `blockId` when it lists the item, else the
+first block listing it (`blocksWithItem`), else none (off-plan: 5.4 adds the attachment; until
+then the result is recorded without a plan) — then item load → project → write →
+`applyLearnerEvent` with `itemId`, `trackId`, and `planId` / `blockId` when a block was found,
+`localDay: today`. Then, when a block was found, one more `withRetry` for the auto check-in whose
+**each attempt** reloads the plan's block states and the item states, recomputes
+`blocksToAutoCheckIn` on them (a block that meanwhile got the learner's own check-in drops out —
+decision 15), and for each block left: block load for `status: 'done'` → project →
+`applySystemEvent(admin, userId, { id: deriveEventId(requestId,
+'auto:<planId>:<blockId>:<minutes>:<itemCount>'), type: 'block.checked_in', planId, blockId,
+trackId, payload: { status: 'done', minutes: checkInMinutes(block), auto: true }, localDay: today },
+write)` (decision 16's key: a re-send after the extra block grew is a new event). Paths
+revalidated: `/today` and the item's page — **not** `/review`, whose card session keeps its own
+list (5.2c). Messages in `lib/i18n/strings/check-in.ts`.
+
+- [ ] **Step 1: Failing tests** (fake Supabase from 5.1a):
+  - `checkin.test.ts`: `itemHandled` (a result on the plan date, after it, before it; `skipped`);
+    `blocksToAutoCheckIn`: the last item of a two-item block → the block; the first → none; a block
+    already checked in → none; an `extra` block with an `auto` check-in whose minutes differ → the
+    block, with a learner's (non-auto) check-in → none;
+  - `load-derived.test.ts`: per event type, the exact rows queried (fake's `calls`); **the two-plans
+    case (I-1)**: yesterday's paused plan P1 whose block b1 was checked in `done` today, and today's
+    "Học tiếp" plan P2 whose block c1 is now checked in `skipped` → the loader returns b1 and c1, and
+    `project` + `derivedWrite` keep today's `completed: true` (with a loader that dropped b1 the same
+    test shows `false` — the failure mode ADR-0007 names); an edited old check-in loads its first
+    day's rows; M-6 (a): a `skipped` block from yesterday checked in `done` today → both days' rows;
+  - `schema.test.ts`: **[RF-3]** a decomposed (NFD) note is stored NFC; 280 graphemes of `ệ` (NFD,
+    2 code points each) pass, 281 fail; a family emoji (ZWJ sequence) counts as 1; 280 family
+    emoji (under 281 graphemes, over 1000 UTF-16 units) fail with the same message; `outcomeKey` is
+    equal for equal inputs and differs for a different grade or mode;
+  - `actions.test.ts`: guards first; **[RF-2]** the same input twice → the same event id, the second
+    call's `duplicate` is success and records no second auto check-in; a `version_conflict` then
+    success → two attempts, one event; `day_changed` → the retry uses the new day; a check-in for a
+    plan that is not current → `ok: false`, nothing written; one-tap without minutes → the payload
+    has `checkInMinutes(block)` (a 7.5-minute block → 8); **[RF-1]** a result at 01:30 in Ho Chi
+    Minh with day start 04:00 → `localDay` is the previous date; a result that completes a block →
+    one `applySystemEvent` with `auto: true` and the block's minutes; a result for an item in two
+    blocks with `blockId` of the second → the event names the second; a quota error → its
+    Vietnamese message (`vi.errors.quotaExceeded`); **[RF-1]** `day_changed` on the first attempt
+    while the named plan (yesterday's) is no longer current on the new day → `ok: false` (stale),
+    no second write; **[RF-2]** the auto check-in racing the sheet: the first auto attempt gets
+    `version_conflict` because the learner's `partial` check-in landed → the retry sees it and
+    writes nothing (the learner's check-in stays); the auto key changes when the block's minutes or
+    item count change.
+- [ ] **Step 2:** run — fail. **Step 3:** implement. **Step 4:** pass; `pnpm verify`.
+- [ ] **Step 5: Commits** `feat(events): one loader for derived writes (ADR-0007 I-1)`,
+  `feat(checkin): check-in and result actions with the auto check-in`.
+
+### Task 5.2b: The check-in UI — one-tap, the sheet, `?block=`
+
+**Source:** Part A 5.2; DESIGN_SYSTEM §9 (PlanBlockCard's one-tap button, CheckInSheet), §10 (live
+regions, focus); §2.4 `/today?block=<id>`; RF-2. **Files:**
+
+- Create: `features/checkin/components/{check-in-button,check-in-sheet,check-in-status}.tsx`
+  (+ tests), `e2e/check-in.spec.ts`, `lib/i18n/strings/check-in.test.ts` (extend)
+- Modify: `features/checkin/index.ts` (components), `features/today/components/{today-view,
+  plan-block-card}.tsx` (+ tests: fill the `actions` slot, the "Sửa" row), `features/today/
+  {queries.ts,view-model.ts}` (`openBlockId` from `?block=`), `app/(app)/today/page.tsx`
+  (`searchParams`), `lib/i18n/strings/check-in.ts`, `app/dev/components/entries/check-in.tsx`,
+  `docs/design/COMPONENTS.md` (Check-in section)
+
+**Components:** `CheckInButton` (client): the full-width 48 px `primary` one-tap button "Check-in"
+(`done` with the pre-filled minutes); pending state; the result in a polite live region; the
+action comes as a prop — the page passes `checkInBlock` unbound, with the page's `requestId` and
+the block's `planId` / `blockId`; the component builds the `CheckInInput` (a bound action would
+lose its argument). `CheckInStatus`: the checked-in row —
+status pill (Xong / Một phần / Bỏ qua with icons, §3.3), minutes, "tự động" for `auto`, a "Sửa" link
+to `/today?block=<id>`; in the paused view a `skipped` block adds "Đã bỏ qua — bấm Sửa khi bạn làm
+xong" (its items' results never re-check it automatically — see M-6). `CheckInSheet` (client): a bottom Sheet below `md`, a Dialog from `md`;
+title focused on open; `Esc` and the close button go back to `/today` (`router.replace`, so the
+back button works as §2.4 asks); a ToggleGroup Xong / Một phần / Bỏ qua; a minutes stepper
+(0–600, pre-filled with the block's check-in minutes or `checkInMinutes`); an optional note
+(Textarea with a live "n/280" grapheme counter using `graphemeCount`); submit → `checkInBlock`;
+`DataState`-style states (idle, saving, error with retry). `/today?block=<id>` opens the sheet for
+that block of the dashboard's plan; an unknown id opens nothing.
+
+- [ ] **Step 1: Failing render tests:** the button's states; the sheet's controls, focus on open,
+  `Esc`, the grapheme counter at 280 and 281 (submit disabled, the error text next to the field),
+  the pre-filled minutes for an edit; the status row with and without `auto`.
+- [ ] **Step 2: Failing e2e** `check-in.spec.ts`: one-tap on a block → the status row "Xong" and a
+  `block.checked_in` event; **[RF-2]** a double click on one-tap → one event (`countEvents`); open
+  "Sửa" → change to "Một phần", 10 minutes, a note typed with NFD input (`page.keyboard.insertText`
+  of an NFD string) → stored NFC (read back with the secret key); `/today?block=<id>` deep link opens
+  the sheet, the back button closes it; the paused view: checking in one unfinished block `done`
+  reopens the gate — the page shows the resumed header, and no plan exists for today (decision 32);
+  M-6 (a): yesterday's plan whose only block was checked in `skipped` → today "Sửa" → `done` → the
+  resumed header, and yesterday's `daily_activity.completed` stays false; axe on the sheet (open,
+  error) in both themes, both projects.
+- [ ] **Step 3:** run — fail. **Step 4:** implement; catalog entries and `COMPONENTS.md`.
+  **Step 5:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/check-in.spec.ts
+  e2e/today.spec.ts`. **Commit** `feat(checkin): one-tap check-in and the check-in sheet`.
+
+### Task 5.2c: Item results on item pages — **Writes ADR-0036**
+
+**Source:** Part A 5.2 ("result actions per item type (recall/redo, flashcard grades, exercise,
+prompt, quiz), solution-reveal nudge"); M4 decision 24 (`mockInterviewProblem`); decisions 14,
+17–19. **Spec:** §3.2, §4.4, §5.5–§5.7; DESIGN_SYSTEM §9 (FlashcardViewer, Code tabs / Solution).
+**Files:**
+
+- Create: `features/items/components/outcome/{grade-buttons,problem-outcome,flashcard-grades,
+  lesson-complete,exercise-outcome,prompt-outcome,item-actions,card-session}.tsx` (+ tests),
+  `features/items/outcome.ts` (types + the mode resolution, + test), `e2e/results.spec.ts`,
+  `docs/adr/0036-no-offline-queue.md`, `lib/i18n/strings/outcomes.test.ts`
+- Modify: `features/items/{types.ts,index.ts,render.tsx}`, the five `features/items/<type>/Page.tsx`
+  (+ tests), `features/items/components/{flashcard-view,fill-blank-exercise,self-graded-exercise}.tsx`
+  and `components/mdx/{solution-tabs,quiz}.tsx` (callbacks, + tests),
+  `features/roadmap/{queries.ts,index.ts}` (+ test: `getItemPage` returns the learner's state, the
+  resolved mode, the plan context and a `requestId`), `features/roadmap/components/{item-view,
+  item-body}.tsx` (+ tests: the outcome binding reaches the Page), `app/(app)/t/[trackId]/items/
+  [itemId]/page.tsx` (passes `recordOutcome` unbound and the binding),
+  `lib/i18n/strings/outcomes.ts`, `app/dev/components/entries/outcomes.tsx`,
+  `docs/design/COMPONENTS.md` (Item outcomes section; the changed item components)
+
+**Interfaces:**
+
+```ts
+// features/items/outcome.ts (types only for client components; the resolver is pure)
+export type { FlashcardSides } from './components/flashcard-view' // exists since M3
+/** The server action itself, passed **unbound** as a prop from the page (a bound action would
+ *  send `(ctx, outcome)` and lose the outcome); the client builds the `OutcomeInput`. */
+export type RecordOutcome = (input: OutcomeInput) => Promise<OutcomeResult>
+export type OutcomeBinding = {
+  readonly mode: Mode
+  /** Set when the item is in the dashboard's current plan (decision 14). */
+  readonly plan: { readonly blockId: string; readonly label: string } | null
+  readonly state: ItemStateView | null
+  /** The page's per-render id (decision 16). */
+  readonly requestId: string
+  readonly itemId: string
+  readonly blockId?: string
+  readonly record: RecordOutcome
+}
+export type CardSessionProps = {
+  /** Kept in component state from mount: a revalidation that drops a graded card never shifts the
+   *  session (decision 19). */
+  readonly cards: readonly { readonly itemId: string; readonly sides: FlashcardSides; readonly blockId?: string }[]
+  readonly requestId: string
+  readonly record: RecordOutcome
+}
+/** `?mode=` when valid for the item; else the current plan block's mode for it; else the review
+ *  mode of an introduced, due SRS item (reviewMode); else 'new'. */
+export function resolveMode(input: {
+  readonly item: PlanItem
+  readonly requested: string | undefined
+  readonly planMode: ItemMode | null
+  readonly state: ItemState | null
+  readonly today: LocalDay
+}): ItemMode
+// ItemPageProps: `outcome?: OutcomeBinding` **replaces** `recordResult` and `context` (types.ts
+// lines ~46–58, never used by M3's Pages); absent for admins previewing drafts and for retired
+// items — read-only. `Outcome`, `OutcomeInput`, `OutcomeResult` are imported as types from
+// `features/checkin` (5.2a).
+```
+
+**Per type** (all buttons 44 px, one primary per view, results in a polite live region, keyboard
+shortcuts where DESIGN_SYSTEM names them):
+
+- **Problem** — `new` / `redo`: "Tự giải được" (`solved`) / "Cần gợi ý" (`hint`) / "Chưa giải được"
+  (`failed`), `mode: 'redo'` for redo; `recall` / `explain-aloud`: first the prompt "Nêu pattern,
+  cách làm và độ phức tạp" with the note behind "Xem ghi chú", then "Nhớ rõ" / "Nhớ một phần" /
+  "Không nhớ" → `solved` / `hint` / `failed` with `mode: 'recall'` (decision 17); a "Làm lại từ đầu"
+  link switches a recall to redo (§5.5). **Nudge:** opening "Xem lời giải" (SolutionTabs) before
+  grading preselects "Cần gợi ý" (decision 18). The mock-interview prompt page shows the problem
+  `mockInterviewProblem` picks (a link, or "Chưa có bài Medium nào đã học" when null).
+- **Flashcard** — after "Xem nghĩa": "Biết" / "Chưa chắc" / "Không biết" (`know` / `unsure` /
+  `dont_know`), keys 1 / 2 / 3 (`FlashcardGrades`). **`CardSession`** (client, decision 19;
+  `CardSessionProps`): its cards in state from mount, graded one at a time — FlashcardView, then
+  `FlashcardGrades`; a grade builds `{ requestId, itemId, blockId, outcome }`, calls `record` and
+  moves to the next card; the remaining count updates; an error state with retry; an end state
+  ("Đã ôn xong"). Exported from `features/items` (5.3 uses it on `/review`, 5.4 in card blocks on
+  `/today`).
+- **Lesson** — "Hoàn thành bài học" (`lesson.completed`, with `quizScore` 0–100 when the lesson's
+  Quiz was answered: `Quiz` reports its score through a callback).
+- **Exercise** — the fill-blank checker's grade (`pass` / `close` / `miss`) and the self-graded
+  rubric's choice submit `exercise.submitted { kind, grade }`; the existing "Câu trả lời không được
+  lưu." notice stays true (the answer text is never sent).
+- **Prompt** — "Đã làm xong" (`prompt.completed`) with an optional 1–3 self-rating.
+- **Every item** — "Bỏ qua mục này" (`item.skipped`, ConfirmDialog) while it is not introduced or is
+  due; "Ôn lại" (`item.readded`) on a mastered SRS item (§5.7).
+- The page header shows the learner's status pill (`state`) and "Trong kế hoạch hôm nay" when
+  `plan` is set.
+
+- [ ] **Step 1: Failing unit tests:** `resolveMode` (each branch; an invalid `?mode=` ignored);
+  every outcome component's states and the exact `OutcomeInput` it sends; `CardSession` advances
+  after a grade, grades three cards in order even when its `cards` prop shrinks after the first
+  (a revalidation), shows the error state with retry when `record` fails, and the end state; the
+  nudge (reveal → "Cần gợi
+  ý" preselected, another grade still possible); keys 1 / 2 / 3 on the flashcard grades; Quiz and
+  the exercise components call their callbacks; no outcome UI without a binding.
+- [ ] **Step 2: Failing e2e** `results.spec.ts` (seeded plan via `e2e/support/plans.ts`): from a new
+  problem's block item, "Tự giải được" → `item.result { result: 'solved' }` with the block's
+  `plan_id`, and — the block's only item — its `plan_block_state` row is `done` with `auto = true`
+  (read with the secret key; the dashboard's "Xong · tự động" text is 5.2b's, asserted in 5.4);
+  a due problem opened with `?mode=recall` → "Nhớ một phần" → `{ result: 'hint', mode: 'recall' }`;
+  reveal the solution, then grade → "Cần gợi ý" was preselected; a flashcard graded with key `2` →
+  `unsure`; a lesson completed; an exercise submitted; a prompt completed with rating 3; skip with
+  confirmation; axe on a problem, a card and a lesson page with their outcome controls, both themes
+  and projects.
+- [ ] **Step 3:** run — fail. **Step 4:** implement; strings, catalog entries, `COMPONENTS.md`.
+  **Step 5: ADR-0036**: results stay self-reported; every write is online through a server action
+  with a per-render request id (retries are idempotent); v1 has no offline queue — a future queue
+  must clamp its client timestamps to the server's day (§4.1). Status: accepted.
+- [ ] **Step 6:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/results.spec.ts
+  e2e/items.spec.ts`. **Commits** `feat(items): result controls for every item type (ADR-0036)`,
+  `test(e2e): recording results and the auto check-in`.
+
+### Task 5.3: `/review`
+
+**Source:** Part A 5.3; decisions 7, 19. **Spec:** §2.4 (`/review`, `?track=`), §5.4 step 3 (due
+order), §5.5, §5.7; RF-4. **Files:**
+
+- Create: `features/review/{queries.ts,view-model.ts,index.ts}` (+ tests),
+  `features/review/components/{review-view,review-filters,review-list}.tsx` (+ tests),
+  `app/(app)/review/{page,loading,error}.tsx`, `e2e/review.spec.ts`, `e2e/support/review.ts`,
+  `lib/i18n/strings/review.test.ts`
+- Modify: `lib/i18n/strings/review.ts`, `app/dev/components/entries/review.tsx`,
+  `docs/design/COMPONENTS.md` (Review section)
+
+**Interfaces:**
+
+```ts
+// features/review/view-model.ts (pure)
+export type ReviewEntry = {
+  readonly itemId: string
+  readonly trackId: string
+  readonly mode: ItemMode
+  readonly minutes: number
+  readonly weak: boolean
+  readonly overdueDays: number
+  readonly href: string
+}
+/** Due entries of the active tracks (`dueQueue` per track, weak topics per track), merged in the
+ *  due order across tracks: Weak first → weak topics → most overdue → lowest level → ID. */
+export function reviewQueue(input: {
+  readonly catalog: PlanCatalog
+  readonly enrollments: readonly Enrollment[]
+  readonly items: Readonly<Record<string, ItemState>>
+  readonly today: LocalDay
+  readonly track?: string
+}): ReviewEntry[]
+// features/review/queries.ts
+export type ReviewPage = {
+  readonly entries: readonly ReviewEntry[]
+  /** Due flashcards, in queue order, with their sides (for CardSession). */
+  readonly cards: readonly { readonly itemId: string; readonly sides: FlashcardSides }[]
+  readonly tracks: readonly { readonly id: string; readonly title: string; readonly count: number }[]
+  readonly track: string | null
+  readonly requestId: string
+}
+/** requireOnboarded; item states through `readItemStates` (5.1a — paged past 1000 rows). */
+export async function getReview(track: string | undefined): Promise<ReviewPage>
+```
+
+**Screen:** PageHeader "Ôn tập" with the total due; FilterChips "Tất cả" + one per active track with
+its count (`?track=`; an unknown value reads as all); a "Thẻ" section with 5.2c's `CardSession`
+over the due cards (`record` = `recordOutcome`, unbound, from the page; the end state says "Đã ôn
+xong thẻ hôm nay"); a list of the other due items (registry `Row` with its mode and a "Yếu" pill,
+`href` with `?mode=`); EmptyState "Không có bài nào cần ôn hôm nay" with a link to `/today`
+(**[RF-4]**); loading and error files.
+
+- [ ] **Step 1: Failing tests:** `reviewQueue` (a Weak item of English before a non-Weak DSA item
+  overdue longer; weak topics next; paused and removed tracks excluded; a retired item excluded;
+  `track` filters; an empty state); render tests for each component and state.
+- [ ] **Step 2: Failing e2e** `review.spec.ts` (`e2e/support/review.ts` seeds `item_state` rows due
+  today): the order (Weak first across tracks); `?track=english` filters; grading the first card
+  `know` → the next card, and the card's `item_state` moves to a later `due_on`; a learner with
+  nothing due → the empty state; axe on the list, the session and the empty state, both themes and
+  projects.
+- [ ] **Step 3:** run — fail. **Step 4:** implement; strings, entries, `COMPONENTS.md`.
+  **Step 5:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/review.spec.ts`. **Commit**
+  `feat(review): the cross-track review queue and the card session`.
+
+### Task 5.4: "Học thêm", off-plan study, "Bắt đầu lại", track progress and weak items
+
+**Source:** Part A 5.4; M4 hand-off (`plan.extra_added`, 5.0b; the "Bắt đầu lại" button,
+`track.reset`); Part B-M2 decision 18; Part B-M3 decision 25 (track-page progress and weak items);
+M3 residual (the real "unlocked" count of derived decks); decisions 15, 19–22. **Spec:** §2.4
+(`/t/[trackId]`), §5.3, §5.5, §5.9 ("Catching up", "Off-plan study while the gate is closed",
+"Removing a track"). **Files:**
+
+- Create: `lib/domain/plan/extra.ts` (+ test), `lib/plans/extra.ts` (+ test),
+  `features/today/components/{extra-button,card-block}.tsx` (+ tests),
+  `features/roadmap/components/{track-progress,weak-items,reset-track-button}.tsx` (+ tests),
+  `e2e/extra.spec.ts`, `lib/i18n/strings/extra.test.ts`
+- Modify: `features/today/{actions.ts,queries.ts,view-model.ts,index.ts,components/today-view.tsx,
+  components/plan-block-card.tsx}` (+ tests), `features/checkin/actions.ts` (+ test: off-plan),
+  `features/settings/{actions.ts,index.ts}` (+ test: `resetTrack`), `features/roadmap/{queries.ts,
+  view-model.ts,index.ts,components/track-overview.tsx}` (+ tests), `app/(app)/t/[trackId]/page.tsx`,
+  `lib/i18n/strings/extra.ts`,
+  `app/dev/components/entries/extra.tsx`, `docs/design/COMPONENTS.md` (Extra study section; the
+  changed TrackOverview entry), `e2e/tracks.spec.ts`
+
+**Interfaces:**
+
+```ts
+// lib/domain/plan/extra.ts (pure)
+export const EXTRA_MIN_MINUTES = 10
+export function extraBlockId(planDate: LocalDay, trackId: string): string // `<date>:<track>:extra:1`
+/** "Học thêm" (decision 20): the track's next not-introduced new items that are not in `plan`, in
+ *  queue order (`newQueue`), at least one, then while their minutes stay below EXTRA_MIN_MINUTES;
+ *  none when the plan's snapshot for the track has newPerDay 0 (throttled to zero). */
+export function extraCandidates(ctx: PlanContext, plan: StoredPlan, trackId: string): PlanBlockItem[]
+/** The track's extra block after appending `items` (created when missing); estMinutes = the sum. */
+export function withExtraItems(plan: StoredPlan, trackId: string, items: readonly PlanBlockItem[]): PlanBlock
+
+// lib/plans/extra.ts (server-only)
+export type ExtraOutcome = 'added' | 'nothing_to_add' | 'throttled' | 'no_plan'
+/** "Học thêm" for `trackId` on the current plan (kinds today / resumed — never the paused view). */
+export async function addExtraForTrack(userId: string, trackId: string, requestId: string): Promise<ExtraOutcome>
+/** Off-plan study (decision 21): attach `itemId` (with `mode`) to the current plan's extra block —
+ *  building today's plan first when there is none — and return where it landed. */
+export async function attachOffPlan(
+  userId: string,
+  itemId: string,
+  mode: ItemMode,
+  requestId: string,
+): Promise<{ readonly planId: string; readonly blockId: string } | null>
+
+// features/today/actions.ts (added)
+export async function addExtraAction(input: { requestId: string; trackId: string }): Promise<{ ok: boolean; message: string }>
+// features/settings/actions.ts (added) — "Bắt đầu lại" (§5.9, Part B-M2 decision 18)
+export async function resetTrack(input: { requestId: string; trackId: string }): Promise<SettingsResult>
+```
+
+- **"Học thêm"** (`ExtraButton`, client, per track in the plan and resumed states): `addExtraAction`
+  → `addExtraForTrack` → `extraCandidates` → `addExtraItems` (5.0b) with `withExtraItems` and the
+  plan's version (`withRetry` on `version_conflict`; each attempt re-reads the plan and recomputes
+  the candidates) → revalidate. The event id is `deriveEventId(requestId, 'extra:<planId>:<trackId>')`
+  — no item list in the key (decision 16), so a double tap adds once: the second call is a
+  `duplicate`. `throttled` shows "Đang có {n}
+  thẻ cần ôn — hãy ôn trước khi học thêm." with a link to `/review`; `nothing_to_add` "Bạn đã học
+  hết bài mới của lộ trình này.".
+- **Off-plan study:** `recordOutcome` (5.2a) — when no block of the current plan lists the item —
+  calls `attachOffPlan` first (event id `deriveEventId(requestId, 'offplan:<planId>:<itemId>')`; an
+  item already in the extra block is not added again), then records the result with the returned
+  `planId` / `blockId`; the
+  auto check-in then follows (decision 15: the extra block's items are all handled). With the gate
+  closed, the attachment goes to the paused plan: its `done` extra block reopens the gate (§5.9) and
+  `resumedToday` holds (no plan until tomorrow).
+- **Card blocks on `/today`:** a block whose items are all flashcards renders 5.2c's `CardSession`
+  (`CardBlock`), decision 19; other blocks keep their item rows.
+- **Track page:** `TrackProgress` (week x of N, introduced core items / core items of the variant, a
+  ProgressRing in the track accent) and `WeakItems` (the track's items with status `weak`, as
+  registry rows with their status) for an enrolled learner; item rows everywhere on the page get the
+  learner's `ItemStateView` (they were `state: null`); the derived-deck "unlocked" count is the real
+  number (source items with a result), not the unlockable count (M3 residual); `ResetTrackButton`
+  (client): "Bắt đầu lại" → ConfirmDialog ("Xoá tiến độ của lộ trình này? Lịch sử học và chuỗi
+  ngày vẫn được giữ.") → `resetTrack` (a prop from the page) → `track.reset`, then
+  `rebuildTodayIfUntouched` → revalidate. Shown only for an active or paused enrollment.
+
+- [ ] **Step 1: Failing tests:** `extraCandidates` (DSA: one problem; English: cards until ≥ 10
+  minutes; items already in the plan skipped; newPerDay 0 → none; an empty queue → none);
+  `withExtraItems` (creates, appends, keeps order, `estMinutes`); `addExtraForTrack` (fake Supabase:
+  one `apply_system_event` with the block; a `version_conflict` retried; the paused state →
+  `no_plan`); `attachOffPlan` (today's plan; the paused plan; no plan → `ensureToday` builds one
+  first); `recordOutcome` off-plan (attach, then the result with the extra block's ids, then the
+  auto check-in); `resetTrack` (guard; the event; the rebuild call; a removed track → stale);
+  render tests for every new component and state; **[RF-2]** `addExtraAction` called twice with
+  the same `requestId` → one `plan.extra_added` applied, the second `duplicate`, one addition;
+  `attachOffPlan` twice for one item → one addition.
+- [ ] **Step 2: Failing e2e** `extra.spec.ts`: "Học thêm" on DSA → an extra block with the next
+  problem; solving it on its page → back on `/today` the extra block shows "Xong · tự động" (5.2b's
+  status row — this is the UI assertion 5.2c leaves to this task); a problem
+  of week 3 opened from the track page and solved → attached to today's extra block, checked in,
+  counted once in `daily_activity` (read back); **[RF-5]** with the gate closed (a seen plan 1 day
+  old, nothing done) an off-plan result → the paused plan gains a `done` extra block, the page shows
+  the resumed header, and no plan exists for today; an English card block on `/today` graded
+  through the card session; `tracks.spec.ts`: the track page shows the week and progress and a Weak
+  item; "Bắt đầu lại" → confirm → the track's `item_state` rows are gone, events and
+  `daily_activity` kept, and an untouched plan of today is rebuilt (its version grows); axe on the
+  track page (with the dialog open) and on `/today` with an extra block, both themes and projects.
+- [ ] **Step 3:** run — fail. **Step 4:** implement; strings, entries, `COMPONENTS.md`.
+  **Step 5:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/extra.spec.ts
+  e2e/tracks.spec.ts e2e/today.spec.ts`. **Commits** `feat(today): Học thêm and card blocks`,
+  `feat(checkin): off-plan study lands in the extra block`, `feat(roadmap): track progress, weak
+  items and Bắt đầu lại`.
+
+### Task 5.5: `/progress`
+
+**Source:** Part A 5.5; M4 hand-off (`scheduleSkippedDays` tests with unsorted and 3+ versions); M1
+#8 (the month view's selected day gets a visual state), #9 (the year view's month labels never
+overlap), #22 (the catalog shows an empty CalendarHeatmap; the `/dev/components` title comes from
+`vi.dev`); decision 24. **Spec:** §2.4, §5.7 (streak), §5.9; DESIGN_SYSTEM §3.4. **Files:**
+
+- Create: `features/progress/{queries.ts,view-model.ts,index.ts}` (+ tests),
+  `features/progress/components/{progress-view,weekly-summary,week-nav}.tsx` (+ tests),
+  `app/(app)/progress/{page,loading,error}.tsx`, `e2e/progress.spec.ts`, `e2e/support/activity.ts`,
+  `lib/i18n/strings/progress.test.ts`
+- Modify: `components/patterns/calendar-heatmap/*` (+ tests), `app/dev/components/{registry.tsx,
+  page.tsx}`, `lib/domain/stats/streak.test.ts`, `lib/i18n/strings/progress.ts`,
+  `app/dev/components/entries/progress.tsx`, `docs/design/COMPONENTS.md` (Progress section; the
+  CalendarHeatmap entry)
+
+**Interfaces:**
+
+```ts
+// features/progress/view-model.ts (pure)
+export type ProgressPage = {
+  readonly today: LocalDay
+  /** The last 53 weeks, all tracks' minutes (decision 24). */
+  readonly heatmap: readonly HeatmapDay[]
+  readonly streak: number
+  readonly week: WeeklySummary
+  readonly previousWeek: LocalDay
+  /** Null for the current week. */
+  readonly nextWeek: LocalDay | null
+  readonly tracks: readonly { readonly id: string; readonly title: string; readonly accent: string }[]
+}
+export function buildProgressPage(input: {
+  readonly today: LocalDay
+  readonly days: Readonly<Record<LocalDay, DailyActivity>>
+  readonly versions: readonly ScheduleVersion[]
+  readonly enrollments: readonly Enrollment[]
+  readonly weekOf: LocalDay
+}): ProgressPage
+// features/progress/queries.ts
+/** requireOnboarded; `?week=` a Monday not after this week, else this week. */
+export async function getProgress(week: string | undefined): Promise<ProgressPage>
+```
+
+**Screen:** PageHeader "Tiến độ"; StreakBadge and StatCards (minutes this week, days completed this
+week, items done this week); the CalendarHeatmap (year view ≥ 1024 px with a fine pointer, month
+view otherwise, table fallback, today's ring — DESIGN_SYSTEM §3.4); `WeeklySummary` — horizontal
+bars per enrolled track in the track accent, value labels at the bar end, a baseline only, and the
+per-day list (minutes, done / not) — with `WeekNav` (previous / next week links, `?week=`); an
+EmptyState when there is no activity at all (**[RF-4]**: "Chưa có ngày học nào — bắt đầu từ trang
+Hôm nay").
+
+- [ ] **Step 1: Failing tests:** `buildProgressPage` (heatmap minutes are the sum over every track,
+  a removed track included; the weekly summary counts only enrolled tracks; `?week=` in the future
+  → this week; a non-Monday → its Monday; streak across a schedule change); `streak.test.ts`:
+  `scheduleSkippedDays` with the versions given unsorted, and with three and four versions (two east
+  moves, one west move) — the skipped dates are the same as for the sorted input; the heatmap fixes
+  (#8 the selected day in the month view has a visible selected state besides colour; #9 year-view
+  month labels do not overlap for any start weekday — a render test across 7 start days); render
+  tests for every component and state (#22: the empty heatmap demo).
+- [ ] **Step 2: Failing e2e** `progress.spec.ts` (`e2e/support/activity.ts` seeds `daily_activity`
+  rows): the heatmap shows seeded days (the table view lists their minutes); the weekly bars show
+  values; previous / next week navigation; a new learner → the empty state; axe in both themes, both
+  projects (the month view on mobile, the year view on desktop).
+- [ ] **Step 3:** run — fail. **Step 4:** implement; strings, entries, `COMPONENTS.md`.
+  **Step 5:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/progress.spec.ts
+  e2e/components.spec.ts`. **Commits** `feat(progress): heatmap and weekly summary`,
+  `fix(heatmap): selected day and month labels (M1 #8, #9)`.
+
+### Task 5.6: `/admin` and `/admin/content` — **Writes ADR-0031**
+
+**Source:** Part A 5.6 (and ruling R12 of M2: remove the `/admin` redirect); M2 5.6 minors
+(`p_expected_from`, the focus-follow singleton, the Toaster missing on FocusLayout pages);
+decisions 25, 26. **Spec:** §0 (week-4 constraint, the red warning), §2.3 (backups, maintenance),
+§2.4 (`/admin`, `/admin/content`), §4.2 (`ops_metrics`), §4.5 (admins read aggregates only), §8.4
+item 5. **Files:**
+
+- Create: `supabase/migrations/20260927000300_admin_overview.sql`,
+  `supabase/tests/database/051-admin-overview.test.sql`, `features/admin/{overview.ts,content.ts}`
+  (view models, + tests), `features/admin/components/{admin-overview,admin-warnings,content-coverage,
+  catalog-stats,drafts-list}.tsx` (+ tests), `app/(admin)/admin/{page,loading}.tsx`,
+  `app/(admin)/admin/content/{page,loading}.tsx`, `docs/adr/0031-event-compaction-deferred.md`,
+  `lib/i18n/strings/admin-overview.test.ts`
+- Modify: `features/admin/{queries.ts,actions.ts,index.ts,components/{user-queue,user-row-actions}.tsx}`
+  (+ tests), `next.config.ts`, `tools/guards/next-config.test.ts`, `components/patterns/focus-layout.tsx`
+  (+ test), `supabase/tests/database/{001,041}-*.sql`, `lib/supabase/database.types.ts`,
+  `lib/i18n/strings/admin-overview.ts`, `app/dev/components/entries/admin.tsx`,
+  `docs/design/COMPONENTS.md` (Admin overview section; UserQueue, UserRowActions, FocusLayout),
+  `e2e/admin.spec.ts`
+
+**The migration** (every function `SECURITY DEFINER`, checks `is_admin()` first, `EXECUTE` for
+`authenticated` only, returns counts — no learner rows, no notes, §4.5):
+
+- `admin_overview() returns jsonb`: users by status; learners with a `daily_activity.completed` day
+  in the last 7 days; plans created in the last 7 days.
+- `admin_track_positions() returns table (track_id text, variant text, week int, learners int)`: for
+  each active learner and each `active` enrollment, the `week` of that track in the learner's latest
+  `day_plans` row dated within the last 14 days (`roadmap_weeks -> track_id ->> 'week'`), grouped.
+- `admin_set_status` gains an optional `p_expected_from text` (a new overload replaces the old
+  function in this migration: drop + create, same grants): when given and the target's current
+  status differs → `status_changed` (the stale "Duyệt" / "Kích hoạt lại" of M2 2.8). The admin
+  actions pass the status the row was rendered with and map `status_changed` to the existing
+  "Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé." message.
+
+**Screens:** `/admin` — PageHeader; the warnings first (`AdminWarnings`, Banner `danger-soft` for
+red and critical, `warning-soft` for warnings, each icon + one sentence + one action): DB size from
+the latest `ops_metrics` `db.size_bytes` (≥ 100 MB "chuyển sang chuỗi sao lưu gia tăng", ≥ 350 MB
+warn, ≥ 450 MB critical — §8.4, ADR-0031's compaction trigger), the last backup older than 36 hours
+and the last restore test older than 8 days (from `backup.last_success_at` /
+`restore_test.last_success_at`, decision 26; "chưa có dữ liệu" before the first cron run), and the
+red content-coverage warning (decision 25) per track and week; then the counts (`admin_overview`)
+and links to `/admin/users` and `/admin/content`. `/admin/content` — per track: catalog stats (items
+by type and status), verification counts (`tested` / `compile-only` notes), the coverage table by
+week (`catalog.coverage`: lessons, noted / placed problems, cards, exercises, prompts) with the red
+rows of decision 25, draft tracks, and the drafts list (draft items and draft notes; "v1.0: xuất bản
+bằng một thay đổi `status` trong `content/**`" — the "Xuất bản" button is v1.1, §6.6). The
+`/admin` → `/admin/users` redirect is removed (its guard test now asserts it is absent). The nav's
+"Quản trị" link goes to `/admin`.
+
+**M2 minors:** the focus-follow note in `UserQueue` becomes per-row state (two interleaved actions
+keep their own focus targets; a failed action clears its note); `FocusLayout` renders the Toaster
+(sign-in, pending and onboarding pages get toasts). Their catalog demos live in
+`entries/admin.tsx` since 5.0 (5.2c owns `registry.tsx` in this wave).
+
+- [ ] **Step 1: Failing pgTAP** `051-admin-overview.test.sql`: a learner calling either function →
+  `forbidden`; an admin gets the counts of seeded users; `admin_track_positions` counts a learner
+  whose latest plan (within 14 days) has DSA week 3 once, ignores a plan from 20 days ago, a paused
+  enrollment and a suspended profile; `admin_set_status` with a stale `p_expected_from` →
+  `status_changed`, with the right one → changes it; without it → as before (041 still passes).
+- [ ] **Step 2: Failing Vitest:** the view models (thresholds at 99 / 100 / 349 / 350 / 449 / 450 MB;
+  backup ages at 35 / 37 hours and 7 / 9 days; no metric → "chưa có dữ liệu"; the coverage horizon:
+  learners at weeks 2 and 3 → red rows for weeks up to 5 with a missing lesson or note, none beyond);
+  the actions pass `p_expected_from`; render tests (every component, every state); the focus fix;
+  the Toaster in FocusLayout.
+- [ ] **Step 3:** with the stack lock `pnpm db:reset && pnpm test:db` — fails; **Step 4:** implement;
+  `pnpm db:types`; strings, entries, `COMPONENTS.md`. **Step 5: e2e** (`admin.spec.ts`): `/admin`
+  as an admin shows the counts and, with a seeded `ops_metrics` row of 360 MB (global state: the
+  test deletes it in `finally`, and runs serially — `test.describe.configure({ mode: 'serial' })`
+  for that block), the warning; a learner
+  gets the 404; `/admin/content` shows the coverage table and a red row for a seeded learner at week
+  3 of DSA (W4–W5 have no notes); the stale-approve case shows the reload message; axe in both
+  themes and projects. **Step 6: ADR-0031**: event compaction (§4.7) is designed but not built; its
+  trigger is the 350 MB warning on `/admin`; until then events are kept whole. Status: accepted.
+- [ ] **Step 7:** `pnpm verify`; with the stack lock `pnpm test:e2e e2e/admin.spec.ts`. **Commits** `feat(db): admin
+  overview readers and the expected-status check`, `feat(admin): overview, warnings and content
+  coverage (ADR-0031)`, `fix(admin): per-row focus and toasts on focus pages`.
+
+### Task 5.7a: `ops_metrics`, the maintenance cron and `/api/health` — **Writes ADR-0034**
+
+**Source:** Part A 5.7; decision 26. **Spec:** §2.3 (maintenance cron, health), §2.5 (`CRON_SECRET`),
+§4.2 (`ops_metrics`), §4.5 (`event_quota` rows older than 2 days), §8.4 items 3 and 5. **Files:**
+
+- Create: `supabase/migrations/20260927000200_ops.sql`, `supabase/tests/database/080-ops.test.sql`,
+  `lib/auth/cron.ts` (+ test), `lib/ops/{maintenance,github}.ts` (+ tests),
+  `app/api/cron/maintenance/route.ts` (+ test), `app/api/health/route.ts` (+ test), `vercel.json`,
+  `docs/adr/0034-maintenance-cron.md`
+- Modify: `lib/env.ts` (+ test), `.env.example`, `lib/supabase/database.types.ts`,
+  `supabase/tests/database/001-*.sql`, `tools/guards/server-guards.test.ts` (the new routes)
+
+**The migration:**
+
+- `ops_metrics` (`id bigint generated always as identity`, `key text` checked against
+  `db.size_bytes`, `backup.last_success_at`, `restore_test.last_success_at`, `cron.last_run_at`,
+  `value numeric not null`, `recorded_at timestamptz not null default now()`, index `(key,
+  recorded_at desc)`); RLS on; `select` for admins (`is_admin()`); no insert / update / delete grant
+  to `authenticated`.
+- `ops_record_metric(p_key text, p_value numeric)`, `ops_record_db_size()` (`pg_database_size
+  (current_database())`) and `ops_prune()` — `SECURITY DEFINER`, `EXECUTE` for `service_role` only;
+  `ops_prune` deletes `event_quota` rows with `local_day < current_date - 2` and `ops_metrics` rows
+  older than 400 days and returns both counts. Idempotent.
+- `health() returns boolean` (`select true`, `SECURITY INVOKER`, `EXECUTE` for `anon` and
+  `authenticated`) — the cheap query of `/api/health`.
+- Role `backup_reader` (for 5.7b; created only when missing — roles are cluster-wide, and `pnpm
+  db:reset` re-runs the migration): `nologin bypassrls` (the password and `login` are set out of
+  band, never in git — 5.7b's runbook). **Every `public` table has RLS with policies only for
+  `authenticated`**, so without `bypassrls` `pg_dump` aborts ("query would be affected by row-level
+  security policy") and counts read 0. Hosted Supabase's `postgres` must be allowed to create a
+  `bypassrls` role (Postgres 16+ lets a `createrole` role grant only attributes it has itself) — the
+  **controller** checks this on staging before dispatching 5.7a (Management API, read-only: `select
+  rolbypassrls, rolcreaterole from pg_roles where rolname = current_user`) and writes the answer
+  into the brief (implementers hold no tokens); if it is not allowed, the migration instead adds `create policy … for select to backup_reader using (true)` on
+  every `public` table except `event_quota`, and a 001 invariant that every `public` table has
+  either that policy or is `event_quota`. Grants: `usage` on schema `public`; `select` on every
+  table of `public` except `event_quota`; `select` on every sequence of `public` (`pg_dump
+  --data-only` emits `setval` for `ops_metrics`' identity); `alter default privileges in schema
+  public grant select on tables to backup_reader` and the same `on sequences` (later objects).
+
+**TypeScript:**
+
+```ts
+// lib/auth/cron.ts (server-only; a guard name the architecture test knows, GUARD_NAMES)
+/** Vercel cron's `Authorization: Bearer <CRON_SECRET>`, compared in constant time. Returns a 401
+ *  response to send (no secret configured, missing or wrong header), or null to go on. */
+export async function requireCronSecret(request: Request): Promise<Response | null>
+// lib/ops/maintenance.ts (server-only)
+export type StepOutcome = 'ok' | 'failed'
+export type MaintenanceReport = {
+  readonly ok: boolean
+  readonly steps: Readonly<Record<'dbSize' | 'prune' | 'backups', StepOutcome>>
+}
+/** Every step runs, each in its own try/catch; running twice or skipping a day is harmless. */
+export async function runMaintenance(deps?: { readonly fetch?: typeof fetch; readonly now?: Date }): Promise<MaintenanceReport>
+// lib/ops/github.ts
+/** The latest successful run of `.github/workflows/<file>` on `main` (public API, no token), or
+ *  null. Repository from a constant, never from input. */
+export async function lastSuccessfulRun(file: 'backup.yml' | 'restore-test.yml', fetchImpl?: typeof fetch): Promise<Date | null>
+```
+
+`app/api/cron/maintenance/route.ts`: `export async function GET(request: Request)` — first
+statement `const denied = await requireCronSecret(request)`; `if (denied) return denied`; then
+`runMaintenance()` → `200` with the report (no data), `Cache-Control: no-store`.
+`app/api/health/route.ts`: `publicRoute()`; a supabase-js client with the publishable key and no
+session calls `health()`; `200 {"ok":true}` or `503 {"ok":false}`, nothing else (§2.3), `no-store`.
+`vercel.json`: `{ "crons": [{ "path": "/api/cron/maintenance", "schedule": "0 21 * * *" }] }` (21:00
+UTC = 04:00 in Viet Nam, before the 22:00 UTC backup; Hobby runs it once a day within the hour).
+`lib/env.ts`: `CRON_SECRET` (server, at least 32 characters) — required when `VERCEL_ENV` is
+`production`, optional elsewhere (the route then always answers 401); `.env.example` gains the line.
+
+- [ ] **Step 1: Failing pgTAP** `080-ops.test.sql`: a learner cannot read or write `ops_metrics`, an
+  admin can read; the three functions run for `service_role` only; an unknown metric key → error;
+  `ops_prune` deletes a 3-day-old quota row, keeps today's and yesterday's; running it twice → the
+  second deletes nothing; `health()` works for `anon`; `backup_reader` exists and, with rows of
+  **two** seeded users in `profiles`, `events` and `day_plans`, counts both users' rows in each (a
+  count of zero would mean RLS still filters it); it can read the `ops_metrics` sequence; it cannot
+  insert, and cannot read `event_quota`.
+- [ ] **Step 2: Failing Vitest:** `requireCronSecret` (no secret configured → 401; missing, wrong,
+  wrong-length header → 401; right → null; the comparison uses `timingSafeEqual`); `runMaintenance`
+  (all ok; the GitHub step failing leaves the others ok and `ok: false`; twice → same calls, no
+  error); `lastSuccessfulRun` (parses the API's `workflow_runs[0].updated_at`; a non-200 → null;
+  only the fixed repository URL); the routes (401 before any work; the report shape; health 200 /
+  503); `env.test.ts` (`CRON_SECRET` rules); the server-guards test finds both routes guarded.
+- [ ] **Step 3:** with the stack lock `pnpm db:reset && pnpm test:db` — fails; **Step 4:** implement;
+  `pnpm db:types`. **Step 5: ADR-0034**: one daily Vercel cron, `CRON_SECRET`, idempotent steps,
+  tolerant of Hobby's timing; it never builds plans (plans stay lazy); v1.1 adds the bot and publish
+  sweeps. Status: accepted.
+- [ ] **Step 6:** `pnpm verify`. **Commits** `feat(db): ops_metrics, maintenance functions, health,
+  backup_reader`, `feat(ops): the maintenance cron and /api/health (ADR-0034)`.
+
+### Task 5.7b: Backups and the weekly restore test — **Writes ADR-0005, ADR-0029**
+
+**Source:** Part A 5.7; spec §9.3's action (size the retention against the 500 MB artifact
+allowance); decision 27. **Spec:** §2.3 (Backups — v1.0 simple), §2.5 (the `backup` environment),
+§8.4 item 1 (the incremental chain later). **Files:**
+
+- Create: `.github/workflows/{backup,restore-test}.yml`, `tools/backup/{manifest,counts}.ts`
+  (+ tests), `tools/backup/workflows.test.ts`, `docs/ops/backups.md`,
+  `docs/adr/{0005-public-repo-encrypted-backups,0029-backups}.md`
+
+**`backup.yml`** — `schedule: 0 22 * * *` and `workflow_dispatch`; `environment: backup` (restricted
+to `main`); `permissions: contents: read`; `timeout-minutes: 30`; `concurrency: backup`;
+`runs-on: ubuntu-24.04`. Steps: checkout; pnpm and Node as in `ci.yml`, `pnpm install
+--frozen-lockfile` (for `tools/backup/*.ts` through `tsx`); install `postgresql-client-17` from the
+PGDG apt repository (Ubuntu 24.04's own archive ships 16; the dump client must be ≥ the server's
+17) and `age` with `apt`; set `umask 077` and work in `$RUNNER_TEMP`; never `set -x`, never `cat` a
+dump. `SUPABASE_BACKUP_DB_URL` is the pooler's **session-mode** URL (port 5432 — `pg_dump` does not
+work through transaction mode, 6543; the direct host is IPv6-only). Dump as `backup_reader`: `pg_dump --data-only --no-owner --no-privileges --schema=public
+--exclude-table-data=public.event_quota` and a second `pg_dump --data-only --table=auth.users
+--table=auth.identities` (pg_dump ignores `--schema` when `--table` is given, hence two files;
+if the hosted GoTrue's `auth.users` / `auth.identities` columns differ from the local stack's —
+check on the first staging run — dump those two tables as `COPY (SELECT <the columns the local
+stack has, pinned in tools/backup/auth-columns.ts> …) TO STDOUT` instead, so the restore loads); the
+manifest (`tools/backup/manifest.ts`): the commit SHA (so the restore applies the same migrations),
+per-table row counts (from one `select count(*)` per dumped table, run as `backup_reader`) and each
+file's SHA-256 — no personal data; `gzip`; `age -r` for every recipient in the variable
+`BACKUP_AGE_RECIPIENTS` (the owner's offline key and the restore-test key); upload one artifact:
+`db-backup-weekly-<date>` with `retention-days: 90` on Sundays (UTC), else
+`db-backup-daily-<date>` with `retention-days: 14` (decision 27). A final step fails the job when
+any expected file is missing or empty.
+
+**`restore-test.yml`** — `schedule: 0 3 * * 6` (Saturday) and `workflow_dispatch`; `environment:
+backup`; `permissions: contents: read, actions: read`. Steps: `actions/checkout` with
+`fetch-depth: 0` (the manifest's commit must be reachable); find the newest `db-backup-*`
+artifact (`gh api …/actions/artifacts`), download it, decrypt with `BACKUP_RESTORE_KEY` (the
+restore-test identity, written to a `0600` file in `$RUNNER_TEMP`), check the SHA-256s; check out
+the manifest's commit; `pnpm install --frozen-lockfile`; `pnpm db:start`, then `supabase db reset
+--no-seed` (that commit's migrations **without** `seed.sql`, whose synthetic users would collide
+with the dumped `auth.users` rows); load the auth file, then the public file, with `psql` inside `set
+session_replication_role = replica` (FKs and triggers off while loading); compare every table's
+row count with the manifest (`tools/backup/counts.ts`); fail on any difference. The job never
+prints rows.
+
+- [ ] **Step 1: Failing Vitest:** `manifest.ts` (builds and validates a manifest; rejects extra
+  keys; SHA-256 check); `counts.ts` (compares manifest counts with `psql` output — equal, a missing
+  table, a different count); `workflows.test.ts` (parses both YAML files with `yaml`: the triggers,
+  `environment: backup`, the permissions, no `set -x` and no `cat`/`head` of dump files, `age`
+  before `upload-artifact`, the two retention values, `umask 077`, the restore test loads with
+  `session_replication_role = replica` and runs `tools/backup/counts.ts`).
+- [ ] **Step 2:** implement. **Step 3:** a local dry run against the local stack (no GitHub),
+  **holding the stack lock for the whole run** (it resets the shared database while wave 3's e2e
+  tasks may be waiting): create a throwaway `age` key pair; give `backup_reader` a local password
+  and `login`; seed a few rows; run the dump commands; encrypt, decrypt; `supabase db reset
+  --no-seed`; load; compare counts; then `alter role backup_reader nologin password null` and `pnpm
+  db:reset` (the seed back) before releasing the lock. Record the commands and the result in the
+  report (not committed).
+- [ ] **Step 4: `docs/ops/backups.md`** — the owner's steps: generate the two `age` key pairs (the
+  owner's stays offline; the restore-test identity goes into `BACKUP_RESTORE_KEY`); create the
+  GitHub environment `backup` limited to `main` with the secrets `SUPABASE_BACKUP_DB_URL` (the
+  pooler URL with `backup_reader`'s password) and `BACKUP_RESTORE_KEY`, and the variable
+  `BACKUP_AGE_RECIPIENTS`; set `backup_reader`'s password and `login` with one SQL statement on the
+  target project (the controller runs it through the Management API; the password never enters git
+  or the chat); `grant usage on schema auth to backup_reader; grant select on auth.users,
+  auth.identities to backup_reader` — if the hosted project refuses it, stop and ask the owner
+  (fallback: dump `public` only and record in ADR-0029 that a restore needs the users to sign in
+  again); the retention and the 500 MB allowance; the switch to the incremental chain at 100 MB
+  (the `/admin` warning); how to restore by hand.
+- [ ] **Step 5: ADR-0005** (public repository, so every artifact is encrypted before upload;
+  secret scanning, Dependabot, CodeQL on) and **ADR-0029** (v1.0 simple daily data dumps + weekly
+  restore test; the incremental, derived-free chain from 100 MB, §2.3 / §8.4). Status: accepted.
+- [ ] **Step 6:** `pnpm verify`. **Commit** `ci: daily encrypted backups and the weekly restore
+  test (ADR-0005, ADR-0029)`. The first real runs happen after the merge (5.8b step 2).
+
+### Task 5.8a: Launch runbook, the time-zone sweep and the themed `global-error` — **Writes ADR-0038**
+
+**Source:** Part A 5.8 (code and docs half); M-13 (decision 30's precheck remedy; tzdata parity);
+decision 37 of M4 (the pace check); M1 #17 (`global-error.tsx` follows the saved theme); decisions
+28, 29. **Spec:** §0 (release boundary, rollout), §2.5, §5.9. **Files:**
+
+- Create: `docs/ops/production.md`, `docs/ops/dogfooding.md`, `tools/db/tz-sweep.ts` (+ test),
+  `docs/adr/0038-release-boundary.md`
+- Modify: `app/global-error.tsx` (+ test), `docs/ops/staging.md` (the state after 5.8b: `hoc-deu`
+  stays staging, production is a new project), `package.json` (`"db:tz-sweep": "tsx
+  tools/db/tz-sweep.ts"`)
+
+- **`tools/db/tz-sweep.ts`** (M-13, ruling M4-R19): writes to stdout one SQL query that holds, as a
+  `VALUES` list, TypeScript's `nextDayStart` for every time-zone option × every day start at
+  instants around each 2026 and 2027 DST transition, and returns two numbers from Postgres: the
+  cases where TypeScript's next day start is later than Postgres's reading (must be 0), and the
+  largest `Postgres − TypeScript` gap in minutes (≤ 65, Antarctica/Troll excepted as in M4). Run it
+  against any project: locally through `psql`, on staging / production through the Management API
+  query endpoint.
+- **`global-error.tsx`** (#17): wraps its `html` in the app's theme provider (or applies the saved
+  theme class before paint), so a crash page in dark mode is dark. Render test with a saved `dark`.
+- **`docs/ops/production.md`** — the 5.8b checklist, in order, with who does each step: the
+  production Supabase project (a free-plan slot: the owner decides whether to pause another project
+  or upgrade); Postgres ≥ 16; the region; auth settings (email provider off, site URL, redirect
+  allow-list, Google and GitHub providers with the production callback); **the decision-30
+  precheck** `select count(*) from public.events where plan_id is not null` before the first push
+  — on a new project it is 0; **if it is ever non-zero** (a push to a project with data): stop, list
+  those rows' types and dates without payloads, and ask the owner whether to delete those
+  learner-crafted events or to add the foreign key `NOT VALID` (M-13); `supabase db push` of every
+  migration, `migration list` local = remote; the tz sweep (`pnpm db:tz-sweep`) on production — 0
+  and ≤ 65, and re-run whenever Node (Vercel) or Postgres (Supabase) changes its tzdata (compare
+  `process.versions.tz` of the Node version Vercel runs with the Postgres server version); Vercel
+  Production env vars (the §2.5 list, `CRON_SECRET` new, `AUTH_TEST_LOGIN` absent); the Production
+  Branch back to `main`; the first production deploy; smoke (health 200; the owner signs in, is
+  bootstrapped admin, onboards; `/today` builds a plan; a check-in; `/admin` shows no red warning
+  except week coverage); the backup environment pointed at production; `sim` made a required check
+  (decision 29); the staging smoke checklist (decision 28: OAuth sign-in, onboarding, `/today`,
+  check-in, a result, `/review`, `/progress`, `/admin`, plus the controller's rolled-back DB smoke).
+- **`docs/ops/dogfooding.md`** — the owner's two weeks: daily use, what to note, and **the pace
+  check** (decision 37): after 14 days compare the owner's roadmap week with the onboarding
+  projection for their variant and budget (ADR-0014's skip-day model: e.g. 8w @ 60 min → 11.4 vs
+  13.3 weeks); more than 15 % slower → revisit the model and the defaults before inviting learners.
+  Also the §0 week-4 constraint: before any learner reaches week 4, M3b / M3c and W4–W5 notes, or
+  v1.1.
+- **ADR-0038**: the release boundary (v1.0 = M0–M5, v1.1 = M6–M7, "later"), the week-4 content and
+  harness constraint, and the rollout (owner dogfooding 1–2 weeks → invites → the v1.1 dry run on
+  real data). Status: accepted.
+
+- [ ] **Step 1: Failing tests:** `tz-sweep.test.ts` (the generated SQL has one row per option × day
+  start × instant; the instants straddle each transition of 2026–2027; the query text is a single
+  `select`); `global-error.test.tsx`.
+- [ ] **Step 2:** implement; run `pnpm db:tz-sweep | psql <local db url>` (read-only; no lock
+  needed — nothing is reset) — 0
+  and ≤ 65, into the report. **Step 3:** the docs and ADR. **Step 4:** `pnpm verify`. **Commits**
+  `feat(db): the time-zone parity sweep`, `fix(app): the crash page follows the saved theme (M1
+  #17)`, `docs: production runbook, dogfooding checklist (ADR-0038)`.
+
+### Task 5.8b: Launch **[owner]** — after the M5 merge
+
+Not on the branch: the controller and the owner follow `docs/ops/production.md` once the owner has
+merged M5.
+
+- [ ] **1. Staging:** `supabase db push` of the three M5 migrations to `hoc-deu` (staging) —
+  precheck first, as the runbook says; `migration list` local = remote; the rolled-back DB smoke
+  (onboarding → `plan.generated` → `mark_plan_seen` → check-in → `plan.extra_added` → auto check-in
+  → reset); the owner's staging smoke checklist (decision 28).
+- [ ] **2. Backups on staging:** the owner creates the `backup` environment and keys
+  (`docs/ops/backups.md`); the controller sets `backup_reader`'s password and the `auth` grants;
+  dispatch `backup.yml`, then `restore-test.yml`; both green (Part A 5.7's verify).
+- [ ] **3. Required check:** add `sim` to the `main` ruleset's required checks (decision 29).
+- [ ] **4. Production:** every production step of the runbook, in order, through the smoke; then
+  point the backup environment at production and dispatch both workflows once more.
+- [ ] **5. Dogfooding:** the owner uses production for two weeks; then the pace check (decision 37,
+  `docs/ops/dogfooding.md`) → the owner decides whether to invite learners.
+- [ ] Archive the ledger; update the memory file; write the M6 hand-off (including 6.5's `plan_id`
+  widening and backlog row L1).
+
+### M5 finish
+
+- [ ] Whole-branch review (`scripts/review-package` over `b05edc7..HEAD`) on the most capable
+  model, against this section, spec §2–§5 and §8.4, and DESIGN_SYSTEM §9–§11; one fix pass; one
+  re-review (M2–M4 pattern). Plan-mandated findings are ruled on in the ledger and the plan text is
+  amended in a `docs:` commit before the fix round.
+- [ ] With the stack lock, `pnpm db:reset && pnpm verify:full` in the integration worktree
+  (`verify` + `test:sim` + `test:db` + `test:e2e`).
+- [ ] Push `feat/m5-dashboard`, open the PR "M5: dashboard, check-in, review" (summary, decisions,
+  the owner's M-5 / M-6 rulings, the simulation timings before and after, the post-merge steps of
+  5.8b); CI green: verify (with the unit suite as root), sim, e2e, db, content-build,
+  content-verify, CodeQL.
+- [ ] **STOP for the owner's review. The owner merges** (owner rule for M5). Then 5.8b.
