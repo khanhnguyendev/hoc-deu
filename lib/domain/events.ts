@@ -168,7 +168,9 @@ export const EVENT_PAYLOADS = {
   'admin.user_suspended': adminPayload,
   'admin.role_changed': adminPayload,
   'admin.ai_flag_changed': adminPayload,
-  // Reserved: written only by the future compaction job (§4.7); replay handles it from M4 on.
+  // Reserved: written only by the future compaction job (§4.7); replay handles it from M4 on. It
+  // carries a full `item_state` row (Part B-M4 decision 19), so a snapshot replaces the results it
+  // compacts.
   'item.snapshot': z.strictObject({
     level: z.number().int(),
     weak: z.boolean(),
@@ -176,6 +178,9 @@ export const EVENT_PAYLOADS = {
     dueOn: localDay.nullable(),
     lapses: z.number().int(),
     reps: z.number().int(),
+    introducedOn: localDay,
+    lastResult: z.string().max(32).nullable(),
+    lastResultOn: localDay.nullable(),
     rulesVersion: z.number().int().min(1),
   }),
 } satisfies Record<EventType, z.ZodType>
@@ -232,8 +237,9 @@ const payloadError = (payload: unknown, message: string): z.ZodError =>
 /**
  * Validates `payload` against the schema for `type` and returns the parsed payload. Throws a
  * `ZodError` when the schema rejects it, when a string holds `\u0000` or an unpaired surrogate
- * (jsonb cannot store them), or when its jsonb text (`jsonbTextBytes`) exceeds
- * `MAX_PAYLOAD_BYTES` — so nothing it accepts is rejected by the database.
+ * (jsonb cannot store them), when JSON cannot serialise it (a BigInt in a free-form object), or
+ * when its jsonb text (`jsonbTextBytes`) exceeds `MAX_PAYLOAD_BYTES` — so nothing it accepts is
+ * rejected by the database.
  */
 export function parseEventPayload<T extends EventType>(type: T, payload: unknown): EventPayload<T> {
   if (!Object.hasOwn(EVENT_PAYLOADS, type)) {
@@ -247,7 +253,14 @@ export function parseEventPayload<T extends EventType>(type: T, payload: unknown
       `the ${type} payload has a string with U+0000 or an unpaired surrogate, which jsonb cannot store`,
     )
   }
-  const bytes = jsonbTextBytes(parsed)
+  let bytes: number
+  try {
+    bytes = jsonbTextBytes(parsed)
+  } catch (error) {
+    // `JSON.stringify` throws a TypeError for a BigInt, which a free-form `z.unknown()` accepts.
+    if (!(error instanceof TypeError)) throw error
+    throw payloadError(payload, `the ${type} payload is not JSON-serialisable`)
+  }
   if (bytes > MAX_PAYLOAD_BYTES) {
     throw payloadError(
       payload,
