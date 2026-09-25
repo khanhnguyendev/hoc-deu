@@ -10063,7 +10063,13 @@ effect at the next day start), ADR-0017; decision 27. **Files:**
   different `effective_at` (the app always upserts at the earliest pending `effectiveAt`). Measured
   only from the version in force at `now()`, a second pending version could still move the local
   day back in the middle of the first one's day (ruling M4-R17, 4.12 review). The 5-minute rule
-  stays too. Otherwise `schedule_backdated`.
+  stays too. Otherwise `schedule_backdated`. **Ceiling (ruling M4-R19, 4.12 re-review):** the same
+  version must also satisfy `effective_at <=` that next day start as Postgres computes it, with no
+  tolerance above — a floor alone let one future-dated version (a day or more ahead) land in the
+  middle of a later day. So a later version always takes effect within the 65 minutes before its
+  predecessor's next day start; `nextDayStart` (TypeScript, the earliest instant) is never later
+  than Postgres's reading — a sweep over every time-zone option × day start across 2026's DST
+  transitions confirms it, and 013 pins representative cases. Otherwise `schedule_backdated`.
 - Before onboarding, an `authenticated` insert may not be dated later than `now() + 5 minutes`
   (onboarding sends `now − 1 minute`), so no future version can be planted before onboarding and
   survive it (ruling M4-R17).
