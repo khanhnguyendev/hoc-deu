@@ -1,0 +1,5 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    core: [dsa:lc-0001, dsa:lc-0002]

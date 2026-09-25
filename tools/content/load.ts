@@ -74,6 +74,8 @@ export type ProblemFiles = {
 export type LoadedContent = {
   /** Valid manifests, sorted by ID. */
   tracks: TrackManifest[]
+  /** Track ID → the repo-relative path of its valid manifest. */
+  manifestFiles: Map<string, string>
   /** Sorted by track, then file name. */
   roadmapFiles: LoadedRoadmap[]
   /** Items whose file and ID are valid, in file order. */
@@ -108,7 +110,8 @@ const TRACK_FOLDER_RULE = `a track folder is named by its track ID: [a-z][a-z0-9
 const PROBLEM_FOLDER_RULE =
   'a problem folder is named lc-<number>-<LeetCode slug> (lc-0001-two-sum)'
 
-const SOLUTION_FILES: { readonly [K in CodeLanguage]: string } = {
+/** A problem folder's solution file per code language. */
+export const SOLUTION_FILES: { readonly [K in CodeLanguage]: string } = {
   python: 'solution.py',
   java: 'Solution.java',
   go: 'solution.go',
@@ -170,6 +173,7 @@ type Loader = {
   repoRoot: string
   issues: ContentIssue[]
   tracks: TrackManifest[]
+  manifestFiles: Map<string, string>
   roadmapFiles: LoadedRoadmap[]
   /** Items with the YAML path of their ID, for the duplicate check. */
   items: { item: CatalogItem; idPath: string | undefined }[]
@@ -573,16 +577,18 @@ async function loadNote(
   const parsed = parseFrontmatter(loader, mdx)
   if (!parsed.ok) return null
   const frontmatter = validate(loader, mdx.file, noteFrontmatterSchema, parsed.value ?? {})
-  if (frontmatter === null) return null
+  // A note comes with tests.yaml (§3.6): without one it has no verification, so it is checked but
+  // not built — content:build's cross-references report the missing file.
+  if (frontmatter === null || tests === null) return null
   return {
     status: frontmatter.status,
     mdxKey: key,
-    // 3.2c makes tests.yaml mandatory for a note; until then a note without one is compile-only.
-    verification: tests === null ? 'compile-only' : verificationFor(tests.signature.kind),
+    verification: verificationFor(tests.signature.kind),
     languages: CODE_LANGUAGES.filter((language) => solutions[language] !== undefined),
     // The safety check requires exactly one of each in a note (a missing one fails the build).
     bilingual: facts.bilingual[0] ?? { vi: '', en: '' },
     complexity: facts.complexity[0] ?? { time: '', space: '' },
+    // content:build fills it from the deep-dive lessons (crossref.ts `deepDiveIndex`).
     deepDiveId: null,
   }
 }
@@ -749,6 +755,7 @@ async function loadTrack(loader: Loader, dir: string, id: string): Promise<void>
     })
   } else if (manifest !== null) {
     loader.tracks.push(manifest)
+    loader.manifestFiles.set(manifest.id, labelOf(loader, manifestAbs))
   }
   const track: Track = { id, dir, manifest }
 
@@ -811,6 +818,7 @@ export async function loadContent({ repoRoot, contentDir }: LoadOptions): Promis
     repoRoot,
     issues: [],
     tracks: [],
+    manifestFiles: new Map(),
     roadmapFiles: [],
     items: [],
     decks: [],
@@ -840,6 +848,7 @@ export async function loadContent({ repoRoot, contentDir }: LoadOptions): Promis
   const items = uniqueItems(loader)
   return {
     tracks: [...loader.tracks].sort((a, b) => compareNames(a.id, b.id)),
+    manifestFiles: loader.manifestFiles,
     roadmapFiles: loader.roadmapFiles,
     items,
     decks: loader.decks,

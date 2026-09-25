@@ -1,21 +1,30 @@
 /**
- * `pnpm content:build` (platform design §3.6): load and check `content/**`, keep `content/ids.lock`,
- * highlight code, and emit `.generated/`. Every issue is collected before the build fails, and
- * nothing is written unless there are none. Task 3.2c adds the cross-references, derived decks,
- * coverage and the full report.
+ * `pnpm content:build` (platform design §3.6): load and check `content/**`, check the
+ * cross-references, derive cards, keep `content/ids.lock`, highlight code, emit `.generated/`, and
+ * report counts, verification and coverage. Every issue is collected before the build fails, and
+ * nothing is written unless there are none.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { Catalog, DeckSummary } from '@/lib/content/catalog-types'
+import type { Catalog, CatalogItem, DeckSummary } from '@/lib/content/catalog-types'
 import { codeBlockKey, type CodeBundle, type HighlightedCode } from '@/lib/content/code-tokens'
 import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
-import type { Roadmap } from '@/lib/content/schemas/roadmap'
+import { weekCoverage } from './coverage'
+import {
+  crossrefInput,
+  crossrefIssues,
+  deepDiveIndex,
+  missingRoadmaps,
+  type CrossrefInput,
+} from './crossref'
+import { derivedCards } from './derived'
 import { emitGenerated } from './emit'
 import { createHighlighter } from './highlight'
 import { diffLock, formatLock, lockIssues, parseLock, type LockDiff } from './ids-lock'
 import { formatIssue, sortIssues, type ContentIssue } from './issues'
 import { loadContent, type LoadedContent, type LoadedMdx } from './load'
 import { decodeUtf8 } from './nfc'
+import { formatReport } from './report'
 
 export type BuildOptions = {
   repoRoot: string
@@ -33,7 +42,7 @@ export type BuildResult = {
   /** Null when the build failed. */
   catalog: Catalog | null
   lock: LockDiff
-  /** The summary line, or every issue and a count. */
+  /** The report (report.ts), or every issue and a count. */
   report: string
 }
 
@@ -60,29 +69,45 @@ const sortedRecord = <T>(entries: readonly [string, T][]): Record<string, T> =>
 
 const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 
-/** The catalog of loaded content (3.2c adds derived decks, `deepDiveId` and coverage). */
-function buildCatalog(loaded: LoadedContent): Catalog {
-  const roadmaps: Record<string, Record<string, Roadmap>> = {}
-  for (const track of loaded.tracks) roadmaps[track.id] = {}
-  for (const { trackId, variant, roadmap } of loaded.roadmapFiles) {
-    roadmaps[trackId] = sortedRecord([
-      ...Object.entries(roadmaps[trackId] ?? {}),
-      [variant, roadmap],
-    ])
-  }
-  const missingRoadmaps = loaded.tracks.flatMap((track) =>
-    track.roadmaps
-      .filter((ref) => roadmaps[track.id]?.[ref.id] === undefined)
-      .map((ref) => ({ trackId: track.id, variant: ref.id })),
+type Derived = ReturnType<typeof derivedCards>
+
+/** A noted problem with its deep-dive lesson (§3.5 reverse lookup); any other item as it is. */
+function withDeepDive(item: CatalogItem, deepDives: ReadonlyMap<string, string>): CatalogItem {
+  if (item.type !== 'problem' || item.content.note === null) return item
+  const note = { ...item.content.note, deepDiveId: deepDives.get(item.id) ?? null }
+  return { ...item, content: { ...item.content, note } }
+}
+
+/** The catalog: loaded items with their deep-dives, derived cards and decks, and coverage. */
+function buildCatalog(loaded: LoadedContent, input: CrossrefInput, derived: Derived): Catalog {
+  const deepDives = deepDiveIndex(input.items, loaded.tracks)
+  const items = sortedRecord([
+    ...loaded.items.map((item): [string, CatalogItem] => [item.id, withDeepDive(item, deepDives)]),
+    ...derived.cards.map((card): [string, CatalogItem] => [card.id, card]),
+  ])
+  const decks = sortedRecord(
+    [...loaded.decks, ...derived.decks].map((deck): [string, DeckSummary] => [deck.id, deck]),
+  )
+  // Coverage per track × existing roadmap × week (fix 21).
+  const coverage = Object.fromEntries(
+    loaded.tracks.map((track) => [
+      track.id,
+      Object.fromEntries(
+        Object.entries(input.roadmaps[track.id] ?? {}).map(([variant, roadmap]) => [
+          variant,
+          weekCoverage(track, roadmap, items, decks),
+        ]),
+      ),
+    ]),
   )
   return {
     schemaVersion: 1,
     tracks: loaded.tracks,
-    roadmaps,
-    missingRoadmaps,
-    decks: sortedRecord(loaded.decks.map((deck): [string, DeckSummary] => [deck.id, deck])),
-    items: sortedRecord(loaded.items.map((item) => [item.id, item])),
-    coverage: {},
+    roadmaps: input.roadmaps,
+    missingRoadmaps: missingRoadmaps(loaded.tracks, input.roadmaps),
+    decks,
+    items,
+    coverage,
   }
 }
 
@@ -134,15 +159,29 @@ export async function buildContent(options: BuildOptions): Promise<BuildResult> 
     : { ok: true as const, text: '' }
   const lockText = read.ok ? read.text : ''
   const parsedLock = parseLock(lockText)
+
+  // Step 6: cross-references, once every file loads cleanly — a file that failed to load would
+  // only cascade into missing references.
+  const input = crossrefInput(loaded)
+  const crossIssues = loaded.issues.length === 0 ? crossrefIssues(input) : []
+  // Step 7: derived cards; a locked one whose source stopped qualifying stays, retired (decision 8).
+  const derived = derivedCards({
+    tracks: loaded.tracks,
+    items: input.items,
+    lockedIds: new Set(parsedLock.lock.published),
+    manifestFiles: loaded.manifestFiles,
+  })
+
   const lock = diffLock(
     parsedLock.lock,
-    loaded.items.map((item) => item.id),
+    [...loaded.items, ...derived.cards].map((item) => item.id),
     lockText,
   )
   // While content has issues, an ID can be missing only because its file failed to load.
   const checkedLock = loaded.issues.length > 0 ? { ...lock, removed: [] } : lock
   const issues = sortIssues([
     ...loaded.issues,
+    ...crossIssues,
     // An undecodable lock is its one issue: nothing in it can be compared.
     ...(read.ok
       ? [
@@ -158,7 +197,7 @@ export async function buildContent(options: BuildOptions): Promise<BuildResult> 
   }
 
   // Steps 8 and 10: highlight and emit, then record new IDs (never in check mode).
-  const catalog = buildCatalog(loaded)
+  const catalog = buildCatalog(loaded, input, derived)
   emitGenerated({
     repoRoot,
     outDir,
@@ -171,13 +210,6 @@ export async function buildContent(options: BuildOptions): Promise<BuildResult> 
     writeFileSync(lockPath, formatLock({ published: [...published, ...lock.added], retired }))
   }
 
-  const seconds = ((performance.now() - started) / 1000).toFixed(1)
-  const report = [
-    'content:build',
-    count(catalog.tracks.length, 'track'),
-    count(Object.keys(catalog.items).length, 'item'),
-    `ids.lock +${lock.added.length}`,
-    `${seconds} s`,
-  ].join(' · ')
+  const report = formatReport(catalog, lock, performance.now() - started)
   return { ok: true, issues: [], catalog, lock, report }
 }

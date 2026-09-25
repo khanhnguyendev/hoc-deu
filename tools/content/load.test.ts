@@ -62,6 +62,7 @@ describe('loadContent — the ok fixture', () => {
       'dsa:lc-0167',
       'dsa:lc-0217',
       'dsa:lesson-two-pointers',
+      'dsa:lesson-two-sum',
       'dsa:prompt-mock-interview',
       'english:ex-w01-fill-1',
       'english:ex-w01-rewrite-1',
@@ -213,6 +214,12 @@ describe('loadContent — the ok fixture', () => {
         file: at('ok', 'tracks/dsa/lessons/two-pointers.mdx'),
         context: 'lesson',
       },
+      {
+        key: 'dsa:lesson-two-sum',
+        itemId: 'dsa:lesson-two-sum',
+        file: at('ok', 'tracks/dsa/lessons/two-sum.mdx'),
+        context: 'lesson',
+      },
     ])
     expect(mdx[1]?.facts.codeBlocks.map((block) => block.lang)).toEqual(['python'])
     expect(mdx[1]?.absPath).toBe(path.join(FIXTURES, 'ok/tracks/dsa/lessons/two-pointers.mdx'))
@@ -225,6 +232,30 @@ describe('loadContent — the ok fixture', () => {
     expect(twoSum?.solutions.python?.source).toContain('class Solution:')
     expect(twoSum?.tests?.signature.kind).toBe('function')
     expect(problemFiles.get('dsa:lc-0015')).toEqual({ solutions: {}, tests: null })
+  })
+
+  it('records each manifest file by track', async () => {
+    const { manifestFiles } = await load('ok')
+    expect(manifestFiles).toEqual(
+      new Map([
+        ['dsa', at('ok', 'tracks/dsa/track.yaml')],
+        ['english', at('ok', 'tracks/english/track.yaml')],
+      ]),
+    )
+  })
+
+  it('a note without tests.yaml has no verification: it is checked, but not built (§3.6)', async () => {
+    const root = copyWith('ok', {})
+    rmSync(path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/tests.yaml'))
+    const { items, mdx, issues } = await loadContent({
+      repoRoot: root,
+      contentDir: path.join(root, 'content'),
+    })
+    // content:build's cross-references report the missing file (crossref.test.ts).
+    expect(issues).toEqual([])
+    const twoSum = items.find((item) => item.id === 'dsa:lc-0001')
+    expect(twoSum?.type === 'problem' && twoSum.content.note).toBeNull()
+    expect(mdx.map((entry) => entry.key)).toContain('dsa:lc-0001#note')
   })
 
   it('a card inherits a draft or retired deck status', async () => {

@@ -1,6 +1,7 @@
 /**
- * `pnpm content:build [--check]` — exit 0 when the content builds, 1 with issues, 2 on a usage
- * error or a crash. Check mode also follows `CI` (see `isCheckMode`).
+ * `pnpm content:build [--check]` — exit 0 when the content builds and print the report (counts,
+ * verification, week sizes, coverage, drafts; report.ts), 1 with every issue, 2 on a usage error or
+ * a crash. Check mode also follows `CI` (see `isCheckMode`).
  */
 import path from 'node:path'
 import { buildContent, isCheckMode } from './build'

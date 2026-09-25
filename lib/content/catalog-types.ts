@@ -22,7 +22,7 @@ export type ProblemNote = {
   languages: CodeLanguage[]
   bilingual: { vi: string; en: string }
   complexity: { time: string; space: string }
-  /** The deep-dive lesson about this problem (§3.5 reverse lookup); filled by 3.2c, null until. */
+  /** The deep-dive lesson about this problem (§3.5 reverse lookup), or null. */
   deepDiveId: string | null
 }
 
@@ -45,7 +45,7 @@ export type FlashcardContent = Card & {
   deckId: string
   /** The language of each side; a hint is in the back's language. */
   lang: { front: 'en' | 'vi'; back: 'en' | 'vi'; hint: 'en' | 'vi' }
-  /** The source item of a derived card (3.2c); null for an authored card. */
+  /** The source item of a derived card; null for an authored card. */
   derivedFrom: string | null
 }
 
@@ -115,6 +115,6 @@ export type Catalog = {
   decks: Record<string, DeckSummary>
   /** Every item, drafts and retired included. */
   items: Record<string, CatalogItem>
-  /** trackId → variant → weeks; `{}` until 3.2c. */
+  /** trackId → variant → weeks, for the roadmap files that exist. */
   coverage: Record<string, Record<string, WeekCoverage[]>>
 }

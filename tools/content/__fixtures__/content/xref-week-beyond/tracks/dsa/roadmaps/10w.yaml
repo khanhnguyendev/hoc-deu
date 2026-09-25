@@ -1,0 +1,4 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]

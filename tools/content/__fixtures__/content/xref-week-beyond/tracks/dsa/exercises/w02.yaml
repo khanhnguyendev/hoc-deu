@@ -1,0 +1,7 @@
+- id: dsa:ex-w02-fill-1
+  kind: fill-blank
+  week: 2
+  topic: arrays-hashing
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: 'A hash map looks up a key in {{blank}} time on average.'
+  answers: [constant]

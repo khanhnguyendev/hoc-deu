@@ -1,0 +1,9 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    core: [dsa:lc-0001]
+    bonus: [dsa:lc-0208]
+  - week: 2
+    topics: [trees]
+    core: [dsa:lc-0104]

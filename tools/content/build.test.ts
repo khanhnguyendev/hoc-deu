@@ -10,9 +10,11 @@ import {
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { WeekCoverage } from '@/lib/content/catalog-types'
 import { buildContent, isCheckMode } from './build'
 import { formatLock, parseLock } from './ids-lock'
 import { formatIssue, sortIssues } from './issues'
+import { formatReport } from './report'
 
 const REPO = path.resolve(import.meta.dirname, '../..')
 const FIXTURES = path.join(import.meta.dirname, '__fixtures__', 'content')
@@ -35,6 +37,8 @@ function fixtureRoot(scenario: string): string {
   return root
 }
 
+const PROMPTS = 'content/tracks/dsa/prompts/mock-interview.yaml'
+
 const lockOf = (root: string): string | null => {
   const file = path.join(root, 'content/ids.lock')
   return existsSync(file) ? readFileSync(file, 'utf8') : null
@@ -54,16 +58,20 @@ describe('buildContent — the ok fixture', () => {
     const counts: Record<string, number> = {}
     for (const item of Object.values(catalog.items))
       counts[item.type] = (counts[item.type] ?? 0) + 1
-    expect(counts).toEqual({ problem: 4, lesson: 1, flashcard: 3, exercise: 2, prompt: 2 })
+    // The derived "Explaining code" card of Two Sum is a flashcard of the English track.
+    expect(counts).toEqual({ problem: 4, lesson: 2, flashcard: 4, exercise: 2, prompt: 2 })
     expect(Object.keys(catalog.items)).toEqual([...Object.keys(catalog.items)].sort())
-    expect(Object.keys(catalog.decks)).toEqual(['english:deck-w01-standup'])
+    expect(Object.keys(catalog.decks)).toEqual([
+      'english:deck-w01-standup',
+      'english:explaining-code',
+    ])
     expect(Object.keys(catalog.roadmaps.dsa ?? {}).sort()).toEqual(['10w', '8w'])
     expect(catalog.roadmaps.english?.['10w']?.weeks[0]?.decks).toEqual(['english:deck-w01-standup'])
     expect(catalog.missingRoadmaps).toEqual([{ trackId: 'english', variant: '4w' }])
-    expect(catalog.coverage).toEqual({})
 
-    // ids.lock: every item ID, added locally.
-    expect(result.lock.added).toHaveLength(12)
+    // ids.lock: every item ID, derived ones included, added locally.
+    expect(result.lock.added).toHaveLength(14)
+    expect(result.lock.added).toContain('english:explaining-code:dsa:lc-0001')
     expect(result.lock.added).toEqual([...Object.keys(catalog.items)].sort())
     expect(lockOf(root)).toBe(formatLock({ published: result.lock.added, retired: [] }))
 
@@ -89,9 +97,104 @@ describe('buildContent — the ok fixture', () => {
       '"dsa:lesson-two-pointers": () => import("../content/tracks/dsa/lessons/two-pointers.mdx")',
     )
 
-    expect(result.report).toMatch(
-      /^content:build · 2 tracks · 12 items · ids\.lock \+12 · \d+\.\d s$/,
-    )
+    // The report (report.test.ts pins its text); only the time differs from run to run.
+    const [summary, ...rest] = result.report.split('\n')
+    expect(summary).toMatch(/^content:build · 2 tracks · 14 items · ids\.lock \+14 · \d+\.\d s$/)
+    expect(rest).toEqual(formatReport(catalog, result.lock, 0).split('\n').slice(1))
+  })
+
+  it('links the deep-dive, derives the card and records coverage per roadmap week', async () => {
+    const root = fixtureRoot('ok')
+    const { catalog } = await buildContent({ repoRoot: root, check: false })
+    if (catalog === null) throw new Error('no catalog')
+
+    const twoSum = catalog.items['dsa:lc-0001']
+    expect(twoSum?.type === 'problem' && twoSum.content.note?.deepDiveId).toBe('dsa:lesson-two-sum')
+    const unnoted = catalog.items['dsa:lc-0015']
+    expect(unnoted?.type === 'problem' && unnoted.content.note).toBeNull()
+
+    expect(catalog.items['english:explaining-code:dsa:lc-0001']).toMatchObject({
+      type: 'flashcard',
+      trackId: 'english',
+      localId: 'explaining-code:dsa:lc-0001',
+      status: 'active',
+      content: {
+        tier: 'derived',
+        front: 'Explain the optimal approach for Two Sum in English.',
+        back: 'Store each number in a hash map to look up its complement in O(1).',
+        hint: 'Lưu mỗi số vào hash map để tìm phần bù trong O(1).',
+        derivedFrom: 'dsa:lc-0001',
+      },
+    })
+    expect(catalog.decks['english:explaining-code']).toMatchObject({
+      kind: 'derived',
+      cardIds: ['english:explaining-code:dsa:lc-0001'],
+    })
+
+    const week = (overrides: Partial<WeekCoverage> & Pick<WeekCoverage, 'week' | 'topics'>) => ({
+      lessons: [],
+      placedProblems: 0,
+      notedProblems: 0,
+      bonusProblems: 0,
+      notedBonus: 0,
+      coreCards: 0,
+      extendedCards: 0,
+      exercises: 0,
+      prompts: 0,
+      ...overrides,
+    })
+    const twoPointers = { topic: 'two-pointers', lessonId: 'dsa:lesson-two-pointers' }
+    const arraysHashing = { topic: 'arrays-hashing', lessonId: null }
+    expect(catalog.coverage).toEqual({
+      dsa: {
+        '10w': [
+          week({
+            week: 1,
+            topics: ['arrays-hashing'],
+            lessons: [arraysHashing],
+            placedProblems: 2,
+            notedProblems: 1,
+          }),
+          week({ week: 2, topics: ['two-pointers'], lessons: [twoPointers], placedProblems: 2 }),
+        ],
+        '8w': [
+          week({
+            week: 1,
+            topics: ['arrays-hashing', 'two-pointers'],
+            lessons: [arraysHashing, twoPointers],
+            placedProblems: 3,
+            notedProblems: 1,
+            bonusProblems: 1,
+          }),
+        ],
+      },
+      english: {
+        '10w': [
+          week({
+            week: 1,
+            topics: ['standup'],
+            lessons: [{ topic: 'standup', lessonId: null }],
+            coreCards: 2,
+            exercises: 2,
+            prompts: 1,
+          }),
+        ],
+      },
+    })
+  })
+
+  it('keeps a locked derived card, retired, once its note becomes a draft (decision 8)', async () => {
+    const root = fixtureRoot('ok')
+    await buildContent({ repoRoot: root, check: false })
+    const lock = lockOf(root)
+    const note = path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/note.mdx')
+    writeFileSync(note, readFileSync(note, 'utf8').replace('status: active', 'status: draft'))
+    for (const check of [false, true]) {
+      const result = await buildContent({ repoRoot: root, check })
+      expect(result.issues).toEqual([])
+      expect(result.catalog?.items['english:explaining-code:dsa:lc-0001']?.status).toBe('retired')
+      expect(lockOf(root)).toBe(lock)
+    }
   })
 
   it('highlights the solutions and the fenced blocks into the item bundles', async () => {
@@ -135,7 +238,7 @@ describe('buildContent — the ok fixture', () => {
     expect(result.ok).toBe(false)
     expect(result.catalog).toBeNull()
     expect(result.issues.map((issue) => issue.message)).toEqual([
-      'content/ids.lock is missing 12 IDs — run `pnpm content:build` and commit content/ids.lock',
+      'content/ids.lock is missing 14 IDs — run `pnpm content:build` and commit content/ids.lock',
       'content/ids.lock is not normalised — run `pnpm content:build`',
     ])
     expect(lockOf(root)).toBeNull()
@@ -145,12 +248,13 @@ describe('buildContent — the ok fixture', () => {
   it('an ID that left content is reported once content loads cleanly', async () => {
     const root = fixtureRoot('ok')
     await buildContent({ repoRoot: root, check: false })
-    rmSync(path.join(root, 'content/tracks/dsa/problems/lc-0015-3sum'), { recursive: true })
+    // Nothing refers to the mock-interview prompt, so removing it breaks no cross-reference.
+    rmSync(path.join(root, PROMPTS))
     const result = await buildContent({ repoRoot: root, check: false })
     expect(result.issues.map(formatIssue)).toEqual([
-      'content/ids.lock: `dsa:lc-0015` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)',
+      'content/ids.lock: `dsa:prompt-mock-interview` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)',
     ])
-    expect(parseLock(lockOf(root) ?? '').lock.published).toContain('dsa:lc-0015')
+    expect(parseLock(lockOf(root) ?? '').lock.published).toContain('dsa:prompt-mock-interview')
   })
 })
 
@@ -159,7 +263,7 @@ describe('buildContent — ids.lock removals wait for content that loads cleanly
     const root = fixtureRoot('ok')
     await buildContent({ repoRoot: root, check: false })
     const lock = lockOf(root)
-    rmSync(path.join(root, 'content/tracks/dsa/problems/lc-0015-3sum'), { recursive: true })
+    rmSync(path.join(root, PROMPTS))
     const problem = path.join(
       root,
       'content/tracks/dsa/problems/lc-0217-contains-duplicate/problem.yaml',
@@ -171,12 +275,12 @@ describe('buildContent — ids.lock removals wait for content that loads cleanly
     expect(held.issues.map((issue) => `${issue.file} ${issue.path ?? ''}`)).toEqual([
       'content/tracks/dsa/problems/lc-0217-contains-duplicate/problem.yaml difficulty',
     ])
-    expect(held.lock.removed).toEqual(['dsa:lc-0015', 'dsa:lc-0217'])
+    expect(held.lock.removed).toEqual(['dsa:lc-0217', 'dsa:prompt-mock-interview'])
     expect(lockOf(root)).toBe(lock)
 
     writeFileSync(problem, good)
     const removal =
-      'content/ids.lock: `dsa:lc-0015` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)'
+      'content/ids.lock: `dsa:prompt-mock-interview` is in content/ids.lock but no longer in content/** — restore it, set `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)'
     for (const check of [false, true]) {
       const result = await buildContent({ repoRoot: root, check })
       expect(result.issues.map(formatIssue)).toEqual([removal])
@@ -259,6 +363,33 @@ describe('buildContent — a failing fixture', () => {
     )
     expect(existsSync(outDir)).toBe(false)
     expect(existsSync(path.join(FIXTURES, 'track-id-folder/ids.lock'))).toBe(false)
+  })
+})
+
+describe('buildContent — cross-references', () => {
+  it('a cross-reference issue fails the build, and nothing is written', async () => {
+    const root = fixtureRoot('xref-core-topic')
+    const result = await buildContent({ repoRoot: root, check: false })
+    expect(result.ok).toBe(false)
+    expect(result.catalog).toBeNull()
+    expect(result.report).toBe(
+      [
+        "content/tracks/dsa/roadmaps/10w.yaml: weeks.0.core.1: dsa:lc-0167 has topic two-pointers, not one of week 1's topics (arrays-hashing)",
+        '✗ 1 issue',
+      ].join('\n'),
+    )
+    expect(lockOf(root)).toBeNull()
+    expect(existsSync(path.join(root, '.generated'))).toBe(false)
+  })
+
+  it('run once every file loads cleanly (a file that failed to load would cascade)', async () => {
+    const root = fixtureRoot('xref-core-topic')
+    const problem = path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/problem.yaml')
+    writeFileSync(problem, readFileSync(problem, 'utf8').replace('difficulty: E', 'difficulty: X'))
+    const result = await buildContent({ repoRoot: root, check: false })
+    expect(result.issues.map((issue) => `${issue.file} ${issue.path ?? ''}`)).toEqual([
+      'content/tracks/dsa/problems/lc-0001-two-sum/problem.yaml difficulty',
+    ])
   })
 })
 
