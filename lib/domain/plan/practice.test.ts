@@ -91,6 +91,35 @@ describe('pickByItemType (platform design §5.6 exercise rule)', () => {
     ).toBeNull()
   })
 
+  // Final review M-12: skipped out of review (status skipped), as dueQueue excludes it.
+  it('the introduced fallback never picks a skipped exercise', () => {
+    const items = statesOf(
+      itemState('english:ex-w1-a', DAY, { lastResult: 'miss', status: 'skipped' }),
+      itemState('english:ex-w1-b', DAY, { lastResult: 'pass' }),
+    )
+    expect(
+      pickByItemType({
+        trackId: 'english',
+        itemType: 'exercise',
+        roadmapWeek: 1,
+        items,
+        catalog: CATALOG,
+      }),
+    ).toBe('english:ex-w1-b')
+    expect(
+      pickByItemType({
+        trackId: 'english',
+        itemType: 'exercise',
+        roadmapWeek: 1,
+        items: statesOf(
+          itemState('english:ex-w1-a', DAY, { status: 'skipped' }),
+          itemState('english:ex-w1-b', DAY, { status: 'skipped' }),
+        ),
+        catalog: CATALOG,
+      }),
+    ).toBeNull()
+  })
+
   it('a draft exercise is never picked', () => {
     const draftCatalog = withItems(CATALOG, { 'english:ex-w1-a': { status: 'draft' } })
     expect(
@@ -230,6 +259,16 @@ describe('pickShadowing (platform design §5.6)', () => {
     ).toEqual([])
   })
 
+  it('a card skipped out of review is excluded from the introduced fallback (M-12)', () => {
+    const items = statesOf(
+      itemState('english:e1', '2026-09-30', { status: 'skipped', dueOn: null }),
+      itemState('english:x1', '2026-09-29'),
+    )
+    expect(pickShadowing({ trackId: 'english', todaysNew: [], items, catalog: CATALOG })).toEqual([
+      'english:x1',
+    ])
+  })
+
   it('a retired card with an example is excluded from the introduced fallback', () => {
     const retiredCatalog = withItems(CATALOG, { 'english:e1': { status: 'retired' } })
     const items = statesOf(
@@ -264,6 +303,19 @@ describe('mockInterviewProblem (platform design §5.6)', () => {
   it('a level-0 (not truly introduced) Medium problem is never picked', () => {
     const items = statesOf(itemState('dsa:p2', DAY, { level: 0, lastResultOn: '2026-09-01' }))
     expect(mockInterviewProblem({ trackId: 'dsa', items, catalog: CATALOG })).toBeNull()
+  })
+
+  it('a Medium problem skipped out of review is never picked (M-12)', () => {
+    const items = statesOf(
+      itemState('dsa:p2', DAY, {
+        level: 2,
+        status: 'skipped',
+        dueOn: null,
+        lastResultOn: '2026-09-01',
+      }),
+      itemState('dsa:p3', DAY, { lastResultOn: '2026-09-29' }),
+    )
+    expect(mockInterviewProblem({ trackId: 'dsa', items, catalog: CATALOG })).toBe('dsa:p3')
   })
 
   it('a missing lastResultOn sorts last', () => {

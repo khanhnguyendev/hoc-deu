@@ -441,4 +441,16 @@ describe('recapCandidates', () => {
   it('is empty with week null and nothing introduced', () => {
     expect(candidates({}, { week: null })).toEqual([])
   })
+
+  // Final review M-12: an item the learner skipped out of review keeps its level (item.skipped),
+  // but stays out of recap as it stays out of dueQueue — neither a mode entry nor filler.
+  it('never picks an item skipped out of review, as an entry or as filler', () => {
+    const items = frozen(
+      itemState('dsa:p1', DAY),
+      itemState('dsa:p2', DAY, { level: 2, status: 'skipped', dueOn: null }),
+      itemState('dsa:p3', DAY, { level: 1, status: 'skipped', dueOn: null }),
+    )
+    expect(candidates(items)).toEqual([{ itemId: 'dsa:p1', mode: 'explain-aloud' }])
+    expect(candidates(items, { week: null })).toEqual([{ itemId: 'dsa:p1', mode: 'recall' }])
+  })
 })

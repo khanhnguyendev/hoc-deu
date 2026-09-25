@@ -36,8 +36,9 @@ function activeItemsOf(catalog: PlanCatalog, trackId: string): PlanItem[] {
 
 /**
  * A `practice` block with `itemType` (§5.6 exercise rule, generic): the first active, not-introduced
- * item of that type whose `week` is `roadmapWeek` (ID order); else the introduced one with the worst
- * last grade (`GRADE_RANK`, unknown grades last), oldest `lastResultOn`, then ID; else null.
+ * item of that type whose `week` is `roadmapWeek` (ID order); else the introduced one — never one
+ * the learner skipped (status `skipped`, as `dueQueue`; final review M-12) — with the worst last
+ * grade (`GRADE_RANK`, unknown grades last), oldest `lastResultOn`, then ID; else null.
  */
 export function pickByItemType(input: {
   readonly trackId: string
@@ -54,7 +55,10 @@ export function pickByItemType(input: {
     .sort(byId)
   if (notIntroducedThisWeek.length > 0) return notIntroducedThisWeek[0]!.id
 
-  const introduced = candidates.filter((item) => items[item.id] !== undefined)
+  const introduced = candidates.filter((item) => {
+    const state = items[item.id]
+    return state !== undefined && state.status !== 'skipped'
+  })
   if (introduced.length === 0) return null
 
   const worst = [...introduced].sort((a, b) => {
@@ -102,7 +106,8 @@ export function pickByTag(input: {
 
 /**
  * Shadowing (§5.6): up to `count` of today's new cards that have an example, in plan order; when
- * none, the track's most recently introduced cards with an example (`introducedOn` desc, ID).
+ * none, the track's most recently introduced cards with an example (`introducedOn` desc, ID),
+ * except cards the learner skipped out of review (status `skipped`, as `dueQueue`; M-12).
  */
 export function pickShadowing(input: {
   readonly trackId: string
@@ -123,7 +128,7 @@ export function pickShadowing(input: {
 
   return Object.entries(items)
     .filter(([itemId, state]) => {
-      if (state.trackId !== trackId) return false
+      if (state.trackId !== trackId || state.status === 'skipped') return false
       const item = catalog.items[itemId]
       return item !== undefined && item.status === 'active' && item.hasExample
     })
@@ -139,7 +144,8 @@ export function pickShadowing(input: {
 
 /**
  * §5.6: the introduced (level ≥ 1) active Medium problem of the track with the oldest
- * `lastResultOn`, then ID; null when none. For M5's mock-interview prompt page.
+ * `lastResultOn`, then ID — never one the learner skipped out of review (status `skipped`, as
+ * `dueQueue`; M-12); null when none. For M5's mock-interview prompt page.
  */
 export function mockInterviewProblem(input: {
   readonly trackId: string
@@ -151,7 +157,7 @@ export function mockInterviewProblem(input: {
   const candidates = Object.entries(items)
     .filter(([itemId, state]) => {
       if (state.trackId !== trackId) return false
-      if (state.level < 1) return false
+      if (state.level < 1 || state.status === 'skipped') return false
       const item = catalog.items[itemId]
       return item !== undefined && item.status === 'active' && item.difficulty === 'M'
     })

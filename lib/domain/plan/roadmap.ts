@@ -178,7 +178,8 @@ export type RecapPick = { readonly itemId: string; readonly mode: ItemMode }
  *  other introduced SRS items (level ≥ 1, not mastered, active), sorted by (level, lastResultOn,
  *  ID), each time preferring a topic not picked yet ("spread across topics"), in their review
  *  mode (`reviewMode`: Weak problem → 'redo', other problem → 'recall', card → 'review').
- *  `week: null` = filler only. Items in `exclude` are never picked. */
+ *  `week: null` = filler only. Items in `exclude` are never picked, nor items the learner skipped
+ *  out of review (status `skipped`, level kept) — as `dueQueue` (final review M-12). */
 export function recapCandidates(input: {
   readonly trackId: string
   readonly roadmap: PlanRoadmap | null
@@ -203,9 +204,10 @@ export function recapCandidates(input: {
   for (const entry of entries) {
     if (picks.length >= count) break
     const item = catalog.items[entry.item]
-    const level = items[entry.item]?.level ?? 0
+    const state = items[entry.item]
     if (entry.mode === undefined || item === undefined || item.status !== 'active') continue
-    if (level < 1 || exclude.has(item.id) || isPicked(item.id)) continue
+    if (state === undefined || state.level < 1 || state.status === 'skipped') continue
+    if (exclude.has(item.id) || isPicked(item.id)) continue
     pick(item, entry.mode)
   }
 
@@ -213,7 +215,7 @@ export function recapCandidates(input: {
     .flatMap((state) => {
       const item = catalog.items[state.itemId]
       if (item === undefined || item.trackId !== trackId || item.status !== 'active') return []
-      if (state.level < 1 || state.status === 'mastered') return []
+      if (state.level < 1 || state.status === 'mastered' || state.status === 'skipped') return []
       return exclude.has(item.id) || isPicked(item.id) ? [] : [{ item, state }]
     })
     .toSorted(
