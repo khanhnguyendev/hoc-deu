@@ -76,11 +76,14 @@ describe('load()', () => {
   })
 
   it('problem without a note: no body, and no MDX load', async () => {
+    // The fixture reuses a real problem ID; pin the code loader so real content can't leak in.
+    code.mockResolvedValueOnce(null)
     await expect(getItemType('problem').load(premiumProblemItem())).resolves.toEqual({
       Body: null,
       code: null,
     })
     expect(mdx).not.toHaveBeenCalled()
+    expect(code).toHaveBeenCalledWith('dsa:lc-0271')
   })
 
   it('lesson: its MDX and code', async () => {
