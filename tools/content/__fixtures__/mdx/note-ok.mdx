@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Dùng <Term vi="bảng băm">hash map</Term> để nhớ các số đã gặp cùng chỉ số của chúng.
+
+<Callout tone="info">
+
+Mỗi phần tử chỉ được duyệt **một lần**.
+
+</Callout>
+
+### Các bước
+
+<Steps>
+<Step title="Duyệt">Với mỗi `x`, tính phần bù `target - x`.</Step>
+<Step title="Tra cứu">Nếu phần bù đã có trong map thì trả về hai chỉ số.</Step>
+</Steps>
+
+<VarTable caption="nums = [2, 7, 11, 15], target = 9">
+
+| i | x | Phần bù | map |
+| --- | --- | --- | --- |
+| 0 | 2 | 7 | `{}` |
+| 1 | 7 | 2 | `{2: 0}` |
+
+</VarTable>
+
+#### Độ phức tạp
+
+<Complexity time="O(n)" space="O(n)" />
+
+<Bilingual vi="Lưu mỗi số vào hash map để tìm phần bù trong O(1)." en="Store each number in a hash map to look up its complement in O(1)." />
+
+<Reveal label="Vì sao không sắp xếp trước?">
+
+Sắp xếp làm mất chỉ số gốc, và tốn `O(n log n)`.
+
+```text
+[3, 2, 4] -> [2, 3, 4]
+```
+
+</Reveal>
+
+<Solution />
