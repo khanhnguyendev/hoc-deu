@@ -22,8 +22,8 @@ jobs:
     name: content-verify
     # Pinned: newer images swap /usr/bin tools (sudo-rs, uutils) that the sandbox relies on.
     runs-on: ubuntu-24.04
-    # The strip walks the whole disk once, cold: headroom until its logged duration is known.
-    timeout-minutes: 30
+    # PR #5's run 2: the strip took 184 s (its walk 173 s) and the whole job about 4 minutes.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -104,8 +104,9 @@ jobs:
       # (pinned by workflow.test.ts). The image ships trees writable by others that a per-tree
       # `chmod -R` never reaches — /opt itself, /usr/share, /usr/local/…, and /usr/lib/jvm, which
       # the tool cache's Java `x64` dir only links to — so strip every local disk filesystem as root
-      # instead. Only the shared temp dirs keep 1777; pseudo and tmpfs mounts are not walked. The
-      # audit below then proves the result as the sandbox user.
+      # instead, and drop the tool cache's default ACLs. Only the shared temp dirs keep 1777;
+      # pseudo and tmpfs mounts are not walked (and are logged). The audit below then proves the
+      # result as the sandbox user.
       - if: steps.paths.outputs.run == 'true'
         name: Strip write-for-others across the runner
         shell: bash
@@ -123,6 +124,8 @@ jobs:
           fi
           echo "Filesystems walked:"
           findmnt -lno TARGET,FSTYPE,SOURCE -t "$disk_types"
+          echo "Filesystems not walked (pseudo, tmpfs, squashfs, …):"
+          findmnt -lno TARGET,FSTYPE,SOURCE -t "no$disk_types"
           IFS=: read -r -a path_dirs <<< "$PATH"
           existing=()
           for dir in "${path_dirs[@]}"; do
@@ -130,37 +133,62 @@ jobs:
           done
           echo "Filesystems holding the audited roots:"
           df --output=fstype,target / /opt /usr/local /home /etc /tmp /var/tmp "${existing[@]}" | sort -u
-          # Diagnostics: the tool cache's layout (symlinked version dirs) and one Java binary,
-          # before and after.
+          # Every audited root and PATH dir must sit on a walked filesystem: the strip never
+          # changes one it does not walk.
+          for dir in /opt /usr/local /home /etc "${existing[@]}"; do
+            dir_type="$(findmnt -no FSTYPE --target "$dir")"
+            if [[ ",$disk_types," != *",$dir_type,"* ]]; then
+              echo "::error::$dir is on $dir_type, which the strip does not walk ($disk_types)"
+              exit 1
+            fi
+          done
+          # Diagnostics: the tool cache's layout (symlinked version dirs), its ACLs and one Java
+          # binary, before and after.
           java_bin="$(command -v java)"
           java_real="$(readlink -f "$java_bin")"
+          # …/Java_Temurin-Hotspot_jdk/<version>, whose `x64` links to /usr/lib/jvm/….
+          java_version_dir="$(dirname "$(dirname "$(dirname "$java_bin")")")"
           diagnose_java() {
             echo "::group::Java binary $1 the strip"
             namei -l "$java_bin"
             stat -c '%A %U:%G %n' "$java_bin" "$java_real"
             sudo getfacl -p "$java_real"
+            # Run 2 showed these as `drwxrwxrwx+`: an ACL, perhaps a default one.
+            sudo getfacl -p /opt/hostedtoolcache "$(dirname "$java_version_dir")" "$java_version_dir"
             echo "::endgroup::"
           }
           echo "::group::Tool cache layout"
-          ls -la "$(dirname "$(dirname "$(dirname "$java_bin")")")"
+          ls -la "$java_version_dir"
           sudo find /opt/hostedtoolcache -maxdepth 3 -type l -printf '%p -> %l\n'
           for tool in python3 javac go node; do namei -l "$(command -v "$tool")"; done
           echo "::endgroup::"
           diagnose_java before
-          # One walk as root, three lists:
+          # Default ACLs on the tool cache's directories would make whatever is created in them
+          # later (a __pycache__ the runner's Python writes, say) writable by others again — after
+          # the audit, which sees ACLs only as they are when it runs. Remove them.
+          sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-before"
+          echo "Tool-cache directories with a default ACL: $(awk '/^default:user::/ { n++ } END { print n + 0 }' "$out/acl-before")"
+          sudo find /opt/hostedtoolcache -type d -exec setfacl -k -- {} +
+          # One walk as root, four lists:
           # - others-write: every non-symlink entry others can write → chmod o-w;
           # - search-only: directories others can enter but not list → chmod o-x (the audit cannot
           #   see inside them, so it counts each as a finding);
           # - owned: entries that already carry cvsandbox's uid or gid (an orphaned id the new user
-          #   inherited; it could chmod them) → fail.
+          #   inherited; it could chmod them) → fail;
+          # - control: /usr/bin, which a walk of / always reaches → fail when it is missing.
           walk_started=$SECONDS
           sudo find / -ignore_readdir_race \
             \( -path /tmp -o -path /var/tmp -o -path /dev/shm -o -path /proc -o -path /sys -o -path /run \) -prune -o \
             ! \( -fstype ext2 -o -fstype ext3 -o -fstype ext4 -o -fstype xfs -o -fstype btrfs \) -prune -o \
             \( \( ! -type l -perm -0002 -fprint0 "$out/others-write" \) , \
                \( -type d -perm -0001 ! -perm -0004 -fprint0 "$out/search-only" \) , \
-               \( \( -user cvsandbox -o -group cvsandbox \) -fprint "$out/owned" \) \)
+               \( \( -user cvsandbox -o -group cvsandbox \) -fprint "$out/owned" \) , \
+               \( -path /usr/bin -fprint "$out/control" \) \)
           echo "Walk took $((SECONDS - walk_started)) s."
+          if [ ! -s "$out/control" ]; then
+            echo "::error::the walk never reached /usr/bin, so it did not walk /"
+            exit 1
+          fi
           if [ -s "$out/owned" ]; then
             echo "::error::entries on disk already carry cvsandbox's uid or gid (listed below)"
             sed -n 1,50p "$out/owned"
@@ -178,6 +206,12 @@ jobs:
           echo "::endgroup::"
           sudo xargs -0 -r chmod o-w -- < "$out/others-write"
           sudo xargs -0 -r chmod o-x -- < "$out/search-only"
+          sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-after"
+          left="$(awk '/^default:user::/ { n++ } END { print n + 0 }' "$out/acl-after")"
+          if [ "$left" -ne 0 ]; then
+            echo "::error::$left tool-cache directories still carry a default ACL"
+            exit 1
+          fi
           diagnose_java after
           echo "For the record:"
           stat -c '%A %U:%G %n' / /opt /opt/hostedtoolcache "${existing[@]}"
@@ -311,6 +345,10 @@ jobs:
         env: { CONTENT_VERIFY_INTEGRATION: '1', CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
         run: |
           set -euo pipefail
+          # setup-go's `go` problem matcher reads any `<name>.go: <text>` line as an error: run 2
+          # annotated a passing test (`✓ normalize.go: nil slices …`) as `##[error]`. Removed for
+          # the rest of the job; content:verify reports its own failures.
+          echo "::remove-matcher owner=go::"
           report="$RUNNER_TEMP/integration.json"
           pnpm vitest run tools/content-verify/integration.test.ts \
             --reporter=default --reporter=json --outputFile.json="$report"

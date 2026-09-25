@@ -23,7 +23,9 @@ type Step = {
   env?: Record<string, string>
 }
 const workflow = parseYaml(readFileSync(WORKFLOW, 'utf8')) as {
-  jobs: { 'content-verify': { 'runs-on': string; steps: Step[] } }
+  jobs: {
+    'content-verify': { 'runs-on': string; 'timeout-minutes': number; steps: Step[] }
+  }
 }
 const job = workflow.jobs['content-verify']
 const steps = job.steps
@@ -139,9 +141,19 @@ describe('content-verify workflow', () => {
     return found
   }
   const script = (name: string): string => step(name).run ?? ''
+  /** A step's commands, one per line: continuation lines joined, indentation trimmed. */
+  const commands = (name: string): string[] =>
+    script(name)
+      .replace(/\s*\\\n\s*/g, ' ')
+      .split('\n')
+      .map((line) => line.trim())
 
   it('pins the runner image (newer images swap /usr/bin tools for sudo-rs / uutils)', () => {
     expect(job['runs-on']).toBe('ubuntu-24.04')
+  })
+
+  it('times out at 15 minutes (run 2: the strip took 184 s, the whole job about 4 minutes)', () => {
+    expect(job['timeout-minutes']).toBe(15)
   })
 
   it('creates a sandbox user with no extra groups, no cron/at, no name-service or snapd sockets', () => {
@@ -175,18 +187,25 @@ describe('content-verify workflow', () => {
     expect(
       steps.findIndex((candidate) => candidate.name === 'Sandbox user without network (OD2)'),
     ).toBeLessThan(stripAt)
-    const sandboxed = steps.filter(
-      (candidate) =>
-        (candidate.run ?? '').includes('sudo -n -u cvsandbox') ||
-        candidate.env?.CONTENT_VERIFY_SANDBOX_USER !== undefined,
-    )
-    expect(sandboxed.map((candidate) => candidate.name)).toEqual([
+    // Any step that names the sandbox user — however it would run as it (sudo, runuser, su, an
+    // env var) — other than the one creating it, comes after the strip.
+    const naming = steps.filter((candidate) => JSON.stringify(candidate).includes('cvsandbox'))
+    expect(naming.map((candidate) => candidate.name)).toEqual([
+      'Sandbox user without network (OD2)',
+      STRIP,
       'Sandbox audit: nothing the runner executes is writable by the sandbox user',
       'Sandbox self-test (fail closed)',
       'Harness self-test on fixtures',
+      'No sandbox process survived the harness self-test',
       'Verify content',
+      'No sandbox process survived content:verify',
     ])
-    expect(sandboxed.filter((candidate) => steps.indexOf(candidate) < stripAt)).toEqual([])
+    expect(
+      naming.filter((candidate) => steps.indexOf(candidate) < stripAt).map((c) => c.name),
+    ).toEqual(['Sandbox user without network (OD2)'])
+    // No workflow- or job-level `env` could hand the sandbox user to a step before the strip.
+    expect(Object.keys(workflow)).not.toContain('env')
+    expect(Object.keys(job)).not.toContain('env')
     const strip = step(STRIP)
     expect(strip.if).toBe(RUN_IF)
     expect(strip.shell).toBe('bash')
@@ -207,6 +226,70 @@ describe('content-verify workflow', () => {
     // Positive control: / must be one of the walked types, or the strip would change nothing.
     expect(strip).toContain(`disk_types='${disks.join(',')}'`)
     expect(strip).toContain('findmnt -no FSTYPE --target /')
+  })
+
+  it('pins the walk and every change as whole lines: nothing can be appended to them (PR A fix pass)', () => {
+    const lines = commands(STRIP)
+    const skipped = ['/tmp', '/var/tmp', '/dev/shm', '/proc', '/sys', '/run']
+    const disks = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs']
+    expect(lines).toContain(
+      [
+        'sudo find / -ignore_readdir_race',
+        `\\( ${skipped.map((path) => `-path ${path}`).join(' -o ')} \\) -prune -o`,
+        `! \\( ${disks.map((type) => `-fstype ${type}`).join(' -o ')} \\) -prune -o`,
+        '\\( \\( ! -type l -perm -0002 -fprint0 "$out/others-write" \\) ,',
+        '\\( -type d -perm -0001 ! -perm -0004 -fprint0 "$out/search-only" \\) ,',
+        '\\( \\( -user cvsandbox -o -group cvsandbox \\) -fprint "$out/owned" \\) ,',
+        '\\( -path /usr/bin -fprint "$out/control" \\) \\)',
+      ].join(' '),
+    )
+    for (const line of [
+      'sudo xargs -0 -r chmod o-w -- < "$out/others-write"',
+      'sudo xargs -0 -r chmod o-x -- < "$out/search-only"',
+      'sudo find /opt/hostedtoolcache -type d -exec setfacl -k -- {} +',
+    ]) {
+      expect(lines).toContain(line)
+    }
+    // Nothing in the strip or the audit swallows a failure.
+    for (const name of [
+      STRIP,
+      'Sandbox audit: nothing the runner executes is writable by the sandbox user',
+    ]) {
+      expect(script(name), name).not.toMatch(/\|\|\s*(true|:)(\s|$)|set \+e/)
+    }
+    expect(script(STRIP)).not.toContain('||')
+  })
+
+  it('fails unless the walk reached /usr/bin, / is a walked type and so is every audited dir (PR A fix pass)', () => {
+    const strip = script(STRIP)
+    const fails = (condition: string) =>
+      new RegExp(`${condition}; then\\n\\s+echo "::error::[^\\n]+"\\n\\s+exit 1\\n\\s*fi`)
+    // The walk printed /usr/bin: it really walked /.
+    expect(strip).toMatch(fails(String.raw`if \[ ! -s "\$out/control" \]`))
+    // / is one of the walked types.
+    expect(strip).toMatch(fails(String.raw`if \[\[ ",\$disk_types," != \*",\$root_type,"\* \]\]`))
+    // Every audited root and PATH dir sits on a walked filesystem.
+    expect(strip).toContain('for dir in /opt /usr/local /home /etc "${existing[@]}"; do')
+    expect(strip).toContain('dir_type="$(findmnt -no FSTYPE --target "$dir")"')
+    expect(strip).toMatch(fails(String.raw`if \[\[ ",\$disk_types," != \*",\$dir_type,"\* \]\]`))
+    // The mounts it does not walk are logged.
+    expect(strip).toContain('findmnt -lno TARGET,FSTYPE,SOURCE -t "no$disk_types"')
+  })
+
+  it('removes the tool cache’s default ACLs and proves none is left (PR A fix pass)', () => {
+    const strip = script(STRIP)
+    expect(strip).toContain('sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-before"')
+    expect(strip).toContain('sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-after"')
+    expect(strip).toMatch(
+      /sudo getfacl -R -s -P -p \/opt\/hostedtoolcache > "\$out\/acl-before"[\s\S]*setfacl -k[\s\S]*> "\$out\/acl-after"/,
+    )
+    expect(strip).toMatch(
+      /if \[ "\$left" -ne 0 \]; then\n\s+echo "::error::[^\n]+"\n\s+exit 1\n\s*fi/,
+    )
+    // The tool-cache Java dirs' ACLs, before and after.
+    expect(strip).toContain(
+      'sudo getfacl -p /opt/hostedtoolcache "$(dirname "$java_version_dir")" "$java_version_dir"',
+    )
   })
 
   it('removes write and unlistable search for others, and fails on anything the sandbox owns (CI round 1)', () => {
@@ -309,6 +392,11 @@ describe('content-verify workflow', () => {
       CONTENT_VERIFY_SANDBOX_USER: 'cvsandbox',
     })
     expect(selfTest.run).toContain('--outputFile.json=')
+    // setup-go's `go` matcher turned a passing vitest line into an ##[error] annotation (run 2).
+    const lines = commands('Harness self-test on fixtures')
+    const removed = lines.indexOf('echo "::remove-matcher owner=go::"')
+    expect(removed).toBeGreaterThan(0)
+    expect(removed).toBeLessThan(lines.findIndex((line) => line.startsWith('pnpm vitest run')))
     expect(selfTest.run).toContain('numPassedTests')
     expect(selfTest.run).toContain('numPendingTests')
   })

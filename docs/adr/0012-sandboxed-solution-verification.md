@@ -42,15 +42,27 @@ as a required check that always runs.
     hop of a symlink chain — before sandbox mode starts; the toolchains must not be writable by
     others. The runner image is pinned (`ubuntu-24.04`).
   - **The strip.** Once every toolchain and dependency is installed (no action runs after it), one
-    `find` as root walks every local disk filesystem (ext2/3/4, xfs, btrfs; pseudo and tmpfs mounts
-    are not walked, and it fails unless `/` is one of those types). It removes write-for-others
+    `find` as root walks every local disk filesystem (ext2/3/4, xfs, btrfs; pseudo, tmpfs and
+    squashfs mounts are not walked, and are logged). It removes write-for-others (the mode bits)
     from every entry except symlinks, and search-for-others from every directory others can enter
-    but not list. Only the shared `/tmp` and `/var/tmp` are skipped and keep 1777. It fails if any
-    entry already carries the new user's uid or gid (an orphaned id; the owner could `chmod` it
-    back). It logs what it changed, by tree, and how long it took. A per-tree `chmod` was tried
-    first and was not enough on the real image (PR #5's first run, 1958 audit findings). `/opt`
-    itself was 0777, and so were `/usr/share`, `/usr/lib/jvm`, `/usr/local/lib/node_modules`,
-    `/usr/local/.ghcup` and binaries in `/usr/local/bin`, all reached from PATH through links. The
+    but not list. The shared `/tmp` and `/var/tmp` are skipped as whole subtrees — nothing under
+    them changes — and keep 1777. It also removes the default ACLs of the tool cache's directories
+    (the image ships them as `drwxrwxrwx+`), so nothing created there later is writable by others
+    again. It fails closed:
+    - unless `/` is one of the walked types, the walk reached `/usr/bin` (it really walked `/`),
+      and every audited root and PATH directory sits on a walked filesystem;
+    - if a tool-cache directory still carries a default ACL afterwards;
+    - if any entry already carries the new user's uid or gid — an orphaned id the new user
+      inherits: an entry it owns it could `chmod` back to writable, which the audit (it judges
+      only present access) cannot see, and an entry of its group grants it the group's bits,
+      which the strip does not remove.
+
+    It logs what it changed, by tree, and how long it took (PR #5's run 2: 811,443 entries in
+    184 s, the whole job about 4 minutes). A per-tree `chmod` was tried first and was not enough
+    on the real image (PR #5's first run, 1958 audit findings). `/opt`, `/usr/lib/jvm` and the
+    tool cache were 0777 (run 2's `namei` shows them), and `/usr/share`,
+    `/usr/local/lib/node_modules`, `/usr/local/.ghcup` and binaries in `/usr/local/bin` were
+    writable by others (the first run's audit findings), all reached from PATH through links. The
     tool cache's Java `x64` is only a link to `/usr/lib/jvm/…`, which `chmod -R` on the tool cache
     never enters.
   - **The audit.** `sandbox_audit.py` then runs as the sandbox user over these roots: every PATH
@@ -59,8 +71,10 @@ as a required check that always runs.
     hop or target, or any directory it can enter but not list. It fails as broken unless its
     positive controls hold (it runs as the sandbox user, `/tmp` is writable, it walked a real
     tree). The audit judges by what the sandbox user can do now (`os.access`: mode bits, groups,
-    ACLs). Ownership is the strip's job, because a file the user owns but cannot yet write passes
-    `os.access`. The runner's own temp files move to `RUNNER_TEMP`.
+    ACLs), so it sees ACLs as they are when it runs: a default ACL shapes only entries created
+    later, which is why the strip removes the tool cache's. Ownership is the strip's job, because
+    a file the user owns but cannot yet write passes `os.access`. The runner's own temp files move
+    to `RUNNER_TEMP`.
   - After every command, `kill -KILL -1` as the sandbox user (every process of the uid in one
     syscall), then `pkill -KILL` by effective and real user, repeat until `pgrep` finds no sandbox
     process (or the run stops), so in sandbox mode units run one at a time. A unit
@@ -105,9 +119,10 @@ as a required check that always runs.
 - **Blocked** for the sandbox user: every IPv4/IPv6 packet it sends (TCP, UDP, ICMP, loopback
   included), name resolution (port 53 by iptables; systemd-resolved's varlink socket, D-Bus and
   nscd by ACL), the snapd sockets, writing anywhere on the runner's local disks outside `/tmp` and
-  `/var/tmp` (the strip; the audit proves it as the sandbox user for the roots the runner executes
-  from: the PATH directories, `/opt`, `/usr/local`, `/home`, `/etc`), leaving a process behind or
-  scheduling one (cron, at), more than 512 processes or a file over 256 MiB.
+  `/var/tmp` (the strip, by mode bits; the audit proves it — mode bits, groups and ACLs — as the
+  sandbox user for its roots, the ones the runner executes from: the PATH directories, `/opt`,
+  `/usr/local`, `/home`, `/etc`), leaving a process behind or scheduling one (cron, at), more
+  than 512 processes or a file over 256 MiB.
 - **Not blocked** (accepted, the job holds nothing worth stealing — no secrets, a read-only token,
   no persisted credentials): reading world-readable files, whose content a solution can print into
   the public log; other Unix-domain sockets it has file permission for, and abstract-namespace
