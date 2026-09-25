@@ -3,12 +3,12 @@
  * work directory with the solution (fix 6: every file the sandbox runs lives there). Cases send a
  * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check.
  */
-import { copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SOLUTION_FILES } from '../discover'
 import type { Command } from '../sandbox'
 import {
   caseArguments,
+  copyRegularFile,
   COMPILE_TIMEOUT_MS,
   functionCall,
   modeOf,
@@ -26,9 +26,9 @@ const PYTHON_FLAGS = ['-I', '-B']
 export const pythonHarness: Harness = {
   lang: 'python',
   prepare(problem, workDir) {
-    copyFileSync(join(problem.dir, SOLUTION), join(workDir, SOLUTION))
+    copyRegularFile(join(problem.dir, SOLUTION), join(workDir, SOLUTION))
     for (const file of ['runner.py', 'check.py']) {
-      copyFileSync(join(STATIC_DIR, file), join(workDir, file))
+      copyRegularFile(join(STATIC_DIR, file), join(workDir, file))
     }
     const check: Command = {
       cmd: 'python',

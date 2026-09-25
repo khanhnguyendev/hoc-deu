@@ -56,90 +56,16 @@ function summarize(results: readonly ProblemResult[]): Summary {
   )
 }
 
-describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () => {
-  let sandbox: Sandbox = null
-  let workRoot: string | undefined
-  let results: ProblemResult[] = []
-  const byId = (id: string): ProblemResult => {
-    const result = results.find((candidate) => candidate.id === id)
-    if (result === undefined) throw new Error(`no result for ${id}`)
-    return result
-  }
-  const language = (id: string, lang: string) => {
-    const result = byId(id).languages.find((candidate) => candidate.lang === lang)
-    if (result === undefined) throw new Error(`no ${lang} result for ${id}`)
-    return result
-  }
-
-  beforeAll(async () => {
-    sandbox = assertSandboxPolicy(process.env)
-    const { tools } = resolveToolchains(CODE_LANGUAGES, sandbox)
-    workRoot = mkdtempSync(join(workRootParent(sandbox), 'cv-integration-'))
-    const { problems, issues } = discoverProblems(FIXTURES)
-    expect(issues).toEqual([])
-    results = await verifyProblems(problems, {
-      jobs: Math.max(1, Math.floor(availableParallelism() / 2)),
-      workRoot,
-      sandbox,
-      tools,
-    })
-  }, 600_000)
-
-  afterAll(() => {
-    if (workRoot !== undefined) removeWorkRoot(sandbox, workRoot)
-  })
-
-  it('matches expected.json', () => {
-    const expected: unknown = JSON.parse(
-      readFileSync(join(import.meta.dirname, '__fixtures__', 'expected.json'), 'utf8'),
-    )
-    expect(summarize(results)).toEqual(expected)
-  })
-
-  it('function signatures pass in all three languages, the Go nil slice included (fix 8)', () => {
-    for (const id of ['demo:lc-9001', 'demo:lc-9006', 'demo:lc-9007']) {
-      expect(byId(id).languages.map((result) => result.status)).toEqual([
-        'tested',
-        'tested',
-        'tested',
-      ])
-    }
-  })
-
-  it('reports the Python infinite loop as a timeout within timeoutMs + 1.5 s', () => {
-    const loop = language('demo:lc-9003', 'python').cases.find((c) => c.name === 'empty-row')
-    expect(loop?.status).toBe('timeout')
-    expect(loop?.ms).toBeGreaterThanOrEqual(1000)
-    expect(loop?.ms).toBeLessThanOrEqual(1000 + 1500)
-  })
-
-  it('names the failing Go case with expected and actual values', () => {
-    const failing = language('demo:lc-9002', 'go').cases.find((c) => c.status !== 'pass')
-    expect(failing).toMatchObject({
-      name: 'with-empty-word',
-      status: 'fail',
-      detail: 'expected [["",""],["a"]] got [["a"]]',
-    })
-  })
-
-  it('fails the Java compile error with a stderr excerpt', () => {
-    const java = language('demo:lc-9005', 'java')
-    expect(java.status).toBe('failed')
-    expect(java.detail).toMatch(/Solution\.java:\d+: error: ';' expected/)
-  })
-
-  it('runs an unsupported kind compile-only, the signature check passing', () => {
-    expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })
-  })
-})
-
+// The static-file checks run the toolchains as the runner, so they come first: nothing the runner
+// executes may run after sandboxed code has had a chance to touch the machine (fix round 1).
 describe.runIf(ENABLED)('static runner files (real toolchains)', () => {
   let dir: string
   let tools: ReturnType<typeof resolveToolchains>['tools']
 
   beforeAll(() => {
     tools = resolveToolchains(CODE_LANGUAGES, null).tools
-    dir = mkdtempSync(join(tmpdir(), 'cv-static-'))
+    // RUNNER_TEMP in CI: the runner's own files stay out of the /tmp the sandbox user shares.
+    dir = mkdtempSync(join(process.env.RUNNER_TEMP ?? tmpdir(), 'cv-static-'))
   })
 
   afterAll(() => {
@@ -156,7 +82,7 @@ describe.runIf(ENABLED)('static runner files (real toolchains)', () => {
         PATH: process.env.PATH ?? '',
         HOME: process.env.HOME ?? '',
         CGO_ENABLED: '0',
-        GOFLAGS: '-mod=mod',
+        GOFLAGS: '-mod=mod -buildvcs=false',
         GOPROXY: 'off',
         GOTOOLCHAIN: 'local',
       }),
@@ -218,16 +144,16 @@ func main() {
     ])
   }, 180_000)
 
-  it('Json.java: strings, chars, arrays, iterables, boxed numbers, NaN → null', () => {
+  it('HarnessJson.java: strings, chars, arrays, iterables, boxed numbers, NaN → null', () => {
     const javaDir = mkdtempSync(join(dir, 'java-'))
-    copyFileSync(join(RUNNERS, 'java', 'Json.java'), join(javaDir, 'Json.java'))
+    copyFileSync(join(RUNNERS, 'java', 'HarnessJson.java'), join(javaDir, 'HarnessJson.java'))
     writeFileSync(
       join(javaDir, 'Probe.java'),
       `import java.util.*;
 
 public class Probe {
     public static void main(String[] args) {
-        System.out.print(Json.write(new Object[] {
+        System.out.print(HarnessJson.write(new Object[] {
             "q\\"b\\\\s\\n\\t\\u0001é😀", 'c', new char[] {'x', 'y'}, new int[][] {{1}, {}},
             List.of(1, 2), Double.NaN, 2.5, 3.0, 10L, true, null, new boolean[] {false},
             Arrays.asList(List.of("a"), new ArrayList<String>()), Double.NEGATIVE_INFINITY,
@@ -247,7 +173,7 @@ public class Probe {
         'UTF-8',
         '-d',
         'out',
-        'Json.java',
+        'HarnessJson.java',
         'Probe.java',
       ],
       javaDir,
@@ -341,4 +267,81 @@ public class Probe {
     expect(syntax.code).toBe(1)
     expect(syntax.stderr).toMatch(/^bad\.py:2: SyntaxError: /)
   }, 60_000)
+})
+
+describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () => {
+  let sandbox: Sandbox = null
+  let workRoot: string | undefined
+  let results: ProblemResult[] = []
+  const byId = (id: string): ProblemResult => {
+    const result = results.find((candidate) => candidate.id === id)
+    if (result === undefined) throw new Error(`no result for ${id}`)
+    return result
+  }
+  const language = (id: string, lang: string) => {
+    const result = byId(id).languages.find((candidate) => candidate.lang === lang)
+    if (result === undefined) throw new Error(`no ${lang} result for ${id}`)
+    return result
+  }
+
+  beforeAll(async () => {
+    sandbox = assertSandboxPolicy(process.env)
+    const { tools } = resolveToolchains(CODE_LANGUAGES, sandbox)
+    workRoot = mkdtempSync(join(workRootParent(sandbox), 'cv-integration-'))
+    const { problems, issues } = discoverProblems(FIXTURES)
+    expect(issues).toEqual([])
+    results = await verifyProblems(problems, {
+      jobs: Math.max(1, Math.floor(availableParallelism() / 2)),
+      workRoot,
+      sandbox,
+      tools,
+    })
+  }, 600_000)
+
+  afterAll(() => {
+    if (workRoot !== undefined) removeWorkRoot(sandbox, workRoot)
+  })
+
+  it('matches expected.json', () => {
+    const expected: unknown = JSON.parse(
+      readFileSync(join(import.meta.dirname, '__fixtures__', 'expected.json'), 'utf8'),
+    )
+    expect(summarize(results)).toEqual(expected)
+  })
+
+  it('function signatures pass in all three languages, the Go nil slice included (fix 8)', () => {
+    for (const id of ['demo:lc-9001', 'demo:lc-9006', 'demo:lc-9007']) {
+      expect(byId(id).languages.map((result) => result.status)).toEqual([
+        'tested',
+        'tested',
+        'tested',
+      ])
+    }
+  })
+
+  it('reports the Python infinite loop as a timeout within timeoutMs + 1.5 s', () => {
+    const loop = language('demo:lc-9003', 'python').cases.find((c) => c.name === 'empty-row')
+    expect(loop?.status).toBe('timeout')
+    expect(loop?.ms).toBeGreaterThanOrEqual(1000)
+    expect(loop?.ms).toBeLessThanOrEqual(1000 + 1500)
+  })
+
+  it('names the failing Go case with expected and actual values', () => {
+    const failing = language('demo:lc-9002', 'go').cases.find((c) => c.status !== 'pass')
+    expect(failing).toMatchObject({
+      name: 'with-empty-word',
+      status: 'fail',
+      detail: 'expected [["",""],["a"]] got [["a"]]',
+    })
+  })
+
+  it('fails the Java compile error with a stderr excerpt', () => {
+    const java = language('demo:lc-9005', 'java')
+    expect(java.status).toBe('failed')
+    expect(java.detail).toMatch(/Solution\.java:\d+: error: ';' expected/)
+  })
+
+  it('runs an unsupported kind compile-only, the signature check passing', () => {
+    expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })
+  })
 })

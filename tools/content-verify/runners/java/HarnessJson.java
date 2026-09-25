@@ -1,10 +1,11 @@
 // content-verify Java runner: serialises a solution's result as JSON (platform design §3.7).
-// Copied next to the generated Main.java for every problem; standard library only.
+// Copied next to the generated HarnessMain.java for every problem; standard library only. The
+// "Harness" prefix keeps the class clear of a solution's own helper classes.
 
 import java.lang.reflect.Array;
 
-final class Json {
-    private Json() {
+final class HarnessJson {
+    private HarnessJson() {
     }
 
     /**

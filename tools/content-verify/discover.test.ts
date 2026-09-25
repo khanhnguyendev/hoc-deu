@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -97,6 +97,39 @@ cases:
     expect(issues[1]).toMatch(/lc-0002-add-two-numbers: tests\.yaml without a solution file/)
     expect(issues[2]).toMatch(/lc-0003-yaml\/tests\.yaml: /)
     expect(issues[3]).toMatch(/two-sum: not a problem folder/)
+  })
+
+  it('never reads through a symlink: solution, tests.yaml, problem folder or problems dir', () => {
+    writeProblem('lc-0011-container-with-most-water', { 'tests.yaml': VALID_TESTS })
+    writeProblem('lc-0012-integer-to-roman', { 'solution.py': '' })
+    const outside = join(root!, 'outside')
+    mkdirSync(outside)
+    writeFileSync(join(outside, 'secret'), 'not content')
+    const dsa = join(root!, 'dsa', 'problems')
+    const target = join(outside, 'secret')
+    symlinkSync(target, join(dsa, 'lc-0011-container-with-most-water', 'solution.go'))
+    symlinkSync(target, join(dsa, 'lc-0012-integer-to-roman', 'tests.yaml'))
+    symlinkSync(
+      join(dsa, 'lc-0011-container-with-most-water'),
+      join(dsa, 'lc-0013-roman-to-integer'),
+    )
+    mkdirSync(join(root!, 'english'))
+    symlinkSync(dsa, join(root!, 'english', 'problems'))
+
+    const { problems, issues } = discoverProblems(root!)
+    expect(problems).toEqual([])
+    expect(issues).toHaveLength(4)
+    for (const pattern of [
+      /lc-0011-container-with-most-water\/solution\.go: not a regular file \(a symlink\?\); never followed$/,
+      /lc-0012-integer-to-roman\/tests\.yaml: not a regular file/,
+      /lc-0013-roman-to-integer: not a regular directory \(a symlink\?\)/,
+      /english\/problems: not a regular directory \(a symlink\?\)/,
+    ]) {
+      expect(
+        issues.filter((issue) => pattern.test(issue)),
+        String(pattern),
+      ).toHaveLength(1)
+    }
   })
 
   it('treats a missing root as nothing to verify', () => {

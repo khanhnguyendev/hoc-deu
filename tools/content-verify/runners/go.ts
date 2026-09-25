@@ -5,7 +5,7 @@
  * Built once with cgo off (fix 6), no module proxy, the local toolchain only, and the build cache
  * under the work root.
  */
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { TestsFile } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
@@ -13,6 +13,7 @@ import { goLiteral } from '../literals'
 import {
   caseArguments,
   caseName,
+  copyRegularFile,
   COMPILE_TIMEOUT_MS,
   functionCall,
   modeOf,
@@ -125,13 +126,14 @@ export const goHarness: Harness = {
       CGO_ENABLED: '0',
       GOPROXY: 'off',
       GOTOOLCHAIN: 'local',
-      GOFLAGS: '-mod=mod',
+      // -buildvcs=false: never run git (nor look for a repository) while building a solution
+      GOFLAGS: '-mod=mod -buildvcs=false',
       GOENV: 'off',
       GOWORK: 'off',
       GOCACHE: cache,
       GOPATH: path,
     }
-    copyFileSync(join(problem.dir, SOLUTION), join(workDir, SOLUTION))
+    copyRegularFile(join(problem.dir, SOLUTION), join(workDir, SOLUTION))
     writeFileSync(join(workDir, 'go.mod'), GO_MOD)
 
     if (modeOf(problem) === 'compile-only') {
@@ -150,7 +152,7 @@ export const goHarness: Harness = {
         sharedDirs,
       }
     }
-    copyFileSync(join(STATIC_DIR, 'normalize.go'), join(workDir, 'normalize.go'))
+    copyRegularFile(join(STATIC_DIR, 'normalize.go'), join(workDir, 'normalize.go'))
     writeFileSync(join(workDir, 'main_harness.go'), generateGoHarness(problem.tests))
     const binary = join(workDir, 'bin')
     return {

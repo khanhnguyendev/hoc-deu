@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { accessSync, constants, statSync } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
-import type { Sandbox, ToolPaths } from './sandbox'
+import { assertTrustedBinaries, trustIssues, type Sandbox, type ToolPaths } from './sandbox'
 
 type Tool = 'python' | 'javac' | 'java' | 'go'
 
@@ -81,8 +81,10 @@ const TOOLS_BY_LANGUAGE: Readonly<Record<CodeLanguage, Tool[]>> = {
 
 /**
  * Absolute tool paths and a header summary (`python 3.13.7 · javac 23.0.2 · go 1.26.5`) for
- * `languages`. Throws when a toolchain is missing or too old, naming the minimum version; in
- * sandbox mode `timeout` and `sudo` are required too.
+ * `languages`. Throws when a toolchain is missing or too old, naming the minimum version. In
+ * sandbox mode it also throws unless the sandbox's own binaries are root-owned and writable by
+ * root only, and no toolchain is writable by others (the sandbox user must not be able to swap
+ * what it, or the runner, executes next).
  */
 export function resolveToolchains(
   languages: readonly CodeLanguage[],
@@ -90,7 +92,7 @@ export function resolveToolchains(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): { tools: ToolPaths; summary: string } {
   const path = env.PATH ?? ''
-  const tools: ToolPaths = { python: '', javac: '', java: '', go: '', timeout: '', sudo: '' }
+  const tools: ToolPaths = { python: '', javac: '', java: '', go: '' }
   const summary: string[] = []
 
   for (const lang of languages) {
@@ -114,10 +116,12 @@ export function resolveToolchains(
   }
 
   if (sandbox !== null) {
-    for (const name of ['timeout', 'sudo'] as const) {
-      const file = findOnPath(name, path)
-      if (file === null) throw new Error(`${name} not found on PATH: the sandbox needs it`)
-      tools[name] = file
+    assertTrustedBinaries()
+    const issues = Object.values(tools)
+      .filter((file) => file !== '')
+      .flatMap((file) => trustIssues(file, { rootOwned: false }))
+    if (issues.length > 0) {
+      throw new Error(`a toolchain is writable by others: ${issues.join('; ')}`)
     }
   }
   return { tools, summary: summary.join(' · ') }

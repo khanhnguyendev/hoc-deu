@@ -1,9 +1,11 @@
 /**
  * Finds what `content:verify` checks (platform design §3.7): every
  * `<tracks root>/<track>/problems/<folder>/tests.yaml`, validated, with the solution languages
- * whose files exist. Reads only; never writes into `content/`.
+ * whose files exist. Reads only; never writes into `content/`, and never reads through a symlink
+ * (the runner would copy whatever it points at to where a solution can print it): a symlinked
+ * directory or file is an issue.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, type Stats } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
@@ -27,17 +29,42 @@ export const SOLUTION_FILES: Readonly<Record<CodeLanguage, string>> = {
 
 const MAX_SCHEMA_ISSUES = 5
 
-function listDirs(dir: string): string[] {
-  if (!existsSync(dir)) return []
+function label(file: string): string {
+  return relative(process.cwd(), file).split(sep).join('/')
+}
+
+/** `lstat`, or `null` when nothing is there. */
+function entryAt(path: string): Stats | null {
+  try {
+    return lstatSync(path)
+  } catch {
+    return null
+  }
+}
+
+/** The sub-directories of `dir`, sorted; symlinked entries become issues. */
+function listDirs(dir: string, issues: string[]): string[] {
   return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => {
+      if (entry.isSymbolicLink()) {
+        issues.push(
+          `${label(join(dir, entry.name))}: not a regular directory (a symlink?); never followed`,
+        )
+      }
+      return entry.isDirectory()
+    })
     .map((entry) => entry.name)
     .sort()
 }
 
-function label(file: string): string {
-  return relative(process.cwd(), file).split(sep).join('/')
+type FileState = 'absent' | 'file' | 'other'
+function fileState(path: string): FileState {
+  const stat = entryAt(path)
+  if (stat === null) return 'absent'
+  return stat.isFile() ? 'file' : 'other'
 }
+const notRegular = (path: string): string =>
+  `${label(path)}: not a regular file (a symlink?); never followed`
 
 function readTests(file: string): { tests: TestsFile } | { issue: string } {
   let data: unknown
@@ -70,12 +97,25 @@ export function discoverProblems(
   const wanted = filter.ids === undefined ? null : new Set(filter.ids)
   const found = new Set<string>()
 
-  for (const track of listDirs(tracksRoot)) {
+  // The root is the CLI's own argument (trusted, may be a symlink); everything below it is content.
+  if (!existsSync(tracksRoot)) return { problems, issues }
+  for (const track of listDirs(tracksRoot, issues)) {
     const problemsDir = join(tracksRoot, track, 'problems')
-    for (const folder of listDirs(problemsDir)) {
+    const problemsStat = entryAt(problemsDir)
+    if (problemsStat === null) continue
+    if (!problemsStat.isDirectory()) {
+      issues.push(`${label(problemsDir)}: not a regular directory (a symlink?); never followed`)
+      continue
+    }
+    for (const folder of listDirs(problemsDir, issues)) {
       const dir = join(problemsDir, folder)
       const testsFile = join(dir, 'tests.yaml')
-      if (!existsSync(testsFile)) continue
+      const testsState = fileState(testsFile)
+      if (testsState === 'absent') continue
+      if (testsState === 'other') {
+        issues.push(notRegular(testsFile))
+        continue
+      }
 
       const parsed = parseProblemFolder(folder)
       if (parsed === null) {
@@ -91,7 +131,16 @@ export function discoverProblems(
         issues.push(read.issue)
         continue
       }
-      const present = CODE_LANGUAGES.filter((lang) => existsSync(join(dir, SOLUTION_FILES[lang])))
+      const states = CODE_LANGUAGES.map((lang) => {
+        const file = join(dir, SOLUTION_FILES[lang])
+        return { lang, file, state: fileState(file) }
+      })
+      const odd = states.filter((entry) => entry.state === 'other')
+      if (odd.length > 0) {
+        for (const entry of odd) issues.push(notRegular(entry.file))
+        continue
+      }
+      const present = states.filter((entry) => entry.state === 'file').map((entry) => entry.lang)
       if (present.length === 0) {
         issues.push(`${label(dir)}: tests.yaml without a solution file`)
         continue

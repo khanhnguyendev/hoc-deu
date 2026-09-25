@@ -3,6 +3,8 @@
  * execute a solution and print JSON; the Node orchestrator compares and enforces the timeouts.
  * Each problem × language compiles once and runs once per case; arguments are positional.
  */
+import { constants, copyFileSync, lstatSync } from 'node:fs'
+import { basename } from 'node:path'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
 import { parseValueType, type TestsFile, type ValueType } from '@/lib/content/schemas/tests'
 import { verificationFor, type Verification } from '@/lib/content/verification'
@@ -103,3 +105,13 @@ export function noCases(): never {
 
 /** A case's comment line in generated code (case names are `[a-z0-9-]`). */
 export const caseName = (tests: TestsFile, index: number): string => tests.cases[index]?.name ?? ''
+
+/** Copies a regular file into the work directory. Content is never read through a symlink: the
+ * runner would copy whatever it points at (a runner file, a secret) where the solution can print
+ * it. The destination must not exist yet. */
+export function copyRegularFile(source: string, destination: string): void {
+  if (!lstatSync(source).isFile()) {
+    throw new Error(`${basename(source)} is not a regular file (a symlink?); it is never followed`)
+  }
+  copyFileSync(source, destination, constants.COPYFILE_EXCL)
+}

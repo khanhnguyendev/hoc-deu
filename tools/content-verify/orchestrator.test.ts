@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { discoverProblems, type ProblemUnderTest } from './discover'
-import { verifyProblems, type Exec, type ExecResult } from './orchestrator'
+import { execCommand, verifyProblems, type Exec, type ExecResult } from './orchestrator'
 import type { Sandbox, Spawn, ToolPaths } from './sandbox'
 
 const FIXTURES = join(import.meta.dirname, '__fixtures__', 'tracks')
@@ -12,8 +12,6 @@ const TOOLS: ToolPaths = {
   javac: '/t/javac',
   java: '/t/java',
   go: '/t/go',
-  timeout: '/usr/bin/timeout',
-  sudo: '/usr/bin/sudo',
 }
 
 const load = (ids: string[], lang?: 'python' | 'java' | 'go'): ProblemUnderTest[] =>
@@ -39,7 +37,7 @@ const isWarmUp = (spawn: Spawn): boolean => innerCommand(spawn).includes('warm-u
 const isCase = (spawn: Spawn): boolean => {
   const inner = innerCommand(spawn)
   if (isWarmUp(spawn)) return false
-  return inner.includes('runner.py') || inner.includes('Main') || inner[0]!.endsWith('/bin')
+  return inner.includes('runner.py') || inner.includes('HarnessMain') || inner[0]!.endsWith('/bin')
 }
 
 let workRoot: string
@@ -74,7 +72,7 @@ describe('verifyProblems — scheduling', () => {
     const sandbox: Sandbox = { user: 'cvsandbox' }
     const track = tracker()
     const granted: string[] = []
-    const problems = load(['demo:lc-9001', 'demo:lc-9004'])
+    const problems = load(['demo:lc-9001', 'demo:lc-9004', 'demo:lc-9006'])
     await verifyProblems(problems, {
       jobs: 4,
       workRoot,
@@ -86,9 +84,9 @@ describe('verifyProblems — scheduling', () => {
           expect(target).toEqual(sandbox)
           track.events.push('kill')
         },
-        grantSandboxDir: (target, dir) => {
+        grantSandboxDir: (target, dir, { recursive }) => {
           expect(target).toEqual(sandbox)
-          granted.push(dir)
+          granted.push(`${recursive ? '-R ' : ''}${dir}`)
         },
       },
     })
@@ -96,14 +94,18 @@ describe('verifyProblems — scheduling', () => {
     track.events.forEach((event, index) => {
       if (event !== 'kill') expect(track.events[index + 1]).toBe('kill')
     })
-    // 3 languages × 4 cases for lc-9001, plus its 3 builds, the Go warm-up and lc-9004's 3
+    // lc-9001 and lc-9006: 3 languages × 4 cases, 3 builds and a Go warm-up each; lc-9004: 3
     // compile-only checks
-    expect(track.events.filter((event) => event === 'case')).toHaveLength(12)
-    expect(track.events.filter((event) => event === 'warm-up')).toHaveLength(1)
-    expect(track.events.filter((event) => event === 'kill')).toHaveLength(19)
-    // every unit directory (and the shared Go caches) is handed to the sandbox user
-    expect(granted.filter((dir) => dir.endsWith('-python'))).toHaveLength(2)
-    expect(granted.some((dir) => dir.endsWith('go-cache'))).toBe(true)
+    expect(track.events.filter((event) => event === 'case')).toHaveLength(24)
+    expect(track.events.filter((event) => event === 'warm-up')).toHaveLength(2)
+    expect(track.events.filter((event) => event === 'kill')).toHaveLength(35)
+    // every unit directory is handed over recursively (the runner just wrote it); the shared Go
+    // caches only once, empty, before any sandboxed code could plant a symlink in them (fix 6)
+    expect(granted.filter((dir) => dir.startsWith('-R ') && dir.endsWith('-python'))).toHaveLength(
+      3,
+    )
+    expect(granted.filter((dir) => dir.endsWith('go-cache'))).toEqual([join(workRoot, 'go-cache')])
+    expect(granted.filter((dir) => dir.endsWith('go-path'))).toEqual([join(workRoot, 'go-path')])
   })
 
   it('local mode runs up to `jobs` units in parallel and never kills', async () => {
@@ -259,4 +261,82 @@ describe('verifyProblems — results', () => {
       detail: 'class MinStack has no method getMin',
     })
   })
+})
+
+describe('verifyProblems — symlinks', () => {
+  it('never follows a symlinked solution: the language fails with a harness error', async () => {
+    const fixture = load(['demo:lc-9001'], 'go')[0]!
+    const dir = join(workRoot, 'problem')
+    cpSync(fixture.dir, dir, { recursive: true })
+    rmSync(join(dir, 'solution.go'))
+    symlinkSync(join(fixture.dir, 'solution.go'), join(dir, 'solution.go'))
+    const calls: Spawn[] = []
+    const [result] = await verifyProblems([{ ...fixture, dir }], {
+      jobs: 1,
+      workRoot: mkdtempSync(join(workRoot, 'run-')),
+      sandbox: null,
+      tools: TOOLS,
+      deps: {
+        exec: async (spawn) => {
+          calls.push(spawn)
+          return ok()
+        },
+      },
+    })
+    expect(calls).toEqual([])
+    expect(result?.languages[0]).toEqual({
+      lang: 'go',
+      status: 'failed',
+      cases: [],
+      detail: 'harness: solution.go is not a regular file (a symlink?); it is never followed',
+    })
+  })
+})
+
+describe('execCommand (a real child process)', () => {
+  const node = (script: string) => ({
+    cmd: process.execPath,
+    args: ['-e', script],
+    env: {},
+  })
+
+  it('SIGKILLs a child that ignores SIGTERM, one grace second after the timeout', async () => {
+    const started = performance.now()
+    const result = await execCommand(
+      node("process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); console.log('up')"),
+      { cwd: workRoot, timeoutMs: 300 },
+    )
+    const elapsed = performance.now() - started
+    expect(result.timedOut).toBe(true)
+    expect(result.exitCode).toBeNull()
+    expect(elapsed).toBeGreaterThanOrEqual(1250)
+    expect(elapsed).toBeLessThan(3000)
+  }, 10_000)
+
+  it('keeps at most 1 MiB of each output stream', async () => {
+    const result = await execCommand(
+      node("process.stdout.write('x'.repeat(3 * 1024 * 1024)); process.stderr.write('done')"),
+      { cwd: workRoot, timeoutMs: 10_000 },
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.timedOut).toBe(false)
+    expect(result.stdout).toHaveLength(1024 * 1024)
+    expect(result.stderr).toBe('done')
+  }, 15_000)
+
+  it('passes stdin and reports a missing executable as an error, not a hang', async () => {
+    const echoed = await execCommand(node('process.stdin.pipe(process.stdout)'), {
+      cwd: workRoot,
+      stdin: '{"a":1}',
+      timeoutMs: 10_000,
+    })
+    expect(echoed.stdout).toBe('{"a":1}')
+    const missing = await execCommand(
+      { cmd: join(workRoot, 'no-such-binary'), args: [], env: {} },
+      { cwd: workRoot, timeoutMs: 10_000 },
+    )
+    expect(missing.exitCode).toBeNull()
+    expect(missing.timedOut).toBe(false)
+    expect(missing.stderr).toMatch(/ENOENT/)
+  }, 15_000)
 })

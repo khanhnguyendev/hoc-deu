@@ -67,7 +67,7 @@ export type Exec = (
 export type OrchestratorDeps = {
   exec: Exec
   killSandboxProcesses: (sandbox: Sandbox) => void
-  grantSandboxDir: (sandbox: { user: string }, dir: string) => void
+  grantSandboxDir: (sandbox: { user: string }, dir: string, options: { recursive: boolean }) => void
 }
 
 export const HARNESSES: Readonly<Record<CodeLanguage, Harness>> = {
@@ -97,8 +97,9 @@ function collector() {
 }
 
 /** Spawns `target` with a timer: SIGTERM at `timeoutMs`, SIGKILL a second later, and after one
- * more second the case is reported without waiting (a sandboxed child may not be ours to kill —
- * the inner `timeout` and the per-case `pkill` finish it). */
+ * more second the case is reported without waiting. A sandboxed child is a root-owned `sudo` the
+ * runner may not be allowed to signal (EPERM arrives as an 'error' event): that failure is not the
+ * end of the case — the inner `timeout` and the per-command `pkill` finish the process. */
 export const execCommand: Exec = (target, { cwd, stdin, timeoutMs }) =>
   new Promise((resolve) => {
     const started = performance.now()
@@ -133,21 +134,29 @@ export const execCommand: Exec = (target, { cwd, stdin, timeoutMs }) =>
       }
     }
 
-    timers.push(
-      setTimeout(() => {
-        timedOut = true
-        signal('SIGTERM')
-        timers.push(
-          setTimeout(() => {
-            signal('SIGKILL')
-            timers.push(setTimeout(() => finish(null), KILL_GRACE_MS))
-          }, KILL_GRACE_MS),
-        )
-      }, timeoutMs),
-    )
+    /** Schedules `step` unless the command has already finished (no timer outlives it). */
+    const later = (ms: number, step: () => void): void => {
+      if (settled) return
+      timers.push(
+        setTimeout(() => {
+          if (!settled) step()
+        }, ms),
+      )
+    }
+    later(timeoutMs, () => {
+      timedOut = true
+      signal('SIGTERM')
+      later(KILL_GRACE_MS, () => {
+        signal('SIGKILL')
+        later(KILL_GRACE_MS, () => finish(null))
+      })
+    })
     child.stdout.on('data', (chunk: Buffer) => stdout.add(chunk))
     child.stderr.on('data', (chunk: Buffer) => stderr.add(chunk))
-    child.on('error', (error) => finish(null, error.message))
+    child.on('error', (error) => {
+      // After the timeout an error is a failed kill: keep escalating instead of reporting early.
+      if (!timedOut) finish(null, error.message)
+    })
     child.on('close', (code) => finish(code))
     child.stdin.on('error', () => {
       // the child may exit without reading its input
@@ -218,6 +227,8 @@ type Context = {
   sandbox: Sandbox
   tools: ToolPaths
   deps: OrchestratorDeps
+  /** Shared directories already handed to the sandbox user (once, while still empty). */
+  granted: Set<string>
 }
 
 const failed = (lang: CodeLanguage, detail: string): LanguageResult => ({
@@ -243,7 +254,15 @@ async function verifyUnit(
     return failed(lang, `harness: ${error instanceof Error ? error.message : String(error)}`)
   }
   if (sandbox !== null) {
-    for (const dir of [workDir, ...prepared.sharedDirs]) deps.grantSandboxDir(sandbox, dir)
+    // The runner has just written the unit directory: hand it over whole. A shared directory is
+    // handed over once, empty — re-chowning it recursively after sandboxed code filled it would let
+    // a planted link redirect root's chown.
+    deps.grantSandboxDir(sandbox, workDir, { recursive: true })
+    for (const dir of prepared.sharedDirs) {
+      if (context.granted.has(dir)) continue
+      deps.grantSandboxDir(sandbox, dir, { recursive: false })
+      context.granted.add(dir)
+    }
   }
 
   const run = async (command: Command): Promise<ExecResult> => {
@@ -326,6 +345,7 @@ export async function verifyProblems(
     sandbox: options.sandbox,
     tools: options.tools,
     deps: { exec: execCommand, killSandboxProcesses, grantSandboxDir, ...options.deps },
+    granted: new Set(),
   }
   // The sandbox user must be able to reach its unit directories inside the (0700) temp dir.
   if (options.sandbox !== null) chmodSync(options.workRoot, 0o711)

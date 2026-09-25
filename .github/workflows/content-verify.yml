@@ -2,7 +2,8 @@ name: content-verify
 
 # Runs every solution against its tests.yaml (platform design §3.7, ADR-0012). A required check, so
 # it always runs: the path check lives inside the job (a workflow-level path filter would leave the
-# check pending), and every step after it carries the same `if:`.
+# check pending), and every step after it carries the same `if:`. The path list covers everything
+# tools/content-verify imports (pinned by tools/content-verify/workflow.test.ts).
 
 on:
   pull_request:
@@ -29,17 +30,27 @@ jobs:
 
       - id: paths
         name: Content or harness changed? (in-job check keeps this required check reporting)
+        shell: bash
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
+          set -euo pipefail
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
              || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify lib/content/schemas \
-                  lib/content/verification.ts pnpm-lock.yaml .github/workflows/content-verify.yml; then
+                  lib/content/verification.ts lib/domain/settings.ts package.json pnpm-lock.yaml \
+                  pnpm-workspace.yaml tsconfig.json vitest.config.ts .nvmrc \
+                  .github/workflows/content-verify.yml; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "No content or harness change — nothing to verify."
           fi
+
+      # The runner's own temp files go to RUNNER_TEMP, not the /tmp the sandbox user shares. (Job-level
+      # `env` cannot read the runner context, so this goes through GITHUB_ENV.)
+      - if: steps.paths.outputs.run == 'true'
+        name: Runner temp off the shared /tmp
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - if: steps.paths.outputs.run == 'true'
         uses: pnpm/action-setup@v6
@@ -60,42 +71,112 @@ jobs:
 
       - if: steps.paths.outputs.run == 'true'
         name: Sandbox user without network (OD2)
+        shell: bash
         run: |
+          set -euo pipefail
           sudo useradd --system --no-create-home --shell /usr/sbin/nologin cvsandbox
           sudo iptables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
           sudo ip6tables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+          # Name resolution without port 53: systemd-resolved also answers over varlink and D-Bus.
+          for socket_path in /run/systemd/resolve /run/dbus/system_bus_socket /run/nscd/socket; do
+            if [ -e "$socket_path" ]; then sudo setfacl -m u:cvsandbox:--- "$socket_path"; fi
+          done
+          # Nothing the runner executes after sandboxed code may be writable by the sandbox user.
+          sudo chmod -R o-w /opt/hostedtoolcache
+          IFS=: read -r -a path_dirs <<< "$PATH"
+          existing=()
+          for dir in "${path_dirs[@]}"; do
+            if [ -d "$dir" ]; then sudo chmod o-w "$dir"; existing+=("$dir"); fi
+          done
+          # For the record.
+          sudo iptables -S OUTPUT | sed -n 1,3p
+          sudo ip6tables -S OUTPUT | sed -n 1,3p
+          stat -c '%A %U:%G %n' / /opt /opt/hostedtoolcache "${existing[@]}"
+          sysctl fs.protected_hardlinks fs.protected_symlinks fs.protected_regular
+
+      - if: steps.paths.outputs.run == 'true'
+        name: 'Sandbox audit: nothing the runner executes is writable by the sandbox user'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=: read -r -a path_dirs <<< "$PATH"
+          roots=()
+          for dir in "${path_dirs[@]}" /opt /usr/local /home /etc; do
+            if [ -d "$dir" ]; then roots+=("$dir"); fi
+          done
+          writable="$(cd / && sudo -n -u cvsandbox -- find "${roots[@]}" -xdev \
+            \( -path /tmp -o -path /var/tmp -o -path /dev/shm \) -prune -o \
+            \( -type f -o -type d \) -writable -print 2> /dev/null || true)"
+          if [ -n "$writable" ]; then
+            echo "::error::the sandbox user can write where the runner executes from:"
+            printf '%s\n' "$writable" | sed -n 1,100p
+            exit 1
+          fi
+          echo "Audit clean: nothing under ${#roots[@]} roots is writable by cvsandbox."
 
       - if: steps.paths.outputs.run == 'true'
         name: Sandbox self-test (fail closed)
+        shell: bash
         run: |
+          set -euo pipefail
           PY="$(command -v python3)"
+          as_sandbox() { (cd / && sudo -n -u cvsandbox -- "$@"); }
           # The sandbox user can run every toolchain.
-          sudo -n -u cvsandbox -- "$PY" -c 'print(1)'
-          sudo -n -u cvsandbox -- "$(command -v javac)" -version
-          sudo -n -u cvsandbox -- "$(command -v java)" -version
-          sudo -n -u cvsandbox -- env -i HOME=/tmp GOENV=off "$(command -v go)" version
+          as_sandbox "$PY" -c 'print(1)'
+          as_sandbox "$(command -v javac)" -version
+          as_sandbox "$(command -v java)" -version
+          as_sandbox /usr/bin/env -i HOME=/tmp GOENV=off "$(command -v go)" version
           # The runner itself has network, so the checks below cannot pass vacuously.
           curl -sSf -o /dev/null --max-time 10 https://example.com
           IP="$(getent ahostsv4 example.com | awk 'NR == 1 { print $1 }')"
-          # The sandbox user has none: not by name, not by address…
-          if sudo -n -u cvsandbox -- "$PY" -c \
-             "import urllib.request; urllib.request.urlopen('https://example.com', timeout=5)"; then
-            echo "::error::the sandbox user reached the network"; exit 1
-          fi
-          if sudo -n -u cvsandbox -- "$PY" -c \
-             "import socket; socket.create_connection(('$IP', 443), timeout=5)"; then
-            echo "::error::the sandbox user reached $IP"; exit 1
-          fi
-          # …and not loopback either.
+          test -n "$IP"
+          # No name resolution: not over port 53, systemd-resolved's varlink socket or D-Bus.
+          as_sandbox "$PY" -c '
+          import socket
+          try:
+              socket.getaddrinfo("example.com", 443)
+          except socket.gaierror as error:
+              print("DNS blocked:", error)
+          else:
+              raise SystemExit("::error::the sandbox user resolved example.com")'
+          # No connection by address…
+          as_sandbox "$PY" -c "
+          import errno, socket
+          try:
+              socket.create_connection(('$IP', 443), timeout=5)
+          except ConnectionRefusedError as error:
+              assert error.errno == errno.ECONNREFUSED, error
+              print('raw IP blocked:', error)
+          else:
+              raise SystemExit('::error::the sandbox user reached $IP')"
+          # …and none on loopback.
           "$PY" -m http.server 18080 --bind 127.0.0.1 > /dev/null 2>&1 &
           SERVER=$!
+          trap 'kill "$SERVER" 2> /dev/null || true' EXIT
           for _ in $(seq 50); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.1; done
           curl -sSf -o /dev/null --max-time 5 http://127.0.0.1:18080/
-          if sudo -n -u cvsandbox -- "$PY" -c \
-             "import socket; socket.create_connection(('127.0.0.1', 18080), timeout=5)"; then
-            kill "$SERVER"; echo "::error::the sandbox user reached loopback"; exit 1
+          as_sandbox "$PY" -c "
+          import errno, socket
+          try:
+              socket.create_connection(('127.0.0.1', 18080), timeout=5)
+          except ConnectionRefusedError as error:
+              assert error.errno == errno.ECONNREFUSED, error
+              print('loopback blocked:', error)
+          else:
+              raise SystemExit('::error::the sandbox user reached loopback')"
+
+      - if: steps.paths.outputs.run == 'true'
+        name: CLI refuses to run unsandboxed (exit 2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          pnpm content:verify || status=$?
+          if [ "$status" -ne 2 ]; then
+            echo "::error::content:verify without a sandbox user exited $status, expected 2"
+            exit 1
           fi
-          kill "$SERVER"
+          echo "content:verify refused to run unsandboxed (exit 2)."
 
       - if: steps.paths.outputs.run == 'true'
         name: Harness self-test on fixtures
@@ -103,5 +184,26 @@ jobs:
         env: { CONTENT_VERIFY_INTEGRATION: '1', CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
 
       - if: steps.paths.outputs.run == 'true'
+        name: No sandbox process survived the harness self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          if /usr/bin/pgrep -u cvsandbox || /usr/bin/pgrep -U cvsandbox; then
+            echo "::error::a cvsandbox process survived"; exit 1
+          fi
+          echo "No cvsandbox process left."
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Verify content
         run: pnpm content:verify
         env: { CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+
+      - if: steps.paths.outputs.run == 'true'
+        name: No sandbox process survived content:verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          if /usr/bin/pgrep -u cvsandbox || /usr/bin/pgrep -U cvsandbox; then
+            echo "::error::a cvsandbox process survived"; exit 1
+          fi
+          echo "No cvsandbox process left."
