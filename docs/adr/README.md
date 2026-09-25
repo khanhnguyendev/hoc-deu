@@ -20,7 +20,7 @@ that write them never edit this index.
 | [0010](0010-namespaced-ids-and-ids-lock.md) | Namespaced IDs, append-only `ids.lock`, reserved `user:` prefix | 3.2b |
 | [0011](0011-mdx-safety-and-build-time-highlighting.md) | `@next/mdx` with a strict MDX safety check; code highlighting at build time | 3.3b |
 | [0012](0012-sandboxed-solution-verification.md) | Solutions verified in a sandboxed CI job; phased harness | 3.5b |
-| 0013 | One lesson per pattern; notes upgradeable to deep-dives | 3.7–3.9 |
+| [0013](0013-one-lesson-per-pattern.md) | One lesson per pattern; notes upgradeable to deep-dives | 3.7b |
 | 0014 | Simulation-backed SRS parameters per track; mastery | 4.8 |
 | [0015](0015-dsa-variant-follows-budget.md) | DSA variant follows the budget; simulated finish shown | 2.10 |
 | 0016 | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
