@@ -3,7 +3,9 @@
  * through `apply_event` with the user's own client (RLS applies), system, bot and admin events
  * through `apply_system_event` with the secret-key client. Payloads are validated here first, so
  * an invalid payload never reaches the database; RPC errors become an `EventError` whose
- * `userMessage` is safe to show.
+ * `userMessage` is safe to show. A learner event may carry its derived rows (`DerivedWrite`,
+ * `./derived`) with the versions they were computed from; a conflict is retried by `withRetry`
+ * (§4.4, Part B-M4 decision 10).
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -17,8 +19,10 @@ import {
   type SystemEventType,
 } from '@/lib/domain/events'
 import { RULES_VERSION } from '@/lib/domain/rules'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 import { vi } from '@/lib/i18n/vi'
 import type { Database, Json } from '@/lib/supabase/database.types'
+import type { DerivedWrite } from './derived'
 
 export type ApplyOutcome = 'applied' | 'duplicate'
 
@@ -38,6 +42,8 @@ export type EventErrorCode =
   | 'schedule_in_force'
   | 'too_many_tracks'
   | 'too_many_pending_schedules'
+  | 'version_conflict'
+  | 'day_changed'
   | 'unknown'
 
 const USER_MESSAGES = {
@@ -55,6 +61,9 @@ const USER_MESSAGES = {
   schedule_in_force: vi.errors.saveFailed,
   too_many_tracks: vi.errors.tooManyTracks,
   too_many_pending_schedules: vi.errors.tooManyPendingSchedules,
+  // Retried by withRetry first; shown only when every attempt conflicted.
+  version_conflict: vi.errors.saveFailed,
+  day_changed: vi.errors.saveFailed,
   unknown: vi.errors.saveFailed,
 } as const satisfies Record<EventErrorCode, string>
 
@@ -80,6 +89,11 @@ export type EventInput<T extends EventType> = {
   itemId?: string
   planId?: string
   blockId?: string
+  /**
+   * The local day the caller computed the event's derived rows for (decision 10): the database
+   * raises `day_changed` when its own local day for the event differs.
+   */
+  localDay?: LocalDay
 }
 
 /** The RPC error message is the code (`raise exception '<code>'`); anything else is `unknown`. */
@@ -106,6 +120,7 @@ function eventBody(
   if (event.itemId !== undefined) body.item_id = event.itemId
   if (event.planId !== undefined) body.plan_id = event.planId
   if (event.blockId !== undefined) body.block_id = event.blockId
+  if (event.localDay !== undefined) body.local_day = event.localDay
   // A parsed payload is plain JSON (parseEventPayload checks it is storable as jsonb).
   body.payload = payload as Json
   body.rules_version = RULES_VERSION
@@ -123,16 +138,48 @@ function outcomeOf(data: Json | null, error: { message: string } | null): ApplyO
 }
 
 /**
- * Records a learner event and applies its state change, as the signed-in user (`apply_event`).
- * `duplicate` means an event with this id was already recorded; nothing changed.
+ * Records a learner event and applies its state change, as the signed-in user (`apply_event`),
+ * with its derived rows when given (`derivedWrite`, `./derived`). `duplicate` means an event with
+ * this id was already recorded; nothing changed. A derived row another write changed first raises
+ * `version_conflict`: reload, recompute and call again (`withRetry`).
  */
 export async function applyLearnerEvent<T extends LearnerEventType>(
   supabase: SupabaseClient<Database>,
   event: EventInput<T>,
+  derived?: DerivedWrite,
 ): Promise<ApplyOutcome> {
   const p_event = eventBody(event, LEARNER_EVENT_TYPES)
-  const { data, error } = await supabase.rpc('apply_event', { p_event })
+  const { data, error } = await supabase.rpc(
+    'apply_event',
+    derived === undefined
+      ? { p_event }
+      : { p_event, p_changes: derived.changes, p_expected: derived.expected },
+  )
   return outcomeOf(data, error)
+}
+
+const RETRYABLE: ReadonlySet<EventErrorCode> = new Set(['version_conflict', 'day_changed'])
+
+/**
+ * Whether reloading the derived rows, recomputing and applying again can succeed: another write
+ * changed a row first (`version_conflict`), or the request crossed the day start (`day_changed`).
+ */
+export function isRetryable(error: unknown): boolean {
+  return error instanceof EventError && RETRYABLE.has(error.code)
+}
+
+/**
+ * Runs `attempt` — which reloads, recomputes and applies — again after a retryable error, at most
+ * `attempts` times in all (§4.4: 3); any other error, or the last attempt's, is rethrown.
+ */
+export async function withRetry<T>(attempt: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let tries = 1; ; tries += 1) {
+    try {
+      return await attempt()
+    } catch (error) {
+      if (tries >= attempts || !isRetryable(error)) throw error
+    }
+  }
 }
 
 /**

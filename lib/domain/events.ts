@@ -68,6 +68,13 @@ const nonNegativeInt = z.number().int().min(0)
 const planVersion = z.number().int().min(1)
 const jsonObject = z.record(z.string(), z.unknown())
 
+/**
+ * The longest pause `track.resumed` may report, in days (ten years; Part B-M4 decision 36).
+ * `apply_event` rejects a larger `pausedDays` too (before casting it), and the settings action
+ * clamps to it.
+ */
+export const MAX_PAUSED_DAYS = 3650
+
 /** A payload whose keys are all optional must still carry a change (`{}` is rejected). */
 const hasAKey = (payload: Record<string, unknown>): boolean =>
   Object.values(payload).some((value) => value !== undefined)
@@ -130,7 +137,7 @@ export const EVENT_PAYLOADS = {
     })
     .refine(hasAKey, AT_LEAST_ONE_KEY),
   'track.paused': emptyPayload,
-  'track.resumed': z.strictObject({ pausedDays: nonNegativeInt }),
+  'track.resumed': z.strictObject({ pausedDays: nonNegativeInt.max(MAX_PAUSED_DAYS) }),
   'track.removed': emptyPayload,
   'track.reset': emptyPayload,
   'schedule.changed': z.strictObject({

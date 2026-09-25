@@ -475,6 +475,16 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: Json
       }
+      apply_derived_changes: {
+        Args: {
+          p_changes: Json
+          p_event: Json
+          p_expected: Json
+          p_local_day: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       apply_event: {
         Args: { p_changes?: Json; p_event: Json; p_expected?: Json }
         Returns: Json

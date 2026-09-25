@@ -4,6 +4,7 @@ import {
   EVENT_PAYLOADS,
   jsonbTextBytes,
   LEARNER_EVENT_TYPES,
+  MAX_PAUSED_DAYS,
   MAX_PAYLOAD_BYTES,
   parseEventPayload,
   SYSTEM_EVENT_TYPES,
@@ -208,6 +209,19 @@ describe('parseEventPayload', () => {
     expect(() => parseEventPayload('track.updated', { weeklyTemplate: ['sat', 'sun'] })).toThrow(
       ZodError,
     )
+  })
+
+  it('bounds track.resumed pausedDays to 0–MAX_PAUSED_DAYS, whole days (decision 36)', () => {
+    expect(MAX_PAUSED_DAYS).toBe(3650)
+    expect(parseEventPayload('track.resumed', { pausedDays: 0 })).toEqual({ pausedDays: 0 })
+    expect(parseEventPayload('track.resumed', { pausedDays: MAX_PAUSED_DAYS })).toEqual({
+      pausedDays: 3650,
+    })
+    expect(() => parseEventPayload('track.resumed', { pausedDays: MAX_PAUSED_DAYS + 1 })).toThrow(
+      ZodError,
+    )
+    expect(() => parseEventPayload('track.resumed', { pausedDays: 2.5 })).toThrow(ZodError)
+    expect(() => parseEventPayload('track.resumed', { pausedDays: '5' })).toThrow(ZodError)
   })
 
   it('takes a full item_state row in item.snapshot (decision 19)', () => {

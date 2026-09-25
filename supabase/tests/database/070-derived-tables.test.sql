@@ -308,7 +308,8 @@ select throws_ok(
   $$select public.apply_event(jsonb_build_object(
       'id', '70000000-0000-4000-8000-000000000114', 'type', 'settings.changed',
       'plan_id', '70000000-0000-4000-8000-000000000003', 'payload', '{}'::jsonb))$$,
-  '42501', 'forbidden_plan_id', 'apply_event with another user''s plan_id raises it too'
+  'P0001', 'invalid_event',
+  'apply_event with another user''s plan_id raises invalid_event (its plan lookup, 4.9b, runs first)'
 );
 select tests.clear_authentication();
 select throws_ok(

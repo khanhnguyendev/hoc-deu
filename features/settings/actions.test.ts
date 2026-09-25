@@ -589,6 +589,12 @@ describe('setTrackStatus — pause, resume, remove', () => {
     expect(sent()).toMatchObject([{ payload: { pausedDays: 3 } }])
   })
 
+  it('clamps pausedDays to MAX_PAUSED_DAYS, which the database accepts (decision 36)', async () => {
+    fake.pausedDays = { english: '2010-01-01' }
+    await set('english', 'active')
+    expect(sent()).toMatchObject([{ payload: { pausedDays: 3650 } }])
+  })
+
   it('resumes with pausedDays 0 when no pause event is found', async () => {
     await set('english', 'active')
     expect(sent()).toMatchObject([{ payload: { pausedDays: 0 } }])

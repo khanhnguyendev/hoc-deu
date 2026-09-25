@@ -14,14 +14,17 @@ create extension if not exists pgtap with schema extensions;
 -- adds admin_list_users (checks is_admin() itself). The final M2 list (2.4-2.8):
 -- is_active, is_admin, local_day, user_local_day, learner_event_types, rules_version, apply_event,
 -- admin_set_status, admin_set_role, admin_list_users. 4.9a adds mark_plan_seen (checks the caller
--- itself) and plan_lock_key (the invoker apply_event takes the plan lock as the learner).
+-- itself) and plan_lock_key (the invoker apply_event takes the plan lock as the learner). 4.9b
+-- adds apply_derived_changes (SECURITY INVOKER: the invoker apply_event writes the derived rows as
+-- the learner, under RLS and the derived-table bounds).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
   ('local_day'), ('user_local_day'), ('learner_event_types'), ('rules_version'),
   ('apply_event'), ('admin_set_status'), ('admin_set_role'),
   ('admin_list_users'),
-  ('mark_plan_seen'), ('plan_lock_key');
+  ('mark_plan_seen'), ('plan_lock_key'),
+  ('apply_derived_changes');
 
 select plan(6);
 

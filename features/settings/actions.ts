@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
+import { MAX_PAUSED_DAYS } from '@/lib/domain/events'
 import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import {
   daysBetween,
@@ -244,7 +245,8 @@ export async function enrollTrack(
 /**
  * Pause, resume or remove a track (§5.9, decision 18); the database checks the transition. A
  * resume sends `pausedDays`: the days from the latest `track.paused` event's local day to today,
- * so the track's due dates shift forward by the pause.
+ * so the track's due dates shift forward by the pause — at most `MAX_PAUSED_DAYS` (Part B-M4
+ * decision 36), which is all the database accepts.
  */
 export async function setTrackStatus(
   _previous: SettingsResult | null,
@@ -288,7 +290,9 @@ export async function setTrackStatus(
     readLastPausedDay(supabase, user.id, trackId),
   ])
   const pausedDays =
-    pausedOn === null ? 0 : Math.max(0, daysBetween(pausedOn, today(versions, now)))
+    pausedOn === null
+      ? 0
+      : Math.min(MAX_PAUSED_DAYS, Math.max(0, daysBetween(pausedOn, today(versions, now))))
   return record(
     () =>
       applyLearnerEvent(supabase, {

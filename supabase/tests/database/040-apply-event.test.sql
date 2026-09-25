@@ -138,7 +138,8 @@ select throws_ok(
   '42501', 'not_authenticated', 'without a user id in the JWT, apply_event raises not_authenticated'
 );
 
--- 4. Learner types only; M2 applies only the state-table types (decision 8); active users only.
+-- 4. Learner types only, with the keys their type needs (4.9b: every learner type is applied, and
+--    p_changes / p_expected must match the type's derived tables); active users only.
 select tests.authenticate_as(:'learner');
 select throws_ok(
   $$select public.apply_event(tests.event(
@@ -161,23 +162,23 @@ select throws_ok(
 select throws_ok(
   $$select public.apply_event(tests.event(
       gen_random_uuid()::text, 'item.result', null, '{"result": "solved"}'))$$,
-  'P0001', 'not_implemented', 'item.result raises not_implemented in M2'
+  'P0001', 'invalid_event', 'item.result without item_id raises invalid_event'
 );
 select throws_ok(
-  $$select public.apply_event(tests.event(gen_random_uuid()::text, 'track.reset', 'dsa'))$$,
-  'P0001', 'not_implemented', 'track.reset raises not_implemented in M2 (decision 18)'
+  $$select public.apply_event(tests.event(gen_random_uuid()::text, 'track.reset', 'english'))$$,
+  'P0001', 'track_not_enrolled', 'track.reset on a track not enrolled raises track_not_enrolled'
 );
 select throws_ok(
   $$select public.apply_event(
       tests.event(gen_random_uuid()::text, 'track.paused', 'dsa'),
       '[{"table": "item_state"}]'::jsonb)$$,
-  'P0001', 'not_implemented', 'a non-empty p_changes raises not_implemented'
+  'P0001', 'invalid_event', 'a p_changes entry on track.paused (no derived table) raises invalid_event'
 );
 select throws_ok(
   $$select public.apply_event(
       tests.event(gen_random_uuid()::text, 'track.paused', 'dsa'),
-      p_expected => '{"item_state": 1}'::jsonb)$$,
-  'P0001', 'not_implemented', 'a non-empty p_expected raises not_implemented'
+      p_expected => '{"item_state:x": 1}'::jsonb)$$,
+  'P0001', 'invalid_event', 'a p_expected key without its change raises invalid_event'
 );
 select tests.authenticate_as(:'pending');
 select throws_ok(

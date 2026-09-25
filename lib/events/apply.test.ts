@@ -7,9 +7,12 @@ import {
   applyLearnerEvent,
   applySystemEvent,
   EventError,
+  isRetryable,
+  withRetry,
   type EventErrorCode,
   type EventInput,
 } from './apply'
+import type { DerivedWrite } from './derived'
 
 const EVENT_ID = '0b8e5f5c-6f7a-4c8e-9a4b-2d6f1e3c9a10'
 const USER_ID = '7d4c2b1a-3e5f-4a6b-8c9d-0e1f2a3b4c5d'
@@ -94,6 +97,61 @@ describe('applyLearnerEvent', () => {
     })
   })
 
+  it('sends local_day, p_changes and p_expected with a derived write (decision 10)', async () => {
+    const { client, calls } = fakeClient(applied())
+    const derived: DerivedWrite = {
+      changes: [
+        {
+          table: 'item_state',
+          row: { item_id: 'dsa:two-sum', track_id: 'dsa', level: 1, status: 'ok' },
+        },
+        {
+          table: 'daily_activity',
+          row: { local_day: '2026-09-28', minutes_by_track: {}, items_done: 1, completed: false },
+        },
+      ],
+      expected: { 'item_state:dsa:two-sum': 2, 'daily_activity:2026-09-28': 0 },
+    }
+    await expect(
+      applyLearnerEvent(
+        client,
+        {
+          id: EVENT_ID,
+          type: 'item.result',
+          payload: { result: 'solved' },
+          trackId: 'dsa',
+          itemId: 'dsa:two-sum',
+          localDay: '2026-09-28',
+        },
+        derived,
+      ),
+    ).resolves.toBe('applied')
+    expect(calls).toEqual([
+      {
+        fn: 'apply_event',
+        args: {
+          p_event: {
+            id: EVENT_ID,
+            type: 'item.result',
+            track_id: 'dsa',
+            item_id: 'dsa:two-sum',
+            local_day: '2026-09-28',
+            payload: { result: 'solved' },
+            rules_version: RULES_VERSION,
+          },
+          p_changes: derived.changes,
+          p_expected: derived.expected,
+        },
+      },
+    ])
+  })
+
+  it('sends an empty derived write as empty p_changes and p_expected', async () => {
+    const { client, calls } = fakeClient(applied())
+    await applyLearnerEvent(client, ENROLLED, { changes: [], expected: {} })
+    expect(calls[0]?.args).toMatchObject({ p_changes: [], p_expected: {} })
+  })
+
   it('passes duplicate through', async () => {
     const { client } = fakeClient({ data: { outcome: 'duplicate', versions: {} }, error: null })
     await expect(applyLearnerEvent(client, ENROLLED)).resolves.toBe('duplicate')
@@ -124,6 +182,8 @@ describe('applyLearnerEvent', () => {
     ['schedule_in_force', copy.errors.saveFailed],
     ['too_many_tracks', copy.errors.tooManyTracks],
     ['too_many_pending_schedules', copy.errors.tooManyPendingSchedules],
+    ['version_conflict', copy.errors.saveFailed],
+    ['day_changed', copy.errors.saveFailed],
   ])('maps the RPC error %s to its code and message', async (code, userMessage) => {
     const { client } = fakeClient(failed(code))
     const error = await eventError(applyLearnerEvent(client, ENROLLED))
@@ -285,4 +345,81 @@ describe('applySystemEvent', () => {
     expect(error.code).toBe('invalid_event')
     expect(calls).toEqual([])
   })
+})
+
+describe('isRetryable', () => {
+  it.each<EventErrorCode>(['version_conflict', 'day_changed'])('is true for %s', (code) => {
+    expect(isRetryable(new EventError(code))).toBe(true)
+  })
+
+  it.each<EventErrorCode>(['invalid_event', 'quota_exceeded', 'id_conflict', 'unknown'])(
+    'is false for %s',
+    (code) => {
+      expect(isRetryable(new EventError(code))).toBe(false)
+    },
+  )
+
+  it('is false for anything that is not an EventError', () => {
+    expect(isRetryable(new Error('version_conflict'))).toBe(false)
+    expect(isRetryable({ code: 'version_conflict' })).toBe(false)
+    expect(isRetryable('version_conflict')).toBe(false)
+  })
+})
+
+describe('withRetry (§4.4: reload, recompute, retry — at most 3 times)', () => {
+  /** An attempt that fails with `failures` in order, then resolves with `'done'`. */
+  function attemptFailing(...failures: unknown[]) {
+    let calls = 0
+    const attempt = () => {
+      const failure = failures[calls]
+      calls += 1
+      return failure === undefined ? Promise.resolve('done') : Promise.reject(failure)
+    }
+    return { attempt, calls: () => calls }
+  }
+
+  it('returns the first success without retrying', async () => {
+    const { attempt, calls } = attemptFailing()
+    await expect(withRetry(attempt)).resolves.toBe('done')
+    expect(calls()).toBe(1)
+  })
+
+  it('re-runs the attempt after a version_conflict or a day_changed', async () => {
+    const { attempt, calls } = attemptFailing(
+      new EventError('version_conflict'),
+      new EventError('day_changed'),
+    )
+    await expect(withRetry(attempt)).resolves.toBe('done')
+    expect(calls()).toBe(3)
+  })
+
+  it('gives up after 3 attempts and rethrows the last error', async () => {
+    const last = new EventError('version_conflict')
+    const { attempt, calls } = attemptFailing(
+      new EventError('version_conflict'),
+      new EventError('day_changed'),
+      last,
+      undefined,
+    )
+    await expect(withRetry(attempt)).rejects.toBe(last)
+    expect(calls()).toBe(3)
+  })
+
+  it('takes another number of attempts', async () => {
+    const { attempt, calls } = attemptFailing(
+      new EventError('version_conflict'),
+      new EventError('version_conflict'),
+    )
+    await expect(withRetry(attempt, 2)).rejects.toBeInstanceOf(EventError)
+    expect(calls()).toBe(2)
+  })
+
+  it.each([new EventError('invalid_event'), new EventError('quota_exceeded'), new Error('boom')])(
+    'rethrows %s at once',
+    async (error) => {
+      const { attempt, calls } = attemptFailing(error)
+      await expect(withRetry(attempt)).rejects.toBe(error)
+      expect(calls()).toBe(1)
+    },
+  )
 })
