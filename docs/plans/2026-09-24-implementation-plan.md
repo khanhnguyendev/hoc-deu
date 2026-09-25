@@ -7285,7 +7285,7 @@ residuals, own branch `fix/m3-followups` from `main`).
 side of the plan engine: `day_plans` and the derived tables, the full `apply_event`, the plan and
 auto check-in paths of `apply_system_event`, `mark_plan_seen`. No screen changes: `/today`,
 check-in, `/review`, "Học thêm" and `/progress` are M5, which consumes these interfaces. §5.12
-overrides and custom items are v1.1 (release table) and are not built: `buildPlan` takes no
+overrides and custom items are v1.1 (release table; owned by task 6.6) and are not built: `buildPlan` takes no
 overrides and skips items that are not in the catalog.
 
 **Owner questions** (answer at the review of this section; everything else below is a ruling the
@@ -7302,17 +7302,23 @@ owner can overturn):
   contexts; no shrinking.
 
 **Execution schedule.** A task starts when every task it depends on has been cherry-picked onto
-`feat/m4-plan-engine`; the waves below apply that rule in lockstep. "DB lock" = the task runs
-`pnpm db:reset` / `pnpm test:db` on the single local Supabase stack; one holder per wave.
+`feat/m4-plan-engine`; the waves below apply that rule in lockstep. "Stack" = the task uses the
+single local Supabase stack — `pnpm db:reset` / `pnpm test:db` (DB) or `pnpm test:e2e` (e2e); one
+stack holder per wave, because a `db:reset` under a running e2e breaks it.
 
-| Task | Depends on | Locks | Shared files it owns in its wave |
+**Owner hold (2026-09-25):** the SQL parts (4.9a–c, decision 33) and everything touching
+`supabase/**` wait for the owner's approval. Until then the pure-TypeScript tasks run in their
+waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependency order
+(4.9a → 4.9b → 4.9c → 4.12 → 4.11), one at a time.
+
+| Task | Depends on | Stack | Shared files it owns in its wave |
 | --- | --- | --- | --- |
 | 4.0 plan, deps, shared types (controller) | M3 merged | — | plan, spec, `docs/adr/README.md`, `package.json`, `pnpm-lock.yaml`, `lib/domain/{catalog,state,random}.ts`, `lib/domain/srs/outcomes.ts`, `lib/domain/plan/{types,reviewMode}.ts`, `lib/domain/plan/__tests__/fixtures.ts` |
 | 4.1 SRS transitions | 4.0 | — | — |
 | 4.4a roadmap position, new queue, recap source | 4.0 | — | — |
 | 4.4b due queue, weak topics, practice pickers | 4.0 | — | — |
 | 4.5 budget and throttle | 4.0 | — | — |
-| 4.9a migration: plans and derived tables | 4.0 | DB | `lib/domain/rules.ts`, `lib/supabase/database.types.ts`, `supabase/tests/database/{001,012,030,040,060}-*.sql`, `docs/adr/0007-*.md` |
+| 4.9a migration: plans and derived tables | 4.0 | DB | `lib/domain/rules.ts`, `tools/db/sql-sync.test.ts`, `lib/supabase/database.types.ts`, `supabase/tests/database/{001,012,030,040,060}-*.sql`, `docs/adr/0007-*.md` |
 | 4.2 projection and replay | 4.1 | — | `lib/domain/events.ts` (+ test) |
 | 4.3 gate and plan history | 4.0 | — | — |
 | 4.7 stats, weekday, time-zone cache | 4.0 | — | `lib/domain/time/timeZones.ts` (+ test) |
@@ -7321,16 +7327,19 @@ owner can overturn):
 | 4.6 `buildPlan`, resume, property tests | 4.3, 4.4a, 4.4b, 4.5, 4.7 | — | — |
 | 4.9c `apply_system_event`: plans, auto check-in | 4.9b | DB | `lib/events/apply.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,041}-*.sql` |
 | F1 M3 follow-ups (separate PR) | — | — | its own branch: `tools/content/derived.ts` (+ test), the fence-parity test, `vitest.config.ts`, `tools/content-verify/workflow.test.ts` |
-| 4.8 simulation and projection table | 4.2, 4.6 | e2e | `lib/domain/plan/projections.ts` (+ test), `package.json` scripts, `CLAUDE.md`, `README.md`, spec §5.10–§5.11, onboarding / variant-picker tests, `e2e/onboarding.spec.ts` |
+| 4.8 simulation and projection table | 4.2, 4.6 | — (the controller runs the e2e after the wave) | `lib/domain/plan/projections.ts` (+ test), `package.json` scripts, `CLAUDE.md`, `README.md`, spec §5.10–§5.11, onboarding / variant-picker tests, `e2e/onboarding.spec.ts` |
+| 4.12 schedule-history floor | 4.9c | DB | `supabase/tests/database/{011,012}-*.sql`, `docs/adr/0017-*.md` |
+| 4.11 settings `pausedDays` e2e | 4.9b | e2e | `e2e/support/users.ts`, `e2e/settings.spec.ts` |
 
-| Wave | Parallel tasks (one worktree each) | Lock holder | Controller at the end of the wave |
+| Wave | Parallel tasks (one worktree each) | Stack holder | Controller at the end of the wave |
 | --- | --- | --- | --- |
 | 0 | 4.0 (controller, in the integration worktree) | — | `pnpm verify` |
 | 1 | 4.1 ‖ 4.4a ‖ 4.4b ‖ 4.5 ‖ 4.9a | DB: 4.9a | `pnpm verify`, then `pnpm db:reset && pnpm test:db` |
 | 2 | 4.2 ‖ 4.3 ‖ 4.7 ‖ 4.10 ‖ 4.9b | DB: 4.9b | same |
 | 3 | 4.6 ‖ 4.9c ‖ F1 | DB: 4.9c | same; F1: CI, review, merge to `main` (controller) |
-| 4 | 4.8 | e2e: 4.8 | `pnpm verify:full` |
-| 5 | — | controller | whole-branch review, one fix pass, re-review, `verify:full`, PR, CI |
+| 4 | 4.8 ‖ 4.12 | DB: 4.12 | same, then `pnpm test:e2e --grep onboarding` |
+| 5 | 4.11 | e2e: 4.11 | `pnpm verify:full` |
+| 6 | — | controller | whole-branch review, one fix pass, re-review, `verify:full`, PR, CI |
 
 - **Same-wave tasks share no file.** Each shared file has one owner per wave (last column above);
   new files belong to the task that creates them. Wave sizes are capped at five agents (M3 lost two
@@ -7342,11 +7351,10 @@ owner can overturn):
   integration branch head with `git worktree add … -b feat/m4-task-<task>`, then `pnpm install
   --frozen-lockfile`; removed with their branch after the cherry-pick. F1 uses
   `wt-f1` on `fix/m3-followups` from `origin/main`.
-- **DB lock:** the local Supabase stack is shared. Only the wave's DB task runs `pnpm db:reset` or
-  `pnpm test:db`; the controller runs its post-wave `db:reset && test:db` after that task has
-  finished. Nobody runs `db:stop`. Never touch the other local project, `ytb-extractor`.
-- **e2e lock:** `/Users/ryan/ws/hoc-deu-worktrees/E2E_LOCK` — only 4.8 (wave 4) and the
-  controller run `pnpm test:e2e`, never at the same time.
+- **Stack lock:** the local Supabase stack is shared. Only the wave's stack task runs `pnpm
+  db:reset`, `pnpm test:db` or `pnpm test:e2e`; the controller runs its post-wave checks after that
+  task has finished (e2e under `/Users/ryan/ws/hoc-deu-worktrees/E2E_LOCK`). Nobody runs
+  `db:stop`. Never touch the other local project, `ytb-extractor`.
 
 **Decisions taken while writing (each is a ledger ruling; the owner can overturn any):**
 
@@ -7375,8 +7383,8 @@ owner can overturn):
    `checked_in_on` (the local day of the first check-in, which the block counts for — an edit on
    a later day never moves it); `user_tracks` gains `reset_on`; `day_plans.roadmap_weeks` holds a
    per-track snapshot `{ variant, week, dueCount, newPerDay, throttled, reviewDebt }` (the
-   dashboard's throttle message, §5.5, reads it). `day_plans.rationale` and `bot_run_id` are v1.1
-   and arrive with the bot tables in M6.
+   dashboard's throttle message, §5.5, reads it). `day_plans.rationale` and `bot_run_id` are v1.1:
+   owned by task **6.2** (the bot tables migration).
 7. **Block JSON:** a block lists `items: [{ itemId, mode, minutes, overBudget? }]` instead of
    §4.1's `item_ids` + one block `mode` — a review block mixes quick-recall and redo problems and a
    deep-dive lesson, so the mode is per item. Recap blocks carry `recapWeek`, shadowing blocks
@@ -7433,8 +7441,13 @@ owner can overturn):
     `top_successes` 0; completion-only items (lessons, exercises, prompts) get an `item_state` row
     with level 0 and status `ok`; the first-result-per-day rule applies to every item type.
 18. **`RULES_VERSION` becomes 2** in 4.9a, in TypeScript and SQL together (the first version with
-    plan and SRS rules; `tools/db/sql-sync.test.ts` pins them equal). Replay supports only the
-    current rules; an event from a later version is an error.
+    plan and SRS rules). Replay supports only the current rules; an event from a later version is
+    an error. **Tests that the two agree** (owner request): the existing
+    `tools/db/sql-sync.test.ts` case compares `RULES_VERSION` with the last `public.rules_version()`
+    definition in the migrations (static, in `pnpm test`); 4.9a adds a pgTAP assertion that the
+    **running** database's `public.rules_version()` returns the value, and a sql-sync case that
+    this pgTAP literal equals `RULES_VERSION` — so the constant, the migrations and the live
+    function cannot disagree without a red test.
 19. **`item.snapshot` payload** gains `introducedOn`, `lastResult` and `lastResultOn` (the type is
     reserved and nothing writes it yet), so a snapshot restores a full `item_state` row (4.2).
 20. **Simulation inputs:** the DSA simulation reads `lib/domain/plan/sim-inputs.generated.json`
@@ -7466,22 +7479,25 @@ owner can overturn):
     `weekly_template` and `include_bonus`; `track.updated` on a removed track raises
     `track_not_enrolled`; plan events take the `(user, plan_date)` advisory lock (all in 4.9b); a
     BigInt in a free-form payload object is a `ZodError`, not a `TypeError` (4.2); identical
-    schedule versions do not break the streak (4.7). **Re-parked:** M2 2.4's schedule-history
-    tightening — the next-day-start floor for schedule versions and the advisory lock for
-    concurrent first versions (only a hand-crafted direct write can move one's own local day, which
-    only corrupts one's own data) — and the `pausedDays` query test (settings, M5).
+    schedule versions do not break the streak (4.7). **Owned by new tasks** (owner rule: nothing
+    is postponed without an owning task): M2 2.4's schedule-history tightening — the next-day-start
+    floor for schedule versions and the advisory lock for concurrent first versions — is task
+    **4.12**; the settings `pausedDays` query test is task **4.11**, in M4 rather than M5 because
+    pause / resume has been in settings since M2 and 4.9b makes `pausedDays` move due dates.
 28. **M3 follow-ups:** the four PR A residuals (m1–m4) go to the separate small PR **F1**; the
     `isTimeZoneOption` cache goes to 4.7 (it is `lib/domain/time`); the real HTTP 404 for unknown
     tracks and items goes to 5.1 (it needs the loading-boundary restructure that `/today` touches);
-    the Java `List<String>` bridge and Go `Constructor()` stay the M3b prerequisite before weeks 4+.
+    the Java `List<String>` bridge and Go `Constructor()` become the first step of the **M3b**
+    harness task (Part A, "Before any learner reaches week 4"; 4.0 Step 2 writes it there).
 29. **Tie-breaks** are by item ID (deterministic; §5 asks for a `userId + localDay` hash, which
     only matters when a random-looking spread is wanted — nothing in M4 needs one).
-30. **After merge:** the controller runs `supabase db push` for the three M4 migrations on the
+30. **After merge:** the controller runs `supabase db push` for the four M4 migrations on the
     production project (docs/ops/staging.md), as for M2 and M3 — first checking there that `select
     count(*) from public.events where plan_id is not null` is 0 (M2 accepted any UUID as a
     `plan_id`, and the new foreign key would fail on one).
 31. **§5.12's override simulation scenario** (one `extra_week` per four weeks, two `insert_block`s)
-    moves with overrides to v1.1 (M6/M7); M4 simulates the baseline engine only.
+    moves with overrides to v1.1: owned by task **6.6** (overrides and `effectiveRoadmap`); M4
+    simulates the baseline engine only.
 32. **One plan per local day after a resume** (§5.2, §5.9): when the last seen plan is from an
     earlier day and its first `done` / `partial` check-in happened **today**, the gate is open but
     `resumedToday` — no new plan is built today (M5's `ensurePlan` shows the resumed plan); the
@@ -7521,7 +7537,11 @@ note "**Part B-M4 changes to this table**" (decisions 2, 5, 28, 31); Part A row 
 real HTTP 404 for unknown tracks and items (M3 follow-up)", "no second plan on a resume day
 (`gateStatus().resumedToday`, decision 32)" and "settings, track add / pause / remove / reset
 rebuild today's plan while it is untouched (`storePlan` mode `rebuild`, §5.4, §5.9)"; Part A row 5.2
-gains "one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34)"; spec §4.3 annotates `due_items()` and
+gains "one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34)"; the M4 table
+gains rows 4.10 (adapter), 4.11 (`pausedDays` e2e) and 4.12 (schedule-history floor); the
+"Before any learner reaches week 4" block names the **M3b** harness task and its first step, "the
+Java harness bridges `List<String>` parameters and Go design classes are created via
+`Constructor()` (problems 139, 127, 271)" (decision 28); spec §4.3 annotates `due_items()` and
 `v_weak_topics` as "not built — computed in TypeScript (implementation plan Part B-M4 decision 5)";
 spec §4.1 notes the added columns (decision 6) and the block item shape (decision 7); spec §4.4 notes
 the `item.snapshot` payload fields (decision 19); `docs/adr/README.md` links rows 0008, 0014, 0016
@@ -7531,8 +7551,8 @@ and 0037 with their final file names (`0008-rules-version.md`,
 
 **Subagent contract for every task** (M3's contract, plus): read `CLAUDE.md`, the platform-design
 sections the task cites and this task's text; TDD (superpowers:test-driven-development) — the
-listed tests fail first; `pnpm verify` green before the commit (plus `pnpm test:db` for 4.9a–c and
-`pnpm test:e2e` for 4.8, each only while holding its lock); never read `.env*` other than the
+listed tests fail first; `pnpm verify` green before the commit (plus `pnpm test:db` for 4.9a–c
+and 4.12, `pnpm test:e2e` for 4.11, each only while holding the stack lock); never read `.env*` other than the
 committed template `.env.example`, and never `docs/credentials/`; no subagents.
 
 - Work only in the worktree and branch named in your brief; commit there; never push; never touch
@@ -9423,8 +9443,8 @@ for 364 days; one that still does not finish makes the CLI exit non-zero (the UI
   (decision 21) — do not change a threshold.
 - [ ] **Step 6: Displayed projections** — if the regenerated 8w/10w numbers change the text the
   onboarding wizard and variant picker show, update their component tests and
-  `e2e/onboarding.spec.ts` to the new values; take the e2e lock and run `pnpm test:e2e --grep
-  onboarding`.
+  `e2e/onboarding.spec.ts` to the new values. Do not run e2e (the wave's stack holder is 4.12); the
+  controller runs `pnpm test:e2e --grep onboarding` after the wave.
 - [ ] **Step 7: Docs** — ADR-0014 (`[7, 21, 60]` for DSA problems, `[1, 3, 7, 14]` for English and
   DSA cards, mastery after 2, relearn 3 / 1; the §5.10 prototype; the TypeScript calibration run
   and its numbers; thresholds frozen), ADR-0037 (the projection table is generated and keyed by the
@@ -9445,8 +9465,10 @@ for 364 days; one that still does not finish makes the CLI exit non-zero (the UI
 
 - Create: `supabase/migrations/20260926000100_day_plans_and_derived_tables.sql`,
   `supabase/tests/database/070-derived-tables.test.sql`
-- Modify: `lib/domain/rules.ts` (`RULES_VERSION = 2`), `lib/supabase/database.types.ts`
-  (`pnpm db:types`), `supabase/tests/database/{001,012,030,040,060}-*.sql` (the allowlist, and
+- Modify: `lib/domain/rules.ts` (`RULES_VERSION = 2`), `tools/db/sql-sync.test.ts` (decision 18:
+  a case reading `supabase/tests/database/070-derived-tables.test.sql` with
+  `/select is\(\s*public\.rules_version\(\),\s*(\d+)/` and expecting `String(RULES_VERSION)`),
+  `lib/supabase/database.types.ts` (`pnpm db:types`), `supabase/tests/database/{001,012,030,040,060}-*.sql` (the allowlist, and
   every expectation of `rules_version` 1 on a row a learner writes → 2; 041's system events keep the
   `rules_version` they send, so 041 is unchanged), `docs/adr/0007-*.md` (one line: derived tables
   are bounded like the state tables, decision 11)
@@ -9578,7 +9600,9 @@ Plus, in the same migration:
 - [ ] **Step 1: Write the failing pgTAP** `070-derived-tables.test.sql` (`select plan(n)`, helpers
   from `_helpers.psql`; plans are inserted as `postgres` with `tests.clear_authentication()`):
   1. the four tables exist with RLS on (and 001's invariants still pass);
-  2. `public.rules_version()` = 2; a learner event's stored `rules_version` = 2;
+  2. `select is(public.rules_version(), 2, 'the running rules_version() equals lib/domain/rules.ts
+     RULES_VERSION');` — this exact shape, which the new sql-sync case reads (decision 18); a
+     learner event's stored `rules_version` = 2;
   3. a learner sees only their own plans, block states, item states and daily activity; cannot
      insert or update `day_plans` (42501);
   4. `mark_plan_seen`: own unseen plan → true and `seen_at` set; a second call → true and
@@ -9788,8 +9812,11 @@ unchanged grants). It implements `onboarding.completed` (as M2), plus:
   derived writes as the learner path through `public.apply_derived_changes(p_user_id, …)`;
   `source` defaults to `system`. `onboarding.completed` keeps M2's order (no plan lock) and now
   rejects a non-empty `p_changes` / `p_expected` with `invalid_event`.
-- Every other system type stays `not_implemented` (`plan.extra_added` is 5.4; bot, AI and admin
-  events are v1.1 or use their own functions).
+- Every other system type stays `not_implemented`, each with its owning task: `plan.extra_added`
+  → 5.4; `plan.ai_proposed` / `ai_applied` / `ai_skipped` → 6.5; `user_item.*` and
+  `roadmap.override_*` → 6.6; `admin.bot_token_rotated` → 6.3; `item.snapshot` → the compaction job
+  (release table "later"; ADR-0031 names its trigger, the 350 MB warning). The other admin events
+  have their own functions (M2).
 
 **TypeScript** — `lib/events/plans.ts` (`server-only`):
 
@@ -9909,6 +9936,86 @@ not the problem has a note — not `note.deepDiveId`, which is null without a no
   **Step 4:** pass; `pnpm verify`.
 - [ ] **Step 5: Commit** `feat(content): plan catalog adapter for the engine`.
 
+### Task 4.11: Settings pause / resume — the real `pausedDays` query (e2e)
+
+**Source:** M2 deferred minor (task 2.11): `readLastPausedDay` in `features/settings/reads.ts` is
+mocked in every unit test, and the e2e never checks the stored payload. From 4.9b on,
+`track.resumed.pausedDays` shifts the track's due dates, so the real query must be pinned before M4
+merges (decision 27). **Spec:** §5.9 (pause shifts due dates). **Files:**
+
+- Modify: `e2e/support/users.ts` (two service-role helpers), `e2e/settings.spec.ts` (one test)
+
+**Interfaces** (`e2e/support/users.ts`, secret key of the local stack like the existing helpers):
+
+```ts
+/** Sets the enrollment to paused and records a `track.paused` event `daysAgo` days in the past
+ *  (inserted with the secret key, so `occurred_at` is not forced; the trigger computes local_day). */
+export async function seedPausedTrack(userId: string, trackId: string, daysAgo: number): Promise<void>
+/** The payload of the user's latest event of `type` for `trackId`, or null. */
+export async function latestEventPayload(
+  userId: string,
+  type: string,
+  trackId: string,
+): Promise<Record<string, unknown> | null>
+```
+
+- [ ] **Step 1: Write the failing test** in `e2e/settings.spec.ts`: an onboarded learner enrolled
+  in English (`seedLearnerSetup`), `seedPausedTrack(id, 'english', 5)`; in `/settings` the English
+  row shows the paused state; click "Tiếp tục" (the resume button); then
+  `latestEventPayload(id, 'track.resumed', 'english')` → `{ pausedDays: 5 }` and the enrollment is
+  active again. A second case: paused **today** (`daysAgo: 0`) → `{ pausedDays: 0 }`.
+- [ ] **Step 2:** with the stack lock (`E2E_LOCK`), `pnpm test:e2e --grep pausedDays` — fails
+  (helpers missing). **Step 3:** add the helpers. **Step 4:** passes on both projects (desktop,
+  mobile); if it fails on the real query, fix `readLastPausedDay` (the query must pick the latest
+  `track.paused` of that track by `occurred_at`) and say so in the report.
+- [ ] **Step 5:** `pnpm verify`. **Commit** `test(settings): pin the real pausedDays query of
+  resume (e2e)`.
+
+### Task 4.12: Schedule-history floor and first-version lock
+
+**Source:** M2 deferred minor (task 2.4, triaged to M4): the history guard lets a non-first
+schedule version take effect at `now()` instead of at the next day start, so a direct `apply_event`
+call can move the user's own local day back; the first-version exemption is unbounded and
+concurrent first inserts are unlocked. **Spec:** §4.1 (`schedule_versions`), §5.9 (changes take
+effect at the next day start), ADR-0017; decision 27. **Files:**
+
+- Create: `supabase/migrations/20260926000400_schedule_history_floor.sql`,
+  `supabase/tests/database/013-schedule-history-floor.test.sql`
+- Modify: `supabase/tests/database/{011,012}-*.sql` (cases that insert non-first versions at
+  arbitrary near-future times move them to the next day start), `docs/adr/0017-*.md` (one
+  paragraph)
+
+**The migration** — `create or replace function public.schedule_versions_guard_history()` (the
+000100 body, with its update and delete rules unchanged; insert rules):
+
+- The **first** version of a user (no row yet) is allowed at any time only while the profile's
+  `onboarded_at` is null, and is checked under the per-user advisory lock the R14 cap already uses
+  (`hashtextextended('schedule_versions:' || user_id, 0)`), so two concurrent first inserts cannot
+  both count as first.
+- Every **later** version inserted by `authenticated` needs `effective_at >=` the next day start
+  of the version in force at `now()`, minus 65 minutes: `((public.user_local_day(new.user_id,
+  now()) + 1) + <in-force day_starts_at>) at time zone <in-force timezone>` — 5 minutes of clock
+  skew (the existing allowance) plus one hour for a day start inside a DST gap or overlap, where
+  Postgres and `nextDayStart` may pick different instants. Otherwise `schedule_backdated`.
+- The secret-key role and definer functions are not restricted (as before).
+
+- [ ] **Step 1: Failing pgTAP** `013-schedule-history-floor.test.sql`: a second version effective
+  `now()` → `schedule_backdated`; effective at the next day start (computed in the test with the
+  same expression) → ok; 60 minutes before it → ok (tolerance); 2 hours before it →
+  `schedule_backdated`; a first version for a profile with `onboarded_at` set → `schedule_backdated`;
+  a first version during onboarding (`onboarded_at` null) effective `now() − 1 minute` (what
+  onboarding sends) → ok; an upsert of an existing pending version still works; the settings flow's
+  own values (TypeScript `nextDayStart` for `Asia/Ho_Chi_Minh` 04:00 and for `America/New_York`
+  02:30, a DST-gap day start) pass.
+- [ ] **Step 2:** `pnpm db:reset && pnpm test:db` — 013 fails; **Step 3:** write the migration and
+  move the 011 / 012 cases that now fail to valid times (never weaken their intent); **Step 4:**
+  all green; `pnpm db:types` (no diff expected); then, still the wave's stack holder, `pnpm
+  test:e2e --grep "onboarding|settings"` (onboarding and settings write schedule versions).
+- [ ] **Step 5:** ADR-0017 gains a paragraph: the database now enforces the next-day-start rule
+  for later versions (with the 65-minute tolerance) and bounds the first-version exemption.
+  `pnpm verify`. **Commit** `fix(db): schedule versions take effect no earlier than the next day
+  start`.
+
 ### Task F1: M3 follow-ups — separate PR `fix/m3-followups`
 
 **Source:** the M3 PR A re-review residuals m1–m4 (ruling M3-R16). Branch `fix/m3-followups` from
@@ -9950,6 +10057,6 @@ are green (like #6). **Files:**
   step); CI green: verify, e2e, db, content-build, content-verify, CodeQL.
 - [ ] **Ask the owner who merges.** After the merge: on the production project, check `select
   count(*) from public.events where plan_id is not null` = 0 (decision 30; Management API query
-  endpoint), then `supabase db push` of the three M4 migrations (docs/ops/staging.md; linked CLI via
+  endpoint), then `supabase db push` of the four M4 migrations (docs/ops/staging.md; linked CLI via
   the pooler, `.env.local` loaded into the shell, nothing printed), migration list local = remote; archive the ledger; update the
   memory file; write the M5 hand-off.
