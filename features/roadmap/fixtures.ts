@@ -228,7 +228,8 @@ export const ITEMS: readonly CatalogItem[] = [
   card('w01-standup', 'stand-up', 'english:deck-w01-standup', 'core', 'draft'),
   card('w01-eta', 'ETA', 'english:deck-w01-standup', 'extended'),
   card('w01-legacy', 'legacy', 'english:deck-w01-standup', 'extended', 'retired'),
-  card('w02-lgtm', 'LGTM', 'english:deck-w02-review', 'core', 'active', 2),
+  // A card of the draft w02 deck: content:build gives it the stricter status, draft (load.ts)
+  card('w02-lgtm', 'LGTM', 'english:deck-w02-review', 'core', 'draft', 2),
   // English exercises and weekly prompts
   exercise('ex-w01-fill-1', 1),
   exercise('ex-w02-fill-1', 2),
