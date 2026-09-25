@@ -88,6 +88,21 @@ import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
+import { Bilingual } from '@/features/items/components/mdx/bilingual'
+import { Callout } from '@/features/items/components/mdx/callout'
+import { CodePre } from '@/features/items/components/mdx/code-pre'
+import { Complexity } from '@/features/items/components/mdx/complexity'
+import { ContentImage } from '@/features/items/components/mdx/content-image'
+import { ExternalLink } from '@/features/items/components/mdx/external-link'
+import { PracticeCard } from '@/features/items/components/mdx/practice-card'
+import { Choice, Question, Quiz } from '@/features/items/components/mdx/quiz'
+import { Reveal } from '@/features/items/components/mdx/reveal'
+import { Section as MdxSection } from '@/features/items/components/mdx/section'
+import { SolutionTabs } from '@/features/items/components/mdx/solution-tabs'
+import { Step, Steps } from '@/features/items/components/mdx/steps'
+import { Term } from '@/features/items/components/mdx/term'
+import { VarTable } from '@/features/items/components/mdx/var-table'
+import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
 import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
@@ -100,6 +115,7 @@ import { TrackSettings } from '@/features/settings/components/track-settings'
 import type { SettingsAction, SettingsTrack } from '@/features/settings/schema'
 import { VariantPicker } from '@/features/tracks/components/variant-picker'
 import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
+import { codeBlockKey, type CodeBundle } from '@/lib/content/code-tokens'
 import type { TrackOption } from '@/lib/content/track-options'
 import { vi } from '@/lib/i18n/vi'
 import { GO_SAMPLE, JAVA_SAMPLE, LONG_LINE_SAMPLE, PYTHON_SAMPLE } from './code-samples'
@@ -498,6 +514,60 @@ function VariantPickerDemo({
         aria-labelledby={`demo-variant-${track.id}`}
       />
     </div>
+  )
+}
+
+/** MDX content demos (task 3.3b): a highlighted fence and the widths content renders at. */
+const DEMO_FENCE = 'seen = {}\nfor i, n in enumerate(nums):\n    seen[n] = i'
+const DEMO_CODE: CodeBundle = {
+  solutions: {},
+  blocks: {
+    [codeBlockKey('python', DEMO_FENCE)]: {
+      lang: 'python',
+      lines: [
+        ['seen = ', ['{}', 'constant']],
+        [['for', 'keyword'], ' i, n ', ['in', 'keyword'], ' enumerate(nums):'],
+        ['    seen[n] = i'],
+      ],
+    },
+  },
+}
+const PROSE = 'w-full max-w-prose space-y-4'
+/** MDX marks a fence's language on its `code` element (not a Tailwind class). */
+const fenceClass = (lang: string) => `language-${lang}`
+
+function VarTableDemo({ caption }: { caption?: string }) {
+  return (
+    <VarTable caption={caption}>
+      <Md.table>
+        <Md.thead>
+          <Md.tr>
+            <Md.th>i</Md.th>
+            <Md.th>x</Md.th>
+            <Md.th>Phần bù</Md.th>
+            <Md.th>map</Md.th>
+          </Md.tr>
+        </Md.thead>
+        <Md.tbody>
+          <Md.tr>
+            <Md.td>0</Md.td>
+            <Md.td>2</Md.td>
+            <Md.td>7</Md.td>
+            <Md.td>
+              <Md.code>{'{}'}</Md.code>
+            </Md.td>
+          </Md.tr>
+          <Md.tr>
+            <Md.td>1</Md.td>
+            <Md.td>7</Md.td>
+            <Md.td>2</Md.td>
+            <Md.td>
+              <Md.code>{'{2: 0}'}</Md.code>
+            </Md.td>
+          </Md.tr>
+        </Md.tbody>
+      </Md.table>
+    </VarTable>
   )
 }
 
@@ -1755,6 +1825,321 @@ export const CATALOG: Entry[] = [
         render: () => (
           <div className="w-full max-w-2xl">
             <DeleteAccount deleteAccount={demoDeleteAccountFailure} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'MdxSection',
+    layer: 'features',
+    file: 'features/items/components/mdx/section.tsx',
+    demos: [
+      {
+        title: '<Section kind="signals">: h2 từ vi.content.sections',
+        render: () => (
+          <div className={PROSE}>
+            <MdxSection kind="signals">
+              <Md.p>Mảng đã sắp xếp và đề hỏi về một cặp phần tử.</Md.p>
+            </MdxSection>
+          </div>
+        ),
+      },
+      {
+        title: 'Kind chưa có nhãn: hiện ID',
+        render: () => (
+          <div className={PROSE}>
+            <MdxSection kind="deep-dive-notes">
+              <Md.p>Một định dạng bài học mới vẫn hiển thị được.</Md.p>
+            </MdxSection>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Callout',
+    layer: 'features',
+    file: 'features/items/components/mdx/callout.tsx',
+    demos: [
+      {
+        title: 'Ba tone: info, tip (có title), warning',
+        render: () => (
+          <div className={PROSE}>
+            <Callout tone="info">
+              <Md.p>
+                Mỗi phần tử chỉ được duyệt <Md.strong>một lần</Md.strong>.
+              </Md.p>
+            </Callout>
+            <Callout tone="tip" title="Dấu hiệu">
+              <Md.p>
+                Đề có chữ &ldquo;sorted&rdquo; và hỏi một cặp có tổng bằng <Md.code>target</Md.code>{' '}
+                — xem <Md.a href="https://leetcode.com/problems/two-sum/">ví dụ</Md.a>.
+              </Md.p>
+            </Callout>
+            <Callout tone="warning">
+              <Md.p>
+                Tra phần bù <Md.em>trước</Md.em> khi thêm <Md.code>x</Md.code> vào map.
+              </Md.p>
+            </Callout>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Steps',
+    layer: 'features',
+    file: 'features/items/components/mdx/steps.tsx',
+    demos: [
+      {
+        title: 'Bước có và không có title',
+        render: () => (
+          <div className={PROSE}>
+            <Steps>
+              <Step title="Khởi tạo">
+                Đặt <Md.code>left = 0</Md.code> và <Md.code>right = n - 1</Md.code>.
+              </Step>
+              <Step title="Thu hẹp">
+                <Md.p>So sánh tổng với target: nhỏ hơn thì tăng left, lớn hơn thì giảm right.</Md.p>
+              </Step>
+              <Step>Dừng khi left gặp right.</Step>
+            </Steps>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VarTable',
+    layer: 'features',
+    file: 'features/items/components/mdx/var-table.tsx',
+    demos: [
+      {
+        title: 'Có caption (vùng cuộn, focus bằng bàn phím)',
+        render: () => (
+          <div className={PROSE}>
+            <VarTableDemo caption="nums = [2, 7, 11, 15], target = 9" />
+          </div>
+        ),
+      },
+      {
+        title: 'Không caption: nhãn "Bảng biến"',
+        render: () => (
+          <div className={PROSE}>
+            <VarTableDemo />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Complexity',
+    layer: 'features',
+    file: 'features/items/components/mdx/complexity.tsx',
+    demos: [
+      {
+        title: 'Thời gian và bộ nhớ',
+        render: () => (
+          <div className={PROSE}>
+            <Complexity time="O(n log n)" space="O(1)" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Bilingual',
+    layer: 'features',
+    file: 'features/items/components/mdx/bilingual.tsx',
+    demos: [
+      {
+        title: 'Tiếng Việt, rồi English (lang="en")',
+        render: () => (
+          <div className={PROSE}>
+            <Bilingual
+              vi="Lưu mỗi số vào hash map để tìm phần bù trong O(1)."
+              en="Store each number in a hash map to look up its complement in O(1)."
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Term',
+    layer: 'features',
+    file: 'features/items/components/mdx/term.tsx',
+    demos: [
+      {
+        title: 'Có và không có chú thích tiếng Việt',
+        render: () => (
+          <div className={PROSE}>
+            <Md.p>
+              Thử <Term vi="hai con trỏ">two pointers</Term> trước khi dùng <Term>hash map</Term>.
+            </Md.p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'PracticeCard',
+    layer: 'features',
+    file: 'features/items/components/mdx/practice-card.tsx',
+    demos: [
+      {
+        title: 'Đủ thông tin; không số LeetCode và độ khó',
+        render: () => (
+          <div className={PROSE}>
+            <PracticeCard title="3Sum" href="/t/dsa/items/lc-0015" leetcode={15} difficulty="M" />
+            <PracticeCard
+              title="Valid Parentheses"
+              href="/t/dsa/items/lc-0020"
+              leetcode={20}
+              difficulty="E"
+            />
+            <PracticeCard title="Custom drill" href="/t/dsa" leetcode={null} difficulty={null} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Quiz',
+    layer: 'features',
+    file: 'features/items/components/mdx/quiz.tsx',
+    demos: [
+      {
+        title: 'Chọn đáp án rồi bấm "Kiểm tra"; "Làm lại" để xoá',
+        render: () => (
+          <div className={PROSE}>
+            <Quiz>
+              <Question prompt="Mảng chưa sắp xếp thì dùng hai con trỏ ngay được không?" answer="b">
+                <Choice id="a">Được, luôn luôn</Choice>
+                <Choice id="b">Không, phải sắp xếp trước hoặc dùng hash map</Choice>
+              </Question>
+              <Question prompt="Độ phức tạp thời gian là bao nhiêu?" answer="n">
+                <Choice id="n">
+                  <Md.code>O(n)</Md.code>
+                </Choice>
+                <Choice id="n2">
+                  <Md.code>O(n^2)</Md.code>
+                </Choice>
+              </Question>
+            </Quiz>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Reveal',
+    layer: 'features',
+    file: 'features/items/components/mdx/reveal.tsx',
+    demos: [
+      {
+        title: 'Nhãn mặc định ("Xem" / "Ẩn") và nhãn riêng',
+        render: () => (
+          <div className={PROSE}>
+            <Reveal>
+              <Md.p>Sắp xếp làm mất chỉ số gốc.</Md.p>
+            </Reveal>
+            <Reveal label="Gợi ý">
+              <Md.p>Khi tổng quá lớn, phần tử nào chắc chắn không thuộc đáp án?</Md.p>
+            </Reveal>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'SolutionTabs',
+    layer: 'features',
+    file: 'features/items/components/mdx/solution-tabs.tsx',
+    demos: [
+      {
+        title: 'Ba ngôn ngữ, mở ở Java (ngôn ngữ của người học)',
+        render: () => (
+          <div className={PROSE}>
+            <SolutionTabs
+              solutions={{ python: PYTHON_SAMPLE, java: JAVA_SAMPLE, go: GO_SAMPLE }}
+              defaultLanguage="java"
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Thiếu ngôn ngữ của người học (Go): mở ở tab đầu tiên',
+        render: () => (
+          <div className={PROSE}>
+            <SolutionTabs
+              solutions={{ python: PYTHON_SAMPLE, java: JAVA_SAMPLE }}
+              defaultLanguage="go"
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'CodePre',
+    layer: 'features',
+    file: 'features/items/components/mdx/code-pre.tsx',
+    demos: [
+      {
+        title: 'Khối đã tô màu lúc build; khối không có trong bundle (chữ thường)',
+        render: () => (
+          <div className={PROSE}>
+            <CodePre code={DEMO_CODE}>
+              <code className={fenceClass('python')}>{`${DEMO_FENCE}\n`}</code>
+            </CodePre>
+            <CodePre code={DEMO_CODE}>
+              <code className={fenceClass('text')}>{'[3, 2, 4] -> [2, 3, 4]\n'}</code>
+            </CodePre>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ExternalLink',
+    layer: 'features',
+    file: 'features/items/components/mdx/external-link.tsx',
+    demos: [
+      {
+        title: 'Link https (tab mới) và link không hợp lệ (chỉ hiện chữ)',
+        render: () => (
+          <div className={PROSE}>
+            <Md.p>
+              Đọc thêm{' '}
+              <ExternalLink href="https://leetcode.com/problems/two-sum/">
+                Two Sum trên LeetCode
+              </ExternalLink>
+              .
+            </Md.p>
+            <Md.p>
+              <ExternalLink href="http://x.test/">Link http bị bỏ</ExternalLink>
+            </Md.p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ContentImage',
+    layer: 'features',
+    file: 'features/items/components/mdx/content-image.tsx',
+    demos: [
+      {
+        title: 'SVG 320x180 (unoptimized); nội dung thật lấy từ bucket content-images',
+        render: () => (
+          <div className={PROSE}>
+            <ContentImage
+              src="/dev/content-image-sample.svg"
+              alt="Hai con trỏ đi từ hai đầu mảng lại gần nhau"
+              title="320x180"
+            />
           </div>
         ),
       },

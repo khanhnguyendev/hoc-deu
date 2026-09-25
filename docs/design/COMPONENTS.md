@@ -826,3 +826,189 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** an info Banner states the backup-retention notice: "Dữ liệu đã xoá vẫn có thể
   tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."; "Xoá vĩnh viễn" is destructive and asks
   first, like TrackSettings' "Gỡ lộ trình"
+
+### MDX content components (`features/items/components/mdx`)
+
+The components content MDX may use (allow-list: `tools/content/allowlist.ts`, platform design
+§3.5) and the Markdown overrides, rendered by `@next/mdx` through `mdx-components.tsx` →
+`features/items/mdx/components.tsx` (`mdxComponents`; `Solution` and `Practice` render nothing
+there). A page binds its data with `mdxComponentsFor({ code, codeLanguage, resolvePractice })`
+(`features/items/mdx/bind.tsx`: `Solution`, `Practice`, `pre`) and renders
+`<Body components={mdxComponentsFor(…)} />`. All are client-safe, so the catalog renders them;
+only Quiz, Reveal and SolutionTabs are client components. Keyed copy (`vi.content.sections[kind]`,
+callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/content`
+(`app/dev/content/sample-{lesson,note}.mdx`, e2e + axe). Authoring rules: ADR-0011.
+
+### MdxSection
+
+- **Layer:** feature (`features/items`, server-compatible; exported as `Section`, catalogued as
+  MdxSection beside the Section pattern)
+- **File:** `features/items/components/mdx/section.tsx`
+- **Props:** `kind: string`, `children`
+- **Variants:** a labelled kind (`vi.content.sections`: signals "Dấu hiệu nhận biết", analogy "Ví
+  dụ đời thường", visual "Minh hoạ", approach "Cách tiếp cận", code "Code", complexity "Độ phức
+  tạp", bilingual "Giải thích song ngữ", practice "Luyện tập", quiz "Kiểm tra nhanh") · any other
+  kind shows its ID (decision 33)
+- **States:** static
+- **Usage:** `<Section kind="signals">…</Section>` (lessons only)
+- **Accessibility:** `<section data-section={kind} aria-labelledby>` (a region) named by its `h2`
+  (`useId`); lesson headings inside are `###` / `####`
+
+### Callout
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/callout.tsx`
+- **Props:** `tone: 'info' | 'tip' | 'warning'`, `title?: string`, `children`
+- **Variants:** cva `tone`: info `bg-primary-soft` + `Info` · tip `bg-success-soft` + `Lightbulb`
+  · warning `bg-warning-soft` + `TriangleAlert` (text in the matching `-soft-foreground`); an
+  unknown tone falls back to info
+- **States:** static
+- **Usage:** `<Callout tone="tip" title="Dấu hiệu">…</Callout>`
+- **Accessibility:** `role="note"`; the icon is `aria-hidden` and a visible label ("Lưu ý" / "Mẹo"
+  / "Cẩn thận", or `title`) names the tone — never colour alone
+
+### Steps
+
+- **Layer:** feature (`features/items`, server-compatible; `Steps` and `Step`)
+- **File:** `features/items/components/mdx/steps.tsx`
+- **Props:** `Steps`: `children` (Steps) · `Step`: `title?: string`, `children` (a line of text or
+  paragraphs)
+- **Variants:** step with / without a title
+- **States:** static; an empty `<Steps>` renders nothing (the check rejects one)
+- **Usage:** `<Steps><Step title="Khởi tạo">Đặt left bằng 0.</Step><Step>…</Step></Steps>`
+- **Accessibility:** a native `<ol>` (`list-decimal`) — the numbers are the list's own
+
+### VarTable
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/var-table.tsx`
+- **Props:** `caption?: string`, `children` (one GFM table)
+- **Variants:** with caption · without (named "Bảng biến")
+- **States:** static; scrolls sideways when wider than the column
+- **Usage:** `<VarTable caption="nums = [2, 7], target = 9">` + a Markdown table
+- **Accessibility:** a focusable scroll region (`role="region"`, `tabIndex={0}`, `aria-label` =
+  caption) so keyboard users can scroll it; cells in mono. The Markdown `table` override frames a
+  table outside VarTable the same way ("Bảng"); inside VarTable it is told not to (one region)
+
+### Complexity
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/complexity.tsx`
+- **Props:** `time: string`, `space: string`
+- **Variants:** —
+- **States:** static
+- **Usage:** `<Complexity time="O(n)" space="O(1)" />`
+- **Accessibility:** a group named "Độ phức tạp" around a `<dl>`: "Thời gian" / "Bộ nhớ" →
+  values in `font-mono`
+
+### Bilingual
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/bilingual.tsx`
+- **Props:** `vi: string`, `en: string`
+- **Variants:** —
+- **States:** static
+- **Usage:** `<Bilingual vi="…" en="…" />` (a note's one becomes its "Explaining code" card)
+- **Accessibility:** a `<dl>`: "Tiếng Việt" then "English", the English line in `lang="en"`
+
+### Term
+
+- **Layer:** feature (`features/items`, server-compatible; inline)
+- **File:** `features/items/components/mdx/term.tsx`
+- **Props:** `vi?: string` (a Vietnamese gloss), `children` (the English term)
+- **Variants:** with / without the gloss
+- **States:** static
+- **Usage:** `Dùng <Term vi="hai con trỏ">two pointers</Term> nhé.` → "two pointers (hai con trỏ)"
+- **Accessibility:** the term is a `<span lang="en">`; the gloss stays Vietnamese
+
+### PracticeCard
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/practice-card.tsx`
+- **Props:** `PracticeTarget`: `title: string`, `href: string`, `leetcode: number | null`,
+  `difficulty: 'E' | 'M' | 'H' | null`
+- **Variants:** with / without the LeetCode number and difficulty
+- **States:** default, hover (`shadow-sm`), focus-visible
+- **Usage:** rendered by the bound `<Practice problem="dsa:lc-0015" />`
+  (`mdxComponentsFor`; an unknown ID renders nothing)
+- **Accessibility:** one link wrapping a Card: "Bài luyện tập", `#15`, the title in `lang="en"`
+  and the difficulty as text ("Dễ" / "Trung bình" / "Khó") on a soft Badge
+
+### Quiz
+
+- **Layer:** feature (`features/items`, client; `Quiz`, `Question`, `Choice`)
+- **File:** `features/items/components/mdx/quiz.tsx`
+- **Props:** `Quiz`: `onScore?: ({ correct, total, percent }) => void` (percent rounded; 5.2 sends
+  it as `lesson.completed { quizScore }`) · `Question`: `prompt: string`, `answer: string` (a
+  Choice id) · `Choice`: `id: string`, `children`
+- **Variants:** —
+- **States:** answering; checked ("Kiểm tra": choices locked, a verdict under each question —
+  icon + "Chính xác" or "Chưa đúng — đáp án: …" — an unanswered question counts as wrong, the
+  score "Đúng {correct}/{total}"); "Làm lại" clears; an empty quiz scores 0/0 (percent 0)
+- **Usage:** `<Quiz><Question prompt="…" answer="b"><Choice id="a">…</Choice><Choice
+  id="b">…</Choice></Question></Quiz>`
+- **Accessibility:** each question a `<fieldset>` with the prompt as `<legend>`; native radios
+  (one group per question, so arrow keys move within it) in ≥ 44 px labels; the checked choice
+  shows on the radio, not colour alone; the score is announced in a polite `role="status"`; the
+  check/retry button keeps focus
+
+### Reveal
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/mdx/reveal.tsx`
+- **Props:** `label?: string`, `children`
+- **Variants:** default label "Xem" / "Ẩn" · a custom label (both states)
+- **States:** closed (content `hidden`), open
+- **Usage:** `<Reveal label="Gợi ý">…</Reveal>`
+- **Accessibility:** an outline Button with `aria-expanded` and `aria-controls`; the chevron is
+  `aria-hidden`
+
+### SolutionTabs
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/mdx/solution-tabs.tsx`
+- **Props:** `solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>`,
+  `defaultLanguage: CodeLanguage`, `onReveal?: () => void` (fires on the first reveal only; 5.2
+  preselects "Cần gợi ý")
+- **Variants:** Python / Java / Go tabs — only the languages present, in that order
+- **States:** hidden ("Xem lời giải"; no code in the DOM); open on the viewer's language, else the
+  first ("Ẩn lời giải" hides it again); no solutions → nothing
+- **Usage:** rendered by the bound `<Solution />` (`mdxComponentsFor`; `code: null` → nothing)
+- **Accessibility:** the toggle has `aria-expanded` / `aria-controls`; ui Tabs named "Ngôn ngữ lời
+  giải"; each panel a CodeBlock region "Lời giải Python" / "Java" / "Go" (DESIGN_SYSTEM §9)
+
+### CodePre
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/code-pre.tsx`
+- **Props:** `code: CodeBundle | null`, `children` (MDX's `code` child: `language-<lang>` + the
+  fence text with one trailing newline)
+- **Variants:** a known block (build-time token classes from `code.blocks[codeBlockKey(lang,
+  text)]`) · plain text (unknown block, no bundle, no language — never a crash)
+- **States:** static
+- **Usage:** the MDX `pre` override (plain in the global map, bound by `mdxComponentsFor`)
+- **Accessibility:** a CodeBlock region named "Đoạn code Python" (or "Đoạn văn bản" for `text`)
+
+### ExternalLink
+
+- **Layer:** feature (`features/items`, server-compatible)
+- **File:** `features/items/components/mdx/external-link.tsx`
+- **Props:** `a` props (`href`, `children`)
+- **Variants:** an `https:` link · anything else renders as plain text (fail closed)
+- **States:** default, hover (`primary-hover`), focus-visible
+- **Usage:** the MDX `a` override: `[bài viết](https://…)`
+- **Accessibility:** `target="_blank" rel="noopener noreferrer"`; the icon is `aria-hidden` and a
+  visually hidden "(mở trong tab mới)" is part of the name
+
+### ContentImage
+
+- **Layer:** feature (`features/items`, client-safe — `next/image`)
+- **File:** `features/items/components/mdx/content-image.tsx`
+- **Props:** `img` props: `src`, `alt`, `title` (`"WIDTHxHEIGHT"`, OD3)
+- **Variants:** raster (`png`, `webp`, `jpg`) through Next's optimiser (`images.remotePatterns`
+  from `CONTENT_IMAGE_BASE_URL`) · SVG `unoptimized`
+- **States:** lazy-loaded; an unparsable size title renders nothing (the check rejects it)
+- **Usage:** the MDX `img` override: `![alt](<bucket URL> "640x360")` — runbook
+  `docs/ops/content-images.md`
+- **Accessibility:** the alt text is required by the check; `h-auto max-w-full`, no `title`
+  attribute

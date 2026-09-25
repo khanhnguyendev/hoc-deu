@@ -92,6 +92,10 @@ export const vi = {
   dev: {
     catalogTitle: 'Thư viện thành phần',
     catalogNav: 'Danh mục thành phần',
+    /** /dev/content: the MDX samples (task 3.3b). */
+    contentTitle: 'Nội dung mẫu',
+    sampleLesson: 'Bài học mẫu',
+    sampleNote: 'Ghi chú mẫu',
   },
   /** Form and focus-page primitives (DESIGN_SYSTEM §5 forms). */
   forms: {
@@ -401,5 +405,53 @@ export const vi = {
       rule: 'Trên {dueAbove} thẻ cần ôn: {n} thẻ mới mỗi ngày',
       paused: 'Trên {dueAbove} thẻ cần ôn: tạm dừng thẻ mới',
     },
+  },
+  /**
+   * The MDX content components (`features/items/components/mdx`, task 3.3b). Keyed copy is read
+   * with `Object.hasOwn`, so a content value such as `kind="constructor"` never reaches
+   * `Object.prototype`. `{answer}`, `{correct}`, `{total}`, `{language}` are filled in.
+   */
+  content: {
+    /** `<Section kind>` headings (decision 33); an unlisted kind shows its ID. */
+    sections: {
+      signals: 'Dấu hiệu nhận biết',
+      analogy: 'Ví dụ đời thường',
+      visual: 'Minh hoạ',
+      approach: 'Cách tiếp cận',
+      code: 'Code',
+      complexity: 'Độ phức tạp',
+      bilingual: 'Giải thích song ngữ',
+      practice: 'Luyện tập',
+      quiz: 'Kiểm tra nhanh',
+    },
+    varTable: 'Bảng biến',
+    /** A Markdown table outside `<VarTable>`: the name of its scroll region. */
+    table: 'Bảng',
+    complexity: { title: 'Độ phức tạp', time: 'Thời gian', space: 'Bộ nhớ' },
+    bilingual: { vi: 'Tiếng Việt', en: 'English' },
+    callout: { info: 'Lưu ý', tip: 'Mẹo', warning: 'Cẩn thận' },
+    quiz: {
+      check: 'Kiểm tra',
+      retry: 'Làm lại',
+      correct: 'Chính xác',
+      incorrect: 'Chưa đúng — đáp án: {answer}',
+      score: 'Đúng {correct}/{total}',
+    },
+    reveal: { show: 'Xem', hide: 'Ẩn' },
+    solution: {
+      show: 'Xem lời giải',
+      hide: 'Ẩn lời giải',
+      tabs: 'Ngôn ngữ lời giải',
+      label: 'Lời giải {language}',
+    },
+    practice: {
+      title: 'Bài luyện tập',
+      /** Problem difficulty (`E` / `M` / `H`), always shown as text — never colour alone. */
+      difficulty: { E: 'Dễ', M: 'Trung bình', H: 'Khó' },
+    },
+    languages: { python: 'Python', java: 'Java', go: 'Go' },
+    /** The accessible name of a fenced code block's scroll region. */
+    codeBlock: { label: 'Đoạn code {language}', text: 'Đoạn văn bản' },
+    newTab: '(mở trong tab mới)',
   },
 } as const

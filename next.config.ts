@@ -1,4 +1,15 @@
+import createMDX from '@next/mdx'
 import type { NextConfig } from 'next'
+import { contentImageRemotePatterns } from './tools/content/allowlist'
+import { REMARK_PLUGIN_NAMES } from './tools/content/mdx/remark-plugins'
+
+// Content MDX (ADR-0011): compiled with exactly the remark plugins the MDX safety check parses with
+// (one shared list), by name — Turbopack cannot take plugin functions. No `pageExtensions`: there
+// are no MDX routes; pages import MDX through the generated import map.
+const withMDX = createMDX({
+  extension: /\.mdx$/,
+  options: { remarkPlugins: [...REMARK_PLUGIN_NAMES] },
+})
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -10,6 +21,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/**': ['content/tracks/*/track.yaml'],
   },
+  // OD3: MDX images come from the one allow-listed Supabase Storage bucket; the pattern is built
+  // from the same constant the MDX safety check enforces (tools/content/allowlist.ts).
+  images: { remotePatterns: contentImageRemotePatterns() },
   // Decision 13: `/admin` is the approval queue until the admin overview (task 5.6). A routing
   // redirect, not a page that calls `redirect()`: the AppShell prefetches its "Quản trị" link, and
   // a prefetched page that redirects kept its render open until the tab closed ("The destination
@@ -18,4 +32,4 @@ const nextConfig: NextConfig = {
   redirects: async () => [{ source: '/admin', destination: '/admin/users', permanent: false }],
 }
 
-export default nextConfig
+export default withMDX(nextConfig)

@@ -248,6 +248,49 @@ const USED = [
   'template.throttle.newPerDay',
   'template.throttle.rule',
   'template.throttle.paused',
+  'dev.contentTitle',
+  'dev.sampleLesson',
+  'dev.sampleNote',
+  'content.sections.signals',
+  'content.sections.analogy',
+  'content.sections.visual',
+  'content.sections.approach',
+  'content.sections.code',
+  'content.sections.complexity',
+  'content.sections.bilingual',
+  'content.sections.practice',
+  'content.sections.quiz',
+  'content.varTable',
+  'content.table',
+  'content.complexity.title',
+  'content.complexity.time',
+  'content.complexity.space',
+  'content.bilingual.vi',
+  'content.bilingual.en',
+  'content.callout.info',
+  'content.callout.tip',
+  'content.callout.warning',
+  'content.quiz.check',
+  'content.quiz.retry',
+  'content.quiz.correct',
+  'content.quiz.incorrect',
+  'content.quiz.score',
+  'content.reveal.show',
+  'content.reveal.hide',
+  'content.solution.show',
+  'content.solution.hide',
+  'content.solution.tabs',
+  'content.solution.label',
+  'content.practice.title',
+  'content.practice.difficulty.E',
+  'content.practice.difficulty.M',
+  'content.practice.difficulty.H',
+  'content.languages.python',
+  'content.languages.java',
+  'content.languages.go',
+  'content.codeBlock.label',
+  'content.codeBlock.text',
+  'content.newTab',
 ]
 
 function lookup(path: string): unknown {
@@ -272,6 +315,24 @@ describe('lib/i18n/vi.ts', () => {
   it('has five heatmap level labels and seven weekday labels (Monday first)', () => {
     expect(vi.heatmap.levels).toHaveLength(5)
     expect(vi.heatmap.weekdays).toEqual(['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'])
+  })
+
+  it('labels the lesson sections of decision 33 and keeps the placeholders (task 3.3b)', () => {
+    expect(vi.content.sections).toEqual({
+      signals: 'Dấu hiệu nhận biết',
+      analogy: 'Ví dụ đời thường',
+      visual: 'Minh hoạ',
+      approach: 'Cách tiếp cận',
+      code: 'Code',
+      complexity: 'Độ phức tạp',
+      bilingual: 'Giải thích song ngữ',
+      practice: 'Luyện tập',
+      quiz: 'Kiểm tra nhanh',
+    })
+    expect(vi.content.quiz.incorrect).toBe('Chưa đúng — đáp án: {answer}')
+    expect(vi.content.quiz.score).toBe('Đúng {correct}/{total}')
+    expect(vi.content.solution.label).toBe('Lời giải {language}')
+    expect(vi.content.codeBlock.label).toContain('{language}')
   })
 
   it('stores every string non-empty, trimmed and in NFC (RF-3)', () => {

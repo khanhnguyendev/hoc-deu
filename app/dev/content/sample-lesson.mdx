@@ -1,0 +1,139 @@
+---
+id: dsa:lesson-two-pointers
+title: Two pointers
+format: pattern
+topic: two-pointers
+anchor: dsa:lc-0167
+practice: dsa:lc-0015
+---
+
+<Section kind="signals">
+
+### Khi nào nghĩ tới hai con trỏ
+
+Mảng **đã sắp xếp** và đề hỏi về một *cặp* phần tử: thử <Term vi="hai con trỏ">two pointers</Term> trước khi dùng <Term>hash map</Term>.
+
+<Callout tone="tip" title="Dấu hiệu">
+
+Đề có chữ "sorted" và hỏi một cặp có tổng bằng `target` — xem [ví dụ trên LeetCode](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/).
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Hai người đứng ở hai đầu một cây cầu; mỗi lượt chỉ một người bước lại gần người kia, cho tới khi hai người gặp nhau.
+
+> Không ai phải quay lại: mỗi bước loại hẳn một vị trí.
+
+</Section>
+
+<Section kind="visual">
+
+Mỗi hàng là một bước; `left` và `right` là chỉ số trong mảng.
+
+<VarTable caption="nums = [1, 3, 4, 6], target = 9">
+
+| Bước | left | right | Tổng | Hành động |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 3 | 7 | Nhỏ hơn `target`: tăng `left` |
+| 2 | 1 | 3 | 9 | Bằng `target`: trả về `[1, 3]` |
+
+</VarTable>
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Khởi tạo">Đặt `left = 0` và `right = n - 1`.</Step>
+
+<Step title="Thu hẹp">
+
+So sánh tổng với `target`: nhỏ hơn thì tăng `left`, lớn hơn thì giảm `right`.
+
+</Step>
+
+<Step>Dừng khi `left` gặp `right`: không còn cặp nào để thử.</Step>
+
+</Steps>
+
+#### Vì sao đúng
+
+Mỗi bước loại được một phần tử không thể nằm trong đáp án:
+
+1. tổng nhỏ hơn `target` thì bỏ phần tử ở `left`;
+2. tổng lớn hơn `target` thì bỏ phần tử ở `right`.
+
+</Section>
+
+<Section kind="code">
+
+```python
+def pair_sum(numbers: list[int], target: int) -> list[int]:
+    left, right = 0, len(numbers) - 1
+    while left < right:
+        total = numbers[left] + numbers[right]
+        if total == target:
+            return [left, right]
+        if total < target:
+            left += 1  # the sum must grow
+        else:
+            right -= 1
+    return []
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi con trỏ chỉ đi một chiều, nên tổng số bước không vượt quá `n`.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Hai con trỏ đi từ hai đầu mảng đã sắp xếp và thu hẹp dần về giữa." en="Two pointers start at both ends of a sorted array and move toward each other." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0015" />
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Mảng chưa sắp xếp thì dùng hai con trỏ ngay được không?" answer="b">
+  <Choice id="a">Được, luôn luôn</Choice>
+  <Choice id="b">Không, phải sắp xếp trước hoặc dùng hash map</Choice>
+</Question>
+
+<Question prompt="Độ phức tạp thời gian là bao nhiêu?" answer="n">
+
+<Choice id="n">`O(n)`</Choice>
+
+<Choice id="n2">
+
+`O(n^2)` — duyệt mọi cặp
+
+</Choice>
+
+</Question>
+
+</Quiz>
+
+<Reveal label="Gợi ý">
+
+Nghĩ xem khi tổng quá lớn thì phần tử nào chắc chắn không thuộc đáp án.
+
+</Reveal>
+
+</Section>

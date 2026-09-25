@@ -1,7 +1,6 @@
 import { createProcessor } from '@mdx-js/mdx'
-import remarkFrontmatter from 'remark-frontmatter'
-import remarkGfm from 'remark-gfm'
 import type { ContentIssue } from '../issues'
+import { remarkPlugins } from './plugins'
 
 /** The mdast / MDX node fields the content tools read (the parser returns more). */
 export type MdxNode = {
@@ -39,8 +38,9 @@ export type MdxRoot = MdxNode & { type: 'root'; children: MdxNode[] }
 
 export type ParseResult = { ok: true; tree: MdxRoot } | { ok: false; issue: ContentIssue }
 
-// One processor, built once: the same syntax extensions `@next/mdx` compiles with (Part B-M3 OD1).
-const processor = createProcessor({ remarkPlugins: [remarkFrontmatter, remarkGfm] })
+// One processor, built once: the same syntax extensions `@next/mdx` compiles with (Part B-M3 OD1),
+// from the one shared list (`remark-plugins.ts`).
+const processor = createProcessor({ remarkPlugins })
 
 type Point = { line?: number; column?: number }
 
