@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(89);
+select plan(91);
 
 -- Task 4.9b: apply_event with derived changes, versions and locks (platform design §4.3, §4.4,
 -- §4.5, §5.9; implementation plan Part B-M4 decisions 9, 10, 27, 33, 36). Case 11 — every M2 case
@@ -822,6 +822,31 @@ select is(
   (select due_on from public.item_state where user_id = :'resume_user' and item_id = 'dsa:p1'),
   date '2026-10-10' + 3651,
   '... and shift by 3650 and 1'
+);
+-- A same-day pause and resume (pausedDays 0) shifts nothing, so it bumps no version: an
+-- in-flight review in another tab does not conflict (final review M-2).
+select version as resume_p1_version from public.item_state
+where user_id = :'resume_user' and item_id = 'dsa:p1' \gset
+select tests.authenticate_as(:'resume_user');
+select lives_ok(
+  $$select public.apply_event(tests.event(gen_random_uuid()::text, 'track.paused', 'dsa'));
+    select public.apply_event(
+      tests.event(gen_random_uuid()::text, 'track.resumed', 'dsa', '{"pausedDays": 0}'))$$,
+  'a same-day pause and resume (pausedDays 0) applies'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select item_id, due_on, version from public.item_state
+      where user_id = %L and track_id = 'dsa' order by 1$$,
+    :'resume_user'
+  ),
+  format(
+    $$values ('dsa:lesson-arrays'::text, null::date, 1), ('dsa:p1', %L::date, %s),
+             ('dsa:p2', null, 1)$$,
+    date '2026-10-10' + 3651, :'resume_p1_version'
+  ),
+  '... and leaves every due date and version unchanged'
 );
 
 -- ---------------------------------------------------------------------------------------------

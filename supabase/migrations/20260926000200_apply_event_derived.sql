@@ -427,8 +427,10 @@ begin
         raise exception 'track_not_enrolled';
       end if;
       -- §5.9, decision 9: resuming shifts the track's due dates by the pause, so it does not
-      -- create an instant backlog (set-based; project() mirrors it).
-      if v_type = 'track.resumed' then
+      -- create an instant backlog (set-based; project() mirrors it). A same-day pause and resume
+      -- (pausedDays 0) shifts nothing, so it bumps no version either: an in-flight review in
+      -- another tab does not conflict (final review M-2).
+      if v_type = 'track.resumed' and v_paused_days > 0 then
         update public.item_state s
         set due_on = s.due_on + v_paused_days, version = s.version + 1
         where s.user_id = v_uid and s.track_id = v_track and s.due_on is not null;
