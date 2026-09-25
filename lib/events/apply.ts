@@ -3,9 +3,10 @@
  * through `apply_event` with the user's own client (RLS applies), system, bot and admin events
  * through `apply_system_event` with the secret-key client. Payloads are validated here first, so
  * an invalid payload never reaches the database; RPC errors become an `EventError` whose
- * `userMessage` is safe to show. A learner event may carry its derived rows (`DerivedWrite`,
- * `./derived`) with the versions they were computed from; a conflict is retried by `withRetry`
- * (§4.4, Part B-M4 decision 10).
+ * `userMessage` is safe to show. A learner event — and the system's auto check-in — may carry its
+ * derived rows (`DerivedWrite`, `./derived`) with the versions they were computed from, and then
+ * always its `localDay` (ruling M4-R15); a conflict is retried by `withRetry` (§4.4, Part B-M4
+ * decision 10). Plans are stored through `./plans`.
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -96,9 +97,26 @@ export type EventInput<T extends EventType> = {
   localDay?: LocalDay
 }
 
+/**
+ * An event sent with its derived rows: the local day they were computed for is required
+ * (decision 10, ruling M4-R15), so a derived write can never skip the `day_changed` check.
+ */
+export type DerivedEventInput<T extends EventType> = EventInput<T> & { localDay: LocalDay }
+
+/** A system, bot or admin event: `source` defaults to `system`, `actorId` to the user. */
+export type SystemEventInput<T extends SystemEventType> = EventInput<T> & {
+  source?: 'system' | 'bot' | 'admin'
+  actorId?: string
+}
+
 /** The RPC error message is the code (`raise exception '<code>'`); anything else is `unknown`. */
 function codeOf(message: string): EventErrorCode {
   return Object.hasOwn(USER_MESSAGES, message) ? (message as EventErrorCode) : 'unknown'
+}
+
+/** An RPC error as an `EventError` (its message is the code). */
+export function eventErrorOf(error: { message: string }): EventError {
+  return new EventError(codeOf(error.message), { cause: error })
 }
 
 /** `p_event` for the RPCs: snake_case keys, the validated payload and `rules_version`. */
@@ -127,9 +145,24 @@ function eventBody(
   return body
 }
 
+/**
+ * `p_changes` and `p_expected` for a derived write, none without one. The types already require
+ * `localDay` with a derived write (M4-R15); this also refuses a caller that casts it away.
+ */
+function derivedArgs(
+  event: EventInput<EventType>,
+  derived: DerivedWrite | undefined,
+): { p_changes?: Json; p_expected?: Json } {
+  if (derived === undefined) return {}
+  if (event.localDay === undefined) {
+    throw new EventError('invalid_event')
+  }
+  return { p_changes: derived.changes, p_expected: derived.expected }
+}
+
 function outcomeOf(data: Json | null, error: { message: string } | null): ApplyOutcome {
   if (error) {
-    throw new EventError(codeOf(error.message), { cause: error })
+    throw eventErrorOf(error)
   }
   const outcome =
     data !== null && typeof data === 'object' && !Array.isArray(data) ? data.outcome : undefined
@@ -139,22 +172,30 @@ function outcomeOf(data: Json | null, error: { message: string } | null): ApplyO
 
 /**
  * Records a learner event and applies its state change, as the signed-in user (`apply_event`),
- * with its derived rows when given (`derivedWrite`, `./derived`). `duplicate` means an event with
- * this id was already recorded; nothing changed. A derived row another write changed first raises
- * `version_conflict`: reload, recompute and call again (`withRetry`).
+ * with its derived rows when given (`derivedWrite`, `./derived`) — and then the event's `localDay`
+ * (M4-R15). `duplicate` means an event with this id was already recorded; nothing changed. A
+ * derived row another write changed first raises `version_conflict`: reload, recompute and call
+ * again (`withRetry`).
  */
-export async function applyLearnerEvent<T extends LearnerEventType>(
+export function applyLearnerEvent<T extends LearnerEventType>(
   supabase: SupabaseClient<Database>,
   event: EventInput<T>,
+): Promise<ApplyOutcome>
+export function applyLearnerEvent<T extends LearnerEventType>(
+  supabase: SupabaseClient<Database>,
+  event: DerivedEventInput<T>,
+  derived: DerivedWrite,
+): Promise<ApplyOutcome>
+export async function applyLearnerEvent(
+  supabase: SupabaseClient<Database>,
+  event: EventInput<LearnerEventType>,
   derived?: DerivedWrite,
 ): Promise<ApplyOutcome> {
   const p_event = eventBody(event, LEARNER_EVENT_TYPES)
-  const { data, error } = await supabase.rpc(
-    'apply_event',
-    derived === undefined
-      ? { p_event }
-      : { p_event, p_changes: derived.changes, p_expected: derived.expected },
-  )
+  const { data, error } = await supabase.rpc('apply_event', {
+    p_event,
+    ...derivedArgs(event, derived),
+  })
   return outcomeOf(data, error)
 }
 
@@ -183,17 +224,45 @@ export async function withRetry<T>(attempt: () => Promise<T>, attempts = 3): Pro
 }
 
 /**
- * Records a system, bot or admin event for `userId` (`apply_system_event`). `admin` must be the
- * secret-key client; the caller has already checked who may do this (DAL guard).
+ * `p_event` for `apply_system_event`: the validated payload, snake_case keys, `source` and
+ * `actor_id` when given. For callers whose outcomes go beyond applied / duplicate (`storePlan`).
  */
-export async function applySystemEvent<T extends SystemEventType>(
-  admin: SupabaseClient<Database>,
-  userId: string,
-  event: EventInput<T> & { source?: 'system' | 'bot' | 'admin'; actorId?: string },
-): Promise<ApplyOutcome> {
+export function systemEventBody<T extends SystemEventType>(
+  event: SystemEventInput<T>,
+): Record<string, Json> {
   const p_event = eventBody(event, SYSTEM_EVENT_TYPES)
   if (event.source !== undefined) p_event.source = event.source
   if (event.actorId !== undefined) p_event.actor_id = event.actorId
-  const { data, error } = await admin.rpc('apply_system_event', { p_user_id: userId, p_event })
+  return p_event
+}
+
+/**
+ * Records a system, bot or admin event for `userId` (`apply_system_event`), with its derived rows
+ * when given — the auto check-in (§5.5) — and then the event's `localDay` (M4-R15). `admin` must
+ * be the secret-key client; the caller has already checked who may do this (DAL guard).
+ */
+export function applySystemEvent<T extends SystemEventType>(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  event: SystemEventInput<T>,
+): Promise<ApplyOutcome>
+export function applySystemEvent<T extends SystemEventType>(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  event: SystemEventInput<T> & DerivedEventInput<T>,
+  derived: DerivedWrite,
+): Promise<ApplyOutcome>
+export async function applySystemEvent(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  event: SystemEventInput<SystemEventType>,
+  derived?: DerivedWrite,
+): Promise<ApplyOutcome> {
+  const p_event = systemEventBody(event)
+  const { data, error } = await admin.rpc('apply_system_event', {
+    p_user_id: userId,
+    p_event,
+    ...derivedArgs(event, derived),
+  })
   return outcomeOf(data, error)
 }

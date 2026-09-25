@@ -168,11 +168,12 @@ select throws_ok(
 select throws_ok(
   format(
     $$select public.apply_system_event(%L::uuid, jsonb_build_object(
-        'id', gen_random_uuid(), 'type', 'plan.generated',
-        'payload', '{"mode": "baseline", "planVersion": 1}'::jsonb))$$,
+        'id', gen_random_uuid(), 'type', 'plan.extra_added',
+        'payload', '{"itemIds": ["dsa:lc-0001"]}'::jsonb))$$,
     :'sys_other'
   ),
-  'P0001', 'not_implemented', 'another system type raises not_implemented in M2'
+  'P0001', 'not_implemented',
+  'a system type not implemented yet raises not_implemented (plan.extra_added: task 5.4)'
 );
 select throws_ok(
   format(
@@ -181,7 +182,7 @@ select throws_ok(
         '[{"table": "day_plans"}]'::jsonb)$$,
     :'sys_other'
   ),
-  'P0001', 'not_implemented', 'a non-empty p_changes raises not_implemented'
+  'P0001', 'invalid_event', 'onboarding.completed with a non-empty p_changes raises invalid_event'
 );
 select throws_ok(
   format(

@@ -36,6 +36,8 @@ function fakeClient(result: RpcResult) {
 const applied = (): RpcResult => ({ data: { outcome: 'applied', versions: {} }, error: null })
 const failed = (message: string): RpcResult => ({ data: null, error: { message, code: 'P0001' } })
 
+const NO_CHANGES: DerivedWrite = { changes: [], expected: {} }
+
 const ENROLLED = {
   id: EVENT_ID,
   type: 'track.enrolled',
@@ -148,8 +150,18 @@ describe('applyLearnerEvent', () => {
 
   it('sends an empty derived write as empty p_changes and p_expected', async () => {
     const { client, calls } = fakeClient(applied())
-    await applyLearnerEvent(client, ENROLLED, { changes: [], expected: {} })
+    await applyLearnerEvent(client, { ...ENROLLED, localDay: '2026-09-28' }, NO_CHANGES)
     expect(calls[0]?.args).toMatchObject({ p_changes: [], p_expected: {} })
+  })
+
+  it('requires localDay with a derived write (decision 10, ruling M4-R15)', async () => {
+    const { client, calls } = fakeClient(applied())
+    const error = await eventError(
+      // @ts-expect-error -- a derived write without localDay would skip the day_changed check
+      applyLearnerEvent(client, ENROLLED, NO_CHANGES),
+    )
+    expect(error.code).toBe('invalid_event')
+    expect(calls).toEqual([])
   })
 
   it('passes duplicate through', async () => {
@@ -305,6 +317,85 @@ describe('applySystemEvent', () => {
         actor_id: ADMIN_ID,
       },
     })
+  })
+
+  it('sends local_day, p_changes and p_expected with a derived write (the auto check-in, §5.5)', async () => {
+    const { client, calls } = fakeClient({
+      data: { outcome: 'applied', versions: { [`plan_block_state:${PLAN_ID}/b1`]: 1 } },
+      error: null,
+    })
+    const derived: DerivedWrite = {
+      changes: [
+        {
+          table: 'plan_block_state',
+          row: {
+            plan_id: PLAN_ID,
+            block_id: 'b1',
+            track_id: 'dsa',
+            status: 'done',
+            minutes: 20,
+            note: null,
+            auto: true,
+            checked_in_on: '2026-09-28',
+          },
+        },
+      ],
+      expected: { [`plan_block_state:${PLAN_ID}/b1`]: 0 },
+    }
+    await expect(
+      applySystemEvent(
+        client,
+        USER_ID,
+        {
+          id: EVENT_ID,
+          type: 'block.checked_in',
+          payload: { status: 'done', minutes: 20, auto: true },
+          trackId: 'dsa',
+          planId: PLAN_ID,
+          blockId: 'b1',
+          localDay: '2026-09-28',
+        },
+        derived,
+      ),
+    ).resolves.toBe('applied')
+    expect(calls).toEqual([
+      {
+        fn: 'apply_system_event',
+        args: {
+          p_user_id: USER_ID,
+          p_event: {
+            id: EVENT_ID,
+            type: 'block.checked_in',
+            track_id: 'dsa',
+            plan_id: PLAN_ID,
+            block_id: 'b1',
+            local_day: '2026-09-28',
+            payload: { status: 'done', minutes: 20, auto: true },
+            rules_version: RULES_VERSION,
+          },
+          p_changes: derived.changes,
+          p_expected: derived.expected,
+        },
+      },
+    ])
+  })
+
+  it('requires localDay with a derived write (decision 10, ruling M4-R15)', async () => {
+    const { client, calls } = fakeClient(applied())
+    const checkIn = {
+      id: EVENT_ID,
+      type: 'block.checked_in',
+      payload: { status: 'done', minutes: 20, auto: true },
+      trackId: 'dsa',
+      planId: PLAN_ID,
+      blockId: 'b1',
+    } as const
+    const error = await eventError(
+      // @ts-expect-error -- a derived write without localDay would skip the day_changed check
+      applySystemEvent(client, USER_ID, checkIn, NO_CHANGES),
+    )
+    expect(error.code).toBe('invalid_event')
+    expect(calls).toEqual([])
   })
 
   it('maps RPC errors like applyLearnerEvent', async () => {
