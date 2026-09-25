@@ -14,6 +14,9 @@ import type { ItemStatus } from '@/lib/content/schemas/common'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
 import type { RecapMode, Roadmap } from '@/lib/content/schemas/roadmap'
 
+/** The track list: where an item's back link goes when its track's page would be a 404. */
+export const TRACKS_HREF = '/tracks'
+
 export type WeekView = {
   week: number
   topics: { id: string; title: string }[]

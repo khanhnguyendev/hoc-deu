@@ -21,7 +21,7 @@ import {
 import { defaultVariant } from '@/lib/domain/plan/variant'
 import { variantLabel } from '@/lib/i18n/format'
 import { createClient } from '@/lib/supabase/server'
-import { buildRoadmapView, resolveItemLink, type RoadmapView } from './view-model'
+import { buildRoadmapView, resolveItemLink, TRACKS_HREF, type RoadmapView } from './view-model'
 
 export type TrackSummary = {
   id: string
@@ -193,9 +193,9 @@ export const getTrackPage = cache(
  * `/t/[trackId]/items/[itemId]` (§2.4, decision 24): the item for the route's parameters (the
  * local ID is decoded — derived IDs hold colons), its track, who is looking and the links it may
  * resolve. Null (→ 404) for an unknown item or track, and for a draft item or an item of a draft
- * track when a learner asks; retired items stay viewable (their page shows the notice). The page
- * loads the item's MDX and code itself (`renderItemPage`). Wrapped in `cache()` like
- * `getTrackPage`.
+ * track when a learner asks; retired items stay viewable (their page shows the notice), and link
+ * back to `/tracks` when their retired track's page would be a 404. The page loads the item's MDX
+ * and code itself (`renderItemPage`). Wrapped in `cache()` like `getTrackPage`.
  */
 export const getItemPage = cache(
   async (trackId: string, itemParam: string): Promise<ItemPageModel | null> => {
@@ -206,6 +206,15 @@ export const getItemPage = cache(
     if (item === null || item.trackId !== track.id) return null
     if (item.status === 'draft' && !user.isAdmin) return null
 
+    // A retired track's page is a 404 for a learner who does not follow it (`getTrackPage`), so its
+    // items link back to the track list instead. Only then is the enrollment read.
+    let backHref = `/t/${track.id}`
+    if (track.status === 'retired' && !user.isAdmin) {
+      const supabase = await createClient()
+      const row = (await readEnrollments(supabase, user.id, track.id)).get(track.id)
+      if (!followed(row)) backHref = TRACKS_HREF
+    }
+
     return {
       item,
       track: summaryOf(track),
@@ -214,7 +223,7 @@ export const getItemPage = cache(
         codeLanguage: user.codeLanguage ?? track.codeLanguages?.[0] ?? 'python',
         isAdmin: user.isAdmin,
       },
-      backHref: `/t/${track.id}`,
+      backHref,
       resolveItem: (id) => resolveItemLink(catalogAccess, id, user.isAdmin),
     }
   },

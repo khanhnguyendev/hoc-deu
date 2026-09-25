@@ -272,6 +272,8 @@ export const vi = {
       derivedHint: 'Mỗi thẻ mở sau khi bạn làm bài gốc.',
     },
     backToTrack: 'Về lộ trình {title}',
+    /** An item of a retired track the learner does not follow: its track page is a 404. */
+    backToTracks: 'Về danh sách lộ trình',
   },
   /** Shared track pieces (`features/tracks`): the weekly template preview. */
   tracks: {

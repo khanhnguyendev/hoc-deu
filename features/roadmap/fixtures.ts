@@ -221,6 +221,8 @@ export const ITEMS: readonly CatalogItem[] = [
   repeatablePrompt('prompt-old-mock', 'retired'),
   // An active item of the draft track: hidden from learners with its track
   repeatablePrompt('prompt-intro', 'active', 'sysdesign'),
+  // An item of the retired track: kept for its learners' history
+  repeatablePrompt('prompt-legacy-drill', 'active', 'legacy'),
   // English deck cards (file order: blocker, standup, eta, retired)
   card('w01-blocker', 'blocker', 'english:deck-w01-standup', 'core'),
   card('w01-standup', 'stand-up', 'english:deck-w01-standup', 'core', 'draft'),

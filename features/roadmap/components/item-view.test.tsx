@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ItemPageFrame } from '@/features/items/components/item-page-frame'
+import { TRACKS_HREF } from '../view-model'
 import { ItemView } from './item-view'
 
 describe('ItemView', () => {
@@ -15,6 +16,18 @@ describe('ItemView', () => {
     const back = screen.getByRole('link', { name: 'Về lộ trình Cấu trúc dữ liệu & Giải thuật' })
     expect(back.getAttribute('href')).toBe('/t/dsa')
     expect(screen.getByRole('heading', { level: 1, name: 'Two Sum' })).toBeTruthy()
+  })
+
+  it('names the track list when the link goes there (a retired track the learner left)', () => {
+    render(
+      <ItemView
+        backHref={TRACKS_HREF}
+        trackTitle="Lộ trình cũ"
+        page={<ItemPageFrame status="active" title="Drill" />}
+      />,
+    )
+    const back = screen.getByRole('link', { name: 'Về danh sách lộ trình' })
+    expect(back.getAttribute('href')).toBe('/tracks')
   })
 
   it('M3-R4: adds no notice of its own — the page’s ItemPageFrame shows it exactly once', () => {

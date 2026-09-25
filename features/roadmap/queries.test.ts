@@ -319,6 +319,34 @@ describe('getItemPage', () => {
     expect((await getItemPage('dsa', 'lc-0015'))?.item.status).toBe('retired')
   })
 
+  it('links back to /tracks, not a 404, from a retired track the learner does not follow', async () => {
+    // The retired track's page is a 404 for this learner (getTrackPage), so the item links to /tracks.
+    const stranger = await getItemPage('legacy', 'prompt-legacy-drill')
+    expect(stranger?.item.id).toBe('legacy:prompt-legacy-drill')
+    expect(stranger?.backHref).toBe('/tracks')
+    await expect(getTrackPage('legacy', undefined)).resolves.toBeNull()
+    // Only this track's own row is read, and only for a retired track.
+    expect(fake.calls.filter((call) => call[0] === 'eq')).toContainEqual([
+      'eq',
+      'track_id',
+      'legacy',
+    ])
+
+    for (const status of ['active', 'paused']) {
+      fake.rows = [row('legacy', status, '4w', 30)]
+      expect((await getItemPage('legacy', 'prompt-legacy-drill'))?.backHref, status).toBe(
+        '/t/legacy',
+      )
+    }
+    fake.rows = [row('legacy', 'removed', '4w', 30)]
+    expect((await getItemPage('legacy', 'prompt-legacy-drill'))?.backHref).toBe('/tracks')
+
+    // An admin sees the retired track's page, so the link goes there.
+    fake.rows = []
+    fake.user = { ...fake.user, isAdmin: true }
+    expect((await getItemPage('legacy', 'prompt-legacy-drill'))?.backHref).toBe('/t/legacy')
+  })
+
   it('resolves links like the page’s viewer: drafts for admins only', async () => {
     const learner = await getItemPage('dsa', 'lc-0001')
     expect(learner?.resolveItem('dsa:lc-0167')?.href).toBe('/t/dsa/items/lc-0167')

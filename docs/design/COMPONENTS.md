@@ -962,8 +962,10 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 - **States:** static
 - **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={page} />`
   (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`)
-- **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first;
-  the page brings its own `h1`; a `contents` wrapper keeps the page's spacing
+- **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first
+  — "Về danh sách lộ trình" when `backHref` is `TRACKS_HREF` (`/tracks`: the loader's choice for
+  a retired track the learner does not follow, whose page is a 404); the page brings its own
+  `h1`; a `contents` wrapper keeps the page's spacing
 
 ### MDX content components (`features/items/components/mdx`)
 
