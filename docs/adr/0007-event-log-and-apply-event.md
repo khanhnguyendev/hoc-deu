@@ -97,3 +97,29 @@ Options considered:
   invalid. `schedule_versions` needs no such check: its columns are checked by the database.
 - Accepted: `id_conflict` tells a caller that some other event uses a given id. Ids are random
   UUIDs, so this reveals nothing useful.
+
+## Loading derived state
+
+Added after the M4 final review (finding I-1), for M5's write actions. The server computes an
+event's derived rows from a `before` state it loads; `apply_event` checks each row's version but
+cannot know whether `before` held every row the event reads. So a caller loads exactly these rows,
+builds `before` and the versions with `derivedStateFromRows`, and then calls `project` →
+`derivedWrite` (`lib/events/derived.ts`):
+
+| Event type | Rows to load |
+| --- | --- |
+| `item.result`, `lesson.completed`, `exercise.submitted`, `prompt.completed` | the item's `item_state` row; the `daily_activity` row of the event's local day |
+| `item.skipped`, `item.readded` | the item's `item_state` row |
+| `block.checked_in` (learner or auto) | the block's `plan_block_state` row; **every** `plan_block_state` row of the user whose `checked_in_on` is the day the block counts for (its existing `checked_in_on`, else the event's local day), of every plan; that day's `daily_activity` row |
+
+- A missing row that exists in the database fails loudly: it is sent as new (expected 0) and
+  raises `version_conflict`.
+- A missing **block** of the day does not. `project` recomputes the day's `minutes_by_track` and
+  `completed` from the blocks it was given, and the day row's version matches, so the database
+  stores a day rebuilt from a partial set: a `done` block of yesterday's paused plan plus a
+  `skipped` block of today's "Học tiếp" plan becomes `completed: false`, and the streak breaks.
+  `lib/events/derived.test.ts` shows both paths.
+- An edited old check-in keeps counting for its first day (decision 6), so it loads and updates
+  that older day's row. `plan_block_state_user_day_idx` serves the per-day query.
+- M5 (task 5.2) owns one loader for this (for example `loadDerivedFor(event)` in `lib/events`),
+  tested with two plans checked in on the same day.

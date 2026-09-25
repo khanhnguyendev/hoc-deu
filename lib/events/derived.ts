@@ -3,6 +3,23 @@
  * engine (`lib/domain/projection`) computes `DerivedState`; `apply_event` stores the rows that
  * changed, each with the version it was read at, through `apply_derived_changes`. Server code, but
  * not `server-only`: pure mapping, no I/O.
+ *
+ * Loading derived state (final review I-1; ADR-0007 "Loading derived state"). A caller loads the
+ * rows below, builds `before` and the versions with `derivedStateFromRows`, then
+ * `project(before, event)` → `derivedWrite(before, after, versions)`. Per event type:
+ * - `item.result`, `lesson.completed`, `exercise.submitted`, `prompt.completed`: the item's
+ *   `item_state` row, and the `daily_activity` row of the event's local day.
+ * - `item.skipped`, `item.readded` (and `item.snapshot`): the item's `item_state` row.
+ * - `block.checked_in` (the learner's or the server's auto check-in): the block's
+ *   `plan_block_state` row; **every** `plan_block_state` row of the user whose `checked_in_on` is
+ *   the day the block counts for — its existing `checked_in_on`, else the event's local day — of
+ *   every plan, not just the block's (yesterday's paused plan and a "Học tiếp" plan share a day);
+ *   and that day's `daily_activity` row. An edited old check-in counts for its first day, so it
+ *   loads and updates that older day's row (`plan_block_state_user_day_idx` serves the query).
+ * A missing row the database has fails loudly: it is sent as new (expected 0) and raises
+ * `version_conflict`. A missing block of the day does not: `project` recomputes the day's minutes
+ * and `completed` from the blocks it was given, and the day row's version still matches, so a
+ * partial set silently rewrites the day (and the streak).
  */
 import { z } from 'zod'
 import {
@@ -138,6 +155,16 @@ function tableWrite<T>(
  * check-ins); every other type — `track.reset` and `track.resumed` included, whose derived effects
  * SQL applies itself — sends no derived write. A row missing from `after` throws (deletions happen
  * only in SQL). Rows come in table order (items, blocks, days), each table sorted by key.
+ *
+ * `before` must hold the rows the event reads (the module comment lists them per type), with
+ * `versions` from `derivedStateFromRows` of the same rows:
+ * - an item outcome (`item.result`, `lesson.completed`, `exercise.submitted`,
+ *   `prompt.completed`): the item's row and the event day's `daily_activity` row;
+ * - `item.skipped`, `item.readded`: the item's row;
+ * - `block.checked_in`: the block's row, every `plan_block_state` row of the user counted for the
+ *   block's day (its `checked_in_on`, else the event's local day), and that day's row.
+ * Leaving out a block of that day is not caught here or in the database: the day's `completed`
+ * is recomputed from a partial set (see `derived.test.ts`, the loader contract).
  */
 export function derivedWrite(
   before: DerivedState,

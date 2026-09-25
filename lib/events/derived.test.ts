@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { PlanCatalog } from '@/lib/domain/catalog'
+import { project, type DomainEvent } from '@/lib/domain/projection/project'
+import { RULES_VERSION } from '@/lib/domain/rules'
 import {
   blockKey,
   EMPTY_DERIVED_STATE,
@@ -391,6 +394,122 @@ describe('derivedStateFromRows', () => {
     expect(derivedStateFromRows({ items: [], blocks: [], days: [] })).toEqual({
       state: EMPTY_DERIVED_STATE,
       versions: NO_VERSIONS,
+    })
+  })
+})
+
+/**
+ * The loader contract (final review I-1; `derivedWrite`'s doc, ADR-0007 "Loading derived state"):
+ * `project` recomputes a day's `minutes_by_track` and `completed` from every block in `before`
+ * counted for that day. A caller that loads only the block being checked in overwrites the day
+ * from a partial set, and the day row's version is right, so the database accepts the write.
+ */
+describe('loading derived state for block.checked_in (the loader contract)', () => {
+  const NO_CATALOG: PlanCatalog = deepFreeze({ tracks: {}, items: {}, decks: {} })
+  // Yesterday's paused plan (A) and today's "Học tiếp" plan (B), both counted for DAY.
+  const PLAN_A = '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'
+  const PLAN_B = '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'
+  const BLOCK_B = `${DAY}:english:new:1`
+
+  /** Plan A's DSA block, checked in done on DAY; the day row says the day is completed. */
+  const DONE_A: BlockStateRow = deepFreeze({
+    ...BLOCK_ROW,
+    plan_id: PLAN_A,
+    block_id: `${DAY}:dsa:review:1`,
+    status: 'done',
+    minutes: 30,
+    note: null,
+    checked_in_on: DAY,
+    version: 1,
+  })
+  const COMPLETED_DAY: DailyActivityRow = deepFreeze({
+    ...DAY_ROW,
+    minutes_by_track: { dsa: 30 },
+    items_done: 0,
+    completed: true,
+    version: 1,
+  })
+
+  const checkIn = (fields: Partial<DomainEvent>): DomainEvent =>
+    deepFreeze({
+      id: 'e-001',
+      type: 'block.checked_in',
+      occurredAt: '2026-09-28T10:00:00.000Z',
+      localDay: DAY,
+      trackId: 'english',
+      itemId: null,
+      planId: PLAN_B,
+      blockId: BLOCK_B,
+      payload: { status: 'skipped', minutes: 0 },
+      rulesVersion: RULES_VERSION,
+      ...fields,
+    })
+
+  /** Loads `rows`, projects `event` and returns the derived write, as M5's action will. */
+  const writeFor = (rows: Parameters<typeof derivedStateFromRows>[0], event: DomainEvent) => {
+    const { state, versions } = derivedStateFromRows(rows)
+    return derivedWrite(state, project(state, event, NO_CATALOG), versions)
+  }
+
+  it("keeps the day completed when a second plan's block is skipped: every block of the day is loaded", () => {
+    // Loaded: plan B's block row (none yet), every plan_block_state row of the user with
+    // checked_in_on = DAY (plan A's done block), and DAY's daily_activity row.
+    const write = writeFor({ items: [], blocks: [DONE_A], days: [COMPLETED_DAY] }, checkIn({}))
+    expect(write.expected).toEqual({
+      [`plan_block_state:${PLAN_B}/${BLOCK_B}`]: 0,
+      [`daily_activity:${DAY}`]: 1,
+    })
+    expect(write.changes).toContainEqual({
+      table: 'daily_activity',
+      row: {
+        local_day: DAY,
+        minutes_by_track: { dsa: 30, english: 0 },
+        items_done: 0,
+        completed: true,
+      },
+    })
+  })
+
+  it("(the wrong path) loading only the block being checked in writes completed: false at the day row's right version", () => {
+    // Plan A's done block is not loaded: the day is recomputed from plan B's skipped block alone,
+    // and expected 1 matches the stored row, so apply_derived_changes would store it — the
+    // streak breaks silently. This is why the contract requires every block of the day.
+    const write = writeFor({ items: [], blocks: [], days: [COMPLETED_DAY] }, checkIn({}))
+    expect(write.expected[`daily_activity:${DAY}`]).toBe(1)
+    expect(write.changes).toContainEqual({
+      table: 'daily_activity',
+      row: { local_day: DAY, minutes_by_track: { english: 0 }, items_done: 0, completed: false },
+    })
+  })
+
+  it("updates the older day of an edited check-in: its checked_in_on day's row is loaded", () => {
+    // Plan A's block was skipped on DAY and is edited to done on NEXT_DAY: it still counts for
+    // DAY (decision 6), so the caller loads DAY's blocks and DAY's row — not NEXT_DAY's.
+    const skippedA: BlockStateRow = { ...DONE_A, status: 'skipped', minutes: 0, version: 2 }
+    const openDay: DailyActivityRow = {
+      ...COMPLETED_DAY,
+      minutes_by_track: { dsa: 0 },
+      completed: false,
+      version: 3,
+    }
+    const write = writeFor(
+      { items: [], blocks: [skippedA], days: [openDay] },
+      checkIn({
+        localDay: NEXT_DAY,
+        occurredAt: '2026-09-29T10:00:00.000Z',
+        trackId: 'dsa',
+        planId: PLAN_A,
+        blockId: DONE_A.block_id,
+        payload: { status: 'done', minutes: 20 },
+      }),
+    )
+    expect(write.expected).toEqual({
+      [`plan_block_state:${PLAN_A}/${DONE_A.block_id}`]: 2,
+      [`daily_activity:${DAY}`]: 3,
+    })
+    expect(write.changes).toContainEqual({
+      table: 'daily_activity',
+      row: { local_day: DAY, minutes_by_track: { dsa: 20 }, items_done: 0, completed: true },
     })
   })
 })
