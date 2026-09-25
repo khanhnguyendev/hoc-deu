@@ -165,6 +165,22 @@ pnpm exec supabase db push
 pnpm exec supabase migration list
 ```
 
+**Before pushing `20260925000500_bound_schedule_history_and_avatar.sql`** (M2 ruling R17, merged
+with M3's PR A), run this in the project's SQL editor. The migration adds the
+`avatar_url_length` check (at most 2048 characters), and an existing longer avatar makes
+`db push` fail on it (it stops there; no data is lost):
+
+```sql
+select count(*) from public.profiles where char_length(avatar_url) > 2048;
+```
+
+It must be `0`. If it is not, clear those avatars first — `null` is what sign-up now stores for an
+over-long provider avatar — then push:
+
+```sql
+update public.profiles set avatar_url = null where char_length(avatar_url) > 2048;
+```
+
 Run both against the linked staging project (§2; today the production project `hoc-deu` — see
 "Current state") and confirm `migration list` shows local and remote at the same version before
 the next PR is opened against staging.

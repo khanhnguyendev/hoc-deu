@@ -1670,7 +1670,7 @@ an unseen AI plan, §5.2) and `skipped_gate_closed`, without sending those users
             "difficulty": "M", "level": 1, "weak": true, "daysOverdue": 2 }],   // ≤ 50
   "newQueueHead": [{ "itemId": "dsa:lc-0020", "type": "problem", "topic": "stack",
                      "difficulty": "E", "estMinutes": 20 }],                      // first 10 per track
-  "deepDives": [{ "itemId": "dsa:deep-dive-lc-0049", "about": "dsa:lc-0049" }],  // active only
+  "deepDives": [{ "itemId": "dsa:lesson-deep-dive-lc-0049", "about": "dsa:lc-0049" }],  // active only
   "weakTopics": ["arrays-hashing"],
   "customItems": [{ "itemId": "user:k3j9…:ah-anagram-drill", "type": "flashcard",
                     "topic": "arrays-hashing", "status": "active", "srsStatus": "ok",

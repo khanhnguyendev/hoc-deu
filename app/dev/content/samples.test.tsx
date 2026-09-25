@@ -40,6 +40,9 @@ describe('/dev/content samples, rendered', () => {
       section.getAttribute('data-section'),
     )
     expect(kinds).toHaveLength(9)
+    // M3-R11: a <Section> renders the h2, so its sub-headings are h3, never h4.
+    expect(container.querySelector('[data-section] h3')).not.toBeNull()
+    expect(container.querySelector('h4')).toBeNull()
     expect(container.textContent).not.toContain('format: pattern')
     const code = screen.getByRole('region', { name: 'Đoạn code Python' })
     expect(code.querySelector('.text-primary')?.textContent).toBe('def')
