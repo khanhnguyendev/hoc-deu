@@ -157,16 +157,15 @@ test('?variant picks a listed roadmap and falls back to the enrolled one', async
 })
 
 test.describe('unknown tracks and items', () => {
-  // A 404 (the RSC request of a not-found page) is logged by Chromium as a failed resource load.
-  test.use({ allowedConsoleErrors: [/status of 404/] })
-
-  // `(app)/loading.tsx` streams these pages, so the status is already 200 when the loader's null
-  // becomes `notFound()`: the Vietnamese 404 renders inside the AppShell (`(app)/not-found.tsx`)
-  // and Next marks the page noindex.
+  // A soft 404 (Next 16 streaming, accepted in 3.4b): `(app)/loading.tsx` streams these pages, so
+  // the response is already 200 when the loader's null becomes `notFound()`. The Vietnamese 404
+  // renders inside the AppShell (`(app)/not-found.tsx`) and Next marks the page noindex. The status
+  // is pinned: if Next ever sends a real 404 here, this test says so.
   test('/t/nope and /t/dsa/items/lc-99999 show the Vietnamese 404', async ({ page }) => {
     await signInLearner(page, '/tracks')
     for (const path of ['/t/nope', '/t/dsa/items/lc-99999']) {
-      await page.goto(path)
+      const response = await page.goto(path)
+      expect(response?.status(), path).toBe(200)
       await expect(
         page.getByRole('heading', { level: 1, name: 'Không tìm thấy trang' }),
         path,
