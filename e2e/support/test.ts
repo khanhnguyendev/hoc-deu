@@ -10,10 +10,11 @@ export type TestOptions = {
   allowedConsoleErrors: RegExp[]
 }
 
-// The AppShell's links prefetch /review, /tracks, /progress, /admin/content, which 404 until
-// M3/M5 — Next's RSC prefetch failures log a "Failed to load resource: the server responded with
-// a status of 404 (Not Found)" console error for the `?_rsc=` request. That is expected until
-// those routes exist, so it is ignored — but only a 404: a 5xx on a prefetch always fails the test.
+// The AppShell's links prefetch /review, /progress and /admin/content, which 404 until M5 (/tracks
+// and /t/… exist since task 3.4b) — Next's RSC prefetch failures log a "Failed to load resource:
+// the server responded with a status of 404 (Not Found)" console error for the `?_rsc=` request.
+// That is expected until those routes exist, so it is ignored — but only a 404: a 5xx on a
+// prefetch always fails the test.
 const isIgnoredRscPrefetchError = (text: string, url: string | undefined) =>
   text.includes('Failed to load resource') &&
   text.includes('status of 404') &&

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EXERCISE_KINDS } from '@/lib/content/item-types/exercise'
 import { CARD_TIERS, PARTS_OF_SPEECH, REGISTERS } from '@/lib/content/item-types/flashcard'
+import { RECAP_MODES } from '@/lib/content/schemas/roadmap'
 import { BUDGET_MINUTES, MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { vi } from './vi'
 
@@ -129,6 +130,49 @@ const USED = [
   'onboarding.errors.codeLanguage',
   'onboarding.errors.codeLanguageUnused',
   'tracks.throttleTitle',
+  'onboarding.noTracks.title',
+  'onboarding.noTracks.description',
+  'roadmap.description',
+  'roadmap.mine',
+  'roadmap.others',
+  'roadmap.status.active',
+  'roadmap.status.paused',
+  'roadmap.budget',
+  'roadmap.view',
+  'roadmap.addInSettings',
+  'roadmap.retired',
+  'roadmap.draft',
+  'roadmap.noOthers',
+  'roadmap.emptyMine.title',
+  'roadmap.emptyMine.description',
+  'roadmap.emptyMine.action',
+  'roadmap.empty.title',
+  'roadmap.empty.description',
+  'roadmap.variants',
+  'roadmap.template',
+  'roadmap.noContent.title',
+  'roadmap.noContent.description',
+  'roadmap.noContent.action',
+  'roadmap.week.title',
+  'roadmap.week.topics',
+  'roadmap.week.lessons',
+  'roadmap.week.core',
+  'roadmap.week.recap',
+  'roadmap.week.bonus',
+  'roadmap.week.decks',
+  'roadmap.week.deckCounts',
+  'roadmap.week.showCards',
+  'roadmap.week.exercises',
+  'roadmap.week.prompts',
+  'roadmap.week.empty',
+  'roadmap.recapMode.redo',
+  'roadmap.recapMode.recall',
+  'roadmap.recapMode.explain-aloud',
+  'roadmap.anytime.title',
+  'roadmap.anytime.description',
+  'roadmap.anytime.derivedCount',
+  'roadmap.anytime.derivedHint',
+  'roadmap.backToTrack',
   'settings.description',
   'settings.admin.title',
   'settings.admin.description',
@@ -430,6 +474,41 @@ describe('lib/i18n/vi.ts', () => {
       notSaved: 'Câu trả lời không được lưu.',
       showSamples: 'Xem câu trả lời mẫu',
     })
+  })
+
+  it('names the tracks, roadmap and item-route copy of task 3.4b', () => {
+    const copy = vi.roadmap
+    expect(vi.nav.roadmap).toBe('Lộ trình')
+    expect(copy.description).toBe('Các lộ trình bạn đang học và các lộ trình khác.')
+    expect(copy.mine).toBe('Lộ trình của bạn')
+    expect(copy.others).toBe('Lộ trình khác')
+    expect(copy.status).toEqual({ active: 'Đang học', paused: 'Tạm dừng' })
+    expect(copy.view).toBe('Xem lộ trình')
+    expect(copy.addInSettings).toBe('Thêm trong Cài đặt')
+    expect(copy.retired).toBe('Lộ trình đã ngừng — không nhận học viên mới.')
+    expect(copy.variants).toBe('Phiên bản lộ trình')
+    expect(copy.noContent.title).toBe('Lộ trình này chưa có nội dung.')
+    expect(copy.noContent.description).toBe('Nội dung đang được bổ sung.')
+    expect(copy.week).toMatchObject({
+      title: 'Tuần {n}',
+      core: 'Bài chính',
+      recap: 'Ôn lại cuối tuần',
+      bonus: 'Bài thêm',
+      decks: 'Bộ thẻ',
+      deckCounts: '{core} thẻ cốt lõi · {extended} thẻ mở rộng',
+      exercises: 'Bài tập',
+      prompts: 'Nhiệm vụ',
+    })
+    expect(copy.recapMode).toEqual({
+      redo: 'Làm lại',
+      recall: 'Nhớ lại',
+      'explain-aloud': 'Giải thích thành lời',
+    })
+    expect(Object.keys(copy.recapMode).sort()).toEqual([...RECAP_MODES].sort())
+    expect(copy.anytime.title).toBe('Không theo tuần')
+    expect(copy.backToTrack).toBe('Về lộ trình {title}')
+    // RF-4: no active track → the onboarding wizard's empty state.
+    expect(vi.onboarding.noTracks.title).toBe('Chưa có lộ trình nào để học')
   })
 
   it('has a Vietnamese label for every part of speech and register of the card schema', () => {

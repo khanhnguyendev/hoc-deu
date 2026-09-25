@@ -403,3 +403,17 @@ describe('OnboardingWizard — focus', () => {
     expect(document.activeElement).toBe(document.body)
   })
 })
+
+describe('OnboardingWizard — no active track (RF-4)', () => {
+  it('shows an empty state instead of a wizard that cannot be completed', () => {
+    const { view } = setup({ tracks: [] })
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Chưa có lộ trình nào để học' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByText('Các lộ trình sẽ xuất hiện ở đây khi được mở. Bạn quay lại sau nhé.'),
+    ).toBeTruthy()
+    expect(view.container.querySelector('form')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Tiếp tục' })).toBeNull()
+  })
+})

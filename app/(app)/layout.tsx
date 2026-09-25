@@ -5,8 +5,8 @@ import { requireOnboarded } from '@/lib/auth/dal'
 import { vi } from '@/lib/i18n/vi'
 
 /**
- * Active, onboarded users (§2.2): `/today`, and later `/review`, `/tracks`, `/t/…`, `/progress`,
- * `/settings`. The top bar's title is derived from the path (R3); sign-out redirects to
+ * Active, onboarded users (§2.2): `/today`, `/tracks`, `/t/…`, `/settings`, and later `/review`
+ * and `/progress`. The top bar's title is derived from the path (R3); sign-out redirects to
  * `/sign-in`.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

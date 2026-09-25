@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, Inbox, Info, Plus, Settings, Trophy } from 'lucide-react'
+import { Clock, Inbox, Info, MapIcon, Plus, Settings, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import type * as React from 'react'
@@ -121,6 +121,15 @@ import {
 } from '@/features/items/fixtures'
 import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
+import { ItemView } from '@/features/roadmap/components/item-view'
+import { RoadmapView } from '@/features/roadmap/components/roadmap-view'
+import { TrackCard } from '@/features/roadmap/components/track-card'
+import { TrackList } from '@/features/roadmap/components/track-list'
+import { TrackOverview } from '@/features/roadmap/components/track-overview'
+import { VariantLinks } from '@/features/roadmap/components/variant-links'
+import { WeekSection } from '@/features/roadmap/components/week-section'
+import type { Enrollment, TrackSummary, VariantLink } from '@/features/roadmap/queries'
+import type { RoadmapSlots, WeekSlots } from '@/features/roadmap/slots'
 import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
 import { AdminLink } from '@/features/settings/components/admin-link'
@@ -586,6 +595,112 @@ function VarTableDemo({ caption }: { caption?: string }) {
       </Md.table>
     </VarTable>
   )
+}
+
+/** Roadmap demos (task 3.4b): track summaries, enrollments and rows as plain LinkRows. */
+const DEMO_DSA_SUMMARY: TrackSummary = {
+  id: 'dsa',
+  title: 'Cấu trúc dữ liệu & Giải thuật',
+  titleEn: 'Data Structures & Algorithms',
+  accent: 'track-1',
+  status: 'active',
+}
+const DEMO_ENGLISH_SUMMARY: TrackSummary = {
+  id: 'english',
+  title: 'Tiếng Anh cho môi trường IT',
+  titleEn: 'English for IT workplaces',
+  accent: 'track-2',
+  status: 'active',
+}
+const DEMO_DSA_ENROLLMENT: Enrollment = {
+  status: 'active',
+  roadmapVariant: '8w',
+  budgetMinutes: 60,
+}
+const DEMO_VARIANTS: VariantLink[] = [
+  { id: '8w', label: '8 tuần', href: '/t/dsa?variant=8w', current: true },
+  { id: '10w', label: '10 tuần', href: '/t/dsa?variant=10w', current: false },
+]
+const demoRow = (href: string, title: string, meta: string[], lang?: 'en') => (
+  <LinkRow href={href} title={title} titleLang={lang} meta={meta} />
+)
+const DEMO_WEEK: WeekSlots = {
+  week: 1,
+  topics: [
+    { id: 'arrays-hashing', title: 'Arrays & Hashing' },
+    { id: 'two-pointers', title: 'Two Pointers' },
+  ],
+  lessons: [demoRow('/t/dsa/items/lesson-two-pointers', 'Two pointers', ['Pattern', '25 phút'])],
+  core: [
+    demoRow('/t/dsa/items/lc-0001', 'Two Sum', ['#1', 'Easy', 'Arrays & Hashing'], 'en'),
+    demoRow('/t/dsa/items/lc-0020', 'Valid Parentheses', ['#20', 'Easy'], 'en'),
+  ],
+  recap: [
+    {
+      row: demoRow('/t/dsa/items/lc-0049', 'Group Anagrams', ['#49', 'Medium'], 'en'),
+      mode: null,
+    },
+    { row: demoRow('/t/dsa/items/lc-0001', 'Two Sum', ['#1', 'Easy'], 'en'), mode: 'recall' },
+  ],
+  bonus: [demoRow('/t/dsa/items/lc-0015', '3Sum', ['#15', 'Medium'], 'en')],
+  decks: [
+    {
+      deck: {
+        id: 'english:deck-w01-standup',
+        trackId: 'english',
+        kind: 'vocabulary',
+        week: 1,
+        topicId: 'standup',
+        title: { vi: 'Họp stand-up', en: 'Stand-up meetings' },
+        status: 'active',
+        cardIds: [],
+      },
+      core: [demoRow('/t/english/items/w01-blocker', 'blocker', ['Cốt lõi'], 'en')],
+      extended: [demoRow('/t/english/items/w01-heads-up', 'heads-up', ['Mở rộng'], 'en')],
+    },
+  ],
+  exercises: [demoRow('/t/english/items/ex-w01-fill-1', 'Điền từ còn thiếu', ['Điền từ'])],
+  prompts: [
+    demoRow('/t/english/items/prompt-w01-standup', 'Ghi âm một bản cập nhật stand-up dài 1 phút', [
+      'Nhiệm vụ cuối tuần',
+      '10 phút',
+    ]),
+  ],
+}
+const DEMO_EMPTY_WEEK: WeekSlots = {
+  week: 2,
+  topics: [{ id: 'stack', title: 'Stack' }],
+  lessons: [],
+  core: [],
+  recap: [],
+  bonus: [],
+  decks: [],
+  exercises: [],
+  prompts: [],
+}
+const DEMO_SLOTS: RoadmapSlots = {
+  variant: '8w',
+  weeks: [DEMO_WEEK, DEMO_EMPTY_WEEK],
+  anytime: {
+    prompts: [
+      demoRow('/t/dsa/items/prompt-mock-interview', 'Phỏng vấn thử', ['Phỏng vấn thử', '45 phút']),
+    ],
+    derivedDecks: [
+      {
+        deck: {
+          id: 'english:explaining-code',
+          trackId: 'english',
+          kind: 'derived',
+          week: null,
+          topicId: null,
+          title: { vi: 'Giải thích code', en: 'Explaining code' },
+          status: 'active',
+          cardIds: [],
+        },
+        unlocked: 12,
+      },
+    ],
+  },
 }
 
 export const CATALOG: Entry[] = [
@@ -1654,6 +1769,20 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Không có lộ trình nào đang mở: trạng thái trống thay cho các bước (RF-4)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={[]}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoCompleteOnboarding}
+            />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -1689,6 +1818,217 @@ export const CATALOG: Entry[] = [
                 throttle={track.throttle}
               />
             ))}
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackList',
+    layer: 'features',
+    file: 'features/roadmap/components/track-list.tsx',
+    demos: [
+      {
+        title: 'Lộ trình của bạn và lộ trình khác',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackList
+              mine={[{ track: DEMO_DSA_SUMMARY, enrollment: DEMO_DSA_ENROLLMENT }]}
+              others={[DEMO_ENGLISH_SUMMARY]}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Chưa học lộ trình nào: trạng thái trống dẫn tới Cài đặt',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackList mine={[]} others={[DEMO_DSA_SUMMARY, DEMO_ENGLISH_SUMMARY]} />
+          </div>
+        ),
+      },
+      {
+        title: 'Không có lộ trình nào (RF-4)',
+        render: () => (
+          <div className="w-full">
+            <TrackList mine={[]} others={[]} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackCard',
+    layer: 'features',
+    file: 'features/roadmap/components/track-card.tsx',
+    demos: [
+      {
+        title: 'Đang học, tạm dừng, lộ trình khác, bản nháp (quản trị viên), đã ngừng',
+        render: () => (
+          <ul role="list" className="grid w-full gap-4 md:grid-cols-2">
+            <li>
+              <TrackCard track={DEMO_DSA_SUMMARY} enrollment={DEMO_DSA_ENROLLMENT} />
+            </li>
+            <li>
+              <TrackCard
+                track={DEMO_ENGLISH_SUMMARY}
+                enrollment={{ status: 'paused', roadmapVariant: '10w', budgetMinutes: 25 }}
+              />
+            </li>
+            <li>
+              <TrackCard track={DEMO_ENGLISH_SUMMARY} enrollment={null} />
+            </li>
+            <li>
+              <TrackCard
+                track={{
+                  id: 'sysdesign',
+                  title: 'Thiết kế hệ thống',
+                  titleEn: 'System design',
+                  accent: 'track-3',
+                  status: 'draft',
+                }}
+                enrollment={null}
+              />
+            </li>
+            <li>
+              <TrackCard
+                track={{
+                  id: 'legacy',
+                  title: 'Lộ trình cũ',
+                  titleEn: 'Legacy track',
+                  accent: 'track-4',
+                  status: 'retired',
+                }}
+                enrollment={{ status: 'active', roadmapVariant: '4w', budgetMinutes: 30 }}
+              />
+            </li>
+          </ul>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackOverview',
+    layer: 'features',
+    file: 'features/roadmap/components/track-overview.tsx',
+    demos: [
+      {
+        title: 'Đang học, lộ trình chưa có nội dung (trạng thái trống)',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackOverview
+              track={DEMO_DSA_SUMMARY}
+              enrollment={DEMO_DSA_ENROLLMENT}
+              variants={DEMO_VARIANTS}
+              template={DEMO_DSA.template}
+              throttle={DEMO_DSA.throttle}
+            >
+              <EmptyState
+                icon={MapIcon}
+                title={vi.roadmap.noContent.title}
+                description={vi.roadmap.noContent.description}
+                action={{ label: vi.roadmap.noContent.action, href: '/tracks' }}
+              />
+            </TrackOverview>
+          </div>
+        ),
+      },
+      {
+        title: 'Lộ trình khác (thêm trong Cài đặt), có giới hạn thẻ mới',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackOverview
+              track={DEMO_ENGLISH_SUMMARY}
+              enrollment={null}
+              variants={[
+                { id: '10w', label: '10 tuần', href: '/t/english?variant=10w', current: true },
+              ]}
+              template={DEMO_ENGLISH.template}
+              throttle={DEMO_ENGLISH.throttle}
+            >
+              <p className="text-sm text-muted-foreground">Nội dung lộ trình ở đây.</p>
+            </TrackOverview>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VariantLinks',
+    layer: 'features',
+    file: 'features/roadmap/components/variant-links.tsx',
+    demos: [
+      {
+        title: '8 tuần đang chọn (aria-current), 10 tuần',
+        render: () => <VariantLinks variants={DEMO_VARIANTS} />,
+      },
+    ],
+  },
+  {
+    name: 'WeekSection',
+    layer: 'features',
+    file: 'features/roadmap/components/week-section.tsx',
+    demos: [
+      {
+        title:
+          'Bài học, bài chính, ôn lại cuối tuần (có chế độ), bài thêm, bộ thẻ, bài tập, nhiệm vụ',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <WeekSection week={DEMO_WEEK} />
+          </div>
+        ),
+      },
+      {
+        title: 'Tuần chưa có nội dung (mọi mục còn là bản nháp, RF-4)',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <WeekSection week={DEMO_EMPTY_WEEK} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RoadmapView',
+    layer: 'features',
+    file: 'features/roadmap/components/roadmap-view.tsx',
+    demos: [
+      {
+        title: 'Hai tuần, rồi "Không theo tuần" (nhiệm vụ lặp lại, bộ thẻ Giải thích code)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <RoadmapView slots={DEMO_SLOTS} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemView',
+    layer: 'features',
+    file: 'features/roadmap/components/item-view.tsx',
+    demos: [
+      {
+        title: 'Liên kết về lộ trình, rồi trang của mục (thông báo do ItemPageFrame hiện, M3-R4)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <ItemView
+              backHref="/t/dsa"
+              trackTitle={DEMO_DSA_SUMMARY.title}
+              page={
+                <ItemPageFrame
+                  status="retired"
+                  title={<span lang="en">3Sum</span>}
+                  meta={[
+                    '#15',
+                    <DifficultyBadge key="difficulty" difficulty="M" />,
+                    'Two Pointers',
+                  ]}
+                >
+                  <Md.p>Nội dung của mục.</Md.p>
+                </ItemPageFrame>
+              }
+            />
           </div>
         ),
       },

@@ -1,8 +1,10 @@
 'use client'
 
+import { MapIcon } from 'lucide-react'
 import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type * as React from 'react'
 import { ChoiceCard } from '@/components/patterns/choice-card'
+import { EmptyState } from '@/components/patterns/empty-state'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField, FormFieldError } from '@/components/patterns/form-field'
 import { StepIndicator } from '@/components/patterns/step-indicator'
@@ -89,7 +91,7 @@ const serverTimeZone = () => null
  * change. Server errors appear in the summary at the top (DESIGN_SYSTEM §5) and the wizard
  * returns to the step of the first field in error.
  */
-function OnboardingWizard({
+function OnboardingSteps({
   tracks,
   timeZones,
   now,
@@ -568,6 +570,23 @@ function OnboardingWizard({
       </div>
     </form>
   )
+}
+
+/**
+ * The wizard, or — when no track is active, so no step could be completed — an empty state
+ * (RF-4). A separate component, so the steps' hooks always run in the same order.
+ */
+function OnboardingWizard(props: OnboardingWizardProps) {
+  if (props.tracks.length === 0) {
+    return (
+      <EmptyState
+        icon={MapIcon}
+        title={copy.noTracks.title}
+        description={copy.noTracks.description}
+      />
+    )
+  }
+  return <OnboardingSteps {...props} />
 }
 
 export { OnboardingWizard }

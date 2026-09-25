@@ -566,7 +566,8 @@ from `lib/i18n/vi.ts`.
 - **Variants:** the steps shown follow the selection — "Chọn lộ trình" → "Thời gian mỗi ngày" →
   "Phiên bản lộ trình" (only for a track with more than one roadmap) → "Lịch học" → "Ngôn ngữ lập
   trình" (only when a selected track has code languages) → "Xem trước tuần học"
-- **States:** per step: default, field errors (under the field + FormErrorSummary at the top);
+- **States:** no active track → an EmptyState "Chưa có lộ trình nào để học" instead of the steps
+  (RF-4); per step: default, field errors (under the field + FormErrorSummary at the top);
   variant follows the minutes (`defaultVariant`) until the learner picks one, then it sticks
   (ADR-0015); time zone `Asia/Ho_Chi_Minh` on the server render, then the browser's canonical zone
   when the list has it (`useSyncExternalStore`, no hydration mismatch); submitting ("Bắt đầu học"
@@ -844,6 +845,125 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** an info Banner states the backup-retention notice: "Dữ liệu đã xoá vẫn có thể
   tồn tại trong bản sao lưu đã mã hoá tối đa 90 ngày."; "Xoá vĩnh viễn" is destructive and asks
   first, like TrackSettings' "Gỡ lộ trình"
+
+### Roadmap components (`features/roadmap/components`)
+
+`/tracks`, the track page `/t/[trackId]` and the item route (task 3.4b). They take plain props —
+`TrackSummary`, `Enrollment` and `VariantLink` from `features/roadmap/queries.ts` (types only) —
+and ReactNode slots, and **never import the item registry** (fix 5): the track page builds each
+row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: null, mode: mode ??
+undefined }))` and the item page its body with `await renderItemPage(…)`, so every component here
+renders in the client catalog with plain nodes. Server-compatible (no `'use client'`). Copy:
+`vi.roadmap`.
+
+### TrackList
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/track-list.tsx`
+- **Props:** `mine: { track: TrackSummary; enrollment: Enrollment }[]`, `others: TrackSummary[]`
+  (`getTracksOverview()`)
+- **Variants:** —
+- **States:** both lists → Section "Lộ trình của bạn" + Section "Lộ trình khác" (a grid of
+  TrackCards each); no other track → "Bạn đang học tất cả lộ trình hiện có."; nothing followed →
+  an h3 EmptyState "Bạn chưa học lộ trình nào" with "Mở Cài đặt" (`/settings`); no track at all →
+  one EmptyState "Chưa có lộ trình nào" and no sections (RF-4)
+- **Usage:** `<TrackList mine={mine} others={others} />` (`app/(app)/tracks/page.tsx`, under the
+  PageHeader)
+- **Accessibility:** each Section is a region named by its `h2`; the cards are a `role="list"`
+  grid (one column on a phone, two from 768 px)
+
+### TrackCard
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/track-card.tsx`
+- **Props:** `track: TrackSummary`, `enrollment: Enrollment | null` (null: another track)
+- **Variants:** enrolled — status Badge ("Đang học" primary / "Tạm dừng" warning), "8 tuần · 60
+  phút mỗi ngày", "Xem lộ trình" · another active track — "Xem lộ trình" + "Thêm trong Cài đặt"
+  (`/settings`) · draft (admins) — ItemStatusBadge "Bản nháp", no Settings link · retired —
+  "Đã ngừng" and a warning Banner "Lộ trình đã ngừng — không nhận học viên mới."
+- **States:** static
+- **Usage:** `<TrackCard track={track} enrollment={enrollment} />` (TrackList)
+- **Accessibility:** an `article` named by its `h3` (the Vietnamese title); the track chip is a
+  `Badge tone="track"` in `data-accent` holding the English title in `lang="en"` (the name, never
+  colour alone); "Xem lộ trình" carries the track title as `sr-only` text, so the links of a list
+  of cards stay distinct; links are 44 px buttons
+
+### TrackOverview
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/track-overview.tsx`
+- **Props:** `track: TrackSummary`, `enrollment: Enrollment | null`, `variants: VariantLink[]`,
+  `template: TemplateDay[]`, `throttle: string[]` (from `getTrackPage()`), `children` (RoadmapView
+  or its empty state)
+- **Variants:** header action — the status Badge when enrolled, "Thêm trong Cài đặt" for an active
+  track the learner does not follow, nothing otherwise · notice — draft (info Banner "Bản nháp:
+  chỉ quản trị viên thấy lộ trình này.") or retired (warning Banner)
+- **States:** static
+- **Usage:** `<TrackOverview track={…} enrollment={…} variants={…} template={…}
+  throttle={…}>{slots ? <RoadmapView slots={slots} /> : <EmptyState … />}</TrackOverview>`
+  (`app/(app)/t/[trackId]/page.tsx`)
+- **Accessibility:** a `contents` wrapper with `data-accent` (keeps the page's section spacing);
+  PageHeader `h1` = the Vietnamese title, its description the English title in `lang="en"`; then
+  VariantLinks and a Section "Mẫu tuần" holding WeeklyTemplatePreview
+
+### VariantLinks
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/variant-links.tsx`
+- **Props:** `variants: { id; label; href; current }[]` (`label` = `variantLabel(id)`, `href` =
+  `/t/<track>?variant=<id>`)
+- **Variants:** `cva` `current` true (`primary-soft`, `border-primary`, semibold, check icon) ·
+  false (outline, hover `surface-muted`)
+- **States:** default, hover, focus-visible, current
+- **Usage:** `<VariantLinks variants={data.variants} />` (TrackOverview)
+- **Accessibility:** a `nav` named by its visible label "Phiên bản lộ trình"; the current link has
+  `aria-current="true"` plus a check and weight (never colour alone); 44 px links
+
+### WeekSection
+
+- **Layer:** feature (`features/roadmap`, server-compatible; also exports the `RoadmapGroup`,
+  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses)
+- **File:** `features/roadmap/components/week-section.tsx`
+- **Props:** `week: WeekSlots` (`roadmapSlots`: `{ week, topics, lessons, core, recap: { row, mode
+  }[], bonus, decks: { deck, core, extended }[], exercises, prompts }`, rows as ReactNodes)
+- **Variants:** groups, each only when it has rows and in this order — "Bài học", "Bài chính",
+  "Ôn lại cuối tuần" (a mode label "Làm lại" / "Nhớ lại" / "Giải thích thành lời" above a
+  revisiting row; none on an entry that introduces its item), "Bài thêm", "Bộ thẻ" (per deck: the
+  title, "{core} thẻ cốt lõi · {extended} thẻ mở rộng", the cards in a `<details>` "Xem các thẻ"),
+  "Bài tập", "Nhiệm vụ"
+- **States:** with rows · empty (every item still a draft, RF-4) — "Tuần này chưa có nội dung."
+- **Usage:** `<WeekSection week={slots.weeks[0]} />` (RoadmapView)
+- **Accessibility:** a Section (region named by its `h2` "Tuần {n}"); topics are a list named "Chủ
+  đề" of neutral Badges; each group is an `h3` naming its `role="list"` (`aria-labelledby`), deck
+  titles are `h4`; `<details>` / `<summary>` is the native disclosure (keyboard, 44 px summary)
+
+### RoadmapView
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/roadmap-view.tsx`
+- **Props:** `slots: RoadmapSlots` (`{ variant, weeks: WeekSlots[], anytime: { prompts:
+  ReactNode[], derivedDecks: { deck, unlocked }[] } }`)
+- **Variants:** with / without the final Section "Không theo tuần" (repeatable prompts under
+  "Nhiệm vụ"; derived decks under "Bộ thẻ" with "{n} thẻ" and "Mỗi thẻ mở sau khi bạn làm bài
+  gốc.") — left out when empty
+- **States:** static
+- **Usage:** `<RoadmapView slots={roadmapSlots(view, renderRow)} />` (`/t/[trackId]`)
+- **Accessibility:** one region per week, in order; a `contents` wrapper, so the sections keep the
+  page's spacing
+
+### ItemView
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/item-view.tsx`
+- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`await
+  renderItemPage(…)`). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the draft /
+  retired notice, so ItemView never renders a second one
+- **Variants:** —
+- **States:** static
+- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={page} />`
+  (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`)
+- **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first;
+  the page brings its own `h1`; a `contents` wrapper keeps the page's spacing
 
 ### MDX content components (`features/items/components/mdx`)
 

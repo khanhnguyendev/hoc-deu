@@ -190,6 +190,11 @@ export const vi = {
     preview: {
       description: 'Mỗi tuần học của bạn sẽ theo mẫu này. Kế hoạch mỗi ngày được tạo từ đây.',
     },
+    /** RF-4: no active track to enroll in (the wizard shows this instead of its steps). */
+    noTracks: {
+      title: 'Chưa có lộ trình nào để học',
+      description: 'Các lộ trình sẽ xuất hiện ở đây khi được mở. Bạn quay lại sau nhé.',
+    },
     /** Field and form errors, in the wizard and from `completeOnboarding`. */
     errors: {
       invalid: 'Không đọc được thông tin thiết lập. Bạn tải lại trang rồi thử lại nhé.',
@@ -205,6 +210,68 @@ export const vi = {
       codeLanguage: 'Chọn Python, Java hoặc Go.',
       codeLanguageUnused: 'Lộ trình bạn chọn không dùng ngôn ngữ lập trình.',
     },
+  },
+  /**
+   * /tracks, the track roadmap page and the item route (`features/roadmap`, task 3.4b). The page
+   * title is `nav.roadmap`. `{minutes}`, `{n}`, `{core}`, `{extended}` and `{count}` are formatted
+   * numbers; `{title}` is a track's title.
+   */
+  roadmap: {
+    description: 'Các lộ trình bạn đang học và các lộ trình khác.',
+    mine: 'Lộ trình của bạn',
+    others: 'Lộ trình khác',
+    /** An enrollment's status on its card and the track page. */
+    status: { active: 'Đang học', paused: 'Tạm dừng' },
+    budget: '{minutes} phút mỗi ngày',
+    view: 'Xem lộ trình',
+    addInSettings: 'Thêm trong Cài đặt',
+    retired: 'Lộ trình đã ngừng — không nhận học viên mới.',
+    draft: 'Bản nháp: chỉ quản trị viên thấy lộ trình này.',
+    noOthers: 'Bạn đang học tất cả lộ trình hiện có.',
+    /** RF-4: the learner follows no track (all removed). */
+    emptyMine: {
+      title: 'Bạn chưa học lộ trình nào',
+      description: 'Thêm một lộ trình trong Cài đặt để bắt đầu.',
+      action: 'Mở Cài đặt',
+    },
+    /** RF-4: no active track at all. */
+    empty: {
+      title: 'Chưa có lộ trình nào',
+      description: 'Các lộ trình sẽ xuất hiện ở đây khi được mở.',
+    },
+    variants: 'Phiên bản lộ trình',
+    template: 'Mẫu tuần',
+    /** RF-4 / decision 4: the variant's roadmap file does not exist yet. */
+    noContent: {
+      title: 'Lộ trình này chưa có nội dung.',
+      description: 'Nội dung đang được bổ sung.',
+      action: 'Xem các lộ trình',
+    },
+    week: {
+      title: 'Tuần {n}',
+      topics: 'Chủ đề',
+      lessons: 'Bài học',
+      core: 'Bài chính',
+      recap: 'Ôn lại cuối tuần',
+      bonus: 'Bài thêm',
+      decks: 'Bộ thẻ',
+      deckCounts: '{core} thẻ cốt lõi · {extended} thẻ mở rộng',
+      showCards: 'Xem các thẻ',
+      exercises: 'Bài tập',
+      prompts: 'Nhiệm vụ',
+      /** RF-4: nothing to show this week (e.g. every item is still a draft). */
+      empty: 'Tuần này chưa có nội dung.',
+    },
+    /** How a recap entry revisits its item (§5.5, §5.6; `RECAP_MODES`). */
+    recapMode: { redo: 'Làm lại', recall: 'Nhớ lại', 'explain-aloud': 'Giải thích thành lời' },
+    /** Repeatable prompts and derived decks, in no week. */
+    anytime: {
+      title: 'Không theo tuần',
+      description: 'Làm vào tuần nào cũng được.',
+      derivedCount: '{count} thẻ',
+      derivedHint: 'Mỗi thẻ mở sau khi bạn làm bài gốc.',
+    },
+    backToTrack: 'Về lộ trình {title}',
   },
   /** Shared track pieces (`features/tracks`): the weekly template preview. */
   tracks: {
