@@ -1,0 +1,12 @@
+id: 10w
+weeks:
+  - { week: 1, topics: [standup], decks: [english:deck-w01-standup] }
+  - { week: 2, topics: [tickets], decks: [english:deck-w02-tickets] }
+  - { week: 3, topics: [code-review], decks: [english:deck-w03-code-review] }
+  - { week: 4, topics: [pull-requests], decks: [english:deck-w04-pull-requests] }
+  - { week: 5, topics: [meetings], decks: [english:deck-w05-meetings] }
+  - { week: 6, topics: [estimates], decks: [english:deck-w06-estimates] }
+  - { week: 7, topics: [incidents], decks: [english:deck-w07-incidents] }
+  - { week: 8, topics: [documentation], decks: [english:deck-w08-documentation] }
+  - { week: 9, topics: [interviews], decks: [english:deck-w09-interviews] }
+  - { week: 10, topics: [demos], decks: [english:deck-w10-demos] }

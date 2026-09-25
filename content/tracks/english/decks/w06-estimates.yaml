@@ -1,0 +1,148 @@
+id: english:deck-w06-estimates
+kind: vocabulary
+week: 6
+topic: estimates
+title: { vi: 'Ước lượng và lập kế hoạch', en: 'Estimates and planning' }
+cards:
+  - id: english:w06-estimate
+    tier: core
+    front: estimate
+    back: ước lượng (thời gian, công sức)
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Động từ đọc /ˈes.tɪ.meɪt/ (đuôi "mate"); danh từ "an estimate" đọc /ˈes.tɪ.mət/ (đuôi nhẹ).'
+    example: 'Can you estimate how long the migration will take once the new schema is ready?'
+    pronunciation: '/ˈes.tɪ.meɪt/ · ES-ti-mate'
+
+  - id: english:w06-story-point
+    tier: core
+    front: story point
+    back: đơn vị đo độ lớn, độ phức tạp của một việc (không phải số giờ)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường dùng các mức 1, 2, 3, 5, 8, 13. Hay nói gọn: "I''d give it a 5."'
+    example: "I'd put this at five story points because the logic is simple but the old code has no tests."
+    pronunciation: '/ˈstɔː.ri ˌpɔɪnt/ · STO-ry point'
+
+  - id: english:w06-sprint
+    tier: core
+    front: sprint
+    back: một chu kỳ làm việc ngắn (thường 1–2 tuần) với mục tiêu cố định
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay gặp: sprint planning, sprint goal, sprint review. Dùng "in": in this sprint, in the next sprint.'
+    example: "We can't fit the reporting work into this sprint, so let's plan it for the next one."
+    pronunciation: '/sprɪnt/ · SPRINT'
+
+  - id: english:w06-velocity
+    tier: core
+    front: velocity
+    back: lượng việc (tính bằng story point) trung bình team làm xong mỗi sprint
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Dùng để lập kế hoạch cho chính team mình, không phải để so sánh các team với nhau.'
+    example: "Our velocity is about 30 points a sprint, so 45 points of work won't fit."
+    pronunciation: '/vəˈlɒs.ə.ti/ · ve-LOS-i-ty'
+
+  - id: english:w06-capacity
+    tier: core
+    front: capacity
+    back: lượng thời gian, sức làm việc thực tế team có trong sprint
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Nhớ trừ ngày nghỉ, họp, trực on-call. "We''re at capacity" nghĩa là team đã kín việc.'
+    example: 'Two people are on leave next week, so our capacity is lower than usual.'
+    pronunciation: '/kəˈpæs.ə.ti/ · ca-PAS-i-ty'
+
+  - id: english:w06-scope-creep
+    tier: core
+    front: scope creep
+    back: phạm vi công việc cứ phình dần vì thêm yêu cầu giữa chừng
+    usage:
+      pos: noun
+      register: neutral
+      note: '"scope" là phạm vi công việc. Yêu cầu mới nên tách thành ticket khác thay vì nhét vào việc đang làm.'
+    example: "Adding PDF export now would be scope creep, so let's ship CSV first and plan PDF for next sprint."
+    pronunciation: '/ˈskəʊp ˌkriːp/ · SCOPE creep'
+
+  - id: english:w06-out-of-scope
+    tier: core
+    front: out of scope
+    back: nằm ngoài phạm vi (của ticket, dự án) lần này
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Ngược lại: "in scope". Cách từ chối nhẹ nhàng: "That''s out of scope for this release, but let''s track it."'
+    example: "Mobile support is out of scope for this release, but I've added it to the backlog."
+    pronunciation: '/ˌaʊt əv ˈskəʊp/ · out of SCOPE'
+
+  - id: english:w06-ballpark
+    tier: core
+    front: ballpark
+    back: con số ước chừng, không cần chính xác
+    usage:
+      pos: noun
+      register: informal
+      note: 'Hay gặp: "a ballpark figure/estimate", "Can you give me a ballpark?" Chỉ để định hướng, chưa phải cam kết.'
+    example: "I know it's early, but can you give me a ballpark: days or weeks?"
+    pronunciation: '/ˈbɔːl.pɑːk/ · BALL-park'
+
+  - id: english:w06-buffer
+    tier: core
+    front: buffer
+    back: khoảng thời gian dự phòng cho việc phát sinh
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "add a buffer", "leave some buffer for testing".'
+    example: "Let's add a two-day buffer, since that third-party API has surprised us before."
+    pronunciation: '/ˈbʌf.ər/ · BUF-fer'
+
+  - id: english:w06-prioritize
+    tier: core
+    front: prioritize
+    back: xếp thứ tự ưu tiên, chọn việc làm trước
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay dùng "prioritize A over B". Tiếng Anh-Anh viết "prioritise".'
+    example: 'We need to prioritize the security fix over the new dashboard this week.'
+    pronunciation: '/praɪˈɒr.ɪ.taɪz/ · pry-OR-i-tize'
+
+  - id: english:w06-dependency
+    tier: core
+    front: dependency
+    back: việc hoặc thành phần mà việc của mình phải chờ, phải dựa vào
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Khi lập kế hoạch: việc phải chờ team khác làm xong. Trong code: thư viện mà dự án dùng.'
+    example: "The mobile work has a dependency on the new auth API, so it can't start until week two."
+    pronunciation: '/dɪˈpen.dən.si/ · de-PEN-den-cy'
+
+  - id: english:w06-trade-off
+    tier: core
+    front: trade-off
+    back: sự đánh đổi, được cái này thì mất cái kia
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Cũng viết "tradeoff". Hay nói "the trade-off is…", "a trade-off between speed and quality".'
+    example: 'Caching makes the page faster, but the trade-off is that prices can be a minute out of date.'
+    pronunciation: '/ˈtreɪd.ɒf/ · TRADE-off'
+
+  - id: english:w06-push-back
+    tier: core
+    front: push back
+    back: dời lại (hạn, lịch); cũng có nghĩa là phản đối
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: '"push back the deadline" là dời hạn; "push back on a request" là phản đối yêu cầu. Danh từ: pushback.'
+    example: "If the API isn't ready, we'll have to push back the launch by a week."
+    pronunciation: '/ˌpʊʃ ˈbæk/ · push BACK'

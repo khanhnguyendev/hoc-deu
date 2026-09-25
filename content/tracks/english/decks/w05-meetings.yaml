@@ -1,0 +1,137 @@
+id: english:deck-w05-meetings
+kind: vocabulary
+week: 5
+topic: meetings
+title: { vi: 'Họp và thảo luận', en: 'Meetings and discussions' }
+cards:
+  - id: english:w05-agenda
+    tier: core
+    front: agenda
+    back: danh sách nội dung sẽ bàn trong cuộc họp
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Nhấn âm giữa: a-JEN-da. Hay nói "Is there an agenda?", "add it to the agenda".'
+    example: "I've added the API versioning question to the agenda for Thursday's meeting."
+    pronunciation: '/əˈdʒen.də/ · a-JEN-da'
+
+  - id: english:w05-action-item
+    tier: core
+    front: action item
+    back: đầu việc cụ thể, có người nhận, cần làm sau cuộc họp
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Một action item tốt có người phụ trách và hạn chót, ví dụ: "Nam to update the runbook by Friday."'
+    example: "Before we finish, let's go over the action items and who owns each one."
+    pronunciation: '/ˈæk.ʃən ˌaɪ.təm/ · AC-tion i-tem'
+
+  - id: english:w05-follow-up
+    tier: core
+    front: follow up
+    back: liên hệ lại hoặc làm tiếp sau một cuộc trao đổi
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Động từ viết tách: "I''ll follow up with the vendor." Danh từ và tính từ có gạch nối: a follow-up, a follow-up meeting.'
+    example: "I'll follow up with the security team and post their answer in the channel."
+    pronunciation: '/ˌfɒl.əʊ ˈʌp/ · fol-low UP'
+
+  - id: english:w05-circle-back
+    tier: core
+    front: circle back
+    back: quay lại bàn tiếp chuyện đó sau
+    usage:
+      pos: phrasal-verb
+      register: informal
+      note: 'Dùng khi muốn tạm gác một chủ đề: "Can we circle back to this next week?" Nghe hơi "văn phòng", đừng lạm dụng.'
+    example: "We don't have the numbers yet, so let's circle back once the load test is done."
+    pronunciation: '/ˌsɜː.kəl ˈbæk/ · cir-cle BACK'
+
+  - id: english:w05-on-the-same-page
+    tier: core
+    front: on the same page
+    back: hiểu giống nhau, thống nhất với nhau
+    usage:
+      pos: idiom
+      register: neutral
+      note: 'Hay dùng để chốt lại: "Just to make sure we''re on the same page, …".'
+    example: "Just to make sure we're on the same page: we're demoing on Friday, not releasing."
+    pronunciation: '/ɒn ðə ˌseɪm ˈpeɪdʒ/ · on the same PAGE'
+
+  - id: english:w05-loop-in
+    tier: core
+    front: loop in
+    back: kéo ai đó vào cuộc trao đổi để họ nắm thông tin
+    usage:
+      pos: phrasal-verb
+      register: informal
+      note: 'Cấu trúc "loop + người + in": "Let me loop in Trang." Liên quan: "keep me in the loop" (cập nhật cho tôi với).'
+    example: 'This affects billing too, so let me loop in Trang from the payments team.'
+    pronunciation: '/ˌluːp ˈɪn/ · loop IN'
+
+  - id: english:w05-heads-up
+    tier: core
+    front: heads-up
+    back: lời báo trước để người khác chuẩn bị
+    usage:
+      pos: noun
+      register: informal
+      note: 'Hay mở đầu tin nhắn bằng "Just a heads-up: …"; đáp lại: "Thanks for the heads-up."'
+    example: 'Just a heads-up: the staging database will be down for maintenance at 6 p.m.'
+    pronunciation: '/ˈhedz.ʌp/ · HEADS-up'
+
+  - id: english:w05-sync-up
+    tier: core
+    front: sync up
+    back: trao đổi nhanh để cập nhật và thống nhất với nhau
+    usage:
+      pos: phrasal-verb
+      register: informal
+      note: '"sync" đọc giống "sink". Danh từ: "a quick sync".'
+    example: 'Can we sync up for ten minutes after lunch to check the API contract?'
+    pronunciation: '/ˌsɪŋk ˈʌp/ · sink UP'
+
+  - id: english:w05-jump-in
+    tier: core
+    front: jump in
+    back: xen vào nói, góp lời
+    usage:
+      pos: phrasal-verb
+      register: informal
+      note: 'Cách xin nói lịch sự: "Can I jump in here?" Người chủ trì cũng dùng để mời: "Feel free to jump in."'
+    example: 'Sorry to jump in, but I think the timeout is set on the load balancer, not in the app.'
+    pronunciation: '/ˌdʒʌmp ˈɪn/ · jump IN'
+
+  - id: english:w05-youre-on-mute
+    tier: core
+    front: you're on mute
+    back: bạn đang tắt mic (mọi người không nghe thấy)
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Câu rất hay nghe trong họp online. Khi mình là người quên bật mic: "Sorry, I was on mute." Động từ: mute, unmute.'
+    example: "Hoa, you're on mute: we can see you talking but can't hear anything."
+    pronunciation: "/jɔːr ɒn ˈmjuːt/ · you're on MUTE"
+
+  - id: english:w05-hard-stop
+    tier: core
+    front: hard stop
+    back: giờ bắt buộc phải rời cuộc họp, không kéo dài thêm được
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Nên báo ngay từ đầu buổi họp: "I have a hard stop at 3."'
+    example: 'Just so you know, I have a hard stop at 4:30 for another call.'
+    pronunciation: '/ˌhɑːd ˈstɒp/ · hard STOP'
+
+  - id: english:w05-recap
+    tier: core
+    front: recap
+    back: phần tóm tắt nhanh những gì đã bàn
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Dùng được cả động từ: "Let me quickly recap." Sau họp hay gửi "a quick recap" qua email hoặc Slack.'
+    example: "I'll post a short recap in Slack with the decisions and action items."
+    pronunciation: '/ˈriː.kæp/ · REE-cap'

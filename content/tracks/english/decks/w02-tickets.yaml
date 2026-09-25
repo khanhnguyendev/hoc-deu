@@ -1,0 +1,336 @@
+id: english:deck-w02-tickets
+kind: vocabulary
+week: 2
+topic: tickets
+title: { vi: 'Ticket và báo lỗi', en: 'Tickets and bug reports' }
+cards:
+  - id: english:w02-file-a-bug
+    tier: core
+    front: file a bug
+    back: tạo ticket báo lỗi
+    usage:
+      pos: phrase
+      register: neutral
+      note: '"file" ở đây là động từ, nghĩa là tạo, gửi (không phải "tệp"). Cũng nói "file a ticket", "file an issue".'
+    example: 'Can you file a bug for the broken date picker and attach a screenshot?'
+    pronunciation: '/ˌfaɪl ə ˈbʌɡ/ · file a BUG'
+
+  - id: english:w02-reproduce
+    tier: core
+    front: reproduce
+    back: 'tái hiện lỗi (làm lỗi xảy ra lại để kiểm tra)'
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Bug report thường có mục "Steps to reproduce" (các bước làm lỗi xảy ra lại). Dân IT hay nói tắt "repro": "I can''t repro it."'
+    example: "I can't reproduce it on Chrome, but it happens every time on Safari."
+    pronunciation: '/ˌriː.prəˈdʒuːs/ · ree-pruh-DYOOS'
+
+  - id: english:w02-expected-behavior
+    tier: core
+    front: expected behavior
+    back: kết quả đúng, điều lẽ ra phải xảy ra
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường đi cặp với "actual behavior" (điều thực sự xảy ra) trong bug report. Tiếng Anh-Anh viết "behaviour".'
+    example: "The expected behavior is that the user stays logged in after a refresh, but right now they're sent back to the login page."
+    pronunciation: '/ɪkˈspek.tɪd bɪˈheɪ.vjər/ · ex-PEC-ted be-HAY-vyer'
+
+  - id: english:w02-severity
+    tier: core
+    front: severity
+    back: mức độ nghiêm trọng của lỗi
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Khác "priority": severity là lỗi nặng tới đâu, priority là cần sửa gấp tới đâu. Hay viết tắt: Sev 1, Sev 2…'
+    example: "I set the severity to high because users can't complete checkout."
+    pronunciation: '/sɪˈver.ə.ti/ · se-VER-i-ty'
+
+  - id: english:w02-priority
+    tier: core
+    front: priority
+    back: mức độ cần làm trước
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay thấy dạng P0, P1, P2 (P0 là gấp nhất; có nơi bắt đầu từ P1). "top priority" là việc phải làm trước tiên.'
+    example: "It's a real bug, but it only affects an internal report, so let's keep the priority low."
+    pronunciation: '/praɪˈɒr.ə.ti/ · pry-OR-i-ty'
+
+  - id: english:w02-triage
+    tier: core
+    front: triage
+    back: xem nhanh các ticket mới để phân loại và xếp mức ưu tiên
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Từ gốc y tế (phân loại bệnh nhân cấp cứu). Dùng được cả danh từ: "bug triage", "a triage meeting".'
+    example: 'We triage new bugs every Monday morning and assign them before planning.'
+    pronunciation: '/ˈtriː.ɑːʒ/ · TREE-ahzh'
+
+  - id: english:w02-workaround
+    tier: core
+    front: workaround
+    back: cách tạm thời để né lỗi khi chưa sửa được
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Danh từ viết liền (a workaround); động từ viết tách: "work around the issue".'
+    example: "There's a workaround for now: clear the cache and log in again."
+    pronunciation: '/ˈwɜː.kə.raʊnd/ · WORK-a-round'
+
+  - id: english:w02-regression
+    tier: core
+    front: regression
+    back: lỗi mới xuất hiện ở chỗ trước đây vẫn chạy đúng
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường do một thay đổi gần đây gây ra. "regression test" là test để bắt loại lỗi này.'
+    example: "The export button worked fine before, so this looks like a regression from last week's release."
+    pronunciation: '/rɪˈɡreʃ.ən/ · re-GRESH-un'
+
+  - id: english:w02-intermittent
+    tier: core
+    front: intermittent
+    back: lúc bị lúc không, không xảy ra đều đặn
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay đi với "issue", "error", "failure". Lỗi kiểu này khó tái hiện nên hãy ghi rõ tần suất, ví dụ "about once an hour".'
+    example: "We're seeing intermittent 502 errors on the upload API, roughly once an hour."
+    pronunciation: '/ˌɪn.təˈmɪt.ənt/ · in-ter-MIT-ent'
+
+  - id: english:w02-acceptance-criteria
+    tier: core
+    front: acceptance criteria
+    back: các điều kiện để ticket được coi là làm xong
+    usage:
+      pos: noun
+      register: neutral
+      note: '"criteria" là số nhiều (số ít: criterion). Thường viết thành gạch đầu dòng hoặc theo mẫu "Given… When… Then…".'
+    example: "Before I start, can we add acceptance criteria so it's clear whether the export needs both CSV and Excel?"
+    pronunciation: '/əkˈsep.təns kraɪˌtɪə.ri.ə/ · ac-CEP-tance cri-teer-i-a'
+
+  - id: english:w02-assign
+    tier: core
+    front: assign
+    back: giao (ticket, việc) cho ai
+    usage:
+      pos: verb
+      register: neutral
+      note: '"assign + việc + to + người"; bị động: "I''m assigned to…". Chữ g câm. Người được giao gọi là "assignee".'
+    example: "I'll assign the ticket to myself so nobody else starts on it."
+    pronunciation: '/əˈsaɪn/ · a-SIGN'
+
+  - id: english:w02-duplicate
+    tier: core
+    front: duplicate
+    back: ticket trùng với một ticket đã có
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng khi đóng ticket: "close as a duplicate of #123". Danh từ đọc /ˈdʒuː.plɪ.kət/, động từ đọc /ˈdʒuː.plɪ.keɪt/.'
+    example: "I'm closing this as a duplicate of the login timeout ticket, so let's track it there."
+    pronunciation: '/ˈdʒuː.plɪ.kət/ · DYOO-pli-kut'
+
+  - id: english:w02-stack-trace
+    tier: core
+    front: stack trace
+    back: 'danh sách các hàm đang được gọi tại thời điểm lỗi xảy ra'
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Dán nguyên văn vào ticket (trong code block), đừng chụp màn hình. Trong Python còn gọi là "traceback".'
+    example: 'Please paste the full stack trace into the ticket instead of a screenshot.'
+    pronunciation: '/ˈstæk ˌtreɪs/ · STACK trace'
+
+  - id: english:w02-user-story
+    tier: core
+    front: user story
+    back: mô tả một tính năng từ góc nhìn người dùng
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Mẫu quen thuộc: "As a <user>, I want <goal> so that <reason>." Thường đi kèm acceptance criteria.'
+    example: "Let's split this user story: exporting reports and scheduling them are two different pieces of work."
+    pronunciation: '/ˈjuː.zər ˌstɔː.ri/ · YOO-zer sto-ry'
+
+  - id: english:w02-backlog
+    tier: core
+    front: backlog
+    back: danh sách việc đang chờ làm của team
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Khi chưa làm ngay, hay nói "add it to the backlog". "product backlog" là việc của cả sản phẩm, "sprint backlog" là việc đã chọn cho sprint này.'
+    example: "It's a good idea but not urgent, so let's add it to the backlog and discuss it at planning."
+    pronunciation: '/ˈbæk.lɒɡ/ · BACK-log'
+
+  - id: english:w02-works-as-intended
+    tier: core
+    front: works as intended
+    back: chạy đúng như thiết kế, không phải lỗi
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Dùng khi đóng ticket vì không phải bug; cũng nói "works as designed". Nên giải thích thêm để người báo lỗi hiểu vì sao.'
+    example: "This works as intended because archived projects are hidden from search on purpose, but I'll make that clearer in the docs."
+    pronunciation: '/ˈwɜːks əz ɪnˈten.dɪd/ · WORKS as in-TEN-ded'
+
+  # Extended cards (tier: extended, Q5): after the core cards.
+  - id: english:w02-crash
+    tier: extended
+    front: crash
+    back: (ứng dụng) bị sập, tự thoát đột ngột
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng cho app hay tiến trình: "The app crashes when…". Cũng là danh từ: a crash; "crash report" là báo cáo app tự gửi về khi bị sập.'
+    example: 'The Android app crashes as soon as you rotate the screen on the payment page.'
+    pronunciation: '/kræʃ/ · CRASH'
+
+  - id: english:w02-error-message
+    tier: extended
+    front: error message
+    back: thông báo lỗi hiện ra (trên màn hình hoặc trong log)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong bug report nên chép nguyên văn, kể cả mã lỗi, vì người sửa sẽ tìm kiếm theo đúng chuỗi đó.'
+    example: 'Could you copy the exact error message into the ticket instead of describing it?'
+    pronunciation: '/ˈer.ər ˌmes.ɪdʒ/ · ER-ror mes-sage'
+
+  - id: english:w02-log
+    tier: extended
+    front: log
+    back: nhật ký hệ thống, nơi ứng dụng ghi lại những gì đã xảy ra
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng số nhiều: "check the logs", "attach the logs". Động từ "log" là ghi vào log: "log the request ID". Đừng nhầm với "log in" (đăng nhập).'
+    example: 'I checked the logs, and every failed request comes from the same API key.'
+    pronunciation: '/lɒɡ/ · LOG'
+
+  - id: english:w02-environment
+    tier: extended
+    front: environment
+    back: môi trường chạy phần mềm (local, staging, production…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Bug report nên ghi rõ environment: local, staging hay production, cùng trình duyệt, hệ điều hành, phiên bản app. Trong cấu hình hay viết tắt là "env".'
+    example: 'Which environment did you see this in, staging or production?'
+    pronunciation: '/ɪnˈvaɪ.rən.mənt/ · en-VY-ron-ment'
+
+  - id: english:w02-happy-path
+    tier: extended
+    front: happy path
+    back: luồng chạy bình thường, suôn sẻ, không gặp lỗi hay trường hợp đặc biệt
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Ngược với edge case và các luồng lỗi. Nếu chỉ test happy path thì rất dễ bỏ sót bug.'
+    example: 'The happy path works, but the form breaks when the user goes back and changes the address.'
+    pronunciation: '/ˈhæp.i ˌpɑːθ/ · HAP-py path'
+
+  - id: english:w02-impact
+    tier: extended
+    front: impact
+    back: mức ảnh hưởng (tới người dùng, hệ thống, doanh thu…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Bug report tốt nói rõ impact: bao nhiêu người dùng bị ảnh hưởng, có mất tiền hay mất dữ liệu không. Hay đi với "on": "impact on users".'
+    example: 'The impact is small because only admins use the old report page.'
+    pronunciation: '/ˈɪm.pækt/ · IM-pact'
+
+  - id: english:w02-reporter
+    tier: extended
+    front: reporter
+    back: người tạo ticket, người báo lỗi
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong Jira, ticket có "Reporter" (người báo) và "Assignee" (người được giao). Thiếu thông tin thì hỏi lại reporter, đừng tự đoán.'
+    example: "I've asked the reporter for a screen recording, because the steps in the ticket don't trigger the bug."
+    pronunciation: '/rɪˈpɔː.tər/ · re-POR-ter'
+
+  - id: english:w02-reopen
+    tier: extended
+    front: reopen
+    back: mở lại (ticket đã đóng) vì lỗi vẫn còn
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng khi lỗi quay lại hoặc bản sửa chưa đủ: "reopen the ticket". Viết liền, không gạch nối.'
+    example: "I'm reopening the ticket because the bug came back after yesterday's deploy."
+    pronunciation: '/ˌriːˈəʊ.pən/ · re-OH-pen'
+
+  - id: english:w02-wont-fix
+    tier: extended
+    front: won't fix
+    back: (trạng thái ticket) quyết định không sửa, dù có thể đúng là lỗi
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Một trạng thái đóng ticket trên Jira, GitHub: team chọn không sửa (ảnh hưởng nhỏ, tốn công, tính năng sắp bỏ…). Khác "works as intended" (vốn không phải lỗi). Nhớ ghi lý do khi đóng.'
+    example: "We're closing this as won't fix because the old dashboard is being removed next month."
+    pronunciation: "/ˌwəʊnt ˈfɪks/ · won't FIX"
+
+  - id: english:w02-narrow-down
+    tier: extended
+    front: narrow down
+    back: thu hẹp phạm vi, khoanh vùng (để tìm ra nguyên nhân)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Hay dùng khi dò lỗi: "narrow it down to…" (khoanh vùng lại còn…). Tân ngữ là đại từ thì đặt ở giữa: "narrow it down".'
+    example: "I've narrowed it down to one commit from last Thursday, so I'll check that diff next."
+    pronunciation: '/ˌnær.əʊ ˈdaʊn/ · nar-row DOWN'
+
+  - id: english:w02-timeout
+    tier: extended
+    front: timeout
+    back: lỗi quá thời gian chờ, khi yêu cầu không nhận được phản hồi kịp; cũng là thời gian chờ tối đa được cài đặt
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Danh từ viết liền (a timeout); động từ viết tách: "The request times out after 30 seconds." Hay gặp: "timeout error", "connection timeout".'
+    example: "We're getting timeouts from the payment provider whenever traffic goes above a thousand requests per minute."
+    pronunciation: '/ˈtaɪm.aʊt/ · TIME-out'
+
+  - id: english:w02-stale
+    tier: extended
+    front: stale
+    back: cũ, lâu không ai động tới hoặc không còn đúng với hiện tại
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Dùng cho ticket, PR lâu không có hoạt động ("a stale ticket") và cho dữ liệu cũ chưa cập nhật ("stale data", "a stale cache").'
+    example: "Let's close the stale tickets that nobody has touched for six months."
+    pronunciation: '/steɪl/ · STALE'
+
+  - id: english:w02-epic
+    tier: extended
+    front: epic
+    back: nhóm lớn gồm nhiều ticket cùng phục vụ một mục tiêu
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thuật ngữ Agile, Jira. Thứ bậc hay gặp trong Jira: epic > story/task > subtask. Không liên quan nghĩa "hoành tráng" trong văn nói.'
+    example: "Let's link these three tickets to the checkout redesign epic so we can track them together."
+    pronunciation: '/ˈep.ɪk/ · EP-ic'
+
+  - id: english:w02-flag
+    tier: extended
+    front: flag
+    back: báo lên, nêu ra (một vấn đề) để người khác chú ý
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay nói "flag an issue", "flag it to + người". Câu cảm ơn quen thuộc: "Thanks for flagging this!"'
+    example: 'QA flagged the missing translations before the release, so we fixed them in time.'
+    pronunciation: '/flæɡ/ · FLAG'

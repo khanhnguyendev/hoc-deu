@@ -1,0 +1,159 @@
+id: english:deck-w08-documentation
+kind: vocabulary
+week: 8
+topic: documentation
+title: { vi: 'Viết tài liệu kỹ thuật', en: 'Technical writing' }
+cards:
+  - id: english:w08-readme
+    tier: core
+    front: README
+    back: tệp giới thiệu ở thư mục gốc của repo, nói dự án là gì và cách cài, cách chạy
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Đọc là "read me". Nên có: mục đích, cách cài, cách chạy, cách test và người liên hệ.'
+    example: "I followed the README, but the setup script fails on Windows, so I'll add a note there."
+    pronunciation: '/ˈriːd.miː/ · READ-me'
+
+  - id: english:w08-prerequisite
+    tier: core
+    front: prerequisite
+    back: thứ cần có hoặc cần làm trước
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay là một mục trong tài liệu cài đặt: "Prerequisites: Node 22, Docker". Nhấn âm thứ hai: pre-REK.'
+    example: "Add Docker to the prerequisites, because the integration tests won't run without it."
+    pronunciation: '/ˌpriːˈrek.wɪ.zɪt/ · pree-REK-wi-zit'
+
+  - id: english:w08-deprecated
+    tier: core
+    front: deprecated
+    back: vẫn dùng được nhưng không nên dùng nữa, sẽ bị bỏ
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Khác "removed" (đã bỏ hẳn). Tài liệu tốt ghi rõ thay bằng gì: "deprecated in v2, use X instead". Đừng nhầm với "depreciated" (mất giá).'
+    example: 'This endpoint is deprecated, so please move to /v2/orders before v1 is removed in March.'
+    pronunciation: '/ˈdep.rə.keɪ.tɪd/ · DEP-re-cay-ted'
+
+  - id: english:w08-rationale
+    tier: core
+    front: rationale
+    back: lý do đằng sau một quyết định
+    usage:
+      pos: noun
+      register: formal
+      note: 'Hay là một mục trong design doc hoặc ADR. Nhấn âm cuối: ra-shuh-NAHL.'
+    example: 'Please add the rationale for choosing Postgres over MongoDB, not just the decision.'
+    pronunciation: '/ˌræʃ.əˈnɑːl/ · rash-uh-NAHL'
+
+  - id: english:w08-up-to-date
+    tier: core
+    front: up to date
+    back: đã cập nhật, đúng với hiện tại
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Đứng trước danh từ thì có gạch nối: up-to-date docs. Ngược lại: out of date, outdated.'
+    example: 'Is the deployment guide up to date, or does it still mention the old Jenkins server?'
+    pronunciation: '/ˌʌp tə ˈdeɪt/ · up to DATE'
+
+  - id: english:w08-troubleshooting
+    tier: core
+    front: troubleshooting
+    back: tìm và xử lý nguyên nhân khi có trục trặc
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường là một mục trong tài liệu, liệt kê lỗi hay gặp và cách xử lý. Động từ: troubleshoot.'
+    example: 'I added a troubleshooting section for the three most common install errors.'
+    pronunciation: '/ˈtrʌb.əlˌʃuː.tɪŋ/ · TRUB-le-shoot-ing'
+
+  - id: english:w08-known-issue
+    tier: core
+    front: known issue
+    back: lỗi đã biết nhưng chưa sửa, được ghi lại cho người dùng biết
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường có trong release notes, kèm cách né tạm thời (workaround).'
+    example: "We've listed slow PDF export for large reports as a known issue in the release notes."
+    pronunciation: '/ˌnəʊn ˈɪʃ.uː/ · known IS-sue'
+
+  - id: english:w08-concise
+    tier: core
+    front: concise
+    back: ngắn gọn mà vẫn đủ ý
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Lời khen hay gặp khi review tài liệu. Nhấn âm thứ hai: con-SICE.'
+    example: 'The new onboarding page is much more concise, so new hires can get through it in an hour.'
+    pronunciation: '/kənˈsaɪs/ · con-SICE'
+
+  - id: english:w08-caveat
+    tier: core
+    front: caveat
+    back: điểm cần lưu ý, hạn chế đi kèm
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng: "One caveat: …", "with a few caveats". Đọc KAV-ee-at.'
+    example: 'One caveat: the script only works on macOS and Linux, not on Windows.'
+    pronunciation: '/ˈkæv.i.æt/ · KAV-ee-at'
+
+  - id: english:w08-ie
+    tier: core
+    front: i.e.
+    back: tức là, nói cách khác
+    usage:
+      pos: abbreviation
+      register: formal
+      note: 'Dùng để nói rõ ý vừa nêu; còn "e.g." là để đưa ví dụ. Khi đọc to, thường nói "that is".'
+    example: 'Run the migration on the primary database only, i.e., not on the read replicas.'
+    pronunciation: '/ˌaɪˈiː/ · eye-EE'
+
+  - id: english:w08-design-doc
+    tier: core
+    front: design doc
+    back: tài liệu mô tả giải pháp kỹ thuật trước khi làm, để team góp ý
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường gồm: bối cảnh, mục tiêu, giải pháp, các phương án đã cân nhắc và rủi ro.'
+    example: 'Before we start on the new billing service, could you write a short design doc and share it for comments?'
+    pronunciation: '/dɪˈzaɪn ˌdɒk/ · de-SIGN doc'
+
+  - id: english:w08-audience
+    tier: core
+    front: audience
+    back: người đọc mà tài liệu hướng tới
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Câu hỏi đầu tiên khi viết tài liệu: "Who is the audience?" (người mới, team khác hay khách hàng).'
+    example: "The audience for this guide is new backend engineers, so don't assume they know our deploy tools."
+    pronunciation: '/ˈɔː.di.əns/ · AW-dee-ence'
+
+  - id: english:w08-changelog
+    tier: core
+    front: changelog
+    back: danh sách những thay đổi qua từng phiên bản
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường chia mục: Added, Changed, Fixed, Removed. Breaking change nên ghi lên đầu.'
+    example: "Don't forget to update the changelog, because the config format changed in this version."
+    pronunciation: '/ˈtʃeɪndʒ.lɒɡ/ · CHANGE-log'
+
+  - id: english:w08-tldr
+    tier: core
+    front: TL;DR
+    back: tóm tắt ngắn cho người không có thời gian đọc hết
+    usage:
+      pos: abbreviation
+      register: informal
+      note: 'Viết tắt của "too long; didn''t read". Hay đặt ở đầu tài liệu hoặc tin nhắn dài: "TL;DR: …".'
+    example: 'TL;DR: the migration is safe to run, but it takes about an hour on production.'
+    pronunciation: '/ˌtiː.el.diːˈɑːr/ · tee-el-dee-AR'

@@ -1,0 +1,82 @@
+# Week 1 (standup): the weekday practice block picks these in file order (§5.6).
+- id: english:ex-w01-fill-1
+  kind: fill-blank
+  week: 1
+  topic: standup
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: "The payment migration is on {{blank}} until the security team finishes its review, so I've picked up the refund bug instead."
+  answers: [hold, pause, ice]
+  hint: 'Cụm "on …" nghĩa là tạm dừng, để đó chưa làm tiếp.'
+
+- id: english:ex-w01-rewrite-1
+  kind: rewrite
+  week: 1
+  topic: standup
+  instruction:
+    vi: 'Viết lại cho rõ: đang chờ ai, chờ gì và trong lúc chờ sẽ làm gì'
+    en: 'Rewrite it clearly: who you are waiting on, for what, and what you will do in the meantime'
+  text: 'No progress on the payment ticket. Still waiting for them.'
+  sampleAnswers:
+    - "I'm still blocked on the payment ticket: I'm waiting on the finance team for the sandbox credentials, so I'll fix the small UI bugs in the meantime."
+    - "No update on the payment ticket yet, because the finance team hasn't sent the sandbox credentials. I've pinged them again, and I'm picking up the settings page until they reply."
+  rubric:
+    - 'Nói rõ đang chờ ai và chờ cái gì (thay cho "them")'
+    - 'Dùng đúng ít nhất một từ của tuần (blocked, waiting on, ping…)'
+    - 'Nêu việc sẽ làm trong lúc chờ, để team biết bạn vẫn đang có việc'
+
+- id: english:ex-w01-respond-1
+  kind: respond
+  week: 1
+  topic: standup
+  instruction:
+    vi: 'Viết cập nhật stand-up bất đồng bộ: hôm qua, hôm nay và vướng mắc'
+    en: 'Write your async stand-up update: yesterday, today and blockers'
+  text: 'Good morning! Async stand-up: what did you do yesterday, what will you do today, and is anything blocking you?'
+  sampleAnswers:
+    - "Yesterday I wrapped up the password reset flow and opened the PR. Today I'll address the review comments and then pick up the email template ticket. No blockers, but I'll be heads-down after lunch, so ping me if anything is urgent."
+    - "Yesterday I got sidetracked by a staging issue, so the search filters aren't done yet. Today I'll finish them and write the unit tests. One blocker: I'm still waiting on access to the analytics dashboard."
+  rubric:
+    - 'Đủ ba phần: hôm qua đã làm gì, hôm nay sẽ làm gì, có vướng mắc không'
+    - 'Đúng thì: quá khứ cho hôm qua, "will" hoặc "going to" cho hôm nay'
+    - 'Cụ thể (tên ticket, tính năng), mỗi phần một hai câu ngắn'
+
+- id: english:ex-w01-fill-2
+  kind: fill-blank
+  week: 1
+  topic: standup
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: "I'll check with the data team first and get {{blank}} to you on that by EOD."
+  answers: [back]
+  hint: 'Cụm "get … to someone" nghĩa là trả lời, liên lạc lại với ai sau.'
+
+- id: english:ex-w01-rewrite-2
+  kind: rewrite
+  week: 1
+  topic: standup
+  instruction:
+    vi: 'Viết lại cho lịch sự: hỏi tiến độ và thời điểm dự kiến xong'
+    en: 'Rewrite it politely: ask for the status and the ETA'
+  text: "Why isn't the orders API done yet? We need it now."
+  sampleAnswers:
+    - "Hi Nam, what's the ETA on the orders API? The mobile team is waiting on it to start testing, so even a rough date would help."
+    - "Hey Nam, quick question: is the orders API still on track for this week? We'd like to start the mobile integration as soon as it's ready."
+  rubric:
+    - 'Mở lời thân thiện, không trách móc ("Why isn''t…" nghe như đổ lỗi)'
+    - 'Hỏi cụ thể: ETA, hoặc có còn "on track" cho một mốc không'
+    - 'Nói vì sao bạn cần biết (ai đang chờ)'
+
+- id: english:ex-w01-respond-2
+  kind: respond
+  week: 1
+  topic: standup
+  instruction:
+    vi: 'Trả lời quản lý: tính năng có nguy cơ trễ vì team API đổi contract; nêu lý do và điều kiện để vẫn kịp'
+    en: 'Reply to your manager: the feature is at risk because the API team changed the contract; give the reason and what the date depends on'
+  text: 'Hi! Is the CSV export still on track for Friday?'
+  sampleAnswers:
+    - "It's at risk, unfortunately: the API team changed the response format on Tuesday. If they confirm the final format by Wednesday, we can still make Friday; otherwise it'll slip to next Tuesday. I'll get back to you on Wednesday afternoon."
+    - "Not for certain. It's at risk because the API contract changed this week and I have to update the parser. If the new format is confirmed tomorrow, Friday still works; if not, the realistic date is next Tuesday, and I'll flag it as soon as I know."
+  rubric:
+    - 'Trả lời thẳng câu hỏi trước: còn on track hay đang at risk'
+    - 'Nêu lý do ngắn gọn, không đổ lỗi cho người khác'
+    - 'Nói rõ kịp hay trễ phụ thuộc vào điều gì, nếu trễ thì sang ngày nào, và khi nào sẽ báo lại'
