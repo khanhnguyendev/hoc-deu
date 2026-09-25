@@ -255,6 +255,7 @@ const RESPOND = exercise({
   text: 'Can you review my PR before lunch?',
   sampleAnswers: ["Sure — I'll take a look before 12 and leave comments on the PR."],
   rubric: ['clear yes or no', 'a time', 'friendly tone'],
+  lang: { rubric: 'en' },
   status: 'active',
 })
 
@@ -269,6 +270,7 @@ const REWRITE = exercise({
     "Thanks for the PR! I think there's an issue in the retry logic — could you take a look?",
   ],
   rubric: ['polite opener', 'specific issue', 'clear ask'],
+  lang: { rubric: 'en' },
   status: 'active',
 })
 
@@ -308,6 +310,7 @@ export const promptItem = (patch?: ItemPatch<'prompt'>) =>
           en: 'Mock interview: solve one problem in 30 minutes and explain it aloud',
         },
         rubric: ['Nêu ý tưởng trước khi viết code', 'Phân tích độ phức tạp'],
+        lang: { rubric: 'vi' },
         minutes: 45,
         repeatable: true,
         status: 'active',
@@ -317,7 +320,7 @@ export const promptItem = (patch?: ItemPatch<'prompt'>) =>
     patch,
   )
 
-/** A weekly English prompt without its own length (the manifest's `estimates.prompt`). */
+/** A weekly English prompt without its own length (`estimates.prompt`); an English rubric. */
 export const weeklyPromptItem = (patch?: ItemPatch<'prompt'>) =>
   build(
     prompt(
@@ -331,6 +334,7 @@ export const weeklyPromptItem = (patch?: ItemPatch<'prompt'>) =>
           en: 'Record a one-minute stand-up update',
         },
         rubric: ['what you did', 'what you will do', 'one blocker'],
+        lang: { rubric: 'en' },
         repeatable: false,
         status: 'active',
       },

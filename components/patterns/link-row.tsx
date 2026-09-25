@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { Fragment } from 'react'
 import type * as React from 'react'
 
 export type LinkRowProps = {
@@ -16,7 +17,9 @@ export type LinkRowProps = {
 
 /**
  * A list row that is one link (DESIGN_SYSTEM §5, §9): at least 44 px tall, the whole row the
- * target, the global focus ring, a hover surface and a chevron. Item rows, related items.
+ * target, the global focus ring, a hover surface and a chevron. Item rows, related items. The
+ * `{' '}`s between the parts keep the link's accessible name as words ("Two Sum #1 Easy …");
+ * flex layout ignores them, and the " · " separators stay hidden from screen readers.
  */
 export function LinkRow({ href, title, titleLang, meta, badges, trailing }: LinkRowProps) {
   const facts = (meta ?? []).filter((part) => part !== null && part !== undefined && part !== '')
@@ -32,23 +35,37 @@ export function LinkRow({ href, title, titleLang, meta, badges, trailing }: Link
           {title}
         </span>
         {hasDetails && (
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            {facts.length > 0 && (
-              <span data-slot="link-row-meta">
-                {facts.map((part, index) => (
-                  // The facts are a fixed, ordered list: the index is their identity.
-                  <span key={index}>
-                    {index > 0 && <span aria-hidden="true"> · </span>}
-                    <span>{part}</span>
-                  </span>
-                ))}
-              </span>
-            )}
-            {badges}
-          </span>
+          <>
+            {' '}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              {facts.length > 0 && (
+                <span data-slot="link-row-meta">
+                  {facts.map((part, index) => (
+                    // The facts are a fixed, ordered list: the index is their identity. The spaces
+                    // sit between elements, not inside one: a name is trimmed per element.
+                    <Fragment key={index}>
+                      {index > 0 && (
+                        <>
+                          {' '}
+                          <span aria-hidden="true">·</span>{' '}
+                        </>
+                      )}
+                      <span>{part}</span>
+                    </Fragment>
+                  ))}
+                </span>
+              )}
+              {badges && <> {badges}</>}
+            </span>
+          </>
         )}
       </span>
-      {trailing && <span className="shrink-0">{trailing}</span>}
+      {trailing && (
+        <>
+          {' '}
+          <span className="shrink-0">{trailing}</span>
+        </>
+      )}
       <ChevronRight
         aria-hidden="true"
         strokeWidth={1.75}

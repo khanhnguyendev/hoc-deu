@@ -47,7 +47,7 @@ describe('exercise kinds', () => {
   it('parses the §3.5 examples as one exercises file', () => {
     const [first, second] = exercisesFileSchema.parse([fill, rewrite])
     expect(first).toEqual({ ...fill, status: 'active' })
-    expect(second).toEqual({ ...rewrite, status: 'active' })
+    expect(second).toEqual({ ...rewrite, lang: { rubric: 'vi' }, status: 'active' })
     expect(pathsOf({ ...rewrite, kind: 'respond', text: 'How was your weekend?' })).toEqual([])
   })
 
@@ -61,6 +61,16 @@ describe('exercise kinds', () => {
     expect(pathsOf({ ...rewrite, kind: 'respond', rubric: undefined })).toEqual(['rubric'])
     expect(pathsOf({ ...rewrite, sampleAnswers: [] })).toEqual(['sampleAnswers'])
     expect(pathsOf({ ...rewrite, answers: ['x'] })).toEqual([''])
+  })
+
+  it('a self-graded rubric names its language: Vietnamese unless it says English (M3-R5)', () => {
+    const english = exerciseSchema.parse({ ...rewrite, lang: { rubric: 'en' } })
+    expect(english.kind !== 'fill-blank' && english.lang).toEqual({ rubric: 'en' })
+    expect(pathsOf({ ...rewrite, kind: 'respond', lang: { rubric: 'fr' } })).toEqual([
+      'lang.rubric',
+    ])
+    // A fill-blank has no rubric, so no rubric language.
+    expect(pathsOf({ ...fill, lang: { rubric: 'en' } })).toEqual([''])
   })
 
   it('rejects an unknown kind, a bad ID and an empty file', () => {

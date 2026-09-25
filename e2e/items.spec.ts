@@ -113,6 +113,21 @@ test.describe(`${PAGE} interactions`, () => {
     )
   })
 
+  test('a row’s accessible name reads as words (title, facts, badges)', async ({ page }) => {
+    await page.goto(PAGE)
+    const row = page.locator('[data-slot="link-row"][href="/t/dsa/items/lc-0001"]').first()
+    await expect(row).toHaveAccessibleName('Two Sum #1 Easy Arrays & Hashing Đã kiểm thử')
+  })
+
+  test('an English rubric is marked lang="en" (M3-R5)', async ({ page }) => {
+    await page.goto(PAGE)
+    const prompt = page.getByRole('article', {
+      name: 'Ghi âm một bản cập nhật stand-up dài 1 phút',
+      exact: true,
+    })
+    await expect(prompt.getByRole('list', { name: 'Tiêu chí' })).toHaveAttribute('lang', 'en')
+  })
+
   test('every row is one link of at least 44 px', async ({ page }) => {
     await page.goto(PAGE)
     const rows = page.locator('[data-slot="link-row"]')

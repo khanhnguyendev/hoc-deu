@@ -447,11 +447,8 @@ export const vi = {
       tabs: 'Ngôn ngữ lời giải',
       label: 'Lời giải {language}',
     },
-    practice: {
-      title: 'Bài luyện tập',
-      /** Problem difficulty (`E` / `M` / `H`), always shown as text — never colour alone. */
-      difficulty: { E: 'Dễ', M: 'Trung bình', H: 'Khó' },
-    },
+    /** The practice card's label; its difficulty reads `items.difficulty` (M3-R3, one source). */
+    practice: { title: 'Bài luyện tập' },
     /** The accessible name of a fenced code block's scroll region; language names come from
      *  `onboarding.language` (one source). */
     codeBlock: { label: 'Đoạn code {language}', text: 'Đoạn văn bản' },

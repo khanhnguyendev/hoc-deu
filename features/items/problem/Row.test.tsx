@@ -16,6 +16,21 @@ describe('ProblemRow', () => {
     )
   })
 
+  it('has a readable accessible name: title, facts, badges and status as words', () => {
+    render(<ProblemRow item={premiumProblemItem()} state={null} href={HREF} showStatus />)
+    expect(
+      screen.getByRole('link', {
+        name: 'Encode and Decode Strings #271 Medium Arrays & Hashing Premium Chưa học',
+      }),
+    ).toBeTruthy()
+    render(<ProblemRow item={problemItem({ status: 'draft' })} state={null} href={HREF} />)
+    expect(
+      screen.getByRole('link', {
+        name: 'Two Sum #1 Easy Arrays & Hashing Đã kiểm thử Bản nháp',
+      }),
+    ).toBeTruthy()
+  })
+
   it('shows the verification icon for a visible note, with its label for screen readers', () => {
     render(<ProblemRow item={problemItem()} state={null} href={HREF} />)
     expect(within(screen.getByRole('link')).getByText('Đã kiểm thử').className).toContain('sr-only')

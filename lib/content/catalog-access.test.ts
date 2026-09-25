@@ -24,6 +24,7 @@ const prompt = (trackId: string, localId: string): CatalogItem<'prompt'> => ({
     week: 1,
     instruction: { vi: 'Ghi âm', en: 'Record' },
     rubric: [],
+    lang: { rubric: 'vi' },
     repeatable: false,
     status: 'active',
   },

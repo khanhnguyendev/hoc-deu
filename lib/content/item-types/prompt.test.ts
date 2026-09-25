@@ -27,10 +27,23 @@ function pathsOf(input: unknown): string[] {
 
 describe('promptSchema', () => {
   it('parses a repeatable prompt and a weekly one', () => {
-    expect(promptSchema.parse(mockInterview)).toEqual({ ...mockInterview, status: 'active' })
+    expect(promptSchema.parse(mockInterview)).toEqual({
+      ...mockInterview,
+      lang: { rubric: 'vi' },
+      status: 'active',
+    })
     expect(promptsFileSchema.parse([weekendTask])).toEqual([
-      { ...weekendTask, rubric: [], repeatable: false, status: 'active' },
+      { ...weekendTask, rubric: [], lang: { rubric: 'vi' }, repeatable: false, status: 'active' },
     ])
+  })
+
+  it('names the rubric language: Vietnamese unless it says English (M3-R5, WCAG 3.1.2)', () => {
+    expect(promptSchema.parse(weekendTask).lang).toEqual({ rubric: 'vi' })
+    expect(promptSchema.parse({ ...weekendTask, lang: { rubric: 'en' } }).lang).toEqual({
+      rubric: 'en',
+    })
+    expect(pathsOf({ ...weekendTask, lang: { rubric: 'fr' } })).toEqual(['lang.rubric'])
+    expect(pathsOf({ ...weekendTask, lang: { rubric: 'en', front: 'en' } })).toEqual(['lang'])
   })
 
   it('has a week exactly when it is not repeatable', () => {

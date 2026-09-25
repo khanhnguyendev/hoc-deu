@@ -22,6 +22,22 @@ describe('LinkRow', () => {
     }
   })
 
+  it('reads as words: the accessible name keeps the spaces the hidden separators sit between', () => {
+    render(
+      <LinkRow
+        href="/t/dsa/items/lc-0001"
+        title="Two Sum"
+        titleLang="en"
+        meta={['#1', 'Easy', 'Arrays & Hashing']}
+        badges={<span>Premium</span>}
+        trailing={<span>Chưa học</span>}
+      />,
+    )
+    expect(
+      screen.getByRole('link', { name: 'Two Sum #1 Easy Arrays & Hashing Premium Chưa học' }),
+    ).toBeTruthy()
+  })
+
   it('marks the title language and joins the meta with hidden separators', () => {
     render(<LinkRow href="/x" title="Two Sum" titleLang="en" meta={['#1', 'Easy']} />)
     const link = screen.getByRole('link')

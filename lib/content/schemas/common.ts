@@ -22,6 +22,15 @@ export const nonEmptyText = z.string().trim().min(1)
 export const localizedTextSchema = z.strictObject({ vi: nonEmptyText, en: nonEmptyText })
 export type LocalizedText = z.infer<typeof localizedTextSchema>
 
+/**
+ * The language of a prompt's or self-graded exercise's rubric (M3-R5, WCAG 3.1.2), in the deck
+ * `lang` pattern: Vietnamese unless the file says `lang: { rubric: en }`. The page marks an
+ * English rubric `lang="en"`.
+ */
+export const rubricLangSchema = z
+  .strictObject({ rubric: z.enum(['en', 'vi']) })
+  .default({ rubric: 'vi' })
+
 /** Links in content are `https:` only (§3.6 MDX safety applies the same rule to MDX). */
 export const httpsUrlSchema = z.url({ protocol: /^https$/, error: 'must be an https: URL' })
 

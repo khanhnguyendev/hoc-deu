@@ -2308,11 +2308,12 @@ export const CATALOG: Entry[] = [
     file: 'features/items/components/rubric-list.tsx',
     demos: [
       {
-        title: 'Tiêu chí tiếng Anh (lang="en") và tiếng Việt',
+        title: 'Tiêu chí tiếng Anh (lang="en"), tiếng Việt (mặc định), tiêu đề h3',
         render: () => (
           <div className="flex flex-col gap-6">
             <RubricList items={['polite opener', 'specific issue', 'clear ask']} lang="en" />
             <RubricList items={['Nêu ý tưởng trước khi viết code', 'Phân tích độ phức tạp']} />
+            <RubricList items={['Nói rõ khi nào xong']} headingLevel={3} />
           </div>
         ),
       },
@@ -2378,6 +2379,7 @@ export const CATALOG: Entry[] = [
                 text={content.text}
                 sampleAnswers={content.sampleAnswers}
                 rubric={content.rubric}
+                rubricLang={content.lang.rubric}
               />
             </div>
           )

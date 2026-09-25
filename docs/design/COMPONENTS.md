@@ -452,8 +452,10 @@ from `lib/i18n/vi.ts`.
 - **States:** default, hover (`surface-muted`), focus-visible (global ring)
 - **Usage:** `<LinkRow href={itemHref(item)} title="Two Sum" titleLang="en" meta={['#1', 'Easy']}
   trailing={<StatusPill status="not-started" />} />` — every item Row, RelatedItems
-- **Accessibility:** the whole row is one `next/link` (`min-h-11`, ≥ 44 px); the title carries
-  `lang` for English content; the " · " separators are `aria-hidden`; the chevron is decorative
+- **Accessibility:** the whole row is one `next/link` (`min-h-11`, ≥ 44 px); its accessible name
+  reads as words ("Two Sum #1 Easy Arrays & Hashing Chưa học"): spaces sit between the parts,
+  outside the `aria-hidden` "·" separators; the title carries `lang` for English content; the
+  chevron is decorative
 
 ### LoadingState
 
@@ -950,8 +952,9 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 - **States:** default, hover (`shadow-sm`), focus-visible
 - **Usage:** rendered by the bound `<Practice problem="dsa:lc-0015" />`
   (`mdxComponentsFor`; an unknown ID renders nothing)
-- **Accessibility:** one link wrapping a Card: "Bài luyện tập", `#15`, the title in `lang="en"`
-  and the difficulty as text ("Dễ" / "Trung bình" / "Khó") on a soft Badge
+- **Accessibility:** one link wrapping a Card, named as words ("Bài luyện tập #15 3Sum Medium"):
+  the title in `lang="en"` and the difficulty as the one DifficultyBadge ("Easy" / "Medium" /
+  "Hard", M3-R3 — text, never colour alone)
 
 ### Quiz
 
@@ -1015,10 +1018,12 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 
 - **Layer:** feature (`features/items`, server-compatible)
 - **File:** `features/items/components/mdx/external-link.tsx`
-- **Props:** `a` props (`href`, `children`)
-- **Variants:** an `https:` link · anything else renders as plain text (fail closed)
+- **Props:** `a` props (`href`, `children`); `className` (code only — Markdown cannot set it)
+  replaces the inline link style
+- **Variants:** an `https:` link · anything else renders as plain text (fail closed) · with a
+  `className`, e.g. `buttonVariants(…)` for ProblemPage's "Mở trên LeetCode" and free alternatives
 - **States:** default, hover (`primary-hover`), focus-visible
-- **Usage:** the MDX `a` override: `[bài viết](https://…)`
+- **Usage:** the MDX `a` override: `[bài viết](https://…)`; any link that leaves the app
 - **Accessibility:** `target="_blank" rel="noopener noreferrer"`; the icon is `aria-hidden` and a
   visually hidden "(mở trong tab mới)" is part of the name
 
@@ -1055,8 +1060,8 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **States:** static
 - **Usage:** `<DifficultyBadge difficulty="M" />`, `{problem.premium && <PremiumBadge />}`
 - **Accessibility:** the difficulty is text on the badge, never colour alone; the lock is
-  decorative. (PracticeCard still labels difficulty in Vietnamese — "Dễ" / "Trung bình" / "Khó",
-  task 3.3b.)
+  decorative. The one source of difficulty labels (M3-R3): PracticeCard and the Rows' meta read
+  `vi.items.difficulty` too
 
 ### VerificationBadge
 
@@ -1092,7 +1097,9 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
   it — a flashcard's front), `description?`, `actions?`, `meta?: ReactNode[]` (facts; empty ones
   dropped), `children`
 - **Variants:** with / without title, facts
-- **States:** draft / retired notice at the top; active: none
+- **States:** draft / retired notice at the top; active: none. **It owns the notice (M3-R4):** the
+  Page passes `item.status`, so the item route (3.4b's `ItemView`) renders no banner of its own —
+  it wraps the Page and adds only its back link
 - **Usage:** every item Page: `<ItemPageFrame status={item.status} title={…} meta={[…]}>…</ItemPageFrame>`
 - **Accessibility:** one `h1` per page (PageHeader); the notice comes first in reading order
 
@@ -1112,11 +1119,15 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 
 - **Layer:** feature (`features/items`, server-compatible)
 - **File:** `features/items/components/rubric-list.tsx`
-- **Props:** `items: readonly string[]`, `lang?: 'en'`
-- **Variants:** English criteria (`lang="en"`, exercises) · Vietnamese (prompts)
+- **Props:** `items: readonly string[]`, `lang?: 'en' | 'vi'` (the content's `lang.rubric`,
+  default `vi`, M3-R5), `headingLevel?: 2 | 3` (default 2)
+- **Variants:** an English rubric (`lang="en"` on the list) · a Vietnamese one (the page's
+  language, no attribute) — whichever the prompt or exercise declares
 - **States:** empty → nothing
-- **Usage:** `<RubricList items={prompt.rubric} />`; inside SelfGradedExercise with `lang="en"`
-- **Accessibility:** an `h2` "Tiêu chí" names the list (`aria-labelledby`); check icons decorative
+- **Usage:** `<RubricList items={prompt.rubric} lang={prompt.lang.rubric} />`; inside
+  SelfGradedExercise's sample-answers panel with `headingLevel={3}`
+- **Accessibility:** a heading "Tiêu chí" names the list (`aria-labelledby`); the list carries the
+  rubric's language (WCAG 3.1.2); check icons decorative
 
 ### FlashcardView
 
@@ -1152,15 +1163,16 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/self-graded-exercise.tsx`
-- **Props:** `text: string`, `sampleAnswers: readonly string[]`, `rubric: readonly string[]`
+- **Props:** `text: string`, `sampleAnswers: readonly string[]`, `rubric: readonly string[]`,
+  `rubricLang?: 'en' | 'vi'` (`lang.rubric`, default `vi`)
 - **Variants:** respond · rewrite (same component)
 - **States:** answering; samples hidden / shown ("Xem câu trả lời mẫu" / "Ẩn câu trả lời mẫu");
   what the learner typed stays. Self-grading ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2
 - **Usage:** `<SelfGradedExercise text={ex.text} sampleAnswers={ex.sampleAnswers}
   rubric={ex.rubric} />` (ExercisePage)
 - **Accessibility:** the text is a `lang="en"` blockquote; the Textarea is labelled "Câu trả lời của
-  bạn" and described by "Câu trả lời không được lưu."; sample answers and rubric are `lang="en"`
-  lists named by their headings
+  bạn" and described by "Câu trả lời không được lưu."; the sample answers are a `lang="en"` list
+  under an `h2`, the rubric (in its own language) under an `h3`
 
 ## Item types
 
@@ -1190,8 +1202,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
   "Bản nháp"; a retired note shows with "Đã ngừng"; an unloaded body reads as no note
 - **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b)
 - **Accessibility:** the `h1` is the English title in `lang="en"`; "Mở trên LeetCode" and the
-  alternatives are 44 px links opening a new tab (`rel="noopener noreferrer"`, "(mở trong tab
-  mới)"); `#1`, difficulty and topic are text
+  alternatives are ExternalLinks styled as 44 px buttons (https only, new tab,
+  `rel="noopener noreferrer"`, "(mở trong tab mới)"); `#1`, difficulty and topic are text
 
 ### ProblemRow
 
@@ -1251,8 +1263,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Layer:** feature (`features/items`, server; renders client exercises)
 - **File:** `features/items/exercise/Page.tsx`
 - **Props:** `ItemPageProps<'exercise'>` (no `data`)
-- **Variants:** fill-blank → FillBlankExercise · respond / rewrite → SelfGradedExercise; kind badge
-  ("Điền từ" / "Trả lời" / "Viết lại")
+- **Variants:** fill-blank → FillBlankExercise · respond / rewrite → SelfGradedExercise (the rubric
+  in `lang.rubric`); kind badge ("Điền từ" / "Trả lời" / "Viết lại")
 - **States:** see the two exercise components
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one below in `lang="en"`
@@ -1273,7 +1285,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **File:** `features/items/prompt/Page.tsx`
 - **Props:** `ItemPageProps<'prompt'>` (no `data`)
 - **Variants:** tag badge (`vi.template.tags`; an unknown tag shows its ID) · minutes (its own, else
-  `estimates.prompt`) · RubricList when the rubric is not empty
+  `estimates.prompt`, for `context.mode` — the same as its Row for that mode) · RubricList in
+  `lang.rubric` when the rubric is not empty
 - **States:** static (completion is recorded from task 5.2)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one in `lang="en"`

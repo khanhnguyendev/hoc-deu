@@ -13,6 +13,20 @@ describe('ExternalLink', () => {
     expect(screen.getByText('(mở trong tab mới)').className).toContain('sr-only')
   })
 
+  it('takes a className (code only) that replaces the inline link style', () => {
+    render(
+      <ExternalLink
+        href="https://leetcode.com/problems/two-sum/"
+        className="rounded-md border border-border-strong"
+      >
+        Mở trên LeetCode
+      </ExternalLink>,
+    )
+    const link = screen.getByRole('link', { name: 'Mở trên LeetCode (mở trong tab mới)' })
+    expect(link.className).toBe('rounded-md border border-border-strong')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+
   it.each(['javascript:alert(1)', 'http://x.test/', '/relative', undefined])(
     'renders %s as plain text, never a link (fail closed)',
     (href) => {

@@ -1,11 +1,11 @@
-import { ExternalLink as ExternalLinkIcon, NotebookPen } from 'lucide-react'
-import type * as React from 'react'
+import { NotebookPen } from 'lucide-react'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { buttonVariants } from '@/components/ui/button'
 import { vi } from '@/lib/i18n/vi'
 import { DifficultyBadge, PremiumBadge } from '../components/difficulty-badge'
 import { ItemPageFrame } from '../components/item-page-frame'
 import { ItemStatusBadge } from '../components/item-status-badge'
+import { ExternalLink } from '../components/mdx/external-link'
 import { CONTENT_FLOW } from '../components/mdx/typography'
 import { RelatedItems } from '../components/related-items'
 import { VerificationBadge } from '../components/verification-badge'
@@ -17,29 +17,8 @@ import { isNoteVisible } from './note'
 
 const copy = vi.items.problem
 
-/** A link that leaves the app: a new tab, safely, saying so to screen readers; 44 px tall. */
-function OutboundLink({
-  href,
-  variant,
-  children,
-}: {
-  href: string
-  variant: 'outline' | 'link'
-  children: React.ReactNode
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={buttonVariants({ variant, size: 'md' })}
-    >
-      {children}
-      <ExternalLinkIcon aria-hidden="true" strokeWidth={1.75} />
-      <span className="sr-only">{vi.content.newTab}</span>
-    </a>
-  )
-}
+/** A link that leaves the app as a 44 px button (ExternalLink: https only, new tab, said so). */
+const outbound = (variant: 'outline' | 'link') => buttonVariants({ variant, size: 'md' })
 
 /**
  * A problem (§3.5): `#leetcode`, the English title, difficulty, topic, "Mở trên LeetCode"; a
@@ -67,9 +46,9 @@ export function ProblemPage({ item, viewer, data, resolveItem }: ItemPageProps<'
       status={item.status}
       title={<span lang="en">{problem.title}</span>}
       actions={
-        <OutboundLink href={problem.url} variant="outline">
+        <ExternalLink href={problem.url} className={outbound('outline')}>
           {copy.openOnLeetCode}
-        </OutboundLink>
+        </ExternalLink>
       }
       meta={[
         <span key="number" className="font-mono">
@@ -84,9 +63,9 @@ export function ProblemPage({ item, viewer, data, resolveItem }: ItemPageProps<'
         <div className="flex flex-wrap items-center gap-x-1 gap-y-0">
           <span className="text-sm font-medium">{copy.freeAlternatives}</span>
           {problem.alternatives.map((alternative) => (
-            <OutboundLink key={alternative.url} href={alternative.url} variant="link">
+            <ExternalLink key={alternative.url} href={alternative.url} className={outbound('link')}>
               {alternative.label}
-            </OutboundLink>
+            </ExternalLink>
           ))}
         </div>
       )}

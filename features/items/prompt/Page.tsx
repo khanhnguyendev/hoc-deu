@@ -9,12 +9,13 @@ import { promptTagLabel } from './tag'
 
 /**
  * A prompt (§3.5): the Vietnamese instruction as the `h1`, the English one in `lang="en"`, its tag
- * and minutes (its own, else the manifest's estimate), and the rubric. Completion is recorded from
- * task 5.2.
+ * and minutes (its own, else the manifest's estimate), and the rubric in its language
+ * (`lang.rubric`, M3-R5). Completion is recorded from task 5.2.
  */
-export function PromptPage({ item }: ItemPageProps<'prompt'>) {
+export function PromptPage({ item, context }: ItemPageProps<'prompt'>) {
   const prompt = item.content
-  const minutes = minutesOf(promptType, item) ?? prompt.minutes ?? null
+  // The same minutes as the Row for the same mode (`context.mode`, as `PromptRow`'s `mode`).
+  const minutes = minutesOf(promptType, item, context.mode) ?? prompt.minutes ?? null
   return (
     <ItemPageFrame
       status={item.status}
@@ -27,7 +28,7 @@ export function PromptPage({ item }: ItemPageProps<'prompt'>) {
         minutes === null ? null : formatMinutes(minutes),
       ]}
     >
-      <RubricList items={prompt.rubric} />
+      <RubricList items={prompt.rubric} lang={prompt.lang.rubric} />
     </ItemPageFrame>
   )
 }

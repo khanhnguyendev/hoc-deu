@@ -284,9 +284,6 @@ const USED = [
   'content.solution.tabs',
   'content.solution.label',
   'content.practice.title',
-  'content.practice.difficulty.E',
-  'content.practice.difficulty.M',
-  'content.practice.difficulty.H',
   'content.task.done',
   'content.task.todo',
   'content.codeBlock.label',
@@ -398,7 +395,9 @@ describe('lib/i18n/vi.ts', () => {
   })
 
   it('names the item-type copy of task 3.4a', () => {
+    // M3-R3: LeetCode's difficulty terms, one source (the practice card reads it too).
     expect(vi.items.difficulty).toEqual({ E: 'Easy', M: 'Medium', H: 'Hard' })
+    expect(vi.content.practice).toEqual({ title: 'Bài luyện tập' })
     expect(vi.items.verification.tested).toBe('Đã kiểm thử')
     expect(vi.items.verification.compileOnly).toBe('Chỉ biên dịch')
     expect(vi.items.problem).toMatchObject({

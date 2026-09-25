@@ -20,13 +20,10 @@ export function ProblemRow({ item, state, href, showStatus }: ItemRowProps<'prob
       title={problem.title}
       titleLang="en"
       meta={[`#${problem.leetcode}`, vi.items.difficulty[problem.difficulty], topicTitleOf(item)]}
-      badges={rowBadges(
-        item.status,
-        <>
-          {problem.premium && <PremiumBadge />}
-          {note !== null && <VerificationBadge verification={note.verification} variant="icon" />}
-        </>,
-      )}
+      badges={rowBadges(item.status, [
+        problem.premium && <PremiumBadge />,
+        note !== null && <VerificationBadge verification={note.verification} variant="icon" />,
+      ])}
       trailing={rowStatus(state, showStatus)}
     />
   )

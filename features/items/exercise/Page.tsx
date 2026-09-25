@@ -30,6 +30,7 @@ export function ExercisePage({ item }: ItemPageProps<'exercise'>) {
           text={exercise.text}
           sampleAnswers={exercise.sampleAnswers}
           rubric={exercise.rubric}
+          rubricLang={exercise.lang.rubric}
         />
       )}
     </ItemPageFrame>

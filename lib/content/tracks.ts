@@ -7,6 +7,12 @@ import 'server-only'
 import { getCatalog } from './catalog'
 import type { TrackManifest } from './schemas/manifest'
 
+/**
+ * A track by id, including `draft` and `retired` ones, or `null` when it does not exist: the
+ * catalog's own lookup, not a second scan.
+ */
+export { getTrack } from './catalog'
+
 /** Every track, drafts and retired ones included, sorted by ID. */
 export function loadTracks(): readonly TrackManifest[] {
   return getCatalog().tracks
@@ -15,9 +21,4 @@ export function loadTracks(): readonly TrackManifest[] {
 /** Tracks with `status: active` — the only ones a learner may enroll in. */
 export function activeTracks(): readonly TrackManifest[] {
   return loadTracks().filter((track) => track.status === 'active')
-}
-
-/** A track by id, including `draft` and `retired` ones, or `null` when it does not exist. */
-export function getTrack(id: string): TrackManifest | null {
-  return loadTracks().find((track) => track.id === id) ?? null
 }

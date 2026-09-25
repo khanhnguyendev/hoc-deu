@@ -9,6 +9,7 @@ import {
   localizedTextSchema,
   nonEmptyText,
   provenanceShape,
+  rubricLangSchema,
   whenFieldsValid,
 } from '../schemas/common'
 import { LOCAL_ID_PREFIX, prefixedItemIdSchema, slugSchema } from '../schemas/ids'
@@ -53,6 +54,8 @@ const writtenFields = {
   ...common,
   sampleAnswers: z.array(nonEmptyText).min(1),
   rubric: z.array(nonEmptyText).min(1),
+  /** The rubric's language (M3-R5): `vi` unless set; sample answers are always English. */
+  lang: rubricLangSchema,
 }
 
 export const exerciseSchema = z.discriminatedUnion('kind', [

@@ -35,6 +35,19 @@ describe('ExercisePage', () => {
     expect(screen.getByText(sample)).toBeTruthy()
   })
 
+  it.each([
+    ['en', 'en'],
+    ['vi', null],
+  ] as const)(
+    'passes the rubric language %s to the samples panel (M3-R5)',
+    async (rubric, attribute) => {
+      const user = userEvent.setup()
+      render(<ExercisePage {...pagePropsFor(rewriteItem({ content: { lang: { rubric } } }))} />)
+      await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
+      expect(screen.getByRole('list', { name: 'Tiêu chí' }).getAttribute('lang')).toBe(attribute)
+    },
+  )
+
   it('a draft exercise starts with the draft notice', () => {
     const { container } = render(
       <ExercisePage {...pagePropsFor(fillBlankItem({ status: 'draft' }), { viewer: ADMIN })} />,

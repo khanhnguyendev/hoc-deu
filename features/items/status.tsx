@@ -2,6 +2,7 @@
  * The parts every Row shares (§3.3, DESIGN_SYSTEM §3.3): the "Bản nháp" / "Đã ngừng" badge and,
  * with `showStatus`, the learner's status pill ("Chưa học" until item state exists).
  */
+import { Fragment } from 'react'
 import type * as React from 'react'
 import { StatusPill, type PillStatus } from '@/components/patterns/status-pill'
 import type { ItemStatus } from '@/lib/content/schemas/common'
@@ -18,12 +19,22 @@ export function rowStatus(state: ItemStateView | null, showStatus = false): Reac
   return showStatus ? <StatusPill status={pillStatusOf(state)} /> : undefined
 }
 
-/** `badges` for a Row's LinkRow: the type's own badges, then the item-status badge. */
-export function rowBadges(status: ItemStatus, own?: React.ReactNode): React.ReactNode {
-  return (
-    <>
-      {own}
-      <ItemStatusBadge status={status} />
-    </>
+/**
+ * `badges` for a Row's LinkRow: the type's own badges (falsy ones dropped), then the item-status
+ * badge — separated by spaces, so the row's accessible name reads them as words.
+ */
+export function rowBadges(
+  status: ItemStatus,
+  own: readonly React.ReactNode[] = [],
+): React.ReactNode {
+  const badges = [...own, <ItemStatusBadge key="status" status={status} />].filter(
+    (badge) => badge !== null && badge !== undefined && badge !== false,
   )
+  return badges.map((badge, index) => (
+    // A fixed, ordered list: the position is its identity.
+    <Fragment key={index}>
+      {index > 0 && ' '}
+      {badge}
+    </Fragment>
+  ))
 }

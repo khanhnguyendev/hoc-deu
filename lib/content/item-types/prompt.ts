@@ -9,6 +9,7 @@ import {
   localizedTextSchema,
   nonEmptyText,
   provenanceShape,
+  rubricLangSchema,
   whenFieldsValid,
 } from '../schemas/common'
 import { LOCAL_ID_PREFIX, prefixedItemIdSchema, slugSchema } from '../schemas/ids'
@@ -21,6 +22,8 @@ export const promptSchema = z
     week: z.number().int().positive().optional(),
     instruction: localizedTextSchema,
     rubric: z.array(nonEmptyText).default([]),
+    /** The rubric's language (M3-R5): `vi` unless set. */
+    lang: rubricLangSchema,
     /** The prompt's own length; `estimates.prompt` otherwise. */
     minutes: z.number().int().positive().optional(),
     repeatable: z.boolean().default(false),

@@ -6,13 +6,14 @@ import { SelfGradedExercise } from './self-graded-exercise'
 const SAMPLE =
   "Thanks for the PR! I think there's an issue in the retry logic — could you take a look?"
 
-function setup() {
+function setup(rubricLang: 'en' | 'vi' = 'en') {
   const user = userEvent.setup()
   const view = render(
     <SelfGradedExercise
       text="Your PR is wrong. Fix it."
       sampleAnswers={[SAMPLE]}
       rubric={['polite opener', 'specific issue', 'clear ask']}
+      rubricLang={rubricLang}
     />,
   )
   return { user, ...view }
@@ -41,9 +42,19 @@ describe('SelfGradedExercise (respond / rewrite)', () => {
     const rubric = screen.getByRole('list', { name: 'Tiêu chí' })
     expect(within(rubric).getAllByRole('listitem')).toHaveLength(3)
     expect(rubric.getAttribute('lang')).toBe('en')
+    // The rubric sits inside the sample-answers panel: an h3 under its h2.
+    expect(screen.getByRole('heading', { level: 2, name: 'Câu trả lời mẫu' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'Tiêu chí' })).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Ẩn câu trả lời mẫu' }))
     expect(screen.queryByText(SAMPLE)).toBeNull()
+  })
+
+  it('a Vietnamese rubric (the schema default) keeps the page language (M3-R5)', async () => {
+    const { user } = setup('vi')
+    await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
+    expect(screen.getByRole('list', { name: 'Tiêu chí' }).hasAttribute('lang')).toBe(false)
+    expect(screen.getByText(SAMPLE).closest('[lang]')?.getAttribute('lang')).toBe('en')
   })
 
   it('keeps what the learner typed when the samples open and close', async () => {

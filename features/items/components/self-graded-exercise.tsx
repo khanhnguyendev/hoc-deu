@@ -13,16 +13,20 @@ const copy = vi.items.exercise
 /**
  * A respond / rewrite exercise (§3.5): the English text, a labelled answer box ("Câu trả lời
  * không được lưu." — nothing is stored), and "Xem câu trả lời mẫu" revealing the sample answers
- * (`lang="en"`) and the rubric. Self-grading ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2.
+ * (`lang="en"`) and the rubric (in `rubricLang`, M3-R5; an `h3` inside the panel). Self-grading
+ * ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2.
  */
 function SelfGradedExercise({
   text,
   sampleAnswers,
   rubric,
+  rubricLang = 'vi',
 }: {
   text: string
   sampleAnswers: readonly string[]
   rubric: readonly string[]
+  /** The rubric's language (`lang.rubric`, default `vi`). */
+  rubricLang?: 'en' | 'vi'
 }) {
   const [open, setOpen] = useState(false)
   const answerId = useId()
@@ -75,7 +79,7 @@ function SelfGradedExercise({
                 ))}
               </ul>
             </div>
-            <RubricList items={rubric} lang="en" />
+            <RubricList items={rubric} lang={rubricLang} headingLevel={3} />
           </div>
         )}
       </div>

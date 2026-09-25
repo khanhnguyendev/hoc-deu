@@ -1,16 +1,24 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getCatalog } from './catalog'
+import * as catalog from './catalog'
 import type { Catalog } from './catalog-types'
 import type { TrackManifest } from './schemas/manifest'
 import { activeTracks, getTrack, loadTracks } from './tracks'
 
-// A fixture catalog when a test sets one; the generated catalog otherwise.
+// A fixture catalog when a test sets one; the generated catalog otherwise. Both lookups the
+// catalog module offers follow it, so `getTrack` can be the catalog's own.
 const fixture = vi.hoisted(() => ({ catalog: null as Catalog | null }))
 vi.mock('./catalog', async (importOriginal) => {
   const real = await importOriginal<typeof import('./catalog')>()
-  return { ...real, getCatalog: () => fixture.catalog ?? real.getCatalog() }
+  const { createCatalogAccess } = await import('./catalog-access')
+  const fixtureAccess = () =>
+    fixture.catalog === null ? null : createCatalogAccess(fixture.catalog, { mdx: {}, code: {} })
+  return {
+    ...real,
+    getCatalog: () => fixtureAccess()?.catalog ?? real.getCatalog(),
+    getTrack: (id: string) => (fixtureAccess() ?? real).getTrack(id),
+  }
 })
 
 beforeEach(() => {
@@ -19,7 +27,7 @@ beforeEach(() => {
 
 describe('the track manifests, from the generated catalog (decision 6)', () => {
   it('are the catalog’s tracks: both real tracks, parsed once by content:build', () => {
-    expect(loadTracks()).toBe(getCatalog().tracks)
+    expect(loadTracks()).toBe(catalog.getCatalog().tracks)
     expect(loadTracks().map((track) => track.id)).toEqual(['dsa', 'english'])
   })
 
@@ -33,6 +41,10 @@ describe('the track manifests, from the generated catalog (decision 6)', () => {
     expect(getTrack('english')?.defaults.budgetMinutes).toBe(25)
   })
 
+  it("getTrack is the catalog's own lookup (one source, no second scan)", () => {
+    expect(getTrack).toBe(catalog.getTrack)
+  })
+
   it('getTrack returns null for an unknown id, and for Object.prototype names', () => {
     expect(getTrack('nope')).toBeNull()
     expect(getTrack('constructor')).toBeNull()
@@ -44,7 +56,7 @@ describe('activeTracks / getTrack (fixture catalog)', () => {
 
   it('activeTracks excludes draft and retired tracks; getTrack still returns them', () => {
     fixture.catalog = {
-      ...getCatalog(),
+      ...catalog.getCatalog(),
       tracks: [
         track('demo-active', 'active'),
         track('demo-draft', 'draft'),
@@ -58,7 +70,7 @@ describe('activeTracks / getTrack (fixture catalog)', () => {
   })
 
   it('a catalog without tracks lists none (RF-4)', () => {
-    fixture.catalog = { ...getCatalog(), tracks: [] }
+    fixture.catalog = { ...catalog.getCatalog(), tracks: [] }
     expect(loadTracks()).toEqual([])
     expect(activeTracks()).toEqual([])
   })
