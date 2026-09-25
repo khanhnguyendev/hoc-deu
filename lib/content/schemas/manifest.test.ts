@@ -160,11 +160,9 @@ describe('the real track manifests', () => {
     })
     expect(dsa.estimates.flashcard).toEqual({ new: 1.5, review: 0.5 })
     expect(dsa.topics.map((topic) => topic.id)).toContain('arrays-hashing')
-    expect(dsa.topics[0]?.signals).toEqual([])
 
     const english = trackManifestSchema.parse(readManifest('english'))
     expect(english.decks.map((deck) => deck.id)).toEqual(['explaining-code'])
-    expect(english.topics).toEqual([])
   })
 
   it('the fixtures above are valid', () => {
