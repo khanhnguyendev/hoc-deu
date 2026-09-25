@@ -27,6 +27,8 @@ export type ComponentRule = {
    * table; a list: only those components.
    */
   children?: 'none' | 'text' | 'any' | readonly MdxComponentName[] | 'table'
+  /** With a component list in `children`: at least this many of them (an empty quiz is a bug). */
+  minChildren?: number
   /** Occurrences per file, checked in `contexts` (default: the rule's contexts). */
   perFile?: { min?: number; max?: number; contexts?: readonly MdxContext[] }
 }
@@ -50,7 +52,7 @@ export const MDX_COMPONENTS: { readonly [K in MdxComponentName]: ComponentRule }
     display: 'block',
     children: 'any',
   },
-  Steps: { attributes: {}, contexts: BOTH, display: 'block', children: ['Step'] },
+  Steps: { attributes: {}, contexts: BOTH, display: 'block', children: ['Step'], minChildren: 1 },
   Step: {
     attributes: { title: {} },
     contexts: BOTH,
@@ -92,13 +94,20 @@ export const MDX_COMPONENTS: { readonly [K in MdxComponentName]: ComponentRule }
     display: 'block',
     children: 'none',
   },
-  Quiz: { attributes: {}, contexts: LESSON, display: 'block', children: ['Question'] },
+  Quiz: {
+    attributes: {},
+    contexts: LESSON,
+    display: 'block',
+    children: ['Question'],
+    minChildren: 1,
+  },
   Question: {
     attributes: { prompt: { required: true, maxLength: 300 }, answer: { required: true } },
     contexts: LESSON,
     display: 'block',
     parents: ['Quiz'],
     children: ['Choice'],
+    minChildren: 2,
   },
   Choice: {
     attributes: { id: { required: true, pattern: /^[a-z0-9]{1,8}$/ } },
@@ -136,15 +145,37 @@ export function parseImageSize(
   return { width: Number(match[1]), height: Number(match[2]) }
 }
 
+/**
+ * A non-empty image base URL, parsed; throws unless it is a canonical `https://` directory URL (no
+ * port, credentials, query or fragment; ends in `/`), so a prefix match cannot reach a sibling
+ * such as `content-images-evil/` or differ from the URL the browser loads.
+ */
+export function parseImageBaseUrl(baseUrl: string): URL {
+  const url = URL.canParse(baseUrl) ? new URL(baseUrl) : null
+  const extra = url !== null && (url.port || url.username || url.password || url.search || url.hash)
+  if (url?.protocol !== 'https:' || !url.pathname.endsWith('/') || extra || url.href !== baseUrl) {
+    throw new Error(
+      `CONTENT_IMAGE_BASE_URL must be a canonical https:// URL ending in '/': ${baseUrl}`,
+    )
+  }
+  return url
+}
+
+/** `<trackId>/<localId>/`: relative, path characters only, no empty, `.` or `..` segment. */
+export function isImagePathPrefix(prefix: string): boolean {
+  const segments = prefix.split('/').slice(0, -1)
+  return (
+    prefix.endsWith('/') &&
+    IMAGE_PATH_PATTERN.test(prefix) &&
+    segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+  )
+}
+
 /** next.config.ts `images.remotePatterns` from the same base URL (single source): [] when it is empty. */
 export function contentImageRemotePatterns(
   baseUrl: string = CONTENT_IMAGE_BASE_URL,
 ): { protocol: 'https'; hostname: string; pathname: string }[] {
   if (baseUrl === '') return []
-  const url = URL.canParse(baseUrl) ? new URL(baseUrl) : null
-  const extra = url !== null && (url.port || url.username || url.password || url.search || url.hash)
-  if (url?.protocol !== 'https:' || !url.pathname.endsWith('/') || extra) {
-    throw new Error(`CONTENT_IMAGE_BASE_URL must be an https:// URL ending in '/': ${baseUrl}`)
-  }
+  const url = parseImageBaseUrl(baseUrl)
   return [{ protocol: 'https', hostname: url.hostname, pathname: `${url.pathname}**` }]
 }

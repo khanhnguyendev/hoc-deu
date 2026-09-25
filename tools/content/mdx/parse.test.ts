@@ -38,3 +38,13 @@ describe('parseMdx', () => {
     expect(result.issue).toMatchObject({ line: 5, column: 1 })
   })
 })
+
+describe('parseMdx — unclosed inline tags', () => {
+  it('points at the opening tag, not the paragraph', async () => {
+    const result = await parseMdx(FILE, 'Text <Term vi="x">word here.\n')
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.issue).toMatchObject({ line: 1, column: 6 })
+    expect(result.issue.message).toContain('Term')
+  })
+})

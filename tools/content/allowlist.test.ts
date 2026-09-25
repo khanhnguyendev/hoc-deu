@@ -8,6 +8,7 @@ import {
   IMAGE_SIZE_TITLE,
   MDX_COMPONENTS,
   contentImageRemotePatterns,
+  isImagePathPrefix,
   parseImageSize,
 } from './allowlist'
 
@@ -97,5 +98,14 @@ describe('contentImageRemotePatterns', () => {
   it('rejects a base URL that is not an https directory', () => {
     expect(() => contentImageRemotePatterns('http://ref.supabase.co/content-images/')).toThrow()
     expect(() => contentImageRemotePatterns('https://ref.supabase.co/content-images')).toThrow()
+    expect(() => contentImageRemotePatterns('https://REF.supabase.co/content-images/')).toThrow()
+    expect(() => contentImageRemotePatterns('https://ref.supabase.co:8443/c/')).toThrow()
+  })
+
+  it('accepts only <trackId>/<localId>/ image path prefixes', () => {
+    expect(isImagePathPrefix('dsa/lesson-two-pointers/')).toBe(true)
+    for (const bad of ['dsa/lesson-x', '/dsa/x/', 'dsa//x/', 'dsa/../x/', 'dsa/X/', '']) {
+      expect(isImagePathPrefix(bad), bad).toBe(false)
+    }
   })
 })

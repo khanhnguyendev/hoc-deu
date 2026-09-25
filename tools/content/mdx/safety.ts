@@ -8,6 +8,8 @@ import {
   IMAGE_EXTENSIONS,
   IMAGE_PATH_PATTERN,
   MDX_COMPONENTS,
+  isImagePathPrefix,
+  parseImageBaseUrl,
   parseImageSize,
   type MdxContext,
 } from '../allowlist'
@@ -57,8 +59,9 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'mdxJsxTextElement',
 ])
 
-/** What `children: 'text'` accepts besides paragraphs and inline components. */
+/** Phrasing nodes `children: 'text'` accepts (their own children are checked the same way). */
 const TEXT_LEVEL: ReadonlySet<string> = new Set([
+  'paragraph',
   'text',
   'emphasis',
   'strong',
@@ -67,6 +70,8 @@ const TEXT_LEVEL: ReadonlySet<string> = new Set([
   'break',
   'link',
   'linkReference',
+  'image',
+  'imageReference',
 ])
 
 const ESM = 'import/export is not allowed in content MDX'
@@ -75,6 +80,24 @@ const EXPRESSION =
 const NO_IMAGE_BASE =
   'images need CONTENT_IMAGE_BASE_URL in tools/content/allowlist.ts — see docs/ops/content-images.md'
 const SIZE_TITLE = '`![alt](url "WIDTHxHEIGHT")`'
+
+/** Why a block component written inside a line is misplaced, by the line that holds it. */
+const IN_PARAGRAPH = 'it shares a paragraph with text'
+const IN_LINE = 'it shares a line with text'
+const IN_HEADING = 'it is inside a heading'
+const IN_CELL = 'it is inside a table cell'
+const IN_FORMATTING = 'it is inside emphasis, strong or a link'
+const FORMATTING: ReadonlySet<string> = new Set([
+  'emphasis',
+  'strong',
+  'delete',
+  'link',
+  'linkReference',
+])
+
+/** Whitespace, control and format characters (zero-width space, word joiner, BOM, soft hyphen). */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}]/gu
+const isBlank = (value: string): boolean => value.replace(INVISIBLE, '') === ''
 
 const isComponent = (name: string | null | undefined): name is MdxComponentName =>
   typeof name === 'string' && Object.hasOwn(MDX_COMPONENTS, name)
@@ -89,14 +112,12 @@ const either = (names: readonly string[]): string =>
 const oneOf = (values: readonly string[]): string =>
   values.length < 2 ? values.join('') : `${values.slice(0, -1).join(', ')} or ${values.at(-1)}`
 
+const displayOf = (node: MdxNode): 'block' | 'inline' | null =>
+  isJsxElement(node) && isComponent(node.name) ? MDX_COMPONENTS[node.name].display : null
+
 /** A block component written inside a line of text (a paragraph that does not unravel). */
 const isInlinedBlock = (node: MdxNode): boolean =>
-  node.type === 'mdxJsxTextElement' &&
-  isComponent(node.name) &&
-  MDX_COMPONENTS[node.name].display === 'block'
-
-const isInlineComponent = (node: MdxNode): boolean =>
-  isJsxElement(node) && isComponent(node.name) && MDX_COMPONENTS[node.name].display === 'inline'
+  node.type === 'mdxJsxTextElement' && displayOf(node) === 'block'
 
 /** Nodes another rule reports on their own: expressions, ESM, unknown syntax and components. */
 const reportedAlone = (node: MdxNode): boolean =>
@@ -137,6 +158,19 @@ function contentOf(node: MdxNode): MdxNode[] {
   return entries.filter((entry) => !reportedAlone(entry))
 }
 
+/**
+ * Nodes in `node` that are not text-level content: anything but text-level phrasing and inline
+ * components — and no inline component inside an inline one (`<Term>` in `<Term>`). An allowed
+ * inline component's own content is its own rule's business.
+ */
+function notText(node: MdxNode, insideInline: boolean): MdxNode[] {
+  if (reportedAlone(node)) return []
+  if (isJsxElement(node)) return displayOf(node) === 'inline' && !insideInline ? [] : [node]
+  if (!TEXT_LEVEL.has(node.type)) return [node]
+  return (node.children ?? []).flatMap((child) => notText(child, insideInline))
+}
+
+/** The first problem with the part of an image URL after the base, or null. */
 function imagePathProblem(path: string, prefix: string | undefined, base: string): string | null {
   if (!IMAGE_PATH_PATTERN.test(path)) {
     return 'image paths may only use a-z, 0-9, `-`, `_`, `/` and `.`'
@@ -146,6 +180,10 @@ function imagePathProblem(path: string, prefix: string | undefined, base: string
   }
   if (prefix !== undefined && !path.startsWith(prefix)) {
     return `this item's images live under ${base}${prefix}`
+  }
+  const dot = path.lastIndexOf('.')
+  if (dot === -1 || !IMAGE_EXTENSIONS.includes(path.slice(dot + 1))) {
+    return `image files must be ${oneOf(IMAGE_EXTENSIONS.map((extension) => `.${extension}`))}`
   }
   return null
 }
@@ -162,11 +200,16 @@ type Scope = {
   component: string | null
   /** A direct child of the document root, after the unravel. */
   topLevel: boolean
+  /** Why a block component here is misplaced when it sits in a line (one of the `IN_*`). */
+  line: string
+  /** Inside content a `children` rule already rejected: placement is not reported again. */
+  misplaced: boolean
 }
 
 /**
  * Check a parsed content MDX file against the allowlist. Returns one issue per problem, with the
  * line and column of the node at fault (per-file counts that are too low have no position).
+ * Throws when `options` are malformed — they come from code, not content.
  */
 export function checkMdx(
   file: string,
@@ -175,9 +218,15 @@ export function checkMdx(
   options: CheckOptions = {},
 ): ContentIssue[] {
   const imageBase = options.imageBaseUrl ?? CONTENT_IMAGE_BASE_URL
+  const prefix = options.imagePathPrefix
+  if (imageBase !== '') parseImageBaseUrl(imageBase)
+  if (prefix !== undefined && !isImagePathPrefix(prefix)) {
+    throw new Error(`imagePathPrefix must look like '<trackId>/<localId>/': ${prefix}`)
+  }
+
   const issues: ContentIssue[] = []
   const found = new Map<MdxComponentName, MdxNode[]>()
-  /** Elements whose placement their parent's `children` rule already reported. */
+  /** Nodes a `children` rule already reported: their placement is not reported again. */
   const placed = new Set<MdxNode>()
 
   const report = (node: MdxNode | null, message: string): void => {
@@ -185,6 +234,23 @@ export function checkMdx(
     issues.push(
       start ? { file, line: start.line, column: start.column, message } : { file, message },
     )
+  }
+
+  /** The scope for `node`'s children. */
+  function inside(node: MdxNode, scope: Scope): Scope {
+    const misplaced = scope.misplaced || placed.has(node)
+    if (isJsxElement(node)) {
+      const line = node.type === 'mdxJsxTextElement' ? IN_LINE : scope.line
+      return { component: node.name ?? '', topLevel: false, line, misplaced }
+    }
+    let line = scope.line
+    if (node.type === 'paragraph') line = IN_PARAGRAPH
+    else if (node.type === 'heading') line = IN_HEADING
+    else if (node.type === 'tableCell') line = IN_CELL
+    else if (FORMATTING.has(node.type) && line !== IN_HEADING && line !== IN_CELL) {
+      line = IN_FORMATTING
+    }
+    return { component: scope.component, topLevel: false, line, misplaced }
   }
 
   function visitChildren(node: MdxNode, scope: Scope): void {
@@ -234,7 +300,7 @@ export function checkMdx(
       default:
         if (!KNOWN_TYPES.has(node.type)) return report(node, `unsupported syntax: \`${node.type}\``)
     }
-    visitChildren(node, { component: scope.component, topLevel: false })
+    visitChildren(node, inside(node, scope))
   }
 
   function element(node: MdxNode, scope: Scope, placement: Placement): void {
@@ -248,18 +314,17 @@ export function checkMdx(
       report(node, `${tag(name)} is only allowed in ${contexts.join(' and ')}`)
     } else {
       found.set(name, [...(found.get(name) ?? []), node])
-      if (!placed.has(node)) checkPlacement(node, name, scope, placement)
+      if (!scope.misplaced && !placed.has(node)) checkPlacement(node, name, scope, placement)
       checkAttributes(node, name)
       checkContent(node, name)
-      if (name === 'Question') checkQuestion(node)
     }
-    visitChildren(node, { component: name ?? '', topLevel: false })
+    visitChildren(node, inside(node, scope))
   }
 
   function checkPlacement(node: MdxNode, name: MdxComponentName, scope: Scope, at: Placement) {
     const rule = MDX_COMPONENTS[name]
     if (rule.display === 'block' && at === 'text') {
-      return report(node, `put ${tag(name)} on its own line — it shares a paragraph with text`)
+      return report(node, `put ${tag(name)} on its own line — ${scope.line}`)
     }
     if (rule.display === 'inline' && at === 'flow') {
       return report(node, `${tag(name)} must stay inside a sentence`)
@@ -298,7 +363,7 @@ export function checkMdx(
         report(node, `\`${key}\` needs a value — bare attributes are not allowed`)
       } else {
         seen.add(key)
-        if (check.required && value.trim() === '') {
+        if (check.required && isBlank(value)) {
           report(node, `\`${key}\` must not be empty`)
         } else if (check.values && !check.values.includes(value)) {
           report(node, `\`${key}\` must be one of: ${check.values.join(', ')}`)
@@ -315,51 +380,55 @@ export function checkMdx(
     }
   }
 
+  /** The `children` rule, then — only when it accepted everything — counts and the quiz answer. */
   function checkContent(node: MdxNode, name: MdxComponentName): void {
-    const rule = MDX_COMPONENTS[name].children ?? 'any'
-    if (rule === 'any') return
+    const rule = MDX_COMPONENTS[name]
+    const children = rule.children ?? 'any'
+    if (children === 'any') return
     const entries = contentOf(node)
-    const reject = (at: MdxNode, message: string, rejected: readonly MdxNode[]) => {
+    let rejected = false
+    const reject = (at: MdxNode, message: string, nodes: readonly MdxNode[]) => {
       report(at, message)
-      for (const entry of rejected) placed.add(entry)
+      for (const entry of nodes) placed.add(entry)
+      rejected = true
     }
-    if (rule === 'none') {
+    if (children === 'none') {
       if (entries.length > 0) reject(node, `${tag(name)} takes no content`, entries)
-    } else if (rule === 'table') {
+    } else if (children === 'table') {
       if (entries.length !== 1 || entries[0]?.type !== 'table') {
         reject(node, `${tag(name)} must hold exactly one GFM table`, entries)
       }
-    } else if (rule === 'text') {
-      for (const entry of entries) {
-        const text =
-          entry.type === 'paragraph' || TEXT_LEVEL.has(entry.type) || isInlineComponent(entry)
-        if (!text) reject(entry, `${tag(name)} may only contain text`, [entry])
+    } else if (children === 'text') {
+      const inline = rule.display === 'inline'
+      for (const bad of entries.flatMap((entry) => notText(entry, inline))) {
+        reject(bad, `${tag(name)} may only contain text`, [bad])
       }
     } else {
-      const allowed: readonly string[] = rule
+      const allowed: readonly string[] = children
       for (const entry of entries) {
         if (!(isJsxElement(entry) && allowed.includes(entry.name ?? ''))) {
           reject(entry, `${tag(name)} may only contain ${either(allowed)}`, [entry])
         }
       }
+      if (!rejected && rule.minChildren !== undefined && entries.length < rule.minChildren) {
+        report(node, `${tag(name)} needs at least ${rule.minChildren} ${either(allowed)}`)
+        rejected = true
+      }
     }
+    if (!rejected && name === 'Question') checkAnswer(node, entries)
   }
 
-  /** At least two choices with unique IDs, and the answer names one of them. */
-  function checkQuestion(node: MdxNode): void {
-    const choices = contentOf(node).filter(
-      (entry) => isJsxElement(entry) && entry.name === 'Choice',
-    )
-    if (choices.length < 2) report(node, '`<Question>` needs at least 2 `<Choice>` options')
+  /** Unique choice IDs, and the answer names one of them. */
+  function checkAnswer(node: MdxNode, choices: readonly MdxNode[]): void {
     const ids: string[] = []
     for (const choice of choices) {
       const id = attributeValue(choice, 'id')
-      if (id === undefined) continue
+      if (id === undefined || isBlank(id)) continue
       if (ids.includes(id)) report(choice, `duplicate \`<Choice>\` id "${id}"`)
       else ids.push(id)
     }
     const answer = attributeValue(node, 'answer')
-    if (answer !== undefined && answer.trim() !== '' && !ids.includes(answer)) {
+    if (answer !== undefined && !isBlank(answer) && !ids.includes(answer)) {
       report(node, `\`answer\` "${answer}" is not one of its choices (${ids.join(', ')})`)
     }
   }
@@ -368,25 +437,30 @@ export function checkMdx(
     const url = node.url ?? ''
     if (!url.startsWith('https://') || !URL.canParse(url)) {
       report(node, `links must start with \`https://\`: \`${url}\``)
+    } else if (url.includes('{') || url.includes('}')) {
+      // Only GFM keeps `{…}` in a bare URL out of an expression; never depend on the renderer's
+      // plugins.
+      report(node, `links may not contain \`{\` or \`}\` — write \`%7B\` and \`%7D\`: \`${url}\``)
     }
   }
 
   function checkImage(node: MdxNode): void {
     if (imageBase === '') return report(node, NO_IMAGE_BASE)
     const alt = node.alt ?? ''
-    if (alt.trim() === '') report(node, `images need alt text: ${SIZE_TITLE}`)
-    else if (alt.length > 200) report(node, 'image alt text is at most 200 characters')
+    const written = node.rawAlt ?? alt
+    if (written.includes('{') || written.includes('}')) {
+      report(node, `\`{…}\` is not allowed in alt text: \`${written}\``)
+    } else if (isBlank(alt)) {
+      report(node, `images need alt text: ${SIZE_TITLE}`)
+    } else if (alt.length > 200) {
+      report(node, 'image alt text is at most 200 characters')
+    }
     const url = node.url ?? ''
     if (!url.startsWith(imageBase)) {
       report(node, `images must come from ${imageBase}`)
     } else {
-      const path = url.slice(imageBase.length)
-      const problem = imagePathProblem(path, options.imagePathPrefix, imageBase)
+      const problem = imagePathProblem(url.slice(imageBase.length), prefix, imageBase)
       if (problem !== null) report(node, problem)
-      const dot = path.lastIndexOf('.')
-      if (dot === -1 || !IMAGE_EXTENSIONS.includes(path.slice(dot + 1))) {
-        report(node, `image files must be ${oneOf(IMAGE_EXTENSIONS.map((ext) => `.${ext}`))}`)
-      }
     }
     if (parseImageSize(node.title) === null) {
       report(node, `images need their size as the title: ${SIZE_TITLE}, 1–9999 pixels each`)
@@ -424,7 +498,7 @@ export function checkMdx(
       message: 'a lesson starts with YAML frontmatter (`---`)',
     })
   }
-  visitChildren(tree, { component: null, topLevel: true })
+  visitChildren(tree, { component: null, topLevel: true, line: IN_LINE, misplaced: false })
 
   for (const name of Object.keys(MDX_COMPONENTS) as MdxComponentName[]) {
     const rule = MDX_COMPONENTS[name]

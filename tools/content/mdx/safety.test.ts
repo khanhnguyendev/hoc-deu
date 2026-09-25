@@ -281,3 +281,101 @@ describe('checkMdx — images (OD3)', () => {
     )
   })
 })
+
+describe('checkMdx — hardening (review round 1)', () => {
+  const base = 'https://ref.supabase.co/storage/v1/object/public/content-images/'
+  const options: CheckOptions = { imageBaseUrl: base, imagePathPrefix: 'dsa/lesson-two-pointers/' }
+  const ok = `${base}dsa/lesson-two-pointers/walk.svg`
+  const image = (markdown: string) => lesson(`${markdown}\n`, options)
+
+  it('rejects braces in link URLs, which only GFM keeps out of an expression', async () => {
+    expectOne(await lesson('See https://x.test/{alert(1)} now\n'), 5, '`{`')
+    expectOne(await lesson('[a](https://x.test/{y})\n'), 5, '`{`')
+    expectOne(await lesson('[go][r]\n\n[r]: https://x.test/}\n'), 7, '`{`')
+    expect(await lesson('[a](https://x.test/%7Bok%7D)\n')).toEqual([])
+  })
+
+  it('validates the image base URL and path prefix it is given', async () => {
+    const parsed = await parseMdx(FILE, `${LESSON_HEAD}Text.\n`)
+    if (!parsed.ok) throw new Error(parsed.issue.message)
+    const run = (options: CheckOptions) => () => checkMdx(FILE, parsed.tree, 'lesson', options)
+    expect(run({ imageBaseUrl: base.slice(0, -1) })).toThrow('CONTENT_IMAGE_BASE_URL')
+    expect(run({ imageBaseUrl: base.replace('https:', 'http:') })).toThrow('CONTENT_IMAGE_BASE_URL')
+    expect(run({ imageBaseUrl: base.replace('ref', 'REF') })).toThrow('CONTENT_IMAGE_BASE_URL')
+    expect(run({ imageBaseUrl: base, imagePathPrefix: 'dsa/lesson-x' })).toThrow('imagePathPrefix')
+    expect(run({ imageBaseUrl: base, imagePathPrefix: '/dsa/x/' })).toThrow('imagePathPrefix')
+    expect(run({ imageBaseUrl: base, imagePathPrefix: 'dsa/../x/' })).toThrow('imagePathPrefix')
+    expect(run({ imageBaseUrl: '' })()).toEqual([])
+    expect(run(options)()).toEqual([])
+  })
+
+  it('keeps rejecting the known bypass classes', async () => {
+    const sibling = `${base.slice(0, -1)}-evil/dsa/lesson-two-pointers/a.png`
+    expectOne(await image(`![x](${sibling} "1x1")`), 5, base)
+    expectOne(await image(`![x](${ok.replace('ref.', 'REF.')} "1x1")`), 5, base)
+    expectOne(await image(`![x](//evil.test/dsa/lesson-two-pointers/a.png "1x1")`), 5, base)
+    const path = `${base}dsa/lesson-two-pointers/`
+    expectOne(await image(`![x](${path}%2e%2e/a.png "1x1")`), 5, 'image paths')
+    expectOne(await image(`![x](${path}a.png?q "1x1")`), 5, 'image paths')
+    expectOne(await image(`![x](${path}a.png#f "1x1")`), 5, 'image paths')
+    expectOne(await image(`![x](${path}A.PNG "1x1")`), 5, 'image paths')
+    expectOne(await lesson('[a](JaVaScRiPt:alert(1))\n'), 5, 'https://')
+    expectOne(await lesson('[a](&#106;avascript:alert(1))\n'), 5, 'https://')
+    expectOne(await lesson('[a](//evil.test/x)\n'), 5, 'https://')
+  })
+
+  it('rejects an empty Quiz or Steps', async () => {
+    expectOne(await lesson('<Quiz>\n</Quiz>\n'), 5, '`<Quiz>` needs at least 1 `<Question>`')
+    expectOne(await lesson('<Steps />\n'), 5, '`<Steps>` needs at least 1 `<Step>`')
+  })
+
+  it('keeps Term out of Term, at any depth', async () => {
+    const direct = 'A <Term vi="x">a <Term vi="y">b</Term></Term> c.\n'
+    expectOne(await lesson(direct), 5, '`<Term>` may only contain text')
+    const deep = 'A <Term vi="x">*<Term vi="y">b</Term>*</Term> c.\n'
+    expectOne(await lesson(deep), 5, '`<Term>` may only contain text')
+    expectOne(
+      await lesson('<Steps>\n<Step>**<Callout tone="tip" />**</Step>\n</Steps>\n'),
+      6,
+      'text',
+    )
+  })
+
+  it('reports one issue for one problem', async () => {
+    const quiz = (body: string) =>
+      `<Quiz>\n<Question prompt="p" answer="a">\n${body}\n</Question>\n</Quiz>\n`
+    expectOne(
+      await lesson('<Quiz><Question prompt="p" answer="a">Pick one</Question></Quiz>\n'),
+      5,
+      'may only contain `<Choice>`',
+    )
+    expectOne(await lesson(quiz('*<Choice id="a">x</Choice>*')), 7, 'may only contain `<Choice>`')
+    expectOne(await lesson('*<Choice id="a">x</Choice>*\n'), 5, 'put `<Choice>` on its own line')
+  })
+
+  it('words the placement issue by where the block sits', async () => {
+    const heading = await lesson('### <Callout tone="tip">x</Callout>\n')
+    expectOne(heading, 5, 'put `<Callout>` on its own line — it is inside a heading')
+    const cell = await lesson('| a |\n| - |\n| <Callout tone="tip" /> |\n')
+    expectOne(cell, 7, 'put `<Callout>` on its own line — it is inside a table cell')
+    const line = await lesson('<Steps>Do <Step>x</Step></Steps>\n')
+    expectOne(line, 5, 'put `<Step>` on its own line — it shares a line with text')
+  })
+
+  it('rejects expressions and invisible alt text in images', async () => {
+    expectOne(await image(`![{alert(1)}](${ok} "640x360")`), 5, '`{…}`')
+    expectOne(await image(`![a {b} c](${ok} "640x360")`), 5, '`{…}`')
+    expectOne(await image(`![   ](${ok} "640x360")`), 5, 'alt text')
+    expectOne(await image(`![​⁠](${ok} "640x360")`), 5, 'alt text')
+    expect(await image(`![a [nested] label](${ok} "640x360")`)).toEqual([])
+  })
+
+  it('names only real choice IDs in the answer issue', async () => {
+    const source =
+      '<Quiz>\n<Question prompt="p" answer="c">\n<Choice id="a">x</Choice>\n<Choice id="">y</Choice>\n</Question>\n</Quiz>\n'
+    const issues = await lesson(source)
+    expect(issues.map((issue) => issue.message)).toContain(
+      '`answer` "c" is not one of its choices (a)',
+    )
+  })
+})

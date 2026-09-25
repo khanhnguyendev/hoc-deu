@@ -16,7 +16,15 @@ export type MdxNode = {
   depth?: number
   attributes?: MdxAttribute[]
   children?: MdxNode[]
-  position?: { start: { line: number; column: number } }
+  position?: {
+    start: { line: number; column: number; offset?: number }
+    end?: { line: number; column: number; offset?: number }
+  }
+  /**
+   * Images only, set by `parseMdx`: the alt text as written. MDX parses `{…}` in an image label as
+   * an expression and `alt` keeps only its text, so the safety check reads this instead.
+   */
+  rawAlt?: string
 }
 
 export type MdxAttribute =
@@ -43,9 +51,14 @@ function isParseError(error: unknown): error is ParseError {
   return error instanceof Error && typeof (error as { reason?: unknown }).reason === 'string'
 }
 
-/** `place.start` for a range, the point itself otherwise; an unclosed tag at the end of the file
- *  has no place, only `(line:column-…)` in its reason. */
+/** An unclosed tag names its opening tag's position in the reason; point there. */
+const UNCLOSED = /^Expected a closing tag for `[^`]*` \((\d+):(\d+)/
+
+/** The opening tag of an unclosed tag, else `place.start` for a range or the point itself, else
+ *  the first `(line:column` in the reason. */
 function locate(error: ParseError): { line?: number; column?: number } {
+  const unclosed = UNCLOSED.exec(error.reason)
+  if (unclosed) return { line: Number(unclosed[1]), column: Number(unclosed[2]) }
   const place = error.place
   const point = place && 'start' in place ? place.start : (place as Point | null | undefined)
   if (point?.line !== undefined) {
@@ -61,12 +74,27 @@ function locate(error: ParseError): { line?: number; column?: number } {
  *  run. A syntax error becomes one issue. */
 export async function parseMdx(file: string, source: string): Promise<ParseResult> {
   try {
-    const tree = processor.parse({ path: file, value: source })
-    return { ok: true, tree: tree as unknown as MdxRoot }
+    const tree = processor.parse({ path: file, value: source }) as unknown as MdxRoot
+    recordRawAlt(tree, source)
+    return { ok: true, tree }
   } catch (error) {
     if (!isParseError(error)) throw error
     return { ok: false, issue: { file, ...locate(error), message: error.reason } }
   }
+}
+
+/** Set `rawAlt` on every image: the source between `![` and the last `](` of the image. */
+function recordRawAlt(node: MdxNode, source: string): void {
+  if (node.type === 'image') {
+    const start = node.position?.start.offset
+    const end = node.position?.end?.offset
+    if (start !== undefined && end !== undefined) {
+      const raw = source.slice(start, end)
+      const close = raw.lastIndexOf('](')
+      node.rawAlt = raw.startsWith('![') && close >= 2 ? raw.slice(2, close) : raw
+    }
+  }
+  for (const child of node.children ?? []) recordRawAlt(child, source)
 }
 
 const WHITESPACE = /^[\t\n\f\r ]*$/
