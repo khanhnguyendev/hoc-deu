@@ -1,0 +1,8 @@
+id: dsa:lc-0253
+leetcode: 253
+title: Meeting Rooms II
+difficulty: M
+topic: intervals
+premium: true
+alternatives:
+  - { label: 'LintCode 919 (miễn phí)', url: 'https://www.lintcode.com/problem/919/' }

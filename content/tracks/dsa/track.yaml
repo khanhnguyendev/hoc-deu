@@ -10,46 +10,112 @@ srs:
   masteredAfter: 2
   byType: { flashcard: { intervals: [1, 3, 7, 14], relearnDays: 1 } }
 review: { recallMinutes: 5, redoFactor: 0.6 }
-topics: # technical terms stay English (DESIGN_SYSTEM §11); signals arrive in M3
-  - { id: arrays-hashing, title: { vi: 'Arrays & Hashing', en: 'Arrays & Hashing' }, requires: [] }
-  - {
-      id: two-pointers,
-      title: { vi: 'Two Pointers', en: 'Two Pointers' },
-      requires: [arrays-hashing],
-    }
-  - {
-      id: sliding-window,
-      title: { vi: 'Sliding Window', en: 'Sliding Window' },
-      requires: [arrays-hashing],
-    }
-  - { id: stack, title: { vi: 'Stack', en: 'Stack' }, requires: [arrays-hashing] }
-  - {
-      id: binary-search,
-      title: { vi: 'Binary Search', en: 'Binary Search' },
-      requires: [arrays-hashing],
-    }
-  - { id: linked-list, title: { vi: 'Linked List', en: 'Linked List' }, requires: [two-pointers] }
-  - { id: trees, title: { vi: 'Trees', en: 'Trees' }, requires: [linked-list, binary-search] }
-  - {
-      id: heap,
-      title: { vi: 'Heap / Priority Queue', en: 'Heap / Priority Queue' },
-      requires: [trees],
-    }
-  - { id: tries, title: { vi: 'Tries', en: 'Tries' }, requires: [trees] }
-  - { id: backtracking, title: { vi: 'Backtracking', en: 'Backtracking' }, requires: [trees] }
-  - { id: graphs, title: { vi: 'Graphs', en: 'Graphs' }, requires: [trees, backtracking] }
-  - {
-      id: dp-1d,
-      title: { vi: '1-D Dynamic Programming', en: '1-D Dynamic Programming' },
-      requires: [backtracking],
-    }
-  - {
-      id: dp-2d,
-      title: { vi: '2-D Dynamic Programming', en: '2-D Dynamic Programming' },
-      requires: [dp-1d],
-    }
-  - { id: intervals, title: { vi: 'Intervals', en: 'Intervals' }, requires: [heap] }
-  - { id: greedy, title: { vi: 'Greedy', en: 'Greedy' }, requires: [heap] }
+topics: # technical terms stay English (DESIGN_SYSTEM §11); signals: how to spot the pattern
+  - id: arrays-hashing
+    title: { vi: 'Arrays & Hashing', en: 'Arrays & Hashing' }
+    signals:
+      - 'Cần tra cứu nhanh một giá trị đã gặp'
+      - 'Đếm tần suất phần tử'
+      - 'So sánh hai tập hợp không theo thứ tự'
+      - 'Gom nhóm các phần tử có chung một key, như các anagram'
+    requires: []
+  - id: two-pointers
+    title: { vi: 'Two Pointers', en: 'Two Pointers' }
+    signals:
+      - 'Mảng đã sắp xếp, cần tìm cặp hoặc bộ ba có tổng cho trước'
+      - 'So sánh phần tử ở hai đầu rồi dịch dần vào giữa, như kiểm tra palindrome'
+      - 'Cần xử lý in-place với bộ nhớ O(1)'
+    requires: [arrays-hashing]
+  - id: sliding-window
+    title: { vi: 'Sliding Window', en: 'Sliding Window' }
+    signals:
+      - 'Tìm subarray hoặc substring liên tiếp dài nhất hoặc ngắn nhất thỏa một điều kiện'
+      - 'Điều kiện cập nhật được khi thêm một phần tử bên phải và bỏ một phần tử bên trái'
+      - 'Đếm ký tự trong một đoạn có độ dài cố định, như tìm permutation trong chuỗi'
+    requires: [arrays-hashing]
+  - id: stack
+    title: { vi: 'Stack', en: 'Stack' }
+    signals:
+      - 'Các cặp mở – đóng lồng nhau, như dấu ngoặc'
+      - 'Cần phần tử lớn hơn hoặc nhỏ hơn gần nhất về một phía (monotonic stack)'
+      - 'Xử lý theo thứ tự vào sau ra trước (LIFO), như tính biểu thức hậu tố'
+    requires: [arrays-hashing]
+  - id: binary-search
+    title: { vi: 'Binary Search', en: 'Binary Search' }
+    signals:
+      - 'Dữ liệu đã sắp xếp (kể cả bị xoay) và cần O(log n)'
+      - 'Tìm giá trị nhỏ nhất hoặc lớn nhất thỏa một điều kiện đơn điệu (binary search on answer)'
+      - 'Kiểm tra một đáp án thì dễ, nhưng không gian đáp án rất lớn'
+    requires: [arrays-hashing]
+  - id: linked-list
+    title: { vi: 'Linked List', en: 'Linked List' }
+    signals:
+      - 'Đảo, gộp hoặc sắp xếp lại các node bằng cách đổi con trỏ next'
+      - 'Tìm cycle hoặc node ở giữa list (fast & slow pointers)'
+      - 'Xóa hoặc chèn node có thể chạm tới head: thêm dummy node'
+    requires: [two-pointers]
+  - id: trees
+    title: { vi: 'Trees', en: 'Trees' }
+    signals:
+      - 'Đáp án của một node suy ra từ đáp án của các cây con (DFS đệ quy)'
+      - 'Cần duyệt theo từng tầng (BFS với queue)'
+      - 'Binary search tree: duyệt inorder cho dãy tăng dần'
+    requires: [linked-list, binary-search]
+  - id: heap
+    title: { vi: 'Heap / Priority Queue', en: 'Heap / Priority Queue' }
+    signals:
+      - 'Cần phần tử lớn thứ k, hoặc k phần tử nhỏ nhất'
+      - 'Liên tục lấy phần tử nhỏ nhất hoặc lớn nhất trong khi dữ liệu thay đổi'
+      - 'Gộp nhiều danh sách đã sắp xếp, hoặc tìm median của một luồng dữ liệu'
+    requires: [trees]
+  - id: tries
+    title: { vi: 'Tries', en: 'Tries' }
+    signals:
+      - 'Tìm kiếm theo prefix trên nhiều từ'
+      - 'Kiểm tra một từ có trong từ điển, kể cả khi có ký tự đại diện (wildcard)'
+    requires: [trees]
+  - id: backtracking
+    title: { vi: 'Backtracking', en: 'Backtracking' }
+    signals:
+      - 'Liệt kê mọi tổ hợp, hoán vị hoặc tập con (subset)'
+      - 'Thử từng lựa chọn, gặp nhánh không hợp lệ thì quay lui'
+      - 'Đề bài hỏi tất cả các cách và kích thước đầu vào nhỏ'
+    requires: [trees]
+  - id: graphs
+    title: { vi: 'Graphs', en: 'Graphs' }
+    signals:
+      - 'Lưới (grid) hoặc các đối tượng nối với nhau, cần đếm vùng hoặc thành phần liên thông'
+      - 'Đường đi ngắn nhất khi mọi cạnh có cùng trọng số (BFS)'
+      - 'Các việc phụ thuộc nhau, cần thứ tự thực hiện hoặc phát hiện chu trình (topological sort)'
+    requires: [trees, backtracking]
+  - id: dp-1d
+    title: { vi: '1-D Dynamic Programming', en: '1-D Dynamic Programming' }
+    signals:
+      - 'Đáp án tại vị trí i phụ thuộc vào vài vị trí ngay trước nó'
+      - 'Đề bài hỏi số cách, giá trị lớn nhất hoặc nhỏ nhất'
+      - 'Lời giải đệ quy tính lại cùng một bài toán con nhiều lần (memoization)'
+    requires: [backtracking]
+  - id: dp-2d
+    title: { vi: '2-D Dynamic Programming', en: '2-D Dynamic Programming' }
+    signals:
+      - 'Hai chuỗi hoặc hai chiều: trạng thái cần hai chỉ số (i, j)'
+      - 'Đi trên lưới theo vài hướng cố định, đếm số đường đi hoặc tìm chi phí nhỏ nhất'
+      - 'Chọn phần tử với giới hạn về tổng hoặc sức chứa (knapsack)'
+    requires: [dp-1d]
+  - id: intervals
+    title: { vi: 'Intervals', en: 'Intervals' }
+    signals:
+      - 'Đầu vào là các khoảng [start, end]'
+      - 'Cần gộp, chèn hoặc đếm các khoảng chồng lấn (overlap)'
+      - 'Sắp xếp theo start hoặc end rồi duyệt một lượt'
+    requires: [heap]
+  - id: greedy
+    title: { vi: 'Greedy', en: 'Greedy' }
+    signals:
+      - 'Chọn phương án tốt nhất ở từng bước mà không cần xét lại'
+      - 'Chỉ cần theo dõi một giá trị tốt nhất đến hiện tại, như vị trí xa nhất nhảy tới được'
+      - 'DP cho đáp án đúng nhưng chậm, và lựa chọn tốt nhất tại chỗ luôn an toàn'
+    requires: [heap]
 lessonFormats:
   pattern:
     sections: [signals, analogy, visual, approach, code, complexity, bilingual, practice, quiz]
