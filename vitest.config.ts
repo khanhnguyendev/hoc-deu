@@ -1,7 +1,7 @@
 import { compile } from '@mdx-js/mdx'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
-import { remarkPlugins } from './tools/content/mdx/plugins'
+import { remarkPlugins } from './tools/content/mdx/plugins.ts'
 
 // Pin the test time zone to a non-UTC, half-hour-offset zone (task 2.3 / CLAUDE.md §7.2): a
 // developer's or CI machine's local zone must never make a local-time bug in `lib/domain` pass by

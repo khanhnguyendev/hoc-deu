@@ -1,7 +1,7 @@
 import type { CompileOptions } from '@mdx-js/mdx'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
-import { REMARK_PLUGIN_NAMES, type RemarkPluginName } from './remark-plugins'
+import { REMARK_PLUGIN_NAMES, type RemarkPluginName } from './remark-plugins.ts'
 
 type PluginList = NonNullable<CompileOptions['remarkPlugins']>
 

@@ -140,7 +140,13 @@ export function derivedCards(input: DerivedInput): {
         const parsed = parseDerivedId(id)
         if (parsed?.trackId !== track.id || parsed.deckId !== deck.id) continue
         if (qualifying.has(parsed.sourceId)) continue
-        const problem = reviewedSource(input.items[parsed.sourceId], draftTrack)
+        const sourceItem = input.items[parsed.sourceId]
+        // The source item's own track drives the draft check, not deck.from.track: the two can
+        // differ once a locked card's source no longer qualifies for this deck.
+        const sourceDraftTrack = input.tracks.some(
+          (candidate) => candidate.id === sourceItem?.trackId && candidate.status === 'draft',
+        )
+        const problem = reviewedSource(sourceItem, sourceDraftTrack)
         deckCards.push(derivedCard(track, deck, parsed.sourceId, problem, 'retired', source))
       }
       deckCards.sort(byId)
