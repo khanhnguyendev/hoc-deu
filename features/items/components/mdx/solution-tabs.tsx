@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { HighlightedCode } from '@/lib/content/code-tokens'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
+import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
-import { fill } from './copy'
 
 const copy = vi.content.solution
 

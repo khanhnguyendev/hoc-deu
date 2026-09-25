@@ -13,9 +13,10 @@ import {
   type ReactNode,
 } from 'react'
 import { Button } from '@/components/ui/button'
+import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
-import { fill, fillNode } from './copy'
+import { fillNode } from './copy'
 
 const copy = vi.content.quiz
 

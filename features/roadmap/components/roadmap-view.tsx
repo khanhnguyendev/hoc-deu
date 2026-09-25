@@ -1,6 +1,5 @@
 import { Section } from '@/components/patterns/section'
-import { fill } from '@/features/items/components/mdx/copy'
-import { formatNumber } from '@/lib/i18n/format'
+import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { RoadmapSlots } from '../slots'
 import { DeckCard, DeckList, RoadmapGroup, RowGroup, WeekSection } from './week-section'

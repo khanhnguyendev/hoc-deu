@@ -10,13 +10,6 @@ export function own<T>(record: Readonly<Record<string, T>>, key: string): T | un
   return Object.hasOwn(record, key) ? record[key] : undefined
 }
 
-/** A `vi.ts` message with its `{name}` placeholders filled in literally (a replacer function). */
-export function fill(text: string, values: Readonly<Record<string, string | number>>): string {
-  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
-    Object.hasOwn(values, name) ? String(values[name]) : match,
-  )
-}
-
 /** A message with one placeholder replaced by a node (e.g. a quiz answer that holds code). */
 export function fillNode(text: string, placeholder: string, node: ReactNode): ReactNode {
   const at = text.indexOf(placeholder)

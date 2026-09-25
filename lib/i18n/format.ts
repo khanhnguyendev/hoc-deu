@@ -126,3 +126,13 @@ export function variantLabel(variantId: string): string {
 export function withTitle(text: string, title: string): string {
   return text.replace('{title}', () => title)
 }
+
+/**
+ * A `vi.ts` message with its `{name}` placeholders filled in literally (a replacer function); a
+ * placeholder without an own value stays as written.
+ */
+export function fill(text: string, values: Readonly<Record<string, string | number>>): string {
+  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+    Object.hasOwn(values, name) ? String(values[name]) : match,
+  )
+}

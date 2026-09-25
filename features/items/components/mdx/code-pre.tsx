@@ -1,8 +1,9 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { CodeBlock } from '@/components/patterns/code-block'
 import { codeBlockKey, plainCode, type CodeBundle } from '@/lib/content/code-tokens'
+import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
-import { fill, languageName } from './copy'
+import { languageName } from './copy'
 
 type CodeProps = { className?: string; children?: ReactNode }
 
