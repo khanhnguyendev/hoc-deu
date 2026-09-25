@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(89);
+select plan(95);
 
 -- Task 4.9a: day_plans and the derived tables (platform design §4.1, §4.3, §4.5; implementation
 -- plan Part B-M4 decisions 6, 11, 18, 33, 35).
@@ -374,7 +374,8 @@ select lives_ok(
 );
 select tests.clear_authentication();
 
--- daily_activity: a new row only within one day of the user's local day.
+-- daily_activity: a new row only within one day of the user's local day. The row an upsert would
+-- update is not new (decision 11, ruling M4-R13): an edited check-in recomputes an older day.
 select tests.authenticate_as(:'learner');
 select throws_ok(
   $$insert into public.daily_activity (user_id, local_day)
@@ -395,6 +396,39 @@ select lives_ok(
   $$insert into public.daily_activity (user_id, local_day)
     values (auth.uid(), public.user_local_day(auth.uid(), now()) - 1)$$,
   'yesterday is allowed'
+);
+select lives_ok(
+  $$insert into public.daily_activity (user_id, local_day)
+    values (auth.uid(), public.user_local_day(auth.uid(), now()) + 1)$$,
+  'tomorrow is allowed (a day start ahead of the server''s view)'
+);
+select throws_ok(
+  $$insert into public.daily_activity (user_id, local_day)
+    values (auth.uid(), public.user_local_day(auth.uid(), now()) - 3)
+    on conflict (user_id, local_day) do nothing$$,
+  'P0001', 'invalid_local_day', 'a new row three days back raises invalid_local_day, upsert or not'
+);
+select tests.clear_authentication();
+insert into public.daily_activity (user_id, local_day)
+values (:'learner', public.user_local_day(:'learner', now()) - 3);
+select tests.authenticate_as(:'learner');
+select lives_ok(
+  $$insert into public.daily_activity (user_id, local_day)
+    values (auth.uid(), public.user_local_day(auth.uid(), now()) - 3)
+    on conflict (user_id, local_day) do nothing$$,
+  'once that row exists, the insert half of an upsert of it is not bounded (do nothing)'
+);
+select lives_ok(
+  $$insert into public.daily_activity (user_id, local_day, items_done)
+    values (auth.uid(), public.user_local_day(auth.uid(), now()) - 3, 3)
+    on conflict (user_id, local_day) do update set items_done = excluded.items_done$$,
+  '... nor is an upsert that updates it'
+);
+select is(
+  (select items_done from public.daily_activity
+    where local_day = public.user_local_day(auth.uid(), now()) - 3),
+  3,
+  '... which changes the row'
 );
 select throws_ok(
   format(
@@ -426,9 +460,10 @@ select throws_ok(
 select throws_ok(
   $$insert into public.plan_block_state
       (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
-    values ('70000000-0000-4000-8000-000000000003', '2026-09-25:dsa:new:1', auth.uid(), 'dsa',
+    values ('70000000-0000-4000-8000-000000000003', '2026-09-25:dsa:review:1', auth.uid(), 'dsa',
             'done', 10, '2026-09-25')$$,
-  'P0001', 'unknown_block', '... and so does a block of another user''s plan'
+  'P0001', 'unknown_block',
+  '... and so does a block another user''s plan lists (only the ownership check rejects it)'
 );
 select lives_ok(
   $$insert into public.plan_block_state
@@ -516,13 +551,17 @@ select results_eq(
 );
 
 -- ---------------------------------------------------------------------------------------------
--- 6b. plan_lock_key (decision 33): one key per (user, plan_date).
+-- 6b. plan_lock_key (decision 33): one key per (user, plan_date), whatever the session's DateStyle
+--     (ruling M4-R12: every caller must take the same lock, and the function is IMMUTABLE).
 -- ---------------------------------------------------------------------------------------------
+select public.plan_lock_key(:'learner', date '2026-09-25') as lock_key_iso \gset
+set local datestyle = 'SQL, DMY';
 select is(
-  public.plan_lock_key(:'learner', '2026-09-25'),
-  public.plan_lock_key(:'learner', '2026-09-25'),
-  'plan_lock_key is deterministic'
+  public.plan_lock_key(:'learner', date '2026-09-25'),
+  :'lock_key_iso'::bigint,
+  'plan_lock_key gives the same key under DateStyle ISO and SQL, DMY'
 );
+reset datestyle;
 select isnt(
   public.plan_lock_key(:'learner', '2026-09-25'),
   public.plan_lock_key(:'learner', '2026-09-26'),
@@ -595,7 +634,7 @@ select results_eq(
 );
 
 -- ---------------------------------------------------------------------------------------------
--- 8. user_tracks.reset_on (decision 9, set by track.reset in 4.9b) and the due-date index.
+-- 8. user_tracks.reset_on (decision 9, set by track.reset in 4.9b) and the new indexes.
 -- ---------------------------------------------------------------------------------------------
 select has_column('public', 'user_tracks', 'reset_on', 'user_tracks.reset_on exists');
 select col_type_is('public', 'user_tracks', 'reset_on', 'date', '... is a date');
@@ -610,6 +649,10 @@ select is(
 select has_index(
   'public', 'item_state', 'item_state_user_due_idx', array['user_id', 'due_on'],
   'item_state has the (user_id, due_on) index'
+);
+select has_index(
+  'public', 'plan_block_state', 'plan_block_state_user_day_idx', array['user_id', 'checked_in_on'],
+  'plan_block_state has the (user_id, checked_in_on) index (RLS, account deletion, per-day recompute)'
 );
 
 -- ---------------------------------------------------------------------------------------------

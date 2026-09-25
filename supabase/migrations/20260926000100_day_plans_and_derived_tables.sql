@@ -61,6 +61,9 @@ create table public.plan_block_state (
   rules_version integer not null default public.rules_version() check (rules_version >= 1),
   primary key (plan_id, block_id)
 );
+-- The RLS filter, the account-deletion cascade and the per-day recompute of daily_activity
+-- (decision 8) look block states up by user and day (ruling M4-R13).
+create index plan_block_state_user_day_idx on public.plan_block_state (user_id, checked_in_on);
 
 create table public.item_state (
   user_id uuid not null references public.profiles (id) on delete cascade,
@@ -106,12 +109,16 @@ alter table public.events add constraint events_plan_id_fkey
 
 -- ---------------------------------------------------------------------------------------------
 -- Decision 33: the one key of the (user, plan_date) advisory lock. apply_event (4.9b) and
--- apply_system_event (4.9c) take it before any row lock.
+-- apply_system_event (4.9c) take it before any row lock. Ruling M4-R12: the date enters as a day
+-- number, not as text — a date's text form follows the session's DateStyle, so two sessions could
+-- take different locks for one plan; uuid_out, date_mi and int4out are immutable.
 -- ---------------------------------------------------------------------------------------------
 
 create function public.plan_lock_key(p_user_id uuid, p_plan_date date) returns bigint
 language sql immutable set search_path = '' as $$
-  select pg_catalog.hashtextextended('day_plan:' || p_user_id || ':' || p_plan_date, 0)
+  select pg_catalog.hashtextextended(
+    'day_plan:' || p_user_id::text || ':' || (p_plan_date - date '2000-01-01')::text, 0
+  )
 $$;
 
 -- ---------------------------------------------------------------------------------------------
@@ -178,13 +185,21 @@ create trigger limit_rows before insert on public.item_state
   for each row execute function public.item_state_limit_rows();
 
 -- A new daily_activity row only within one day of the user's current local day
--- (`invalid_local_day`). No count, so no lock.
+-- (`invalid_local_day`). The row an upsert would update is not new (ruling M4-R13, the R14
+-- pattern): an edited check-in recomputes the older day it counts for (decision 8). No count, so
+-- no lock.
 create function public.daily_activity_window() returns trigger
 language plpgsql set search_path = '' as $$
 declare
   v_today date;
 begin
   if current_user <> 'authenticated' or new.user_id is distinct from (select auth.uid()) then
+    return new;
+  end if;
+  if exists (
+    select 1 from public.daily_activity a
+    where a.user_id = new.user_id and a.local_day = new.local_day
+  ) then
     return new;
   end if;
   v_today := public.user_local_day(new.user_id, now());
