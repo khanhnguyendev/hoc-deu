@@ -12,7 +12,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Đọc là "read me". Nên có: mục đích, cách cài, cách chạy, cách test và người liên hệ.'
-    example: 'I followed the README, but the setup script fails on Windows. Should I add a note there?'
+    example: "I followed the README, but the setup script fails on Windows, so I'll add a note there."
     pronunciation: '/ˈriːd.miː/ · READ-me'
 
   - id: english:w08-prerequisite
@@ -23,7 +23,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Hay là một mục trong tài liệu cài đặt: "Prerequisites: Node 22, Docker". Nhấn âm thứ hai: pre-REK.'
-    example: "Add Docker to the prerequisites. The integration tests won't run without it."
+    example: "Add Docker to the prerequisites, because the integration tests won't run without it."
     pronunciation: '/ˌpriːˈrek.wɪ.zɪt/ · pree-REK-wi-zit'
 
   - id: english:w08-deprecated
@@ -34,7 +34,7 @@ cards:
       pos: adjective
       register: neutral
       note: 'Khác "removed" (đã bỏ hẳn). Tài liệu tốt ghi rõ thay bằng gì: "deprecated in v2, use X instead". Đừng nhầm với "depreciated" (mất giá).'
-    example: 'This endpoint is deprecated. Use /v2/orders instead; v1 will be removed in March.'
+    example: 'This endpoint is deprecated, so please move to /v2/orders before v1 is removed in March.'
     pronunciation: '/ˈdep.rə.keɪ.tɪd/ · DEP-re-cay-ted'
 
   - id: english:w08-rationale
@@ -56,7 +56,7 @@ cards:
       pos: phrase
       register: neutral
       note: 'Đứng trước danh từ thì có gạch nối: up-to-date docs. Ngược lại: out of date, outdated.'
-    example: 'Is the deployment guide up to date? It still mentions the old Jenkins server.'
+    example: 'Is the deployment guide up to date, or does it still mention the old Jenkins server?'
     pronunciation: '/ˌʌp tə ˈdeɪt/ · up to DATE'
 
   - id: english:w08-troubleshooting
@@ -78,7 +78,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Thường có trong release notes, kèm cách né tạm thời (workaround).'
-    example: "PDF export is slow for large reports. We've listed it as a known issue in the release notes."
+    example: "We've listed slow PDF export for large reports as a known issue in the release notes."
     pronunciation: '/ˌnəʊn ˈɪʃ.uː/ · known IS-sue'
 
   - id: english:w08-concise
@@ -89,7 +89,7 @@ cards:
       pos: adjective
       register: neutral
       note: 'Lời khen hay gặp khi review tài liệu. Nhấn âm thứ hai: con-SICE.'
-    example: 'The new onboarding page is much more concise. New hires can get through it in an hour.'
+    example: 'The new onboarding page is much more concise, so new hires can get through it in an hour.'
     pronunciation: '/kənˈsaɪs/ · con-SICE'
 
   - id: english:w08-caveat
@@ -100,7 +100,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Hay dùng: "One caveat: …", "with a few caveats". Đọc KAV-ee-at.'
-    example: "One caveat: the script only works on macOS and Linux. It doesn't support Windows yet."
+    example: 'One caveat: the script only works on macOS and Linux, not on Windows.'
     pronunciation: '/ˈkæv.i.æt/ · KAV-ee-at'
 
   - id: english:w08-ie
@@ -144,7 +144,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Thường chia mục: Added, Changed, Fixed, Removed. Breaking change nên ghi lên đầu.'
-    example: "Don't forget to update the changelog. The config format changed in this version."
+    example: "Don't forget to update the changelog, because the config format changed in this version."
     pronunciation: '/ˈtʃeɪndʒ.lɒɡ/ · CHANGE-log'
 
   - id: english:w08-tldr

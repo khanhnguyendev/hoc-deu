@@ -23,7 +23,7 @@ cards:
       pos: verb
       register: neutral
       note: 'Thường dùng với người: "unblock someone". Câu nhờ hay gặp trong stand-up: "Can someone unblock me?"'
-    example: 'Could someone with admin rights unblock me? I need write access to the CI settings.'
+    example: 'Could someone with admin rights unblock me so I can get write access to the CI settings?'
     pronunciation: '/ʌnˈblɒk/ · un-BLOCK'
 
   - id: english:w01-on-track
@@ -75,7 +75,7 @@ cards:
     front: wait on
     back: đang chờ (ai đó, việc gì) mới làm tiếp được
     usage:
-      pos: phrasal-verb
+      pos: verb
       register: informal
       note: 'Hay dùng trong tiếng Anh-Mỹ, nghĩa như "wait for": "I''m waiting on + người/việc".'
     example: "I'm waiting on the design team for the final mockups, so I'm fixing small bugs in the meantime."
@@ -89,7 +89,7 @@ cards:
       pos: phrase
       register: neutral
       note: '"progress" không đếm được: nói "make good progress", không nói "a progress" hay "progresses". Đi với "on": make progress on the API.'
-    example: 'I made good progress on the search endpoint yesterday. The filters work now.'
+    example: 'I made good progress on the search endpoint yesterday, and the filters work now.'
     pronunciation: '/ˌmeɪk ˈprəʊ.ɡres/ · make PRO-gress'
 
   - id: english:w01-pair-with
@@ -111,7 +111,7 @@ cards:
       pos: idiom
       register: neutral
       note: 'Câu lịch sự để dừng một cuộc thảo luận dài trong stand-up: "Let''s take this offline." Không liên quan tới mạng internet.'
-    example: "This sounds like a longer discussion. Let's take it offline after stand-up."
+    example: "This sounds like a longer discussion, so let's take it offline after stand-up."
     pronunciation: '/ˌteɪk ɪt ˌɒfˈlaɪn/ · take it off-LINE'
 
   - id: english:w01-eta
@@ -122,7 +122,7 @@ cards:
       pos: abbreviation
       register: neutral
       note: 'Viết tắt của "estimated time of arrival"; trong IT dùng để hỏi khi nào xong: "What''s the ETA on…?" Đọc từng chữ cái.'
-    example: "What's the ETA on the staging fix? QA wants to start testing this afternoon."
+    example: "QA wants to start testing this afternoon, so what's the ETA on the staging fix?"
     pronunciation: '/ˌiː.tiːˈeɪ/ · ee-tee-AY'
 
   - id: english:w01-ooo

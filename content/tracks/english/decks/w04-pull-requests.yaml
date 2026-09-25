@@ -12,7 +12,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Đi với "resolve/fix a merge conflict". Hay nói gọn: "I have conflicts with main."'
-    example: "I've got a merge conflict in the routes file. I'll resolve it and push again."
+    example: "I've got a merge conflict in the routes file, so I'll resolve it and push again."
     pronunciation: '/ˈmɜːdʒ ˌkɒn.flɪkt/ · MERGE con-flict'
 
   - id: english:w04-rebase
@@ -23,7 +23,7 @@ cards:
       pos: verb
       register: neutral
       note: 'Hay nói "rebase on/onto main". Sau khi rebase thường phải force-push. Đừng rebase nhánh đang dùng chung với người khác.'
-    example: 'Could you rebase on main? The CI fix was merged this morning.'
+    example: 'Could you rebase on main to pick up the CI fix that was merged this morning?'
     pronunciation: '/ˌriːˈbeɪs/ · re-BASE'
 
   - id: english:w04-squash
@@ -34,7 +34,7 @@ cards:
       pos: verb
       register: neutral
       note: '"Squash and merge" là một tuỳ chọn merge trên GitHub. Hay dùng khi lịch sử commit có nhiều commit kiểu "fix typo".'
-    example: "Let's squash these six commits before merging. Most of them are typo fixes."
+    example: "Let's squash these six commits before merging, since most of them are typo fixes."
     pronunciation: '/skwɒʃ/ · SQUASH'
 
   - id: english:w04-commit-message
@@ -45,7 +45,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Dòng đầu nên ngắn và dùng thể mệnh lệnh: "Fix login redirect", không phải "Fixed…" hay "Fixing…".'
-    example: "Could you use a clearer commit message than 'update'? Something like 'Fix time zone in invoice dates'."
+    example: "Could you use a clearer commit message than 'update', something like 'Fix time zone in invoice dates'?"
     pronunciation: '/kəˈmɪt ˌmes.ɪdʒ/ · com-MIT mes-sage'
 
   - id: english:w04-feature-branch
@@ -67,7 +67,7 @@ cards:
       pos: verb
       register: neutral
       note: 'Không cần thêm "back": nói "revert the commit", không nói "revert back". Khác "roll back" (quay lại cả bản deploy).'
-    example: 'The last merge broke the build, so I reverted it. We can reapply it once the tests are fixed.'
+    example: 'The last merge broke the build, so I reverted it until the tests are fixed.'
     pronunciation: '/rɪˈvɜːt/ · re-VERT'
 
   - id: english:w04-draft-pr
@@ -98,9 +98,9 @@ cards:
     back: (test) lúc pass lúc fail dù code không đổi
     usage:
       pos: adjective
-      register: informal
+      register: neutral
       note: 'Hay gặp: "a flaky test". Đừng chạy lại cho qua mãi; nên tạo ticket để sửa.'
-    example: "That test is flaky. It failed on CI but passes locally, so I'll rerun it and file a ticket."
+    example: "That test is flaky: it failed on CI but passes locally, so I'll rerun it and file a ticket."
     pronunciation: '/ˈfleɪ.ki/ · FLAY-kee'
 
   - id: english:w04-cherry-pick
@@ -111,13 +111,13 @@ cards:
       pos: verb
       register: neutral
       note: 'Hay dùng để đưa một bản sửa lỗi sang nhánh release. Nghĩa đời thường: chỉ chọn lấy phần có lợi cho mình.'
-    example: "Can you cherry-pick the fix onto the release branch? We don't want the other changes there yet."
+    example: 'Can you cherry-pick the fix onto the release branch without the other changes?'
     pronunciation: '/ˈtʃer.i.pɪk/ · CHER-ry-pick'
 
   - id: english:w04-breaking-change
     tier: core
     front: breaking change
-    back: thay đổi làm hỏng code hoặc ứng dụng đang dùng nó, nếu bên đó không sửa theo
+    back: 'thay đổi không tương thích ngược, bên đang dùng phải sửa theo'
     usage:
       pos: noun
       register: neutral
@@ -155,5 +155,5 @@ cards:
       pos: abbreviation
       register: informal
       note: 'Hay đặt ở đầu tiêu đề PR hoặc commit: "WIP: add refund API". Thường đọc như một từ ("wip").'
-    example: "It's still WIP, so don't review it yet. I'll ping you when the tests are in."
+    example: "It's still WIP, so please hold off on the review until I ping you."
     pronunciation: '/wɪp/ · WIP'

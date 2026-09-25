@@ -45,7 +45,7 @@ cards:
       pos: phrasal-verb
       register: informal
       note: 'Dùng khi muốn tạm gác một chủ đề: "Can we circle back to this next week?" Nghe hơi "văn phòng", đừng lạm dụng.'
-    example: "We don't have the numbers yet. Let's circle back once the load test is done."
+    example: "We don't have the numbers yet, so let's circle back once the load test is done."
     pronunciation: '/ˌsɜː.kəl ˈbæk/ · cir-cle BACK'
 
   - id: english:w05-on-the-same-page
@@ -89,7 +89,7 @@ cards:
       pos: phrasal-verb
       register: informal
       note: '"sync" đọc giống "sink". Danh từ: "a quick sync".'
-    example: 'Can we sync up for ten minutes after lunch? I want to check the API contract with you.'
+    example: 'Can we sync up for ten minutes after lunch to check the API contract?'
     pronunciation: '/ˌsɪŋk ˈʌp/ · sink UP'
 
   - id: english:w05-jump-in
@@ -100,7 +100,7 @@ cards:
       pos: phrasal-verb
       register: informal
       note: 'Cách xin nói lịch sự: "Can I jump in here?" Người chủ trì cũng dùng để mời: "Feel free to jump in."'
-    example: 'Sorry, can I jump in here? I think the timeout is set on the load balancer, not in the app.'
+    example: 'Sorry to jump in, but I think the timeout is set on the load balancer, not in the app.'
     pronunciation: '/ˌdʒʌmp ˈɪn/ · jump IN'
 
   - id: english:w05-youre-on-mute
@@ -111,7 +111,7 @@ cards:
       pos: phrase
       register: neutral
       note: 'Câu rất hay nghe trong họp online. Khi mình là người quên bật mic: "Sorry, I was on mute." Động từ: mute, unmute.'
-    example: "Hoa, I think you're on mute. We can see you talking, but we can't hear anything."
+    example: "Hoa, you're on mute: we can see you talking but can't hear anything."
     pronunciation: "/jɔːr ɒn ˈmjuːt/ · you're on MUTE"
 
   - id: english:w05-hard-stop
@@ -120,7 +120,7 @@ cards:
     back: giờ bắt buộc phải rời cuộc họp, không kéo dài thêm được
     usage:
       pos: noun
-      register: informal
+      register: neutral
       note: 'Nên báo ngay từ đầu buổi họp: "I have a hard stop at 3."'
     example: 'Just so you know, I have a hard stop at 4:30 for another call.'
     pronunciation: '/ˌhɑːd ˈstɒp/ · hard STOP'

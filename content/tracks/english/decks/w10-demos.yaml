@@ -23,7 +23,7 @@ cards:
       pos: phrase
       register: neutral
       note: 'Hay đi kèm câu kiểm tra: "Can everyone see my screen?" Đổi đại từ theo ngữ cảnh: "Could you share your screen?"'
-    example: 'Let me share my screen. Can everyone see the staging dashboard?'
+    example: 'Let me share my screen so you can all see the staging dashboard.'
     pronunciation: '/ˌʃeər maɪ ˈskriːn/ · share my SCREEN'
 
   - id: english:w10-bear-with-me
@@ -34,7 +34,7 @@ cards:
       pos: idiom
       register: neutral
       note: '"bear" ở đây nghĩa là chịu đựng, không phải con gấu. Đừng viết nhầm thành "bare with me".'
-    example: 'Bear with me, the page is still loading. Staging is a bit slow today.'
+    example: 'Bear with me while the page loads; staging is a bit slow today.'
     pronunciation: '/ˈbeər wɪð miː/ · BEAR with me'
 
   - id: english:w10-live
@@ -44,7 +44,7 @@ cards:
     usage:
       pos: adjective
       register: neutral
-      note: 'Tính từ đọc /laɪv/ (vần với "five"), khác động từ live /lɪv/ (sống). Hay nói "go live" (chính thức chạy).'
+      note: 'Tính từ đọc /laɪv/ (vần với "five"), khác động từ live /lɪv/ (sống). Hay nói "go live" (chính thức chạy); "a live demo" là demo trực tiếp trên hệ thống thật, không phải video quay sẵn.'
     example: 'The new pricing page went live on Monday, and sign-ups are already up 8%.'
     pronunciation: '/laɪv/ · LIVE (as in "five")'
 
@@ -89,7 +89,7 @@ cards:
       pos: verb
       register: informal
       note: 'Nghĩa gốc là gửi hàng; dân IT dùng rất nhiều: "We shipped it last week", "Ship it!".'
-    example: "We shipped dark mode last Thursday. Today I'll show what users have said so far."
+    example: "We shipped dark mode last Thursday, and today I'll show what users have said so far."
     pronunciation: '/ʃɪp/ · SHIP'
 
   - id: english:w10-feedback
@@ -100,7 +100,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Không đếm được: nói "some feedback", "a piece of feedback"; không nói "a feedback" hay "feedbacks".'
-    example: "Thanks for the feedback. I'll make the chart labels bigger before the next demo."
+    example: "Based on your feedback, I'll make the chart labels bigger before the next demo."
     pronunciation: '/ˈfiːd.bæk/ · FEED-back'
 
   - id: english:w10-constructive
@@ -111,7 +111,7 @@ cards:
       pos: adjective
       register: neutral
       note: 'Hay đi với "feedback", "criticism". Góp ý mang tính xây dựng thường cụ thể và kèm đề xuất.'
-    example: 'The session was really constructive. They liked the flow but found the filters hard to discover.'
+    example: 'The session was really constructive: they liked the flow but found the filters hard to discover.'
     pronunciation: '/kənˈstrʌk.tɪv/ · con-STRUC-tive'
 
   - id: english:w10-stakeholder
@@ -144,5 +144,5 @@ cards:
       pos: verb
       register: neutral
       note: 'Hay nói "iterate on + sản phẩm/thiết kế". Danh từ: iteration (một vòng như vậy).'
-    example: "This is the first version. We'll iterate on it based on what we hear this week."
+    example: "This is the first version, and we'll iterate on it based on what we hear this week."
     pronunciation: '/ˈɪt.ər.eɪt/ · IT-er-ate'

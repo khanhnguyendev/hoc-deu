@@ -67,7 +67,7 @@ cards:
       pos: verb
       register: neutral
       note: 'Khi có sự cố: mitigate trước (giảm thiệt hại), fix sau (sửa nguyên nhân). Danh từ: mitigation.'
-    example: 'We mitigated the issue by turning off the new search feature. The real fix goes out tomorrow.'
+    example: 'We mitigated the issue by turning off the new search feature, and the real fix goes out tomorrow.'
     pronunciation: '/ˈmɪt.ɪ.ɡeɪt/ · MIT-i-gate'
 
   - id: english:w07-root-cause
@@ -111,7 +111,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Hay gặp: "deploy a hotfix", "hotfix branch". Vẫn cần review, chỉ là nhanh hơn quy trình thường.'
-    example: "We're deploying a hotfix for the checkout crash tonight. The other fixes can wait for Monday."
+    example: "We're deploying a hotfix for the checkout crash tonight, and the other fixes can wait for Monday."
     pronunciation: '/ˈhɒt.fɪks/ · HOT-fix'
 
   - id: english:w07-degraded
@@ -122,7 +122,7 @@ cards:
       pos: adjective
       register: neutral
       note: 'Hay thấy trên status page: "degraded performance". Nhẹ hơn "outage".'
-    example: 'Search is degraded right now. Results take about ten seconds to load.'
+    example: 'Search is degraded right now, with results taking about ten seconds to load.'
     pronunciation: '/dɪˈɡreɪ.dɪd/ · de-GRAY-ded'
 
   - id: english:w07-sla
@@ -143,7 +143,7 @@ cards:
     usage:
       pos: noun
       register: neutral
-      note: 'Đi với "in": "a spike in errors/traffic". Dùng được cả động từ: "CPU spiked to 100%."'
+      note: 'Đi với "in": "a spike in errors/traffic". Dùng được cả động từ: "CPU spiked to 100%." Trong Agile, "a spike" còn là ticket nghiên cứu có giới hạn thời gian (time-boxed).'
     example: 'We saw a spike in 500 errors right after the deploy at 10:15.'
     pronunciation: '/spaɪk/ · SPIKE'
 
@@ -166,7 +166,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Tiếng Anh-Mỹ hay nói "handoff". Một handover tốt nêu rõ: việc đang dở, cảnh báo đang theo dõi, người cần liên hệ.'
-    example: 'In your on-call handover, mention the disk alert on db-2. It might fire again tonight.'
+    example: 'In your on-call handover, mention the disk alert on db-2, because it might fire again tonight.'
     pronunciation: '/ˈhænd.əʊ.vər/ · HAND-o-ver'
 
   - id: english:w07-up-and-running
@@ -177,5 +177,5 @@ cards:
       pos: idiom
       register: neutral
       note: 'Hay dùng khi báo sự cố đã qua: "The service is back up and running."'
-    example: "The API is back up and running. We'll keep monitoring it for the next hour."
+    example: "The API is back up and running, but we'll keep monitoring it for the next hour."
     pronunciation: '/ˌʌp ən ˈrʌn.ɪŋ/ · up and RUN-ning'

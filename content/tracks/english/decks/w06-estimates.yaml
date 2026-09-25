@@ -23,7 +23,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Thường dùng các mức 1, 2, 3, 5, 8, 13. Hay nói gọn: "I''d give it a 5."'
-    example: "I'd put this at five story points. The logic is simple, but the old code has no tests."
+    example: "I'd put this at five story points because the logic is simple but the old code has no tests."
     pronunciation: '/ˈstɔː.ri ˌpɔɪnt/ · STO-ry point'
 
   - id: english:w06-sprint
@@ -67,7 +67,7 @@ cards:
       pos: noun
       register: neutral
       note: '"scope" là phạm vi công việc. Yêu cầu mới nên tách thành ticket khác thay vì nhét vào việc đang làm.'
-    example: "Adding PDF export now would be scope creep. Let's ship CSV first and plan PDF for next sprint."
+    example: "Adding PDF export now would be scope creep, so let's ship CSV first and plan PDF for next sprint."
     pronunciation: '/ˈskəʊp ˌkriːp/ · SCOPE creep'
 
   - id: english:w06-out-of-scope
@@ -89,7 +89,7 @@ cards:
       pos: noun
       register: informal
       note: 'Hay gặp: "a ballpark figure/estimate", "Can you give me a ballpark?" Chỉ để định hướng, chưa phải cam kết.'
-    example: "I know it's early, but can you give me a ballpark? Are we talking days or weeks?"
+    example: "I know it's early, but can you give me a ballpark: days or weeks?"
     pronunciation: '/ˈbɔːl.pɑːk/ · BALL-park'
 
   - id: english:w06-buffer
@@ -100,7 +100,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Hay nói "add a buffer", "leave some buffer for testing".'
-    example: "Let's add a two-day buffer. That third-party API has surprised us before."
+    example: "Let's add a two-day buffer, since that third-party API has surprised us before."
     pronunciation: '/ˈbʌf.ər/ · BUF-fer'
 
   - id: english:w06-prioritize

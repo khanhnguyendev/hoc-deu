@@ -23,7 +23,7 @@ cards:
       pos: abbreviation
       register: informal
       note: 'Viết tắt của "looks good to me", chủ yếu dùng khi viết. Có thể kèm điều kiện: "LGTM once CI passes."'
-    example: 'LGTM once the tests pass. Thanks for cleaning up the error handling!'
+    example: 'LGTM once the tests pass, and thanks for cleaning up the error handling!'
     pronunciation: '/ˌel.dʒiː.tiːˈem/ · el-jee-tee-EM'
 
   - id: english:w03-approve
@@ -33,7 +33,7 @@ cards:
     usage:
       pos: verb
       register: neutral
-      note: 'Dùng trực tiếp với PR, không cần "for": "I approved your PR." Trên GitHub, hai lựa chọn chính khi review là Approve và Request changes.'
+      note: 'Dùng trực tiếp với PR: "I approved your PR." Đừng nhầm với "approve of" (tán thành, đồng tình với ai hoặc điều gì). Trên GitHub, hai lựa chọn chính khi review là Approve và Request changes.'
     example: "I approved the PR, but please wait for Hoa's review before you merge."
     pronunciation: '/əˈpruːv/ · a-PROOV'
 
@@ -56,7 +56,7 @@ cards:
       pos: verb
       register: neutral
       note: 'Không phải "địa chỉ": "address a comment" là xử lý một góp ý. Động từ nhấn âm thứ hai: a-DRESS.'
-    example: "I've addressed all your comments except the caching one. Can we talk about that on a call?"
+    example: "I've addressed all your comments except the caching one, which I'd like to discuss on a call."
     pronunciation: '/əˈdres/ · a-DRESS'
 
   - id: english:w03-take-a-look
@@ -67,7 +67,7 @@ cards:
       pos: phrase
       register: neutral
       note: 'Cách nhờ review lịch sự, đi với "at": "Could you take a look at my PR when you have a moment?"'
-    example: "Could you take a look at my PR when you have a minute? It's a small change to the config loader."
+    example: 'When you have a minute, could you take a look at my PR for the config loader?'
     pronunciation: '/ˌteɪk ə ˈlʊk/ · take a LOOK'
 
   - id: english:w03-edge-case
@@ -78,7 +78,7 @@ cards:
       pos: noun
       register: neutral
       note: 'Câu hỏi hay gặp khi review: "What happens in this edge case?" Ví dụ: danh sách rỗng, input null, múi giờ khác.'
-    example: "What happens if the list is empty? That edge case isn't covered by the tests."
+    example: "The tests don't cover the edge case where the list is empty."
     pronunciation: '/ˈedʒ ˌkeɪs/ · EDGE case'
 
   - id: english:w03-refactor
@@ -111,18 +111,18 @@ cards:
       pos: adjective
       register: neutral
       note: 'Hay gặp: "a hard-coded URL/value/path". Động từ: hard-code.'
-    example: 'The API URL is hard-coded here. Could we read it from an environment variable instead?'
+    example: 'Could we read the API URL from an environment variable instead of leaving it hard-coded?'
     pronunciation: '/ˌhɑːdˈkəʊ.dɪd/ · hard-CO-ded'
 
   - id: english:w03-side-effect
     tier: core
     front: side effect
-    back: tác động phụ ngoài ý muốn, như hàm vô tình thay đổi dữ liệu bên ngoài
+    back: 'tác dụng phụ: việc hàm làm thay đổi thứ gì đó bên ngoài nó (ghi cache, sửa biến toàn cục…), ngoài giá trị trả về'
     usage:
       pos: noun
       register: neutral
-      note: 'Trong lập trình còn là thuật ngữ: hàm làm thay đổi trạng thái bên ngoài nó (ghi file, sửa biến toàn cục, gọi API…).'
-    example: 'This getter also writes to the cache. Is that side effect intended?'
+      note: 'Không nhất thiết là xấu (ghi log, lưu vào database là side effect cố ý), nhưng side effect bất ngờ rất dễ gây bug. Hàm không có side effect gọi là "pure function".'
+    example: 'Is writing to the cache an intended side effect of this getter?'
     pronunciation: '/ˈsaɪd ɪˌfekt/ · SIDE ef-fect'
 
   - id: english:w03-non-blocking
@@ -144,7 +144,7 @@ cards:
       pos: phrase
       register: neutral
       note: 'Theo sau là V-ing hoặc danh từ: "Have you considered using a map here?" Lịch sự hơn nhiều so với "You should…".'
-    example: 'Have you considered using a Set here? The lookup would be O(1) instead of O(n).'
+    example: 'Have you considered using a Set here so the lookup is O(1) instead of O(n)?'
     pronunciation: '/həv juː kənˈsɪd.əd/ · have you con-SID-ered'
 
   - id: english:w03-dead-code
@@ -155,5 +155,5 @@ cards:
       pos: noun
       register: neutral
       note: 'Hay đi với "remove/delete dead code". Nên xoá hẳn thay vì comment lại, vì Git đã lưu lịch sử.'
-    example: 'This branch can never run now that the old flag is gone. Can we delete the dead code?'
+    example: 'Can we delete this dead code, since the branch can never run now that the old flag is gone?'
     pronunciation: '/ˌded ˈkəʊd/ · dead CODE'

@@ -23,13 +23,13 @@ cards:
       pos: noun
       register: neutral
       note: 'Đi với "with": "hands-on experience with Kubernetes". Thuyết phục hơn nhiều so với "I know about…".'
-    example: 'I have hands-on experience with Kafka. I built and ran our event pipeline for two years.'
+    example: 'I have two years of hands-on experience with Kafka, building and running our event pipeline.'
     pronunciation: '/ˌhændzˈɒn ɪkˈspɪə.ri.əns/ · hands-ON ex-PEER-i-ence'
 
   - id: english:w09-take-ownership
     tier: core
     front: take ownership
-    back: chủ động nhận trách nhiệm và theo một việc tới cùng
+    back: 'chủ động nhận trách nhiệm và lo việc đó đến nơi đến chốn'
     usage:
       pos: phrase
       register: neutral
@@ -67,7 +67,7 @@ cards:
       pos: idiom
       register: neutral
       note: 'Rất quan trọng khi phỏng vấn coding: người phỏng vấn cần nghe cách bạn suy luận, không chỉ đáp án.'
-    example: "I'll think out loud as I go. My first idea is to use a hash map to count the characters."
+    example: 'Let me think out loud: my first idea is to count the characters with a hash map.'
     pronunciation: '/ˌθɪŋk aʊt ˈlaʊd/ · think out LOUD'
 
   - id: english:w09-clarifying-question
@@ -111,8 +111,8 @@ cards:
       pos: noun
       register: neutral
       note: 'Thường dùng số nhiều: "What are your salary expectations?" Nên trả lời bằng một khoảng và nói rõ gross hay net.'
-    example: 'My salary expectations are between 2,500 and 3,000 USD a month, gross, depending on the benefits.'
-    pronunciation: '/ˈsæl.ər.i ˌek.spekˈteɪ.ʃənz/ · SAL-a-ry ex-pec-TAY-tions'
+    example: 'My salary expectations are $2,500 to $3,000 a month, gross, depending on the benefits.'
+    pronunciation: '/ˈsæl.ər.i ˌek.spekˌteɪ.ʃənz/ · SAL-a-ry ex-pec-ta-tions'
 
   - id: english:w09-reach-out
     tier: core
@@ -122,5 +122,5 @@ cards:
       pos: phrasal-verb
       register: neutral
       note: 'Đi với "to": reach out to someone. Hay gặp trong email tuyển dụng: "Thanks for reaching out", "I''m reaching out about…".'
-    example: "Thanks for reaching out. I'm interested in the backend role and free for a call on Thursday."
+    example: "Thanks for reaching out about the backend role, and I'm free for a call on Thursday."
     pronunciation: '/ˌriːtʃ ˈaʊt/ · reach OUT'
