@@ -13,7 +13,7 @@ Nghĩ tới <Term vi="ngăn xếp">stack</Term> khi gặp một trong các dấu
 
 - Có các cặp **mở – đóng lồng nhau**: dấu ngoặc, thẻ mở và thẻ đóng, lời gọi hàm và lúc hàm trả về.
 - Phần tử mới cần được xử lý cùng phần tử **gần nhất** còn đang dang dở, chứ không phải phần tử cũ nhất.
-- Thứ tự xử lý là vào sau ra trước, <Term vi="vào sau ra trước">LIFO</Term>: tính một biểu thức mà toán tử đứng sau toán hạng, hay hoàn tác (<Term vi="hoàn tác">undo</Term>) từng bước theo thứ tự ngược.
+- Thứ tự xử lý là vào sau ra trước, tức <Term>LIFO</Term>: tính một biểu thức mà toán tử đứng sau toán hạng, hay <Term vi="hoàn tác">undo</Term> từng bước theo thứ tự ngược.
 - Với mỗi phần tử, cần tìm phần tử gần nhất về một phía lớn hơn hoặc nhỏ hơn nó.
 - Chỉ cần thêm, bỏ và xem ở **một đầu**, mỗi thao tác `O(1)`.
 
@@ -59,7 +59,7 @@ Dấu `]` ở bước 5 không được đóng "xuyên qua" dấu `(` còn đang
 
 <Step title="Chọn thứ cần nhớ">Stack giữ những phần tử **đang dang dở**: dấu mở chưa có dấu đóng, số chưa được dùng tới, việc chưa làm xong.</Step>
 
-<Step title="Duyệt một lượt">Đi từ trái sang phải. Mỗi phần tử mới hoặc được đẩy vào stack (<Term vi="đẩy vào">push</Term>), hoặc giải quyết phần tử ở đỉnh rồi lấy nó ra (<Term vi="lấy ra">pop</Term>).</Step>
+<Step title="Duyệt một lượt">Đi từ trái sang phải. Mỗi phần tử mới dẫn tới <Term vi="đẩy vào">push</Term>, tức đặt một phần tử dang dở lên đỉnh stack; <Term vi="lấy ra">pop</Term>, tức bỏ phần tử ở đỉnh khi nó đã được giải quyết; hoặc cả hai, như một toán tử trong biểu thức hậu tố lấy hai giá trị ra rồi đẩy kết quả vào.</Step>
 
 <Step title="Chỉ nhìn đỉnh">Phần tử cần đối chiếu luôn là phần tử ở đỉnh, tức phần tử dang dở gần nhất. Kiểm tra stack rỗng trước khi xem hoặc lấy đỉnh.</Step>
 
@@ -73,7 +73,7 @@ Giả sử một dấu đóng khớp với một dấu mở cũ hơn dấu mở 
 
 ### Các biến thể trong tuần
 
-- **Min Stack:** mỗi phần tử mang theo một thông tin tóm tắt về phần stack bên dưới nó, để đọc ra ngay ở đỉnh.
+- **Min Stack:** mỗi phần tử mang theo một thông tin tóm tắt về phần stack từ đáy tới chính nó, để đọc ra ngay ở đỉnh.
 - **Evaluate Reverse Polish Notation:** stack chứa các giá trị trung gian; mỗi toán tử lấy hai giá trị ở đỉnh ra và đẩy kết quả vào.
 - **Daily Temperatures** và **Largest Rectangle in Histogram** cũng dùng stack, nhưng theo một cách riêng: đó là phần để bạn tự khám phá.
 
@@ -123,7 +123,7 @@ Mỗi ký tự được push hoặc pop nhiều nhất một lần, và mỗi th
 
 <Practice problem="dsa:lc-0739" />
 
-Thử Daily Temperatures: nếu không muốn quét về phía sau cho từng ngày như cách vét cạn, khi đi qua mảng bạn cần nhớ những ngày nào?
+Thử Daily Temperatures: nếu không muốn, với mỗi ngày, quét các ngày sau nó như cách vét cạn, thì khi đi qua mảng bạn cần nhớ những ngày nào?
 
 </Section>
 

@@ -46,4 +46,4 @@ Với `n` là số cặp đã lưu cho key được hỏi và `N` là tổng s�
 
 <Solution />
 
-<Bilingual vi="Dùng hash map từ key tới danh sách cặp (timestamp, value); set nối vào cuối nên danh sách luôn tăng theo thời gian, get tìm nhị phân cặp cuối cùng có timestamp không vượt quá mốc được hỏi." en="Map each key to a list of (timestamp, value) pairs. Timestamps arrive in increasing order, so set appends and each list stays sorted. For get, binary search for the last pair whose timestamp is at most the query and return its value, or an empty string if none. set is O(1), get is O(log n)." />
+<Bilingual vi="Dùng hash map từ key tới danh sách cặp (timestamp, value); set nối vào cuối nên danh sách luôn tăng theo thời gian, get tìm nhị phân cặp cuối cùng có timestamp không vượt quá mốc được hỏi." en="Map each key to a list of (timestamp, value) pairs. Timestamps only increase, so set appends and each list stays sorted. For get, binary search for the last pair whose timestamp is at most the queried timestamp and return its value, or an empty string if none. set is O(1), get is O(log n)." />

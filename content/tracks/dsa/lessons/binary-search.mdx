@@ -11,8 +11,8 @@ practice: dsa:lc-0875
 
 Nghĩ tới <Term vi="tìm kiếm nhị phân">binary search</Term> khi gặp một trong các dấu hiệu sau:
 
-- Dữ liệu **đã được sắp xếp**, kể cả khi bị xoay một vòng, và cần tìm một giá trị hay một vị trí.
-- Đề yêu cầu thời gian `O(log n)`, hoặc đầu vào quá lớn để duyệt qua từng phần tử.
+- Dữ liệu **đã được sắp xếp**, kể cả khi bị xoay (dịch vòng), và cần tìm một giá trị hay một vị trí.
+- Đề yêu cầu thời gian `O(log n)`, hoặc có nhiều truy vấn trên cùng một dữ liệu đã sắp xếp, nên không thể duyệt lại từng phần tử cho mỗi truy vấn.
 - Cần tìm vị trí **đầu tiên** hay **cuối cùng** thỏa một điều kiện trong một mảng có thứ tự, như mốc thời gian cuối cùng không vượt quá một thời điểm.
 - Chỉ cần nhìn phần tử ở giữa là biết chắc nửa nào không thể chứa đáp án.
 
@@ -118,7 +118,7 @@ Sau mỗi bước, đoạn cần tìm còn không quá một nửa, nên vòng l
 
 <Practice problem="dsa:lc-0875" />
 
-Thử Koko Eating Bananas: hãy viết cách vét cạn trước, rồi tự hỏi ở đâu một lần kiểm tra có thể loại đi cả một nửa số trường hợp?
+Thử Koko Eating Bananas: hãy viết cách vét cạn trước, rồi tự hỏi: một lần kiểm tra nào có thể loại đi cả một nửa số trường hợp?
 
 </Section>
 

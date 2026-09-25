@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Hình chữ nhật lớn nhất luôn cao đúng bằng một cột nào đó, và với chiều cao ấy nó kéo sang hai bên cho tới trước cột **thấp hơn** gần nhất ở mỗi phía. Vậy với mỗi cột, cần biết cột thấp hơn gần nhất ở bên trái và bên phải. Giữ một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term> chứa chỉ số các cột, chiều cao tăng dần từ đáy lên đỉnh. Khi gặp cột `i` không cao hơn cột ở đỉnh, cột ở đỉnh đã biết mép phải là `i - 1`, còn mép trái nằm ngay sau cột bên dưới nó trong stack: lấy nó ra và tính diện tích. Một cột ảo cao 0 ở cuối, gọi là <Term vi="phần tử canh">sentinel</Term>, buộc mọi cột còn lại phải được lấy ra.
+Hình chữ nhật lớn nhất luôn cao đúng bằng một cột nào đó, và với chiều cao ấy nó kéo sang hai bên cho tới trước cột **thấp hơn** gần nhất ở mỗi phía. Vậy với mỗi cột, cần biết cột thấp hơn gần nhất ở bên trái và bên phải. Giữ một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term> chứa chỉ số các cột, chiều cao tăng dần từ đáy lên đỉnh. Khi gặp cột `i` không cao hơn cột ở đỉnh, lấy cột ở đỉnh ra và tính hình chữ nhật cao bằng nó, từ ngay sau cột bên dưới nó trong stack tới cột `i - 1`. Một cột ảo cao 0 ở cuối, gọi là <Term vi="phần tử canh">sentinel</Term>, buộc mọi cột còn lại phải được lấy ra.
 
 ## Cách làm
 
@@ -12,7 +12,7 @@ Hình chữ nhật lớn nhất luôn cao đúng bằng một cột nào đó, v
 
 <Step title="Duyệt thêm một cột 0">Cho `i` chạy từ 0 tới `n`; `current = heights[i]`, riêng khi `i == n` thì `current = 0`.</Step>
 
-<Step title="Lấy ra các cột không thấp hơn">Chừng nào stack chưa rỗng và cột ở đỉnh cao ít nhất bằng `current`, lấy chỉ số đó ra và gọi chiều cao của nó là `height`. Hình chữ nhật cao `height` không kéo sang phải quá `i - 1` được.</Step>
+<Step title="Lấy ra các cột không thấp hơn">Chừng nào stack chưa rỗng và cột ở đỉnh cao ít nhất bằng `current`, lấy chỉ số đó ra và gọi chiều cao của nó là `height`. Hình chữ nhật cao `height` được tính tới cột `i - 1`: nếu cột `i` thấp hơn hẳn, đó đúng là mép phải; nếu cột `i` cao bằng, phần còn thiếu bên phải sẽ được tính sau (xem ghi chú bên dưới).</Step>
 
 <Step title="Tính diện tích">Mép trái `left` là chỉ số ở đỉnh mới cộng 1, hoặc 0 nếu stack đã rỗng. Diện tích là `height * (i - left)`; cập nhật `best`.</Step>
 
@@ -39,7 +39,7 @@ Kết quả là 8: hình chữ nhật cao 4 phủ hai cột cao 4 và 5.
 
 <Callout tone="tip" title="Vì sao lấy ra cả cột cao bằng cột hiện tại?">
 
-Một cột bằng chiều cao với cột hiện tại bị lấy ra sớm, nên có thể tính thiếu chiều rộng ở bên phải. Không sao: cột hiện tại cao bằng nó, có cùng mép trái, và sẽ tính đủ chiều rộng khi tới lượt nó bị lấy ra. Nhờ vậy chiều cao trong stack luôn tăng hẳn, và cột ngay bên dưới luôn thấp hơn, đúng là mép trái cần tìm.
+Một cột bằng chiều cao với cột hiện tại bị lấy ra sớm, nên có thể tính thiếu chiều rộng ở bên phải. Không sao: cột hiện tại cao bằng nó và có cùng mép trái, nên khi tới lượt bị lấy ra, nó sẽ tính đủ chiều rộng, hoặc lại chuyển tiếp cho cột cao bằng nó tiếp theo. Cột cuối cùng của một dãy cột cao bằng nhau bị lấy ra bởi một cột thấp hơn hẳn hoặc bởi cột ảo, nên nó tính đúng toàn bộ chiều rộng. Lấy ra cả cột cao bằng còn giữ cho chiều cao trong stack luôn tăng hẳn, nên cột ngay bên dưới luôn thấp hơn, đúng là mép trái cần tìm.
 
 </Callout>
 
@@ -49,4 +49,4 @@ Mỗi chỉ số, kể cả cột ảo, được <Term vi="đẩy vào">push</Te
 
 <Solution />
 
-<Bilingual vi="Giữ stack chỉ số các cột có chiều cao tăng dần; gặp cột không cao hơn đỉnh thì lấy đỉnh ra và tính hình chữ nhật cao bằng nó, kéo từ sau đỉnh mới tới trước cột hiện tại; một cột 0 ở cuối lấy ra phần còn lại." en="Keep a stack of bar indices with increasing heights. When the current bar is no taller than the top bar, pop the top: its rectangle spans from just after the new top to just before the current bar. A final bar of height 0 pops the rest. Track the largest area. O(n) time and space." />
+<Bilingual vi="Giữ stack chỉ số các cột có chiều cao tăng dần; gặp cột không cao hơn đỉnh thì lấy đỉnh ra và tính hình chữ nhật cao bằng nó, kéo từ sau đỉnh mới tới trước cột hiện tại; một cột 0 ở cuối lấy ra phần còn lại." en="Keep a stack of bar indices with increasing heights. When the current bar is no taller than the top bar, pop the top: its rectangle spans from just after the new top's index to just before the current bar. A final bar of height 0 pops the rest. Track the largest area. O(n) time and space." />

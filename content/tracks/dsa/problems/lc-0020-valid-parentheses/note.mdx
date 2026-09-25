@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Mỗi dấu đóng phải khớp với dấu mở **gần nhất** còn chưa được đóng, tức là dấu mở xuất hiện sau cùng. Thứ tự này chính là cách một <Term vi="ngăn xếp">stack</Term> hoạt động: phần tử vào sau thì ra trước, gọi là <Term vi="vào sau ra trước">LIFO</Term>. Gặp dấu mở thì đẩy nó vào stack; gặp dấu đóng thì dấu mở ở đỉnh stack phải cùng loại, và khi đó ta lấy nó ra. Duyệt hết chuỗi mà stack vẫn còn dấu mở nghĩa là có ngoặc chưa được đóng.
+Mỗi dấu đóng phải khớp với dấu mở **gần nhất** còn chưa được đóng, tức là dấu mở xuất hiện sau cùng. Thứ tự này chính là cách một <Term vi="ngăn xếp">stack</Term> hoạt động: phần tử vào sau thì ra trước, gọi là <Term>LIFO</Term>. Gặp dấu mở thì đẩy nó vào stack; gặp dấu đóng thì dấu mở ở đỉnh stack phải cùng loại, và khi đó ta lấy nó ra. Duyệt hết chuỗi mà stack vẫn còn dấu mở nghĩa là có ngoặc chưa được đóng.
 
 ## Cách làm
 
@@ -12,9 +12,9 @@ Mỗi dấu đóng phải khớp với dấu mở **gần nhất** còn chưa đ
 
 <Step title="Bảng tra dấu mở">Tạo một <Term vi="bảng băm">hash map</Term> `opener` cho biết mỗi dấu đóng cần dấu mở nào: `)` cần `(`, `]` cần `[`, `}` cần `{`.</Step>
 
-<Step title="Gặp dấu mở">Đẩy nó vào stack (<Term vi="đẩy vào">push</Term>) rồi đi tiếp.</Step>
+<Step title="Gặp dấu mở">Đẩy nó vào stack rồi đi tiếp; thao tác này gọi là <Term>push</Term>.</Step>
 
-<Step title="Gặp dấu đóng">Nếu stack rỗng, hoặc đỉnh stack không phải dấu mở mà dấu đóng này cần, trả về `false` ngay. Nếu khớp, lấy dấu mở đó ra khỏi stack (<Term vi="lấy ra">pop</Term>).</Step>
+<Step title="Gặp dấu đóng">Nếu stack rỗng, hoặc đỉnh stack không phải dấu mở mà dấu đóng này cần, trả về `false` ngay. Nếu khớp, lấy dấu mở đó ra khỏi stack, tức <Term>pop</Term>.</Step>
 
 <Step title="Kiểm tra cuối">Hết chuỗi, trả về `true` khi và chỉ khi stack rỗng.</Step>
 

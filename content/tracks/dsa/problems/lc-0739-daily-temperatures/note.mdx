@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Với mỗi ngày, cần biết phải chờ bao nhiêu ngày mới có một ngày ấm hơn. Cách vét cạn quét về phía sau cho từng ngày và tốn `O(n^2)`. Thay vào đó, giữ một <Term vi="ngăn xếp">stack</Term> chứa chỉ số của những ngày **đang chờ** một ngày ấm hơn. Khi ngày mới ấm hơn ngày ở đỉnh, ngày ở đỉnh đã có đáp án: lấy nó ra, ghi khoảng cách, rồi xét tiếp đỉnh mới. Vì vậy, nhiệt độ trong stack không bao giờ tăng từ đáy lên đỉnh; đây là một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term>.
+Với mỗi ngày, cần biết phải chờ bao nhiêu ngày mới có một ngày ấm hơn. Cách vét cạn, với mỗi ngày, quét các ngày sau nó và tốn `O(n^2)`. Thay vào đó, giữ một <Term vi="ngăn xếp">stack</Term> chứa chỉ số của những ngày **đang chờ** một ngày ấm hơn. Khi ngày mới ấm hơn ngày ở đỉnh, ngày ở đỉnh đã có đáp án: lấy nó ra, ghi khoảng cách, rồi xét tiếp đỉnh mới. Vì vậy, nhiệt độ trong stack không bao giờ tăng từ đáy lên đỉnh; đây là một <Term vi="ngăn xếp đơn điệu">monotonic stack</Term>.
 
 ## Cách làm
 
@@ -49,4 +49,4 @@ Mỗi chỉ số được <Term vi="đẩy vào">push</Term> đúng một lần 
 
 <Solution />
 
-<Bilingual vi="Giữ một stack chỉ số các ngày chưa gặp ngày ấm hơn; mỗi ngày mới lấy ra mọi ngày lạnh hơn ở đỉnh, ghi khoảng cách ngày cho chúng, rồi tự vào stack." en="Keep a stack of the indices of days still waiting for a warmer day. For each new day, pop every colder day from the top and set its answer to the number of days between them, then push the new day. Days left on the stack keep 0. Each index is pushed and popped at most once: O(n) time." />
+<Bilingual vi="Giữ một stack chỉ số các ngày chưa gặp ngày ấm hơn; mỗi ngày mới lấy ra mọi ngày lạnh hơn ở đỉnh, ghi khoảng cách ngày cho chúng, rồi tự vào stack." en="Keep a stack of the indices of days still waiting for a warmer day. For each new day, while the top day is colder, pop it and set its answer to the difference of their indices, then push the new day. Days left on the stack keep 0. Each index is pushed and popped at most once: O(n) time." />

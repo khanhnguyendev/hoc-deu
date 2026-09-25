@@ -10,9 +10,9 @@ Trong <Term vi="ký pháp Ba Lan ngược">Reverse Polish Notation</Term>, toán
 
 <Steps>
 
-<Step title="Gặp số">Token nào không phải một trong bốn toán tử là một số, kể cả số âm như `"-4"`: chuyển nó thành số nguyên và đẩy vào stack (<Term vi="đẩy vào">push</Term>).</Step>
+<Step title="Gặp số">Token nào không phải một trong bốn toán tử là một số, kể cả số âm như `"-4"`: chuyển nó thành số nguyên và đẩy vào stack, tức <Term>push</Term>.</Step>
 
-<Step title="Gặp toán tử">Lấy hai giá trị ở đỉnh ra (<Term vi="lấy ra">pop</Term>). Giá trị lấy ra **đầu tiên** là toán hạng bên phải `right`, giá trị thứ hai là toán hạng bên trái `left`.</Step>
+<Step title="Gặp toán tử">Lấy hai giá trị ở đỉnh ra, tức hai lần <Term>pop</Term>. Giá trị lấy ra **đầu tiên** là toán hạng bên phải `right`, giá trị thứ hai là toán hạng bên trái `left`.</Step>
 
 <Step title="Tính và đẩy lại">Tính `left op right`, với `op` là toán tử vừa gặp, và đẩy kết quả vào stack. Phép chia làm tròn về phía 0.</Step>
 

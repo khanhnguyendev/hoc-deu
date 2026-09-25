@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Một mảng tăng dần bị xoay gồm hai đoạn tăng dần nối nhau, và giá trị nhỏ nhất là phần tử đầu của đoạn thứ hai, ngay sau "điểm gãy". Các giá trị đều khác nhau, nên chỉ cần so phần tử giữa với phần tử cuối của đoạn đang xét. Nếu `nums[mid] > nums[hi]` thì điểm gãy nằm giữa `mid` và `hi`, nên giá trị nhỏ nhất ở bên phải `mid`; nếu không thì `nums[mid..hi]` đã tăng dần và giá trị nhỏ nhất là `mid` hoặc nằm bên trái nó. Mỗi bước bỏ được khoảng một nửa, nên đây vẫn là <Term vi="tìm kiếm nhị phân">binary search</Term>, chỉ khác ở câu hỏi đặt ra với phần tử giữa trên một <Term vi="mảng đã sắp xếp bị xoay">rotated sorted array</Term>.
+Một mảng tăng dần bị xoay gồm hai đoạn tăng dần nối nhau, và giá trị nhỏ nhất là phần tử đầu của đoạn thứ hai, ngay sau "điểm gãy"; nếu phép xoay đưa mảng về đúng thứ tự ban đầu thì chỉ còn một đoạn, và giá trị nhỏ nhất là phần tử đầu tiên. Ta so phần tử giữa với phần tử cuối của đoạn đang xét; các giá trị đều khác nhau và `mid < hi`, nên hai số này không bao giờ bằng nhau. Nếu `nums[mid] > nums[hi]` thì điểm gãy nằm giữa `mid` và `hi`, nên giá trị nhỏ nhất ở bên phải `mid`; nếu không thì `nums[mid..hi]` đã tăng dần và giá trị nhỏ nhất là `mid` hoặc nằm bên trái nó. Mỗi bước bỏ được khoảng một nửa, nên đây vẫn là <Term vi="tìm kiếm nhị phân">binary search</Term>, chỉ khác ở câu hỏi đặt ra với phần tử giữa trên một <Term vi="mảng đã sắp xếp bị xoay">rotated sorted array</Term>.
 
 ## Cách làm
 
@@ -45,4 +45,4 @@ Mỗi bước đoạn `[lo, hi]` còn khoảng một nửa, nên có khoảng `l
 
 <Solution />
 
-<Bilingual vi="Mảng xoay gồm hai đoạn tăng dần; so phần tử giữa với phần tử cuối của đoạn đang xét: lớn hơn thì giá trị nhỏ nhất nằm bên phải mid, không thì nó là mid hoặc nằm bên trái, thu hẹp tới khi còn một phần tử." en="A rotated sorted array is two ascending runs, and the minimum starts the second run. Binary search: if the middle value is greater than the last value of the range, the minimum lies right of mid; otherwise it is mid or lies left of it. Stop when one element is left. O(log n) time." />
+<Bilingual vi="Mảng xoay gồm tối đa hai đoạn tăng dần; so phần tử giữa với phần tử cuối của đoạn đang xét: lớn hơn thì giá trị nhỏ nhất nằm bên phải mid, không thì nó là mid hoặc nằm bên trái, thu hẹp tới khi còn một phần tử." en="A rotated sorted array is at most two ascending runs, and the minimum is where the last run starts. Binary search: if the middle value is greater than the range's last value, the minimum lies right of mid; otherwise it is mid or lies left of it. Stop when one element is left. O(log n) time." />
