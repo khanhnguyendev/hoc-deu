@@ -179,3 +179,158 @@ cards:
       note: 'Dùng khi đóng ticket vì không phải bug; cũng nói "works as designed". Nên giải thích thêm để người báo lỗi hiểu vì sao.'
     example: "This works as intended because archived projects are hidden from search on purpose, but I'll make that clearer in the docs."
     pronunciation: '/ˈwɜːks əz ɪnˈten.dɪd/ · WORKS as in-TEN-ded'
+
+  # Extended cards (tier: extended, Q5): after the core cards.
+  - id: english:w02-crash
+    tier: extended
+    front: crash
+    back: (ứng dụng) bị sập, tự thoát đột ngột
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng cho app hay tiến trình: "The app crashes when…". Cũng là danh từ: a crash; "crash report" là báo cáo app tự gửi về khi bị sập.'
+    example: 'The Android app crashes as soon as you rotate the screen on the payment page.'
+    pronunciation: '/kræʃ/ · CRASH'
+
+  - id: english:w02-error-message
+    tier: extended
+    front: error message
+    back: thông báo lỗi hiện ra (trên màn hình hoặc trong log)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong bug report nên chép nguyên văn, kể cả mã lỗi, vì người sửa sẽ tìm kiếm theo đúng chuỗi đó.'
+    example: 'Could you copy the exact error message into the ticket instead of describing it?'
+    pronunciation: '/ˈer.ər ˌmes.ɪdʒ/ · ER-ror mes-sage'
+
+  - id: english:w02-log
+    tier: extended
+    front: log
+    back: nhật ký hệ thống, nơi ứng dụng ghi lại những gì đã xảy ra
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng số nhiều: "check the logs", "attach the logs". Động từ "log" là ghi vào log: "log the request ID". Đừng nhầm với "log in" (đăng nhập).'
+    example: 'I checked the logs, and every failed request comes from the same API key.'
+    pronunciation: '/lɒɡ/ · LOG'
+
+  - id: english:w02-environment
+    tier: extended
+    front: environment
+    back: môi trường chạy phần mềm (local, staging, production…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Bug report nên ghi rõ environment: local, staging hay production, cùng trình duyệt, hệ điều hành, phiên bản app. Trong cấu hình hay viết tắt là "env".'
+    example: 'Which environment did you see this in, staging or production?'
+    pronunciation: '/ɪnˈvaɪ.rən.mənt/ · en-VY-ron-ment'
+
+  - id: english:w02-happy-path
+    tier: extended
+    front: happy path
+    back: luồng chạy bình thường, suôn sẻ, không gặp lỗi hay trường hợp đặc biệt
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Ngược với edge case và các luồng lỗi. Nếu chỉ test happy path thì rất dễ bỏ sót bug.'
+    example: 'The happy path works, but the form breaks when the user goes back and changes the address.'
+    pronunciation: '/ˈhæp.i ˌpɑːθ/ · HAP-py path'
+
+  - id: english:w02-impact
+    tier: extended
+    front: impact
+    back: mức ảnh hưởng (tới người dùng, hệ thống, doanh thu…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Bug report tốt nói rõ impact: bao nhiêu người dùng bị ảnh hưởng, có mất tiền hay mất dữ liệu không. Hay đi với "on": "impact on users".'
+    example: 'The impact is small because only admins use the old report page.'
+    pronunciation: '/ˈɪm.pækt/ · IM-pact'
+
+  - id: english:w02-reporter
+    tier: extended
+    front: reporter
+    back: người tạo ticket, người báo lỗi
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong Jira, ticket có "Reporter" (người báo) và "Assignee" (người được giao). Thiếu thông tin thì hỏi lại reporter, đừng tự đoán.'
+    example: "I've asked the reporter for a screen recording, because the steps in the ticket don't trigger the bug."
+    pronunciation: '/rɪˈpɔː.tər/ · re-POR-ter'
+
+  - id: english:w02-reopen
+    tier: extended
+    front: reopen
+    back: mở lại (ticket đã đóng) vì lỗi vẫn còn
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng khi lỗi quay lại hoặc bản sửa chưa đủ: "reopen the ticket". Viết liền, không gạch nối.'
+    example: "I'm reopening the ticket because the bug came back after yesterday's deploy."
+    pronunciation: '/ˌriːˈəʊ.pən/ · re-OH-pen'
+
+  - id: english:w02-wont-fix
+    tier: extended
+    front: won't fix
+    back: (trạng thái ticket) quyết định không sửa, dù có thể đúng là lỗi
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Một trạng thái đóng ticket trên Jira, GitHub: team chọn không sửa (ảnh hưởng nhỏ, tốn công, tính năng sắp bỏ…). Khác "works as intended" (vốn không phải lỗi). Nhớ ghi lý do khi đóng.'
+    example: "We're closing this as won't fix because the old dashboard is being removed next month."
+    pronunciation: "/ˌwəʊnt ˈfɪks/ · won't FIX"
+
+  - id: english:w02-narrow-down
+    tier: extended
+    front: narrow down
+    back: thu hẹp phạm vi, khoanh vùng (để tìm ra nguyên nhân)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Hay dùng khi dò lỗi: "narrow it down to…" (khoanh vùng lại còn…). Tân ngữ là đại từ thì đặt ở giữa: "narrow it down".'
+    example: "I've narrowed it down to one commit from last Thursday, so I'll check that diff next."
+    pronunciation: '/ˌnær.əʊ ˈdaʊn/ · nar-row DOWN'
+
+  - id: english:w02-timeout
+    tier: extended
+    front: timeout
+    back: lỗi quá thời gian chờ, khi yêu cầu không nhận được phản hồi kịp
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Danh từ viết liền (a timeout); động từ viết tách: "The request times out after 30 seconds." Hay gặp: "timeout error", "connection timeout".'
+    example: "We're getting timeouts from the payment provider whenever traffic goes above a thousand requests per minute."
+    pronunciation: '/ˈtaɪm.aʊt/ · TIME-out'
+
+  - id: english:w02-stale
+    tier: extended
+    front: stale
+    back: cũ, lâu không ai động tới hoặc không còn đúng với hiện tại
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Dùng cho ticket, PR lâu không có hoạt động ("a stale ticket") và cho dữ liệu cũ chưa cập nhật ("stale data", "a stale cache").'
+    example: "Let's close the stale tickets that nobody has touched for six months."
+    pronunciation: '/steɪl/ · STALE'
+
+  - id: english:w02-epic
+    tier: extended
+    front: epic
+    back: nhóm lớn gồm nhiều ticket cùng phục vụ một mục tiêu
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thuật ngữ Agile, Jira. Thứ bậc hay gặp: epic > story > task > subtask. Không liên quan nghĩa "hoành tráng" trong văn nói.'
+    example: "Let's link these three tickets to the checkout redesign epic so we can track them together."
+    pronunciation: '/ˈep.ɪk/ · EP-ic'
+
+  - id: english:w02-flag
+    tier: extended
+    front: flag
+    back: báo lên, nêu ra (một vấn đề) để người khác chú ý
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay nói "flag an issue", "flag it to + người". Câu cảm ơn quen thuộc: "Thanks for flagging this!"'
+    example: 'QA flagged the missing translations before the release, so we fixed them in time.'
+    pronunciation: '/flæɡ/ · FLAG'

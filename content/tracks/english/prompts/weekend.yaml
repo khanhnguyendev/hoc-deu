@@ -1,0 +1,39 @@
+# Sunday weekend tasks (§5.6): the active weekend-task prompt of the current roadmap week.
+- id: english:prompt-w01-standup-update
+  tag: weekend-task
+  week: 1
+  minutes: 15
+  instruction:
+    vi: 'Ghi âm một bản cập nhật stand-up dài 1 phút về tuần làm việc của bạn (đã làm, sắp làm, vướng mắc), nghe lại rồi ghi lần hai'
+    en: 'Record a one-minute stand-up update about your week (what you did, what comes next, any blockers), listen back, then record a second take'
+  rubric:
+    - 'Đủ ba phần: đã làm, sắp làm, vướng mắc (hoặc nói rõ "no blockers")'
+    - 'Dùng tự nhiên ít nhất ba từ của tuần 1 (blocker, on track, wrap up, pick up…)'
+    - 'Dài khoảng một phút, nói chứ không đọc nguyên văn từ giấy'
+    - 'Lần ghi thứ hai rõ và trôi chảy hơn lần đầu'
+
+- id: english:prompt-w02-bug-report
+  tag: weekend-task
+  week: 2
+  minutes: 15
+  instruction:
+    vi: 'Viết bug report bằng tiếng Anh cho một lỗi bạn từng gặp: tiêu đề, các bước tái hiện, kết quả mong đợi, kết quả thực tế và môi trường'
+    en: 'Write a bug report in English for a bug you have run into: a title, steps to reproduce, expected behavior, actual behavior and the environment'
+  rubric:
+    - 'Tiêu đề cụ thể: lỗi gì, ở đâu, khi nào'
+    - 'Các bước được đánh số, người khác làm theo là tái hiện được'
+    - 'Tách rõ expected behavior và actual behavior'
+    - 'Có environment (trình duyệt, thiết bị, phiên bản) và nêu impact nếu có'
+
+- id: english:prompt-w03-review-comments
+  tag: weekend-task
+  week: 3
+  minutes: 15
+  instruction:
+    vi: 'Chọn một PR nhỏ (của bạn, của đồng nghiệp hoặc một dự án mã nguồn mở) và viết ba comment review bằng tiếng Anh, không cần đăng: một nit, một câu hỏi hoặc gợi ý, một lời khen cụ thể'
+    en: "Pick a small PR (yours, a teammate's or an open-source one) and write three review comments in English, without posting them: one nit, one question or suggestion, and one specific compliment"
+  rubric:
+    - 'Comment nit có đánh dấu "Nit:" hoặc "Non-blocking:"'
+    - 'Câu hỏi hoặc gợi ý có lý do và giọng mở ("Have you considered…?", "Could we…?")'
+    - 'Lời khen nói rõ khen điều gì, không chỉ "LGTM"'
+    - 'Cả ba comment nói về code, không nói về người viết'

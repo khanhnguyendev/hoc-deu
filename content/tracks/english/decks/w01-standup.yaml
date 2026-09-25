@@ -135,3 +135,202 @@ cards:
       note: 'Hay thấy trong Slack, lịch và email trả lời tự động. Khi nói, thường nói cả cụm "out of office".'
     example: "Just so you know, I'll be OOO on Friday, so Linh will cover my code reviews."
     pronunciation: '/ˌaʊt əv ˈɒf.ɪs/ · out of OF-fice'
+
+  # Extended cards (tier: extended, Q5): after the core cards.
+  - id: english:w01-stand-up
+    tier: extended
+    front: stand-up
+    back: cuộc họp ngắn hằng ngày, mỗi người cập nhật nhanh tiến độ và vướng mắc
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường là "daily stand-up", khoảng 15 phút. Viết "stand-up" hoặc "standup"; hay nói "at stand-up", không cần "the".'
+    example: "I'll mention the new release date at stand-up so the whole team hears it at once."
+    pronunciation: '/ˈstænd.ʌp/ · STAND-up'
+
+  - id: english:w01-behind-schedule
+    tier: extended
+    front: behind schedule
+    back: chậm tiến độ, trễ so với kế hoạch
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Ngược với "on track" hoặc "ahead of schedule" (vượt tiến độ). Trễ bao lâu thì đặt ở trước: "two days behind schedule". Tiếng Anh-Mỹ đọc "schedule" là /ˈskedʒ.uːl/.'
+    example: "The mobile app is a week behind schedule, so we're moving the beta to the 20th."
+    pronunciation: '/bɪˌhaɪnd ˈʃed.juːl/ · be-hind SHED-yool'
+
+  - id: english:w01-at-risk
+    tier: extended
+    front: at risk
+    back: có nguy cơ không kịp hoặc không đạt (mốc, mục tiêu)
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Dùng để cảnh báo sớm, trước khi thật sự trễ, và nói luôn lý do: "at risk because…". Ba mức báo tiến độ hay gặp: on track, at risk, behind schedule.'
+    example: "The Friday release is at risk because we still don't have the signing certificate for the iOS build."
+    pronunciation: '/ət ˈrɪsk/ · at RISK'
+
+  - id: english:w01-slip
+    tier: extended
+    front: slip
+    back: (mốc, deadline) bị lùi, bị trễ
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Chủ ngữ là mốc hoặc việc, không phải người: "The release slipped to next week." Cũng dùng làm danh từ: "a one-week slip".'
+    example: 'If the security review takes longer than a week, the launch will slip to November.'
+    pronunciation: '/slɪp/ · SLIP'
+
+  - id: english:w01-on-hold
+    tier: extended
+    front: on hold
+    back: tạm dừng, để đó chưa làm tiếp
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Hay đi với "put": "put something on hold". Khác "blocked": "on hold" thường là quyết định tạm dừng (chờ ưu tiên, chờ duyệt…), còn "blocked" là muốn làm mà đang bị vướng.'
+    example: "We've put the dark mode ticket on hold until the new design system is ready."
+    pronunciation: '/ɒn ˈhəʊld/ · on HOLD'
+
+  - id: english:w01-stuck
+    tier: extended
+    front: stuck
+    back: bí, loay hoay mãi chưa tìm ra cách giải quyết
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay dùng "stuck on + việc". Khác "blocked": stuck là tự mình chưa gỡ được, blocked thường là đang chờ người khác. Cứ nói "I''m stuck" ở stand-up để được giúp sớm.'
+    example: "I've been stuck on this caching bug since yesterday, so could someone pair with me after stand-up?"
+    pronunciation: '/stʌk/ · STUCK'
+
+  - id: english:w01-run-into
+    tier: extended
+    front: run into
+    back: gặp phải (vấn đề, lỗi) một cách bất ngờ
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Theo sau là vấn đề: "run into an issue / a problem / an error". Quá khứ: ran into. Câu báo cáo quen thuộc: "I ran into a problem with…".'
+    example: "I ran into a permissions error when deploying to staging, so I'm checking the IAM roles now."
+    pronunciation: '/ˈrʌn ˌɪn.tuː/ · RUN in-to'
+
+  - id: english:w01-look-into
+    tier: extended
+    front: look into
+    back: tìm hiểu, điều tra (một vấn đề) để biết nguyên nhân
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Câu hứa quen thuộc: "I''ll look into it." Nhẹ hơn "fix": mới hứa tìm hiểu, chưa hứa sửa xong.'
+    example: "The export is slow for large accounts, so I'll look into it today and share what I find."
+    pronunciation: '/ˈlʊk ˌɪn.tuː/ · LOOK in-to'
+
+  - id: english:w01-get-to
+    tier: extended
+    front: get to
+    back: có thời gian để làm tới (việc gì)
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay dùng ở thể phủ định để giải thích việc chưa làm: "I didn''t get to it yesterday." Đừng nhầm với "get to + động từ" (có dịp, được làm gì).'
+    example: "I didn't get to the release notes yesterday, but they're first on my list this morning."
+    pronunciation: '/ˈɡet tuː/ · GET to'
+
+  - id: english:w01-get-back-to
+    tier: extended
+    front: get back to
+    back: trả lời, liên lạc lại với ai sau (khi đã có thông tin)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: '"get back to + người". Dùng khi chưa trả lời được ngay; nên hẹn thời điểm cụ thể: "I''ll get back to you by Friday."'
+    example: "I need to check with the data team first, so I'll get back to you after lunch."
+    pronunciation: '/ˌɡet ˈbæk tuː/ · get BACK to'
+
+  - id: english:w01-heads-down
+    tier: extended
+    front: heads-down
+    back: đang tập trung làm một việc, hạn chế bị làm phiền
+    usage:
+      pos: adjective
+      register: informal
+      note: 'Hay dùng "be heads-down on + việc" để báo team rằng mình sẽ ít trả lời tin nhắn. Có khi viết không gạch nối: "heads down".'
+    example: "I'll be heads-down on the migration script this afternoon, so I'll reply to messages around four."
+    pronunciation: '/ˌhedzˈdaʊn/ · heads-DOWN'
+
+  - id: english:w01-bandwidth
+    tier: extended
+    front: bandwidth
+    back: (nghĩa bóng) thời gian, sức lực còn trống để nhận thêm việc
+    usage:
+      pos: noun
+      register: informal
+      note: 'Nghĩa gốc là băng thông mạng. Hay nói "I don''t have the bandwidth for…" (không còn sức nhận thêm) hoặc "I have some bandwidth today" (hôm nay còn rảnh để giúp).'
+    example: 'I have some bandwidth this afternoon if anyone needs help with code reviews.'
+    pronunciation: '/ˈbænd.wɪtθ/ · BAND-width'
+
+  - id: english:w01-ping
+    tier: extended
+    front: ping
+    back: nhắn nhanh cho ai (qua Slack, Teams…)
+    usage:
+      pos: verb
+      register: informal
+      note: 'Mượn từ lệnh "ping" kiểm tra mạng. "Ping me if…" là cứ nhắn tôi nếu… Cũng dùng làm danh từ: "Thanks for the ping."'
+    example: "Ping me when the build is green and I'll deploy it to staging."
+    pronunciation: '/pɪŋ/ · PING'
+
+  - id: english:w01-eod
+    tier: extended
+    front: EOD
+    back: cuối ngày làm việc (end of day)
+    usage:
+      pos: abbreviation
+      register: informal
+      note: 'Hay gặp trong "by EOD" (trước cuối ngày). Đọc từng chữ cái. Khi team ở nhiều múi giờ, nên ghi rõ giờ: "by 5 p.m. Hanoi time".'
+    example: "I'll have the test report ready by EOD, so you can review it first thing tomorrow."
+    pronunciation: '/ˌiː.əʊˈdiː/ · ee-oh-DEE'
+
+  - id: english:w01-sidetracked
+    tier: extended
+    front: sidetracked
+    back: bị cuốn sang việc khác, sao nhãng khỏi việc chính
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay dùng "get sidetracked by + việc" để giải thích vì sao việc chính chưa xong. Động từ: sidetrack.'
+    example: 'I got sidetracked by a production issue yesterday, so the search filters will be ready tomorrow instead.'
+    pronunciation: '/ˈsaɪd.trækt/ · SIDE-tracked'
+
+  - id: english:w01-shout-out
+    tier: extended
+    front: shout-out
+    back: lời cảm ơn, khen ngợi ai đó trước mọi người
+    usage:
+      pos: noun
+      register: informal
+      note: 'Hay nói cuối stand-up hoặc trong buổi retro: "a shout-out to + người + for + việc". Cũng viết "shoutout".'
+    example: 'Quick shout-out to Hoa for fixing the broken build that was blocking everyone yesterday.'
+    pronunciation: '/ˈʃaʊt.aʊt/ · SHOUT-out'
+
+  - id: english:w01-pending
+    tier: extended
+    front: pending
+    back: đang chờ xử lý, chưa xong
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay đi với review, approval: "pending review" (đang chờ review). Đứng trước danh từ hoặc sau "be": "a pending PR", "The PR is pending."'
+    example: "My PR for the new settings page is still pending review, so I'm starting on the unit tests."
+    pronunciation: '/ˈpen.dɪŋ/ · PEN-ding'
+
+  - id: english:w01-go-ahead
+    tier: extended
+    front: go ahead
+    back: mời (ai) nói hoặc làm trước; cứ tiến hành
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Trong họp online, khi hai người cùng mở lời, nói "Sorry, go ahead" để nhường. Nghĩa "tiến hành": "go ahead with the release". Danh từ: "the go-ahead" (sự đồng ý cho làm).'
+    example: "Sorry, you go ahead, Linh, and I'll give my update after you."
+    pronunciation: '/ˌɡəʊ əˈhed/ · go a-HEAD'

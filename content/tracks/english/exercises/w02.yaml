@@ -1,0 +1,82 @@
+# Week 2 (tickets): the weekday practice block picks these in file order (§5.6).
+- id: english:ex-w02-fill-1
+  kind: fill-blank
+  week: 2
+  topic: tickets
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: "I can't {{blank}} the bug on my machine, so could you share the exact steps and your browser version?"
+  answers: [reproduce, repro, replicate]
+  hint: 'Động từ nghĩa là tái hiện lỗi (làm lỗi xảy ra lại để kiểm tra).'
+
+- id: english:ex-w02-rewrite-1
+  kind: rewrite
+  week: 2
+  topic: tickets
+  instruction:
+    vi: 'Viết lại thành tiêu đề ticket cụ thể: lỗi gì, ở đâu, khi nào'
+    en: 'Rewrite it as a specific ticket title: what fails, where and when'
+  text: 'Login broken!!! Fix ASAP'
+  sampleAnswers:
+    - 'Login fails with a 500 error on Safari when two-factor authentication is enabled'
+    - 'iOS app: the login button does nothing after a password reset'
+  rubric:
+    - 'Nêu triệu chứng thấy được (lỗi 500, nút không phản hồi…), không chỉ "broken"'
+    - 'Có điều kiện hoặc môi trường (trình duyệt, nền tảng, bước gây lỗi)'
+    - 'Giọng bình tĩnh: bỏ "!!!" và "ASAP"; độ gấp để ở trường priority'
+
+- id: english:ex-w02-respond-1
+  kind: respond
+  week: 2
+  topic: tickets
+  instruction:
+    vi: 'Trả lời PM: hỏi thêm thông tin cần để tái hiện lỗi'
+    en: 'Reply to the PM: ask for the details you need to reproduce the bug'
+  text: 'Hey, a customer says the invoice page is broken. Can you take a look?'
+  sampleAnswers:
+    - "Sure! Could you ask them for the steps to reproduce, which browser and device they're using, and what they expected to see? A screenshot of the error message would help too."
+    - "Happy to look into it. Do we know which environment this is, the exact error message, and whether it happens every time or only sometimes? In the meantime, I'll check the logs for their account."
+  rubric:
+    - 'Nhận lời giúp, giọng thân thiện'
+    - 'Hỏi ít nhất ba thông tin: các bước, môi trường (trình duyệt, thiết bị), kết quả mong đợi, error message, tần suất'
+    - 'Câu hỏi rõ ràng, PM chuyển nguyên văn cho khách hàng được'
+
+- id: english:ex-w02-fill-2
+  kind: fill-blank
+  week: 2
+  topic: tickets
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: 'It only fails for some users, so the first step is to narrow it {{blank}}: is it one browser, one region or one account type?'
+  answers: [down]
+  hint: 'Cụm "narrow it …" nghĩa là thu hẹp phạm vi, khoanh vùng để tìm nguyên nhân.'
+
+- id: english:ex-w02-rewrite-2
+  kind: rewrite
+  week: 2
+  topic: tickets
+  instruction:
+    vi: 'Viết lại lời đóng ticket cho lịch sự và nêu lý do: bản miễn phí chỉ xuất được tối đa 10.000 dòng'
+    en: 'Rewrite the closing comment politely and give the reason: free-plan exports are limited to 10,000 rows'
+  text: 'Not a bug. Closing.'
+  sampleAnswers:
+    - "Thanks for reporting this! It works as intended: exports on the free plan are limited to 10,000 rows. I'm closing the ticket, but feel free to reopen it if you think the limit should change."
+    - "Thanks for the detailed report. This is expected behavior, because free-plan exports stop at 10,000 rows, so I'm closing it as works as intended. I've also asked the docs team to mention the limit."
+  rubric:
+    - 'Cảm ơn người báo lỗi trước'
+    - 'Nêu lý do cụ thể (giới hạn 10.000 dòng), dùng "works as intended" hoặc "expected behavior"'
+    - 'Mở đường cho người báo: có thể reopen hoặc góp ý thêm'
+
+- id: english:ex-w02-respond-2
+  kind: respond
+  week: 2
+  topic: tickets
+  instruction:
+    vi: 'Đề xuất severity và priority cho lỗi này, giải thích ngắn gọn'
+    en: 'Suggest a severity and a priority for this bug, with a short reason for each'
+  text: "Bug: invoice PDFs show the wrong currency for customers in Japan. The amounts are correct, and the web page shows the right currency. There's no workaround for the PDF."
+  sampleAnswers:
+    - "I'd set the severity to medium: the amounts are right, but a wrong currency on an invoice looks unprofessional and could confuse accounting teams. The priority should be high, because customers send these PDFs to their finance teams and there's no workaround."
+    - 'Severity: medium, since no data is lost and the web page is correct. Priority: P1, because it affects every invoice for our Japanese customers and could lead to payment mistakes.'
+  rubric:
+    - 'Nêu cả severity và priority, không nhầm hai khái niệm'
+    - 'Mỗi lựa chọn có lý do dựa trên impact (ai bị ảnh hưởng, nặng tới đâu) và việc có workaround hay không'
+    - 'Ngắn gọn, nối lý do bằng "because" hoặc "since"'

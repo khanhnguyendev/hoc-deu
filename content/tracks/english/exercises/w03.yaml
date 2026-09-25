@@ -1,0 +1,82 @@
+# Week 3 (code-review): the weekday practice block picks these in file order (§5.6).
+- id: english:ex-w03-fill-1
+  kind: fill-blank
+  week: 3
+  topic: code-review
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: 'This function is hard to follow because the if statements are {{blank}} four levels deep.'
+  answers: [nested]
+  hint: 'Tính từ nghĩa là "lồng nhau": cái này nằm bên trong cái kia.'
+
+- id: english:ex-w03-rewrite-1
+  kind: rewrite
+  week: 3
+  topic: code-review
+  instruction:
+    vi: 'Viết lại comment review cho mang tính xây dựng (hàm dài 60 dòng, if lồng bốn tầng)'
+    en: 'Rewrite the review comment to be constructive (a 60-line function with ifs nested four levels deep)'
+  text: 'This code is messy. Rewrite it.'
+  sampleAnswers:
+    - 'This function is a bit hard to follow because the ifs are nested four levels deep. Have you considered early returns for the error cases? That would flatten most of it.'
+    - 'Non-blocking, but for readability, could we split this 60-line function into smaller helpers and use early returns instead of the nested ifs?'
+  rubric:
+    - 'Nói về code, không nói về người viết; bỏ chữ "messy" và câu ra lệnh'
+    - 'Chỉ ra vấn đề cụ thể (hàm dài, lồng nhiều tầng) và vì sao nó khó đọc'
+    - 'Gợi ý hướng sửa bằng câu hỏi hoặc đề xuất ("Have you considered…?", "Could we…?")'
+
+- id: english:ex-w03-respond-1
+  kind: respond
+  week: 3
+  topic: code-review
+  instruction:
+    vi: 'Trả lời comment review: ghi nhận, cảm ơn và nói bạn sẽ sửa thế nào'
+    en: 'Reply to the review comment: acknowledge it, thank the reviewer and say what you will change'
+  text: 'What happens if `items` is empty here? I think `items[0].price` will throw.'
+  sampleAnswers:
+    - "Good catch, thanks! It would throw, so I've added an early return for an empty list and a unit test for that case."
+    - "You're right, I missed that edge case. I'll add a check for an empty list and a test for it, then ping you when it's ready for another look."
+  rubric:
+    - 'Cảm ơn hoặc ghi nhận góp ý ("Good catch", "You''re right"…)'
+    - 'Nói cụ thể sẽ sửa gì (thêm check, thêm test…)'
+    - 'Báo bước tiếp theo: đã push bản sửa, hoặc sẽ báo lại khi xong'
+
+- id: english:ex-w03-fill-2
+  kind: fill-blank
+  week: 3
+  topic: code-review
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: "Good {{blank}}! I didn't notice the off-by-one error, so I've pushed a fix."
+  answers: [catch, spot, eye]
+  hint: 'Cụm "Good …!" dùng để cảm ơn khi ai đó phát hiện lỗi mình bỏ sót.'
+
+- id: english:ex-w03-rewrite-2
+  kind: rewrite
+  week: 3
+  topic: code-review
+  instruction:
+    vi: 'Viết lại câu trả lời reviewer cho cởi mở, không phòng thủ (reviewer lo code sai ở múi giờ khác)'
+    en: 'Rewrite your reply so it sounds open, not defensive (the reviewer thinks the code breaks in other time zones)'
+  text: "It works on my machine, so I'm not changing it."
+  sampleAnswers:
+    - "Thanks for pointing this out. It works on my machine, but I've only tested it in UTC+7, so I'll add a unit test with a few other time zones and fix it if it fails."
+    - "Good point, I hadn't tested other time zones. Let me write a quick test for UTC and UTC-5 first, and if it breaks, I'll switch to a time-zone-aware parser."
+  rubric:
+    - 'Ghi nhận góp ý thay vì bác bỏ ngay'
+    - 'Thừa nhận rằng chạy được trên máy mình chưa đủ để chắc chắn'
+    - 'Đề xuất bước kiểm tra cụ thể (viết test, thử múi giờ khác) và sẽ sửa nếu cần'
+
+- id: english:ex-w03-respond-2
+  kind: respond
+  week: 3
+  topic: code-review
+  instruction:
+    vi: 'Viết một comment review cho dòng code này: lịch sự, cụ thể, có gợi ý cách sửa'
+    en: 'Write a review comment on this line: polite, specific, with a suggested fix'
+  text: "const API_URL = 'https://staging.example.com/v1' // used by the production build"
+  sampleAnswers:
+    - 'This URL is hard-coded to staging, so the production build would call the staging API. Could we read it from an environment variable instead?'
+    - "Have you considered moving this URL into the config? Right now it's hard-coded to staging, and the production build would pick it up."
+  rubric:
+    - 'Chỉ ra đúng vấn đề: URL staging bị hard-code nên bản production sẽ gọi nhầm'
+    - 'Gợi ý cách sửa (biến môi trường, file cấu hình)'
+    - 'Giọng lịch sự: dùng câu hỏi hoặc "Could we…?", không ra lệnh'

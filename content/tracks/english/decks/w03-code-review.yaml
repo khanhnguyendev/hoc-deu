@@ -157,3 +157,180 @@ cards:
       note: 'Hay đi với "remove/delete dead code". Nên xoá hẳn thay vì comment lại, vì Git đã lưu lịch sử.'
     example: 'Can we delete this dead code, since the branch can never run now that the old flag is gone?'
     pronunciation: '/ˌded ˈkəʊd/ · dead CODE'
+
+  # Extended cards (tier: extended, Q5): after the core cards.
+  - id: english:w03-good-catch
+    tier: extended
+    front: good catch
+    back: phát hiện hay đấy (ghi nhận khi ai đó chỉ ra lỗi mình bỏ sót)
+    usage:
+      pos: phrase
+      register: informal
+      note: 'Câu trả lời quen thuộc cho comment review chỉ ra bug: "Good catch, fixed!" Cũng nói "Nice catch!"'
+    example: "Good catch — I hadn't thought about users without an email address, so I've added a check."
+    pronunciation: '/ˌɡʊd ˈkætʃ/ · good CATCH'
+
+  - id: english:w03-resolve
+    tier: extended
+    front: resolve
+    back: đánh dấu (comment, thread) là đã xử lý xong
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Trên GitHub có nút "Resolve conversation". Tuỳ team: có nơi để người viết comment tự resolve, có nơi người sửa resolve sau khi trả lời "Done". Nghĩa chung: giải quyết (vấn đề).'
+    example: "Feel free to resolve the thread once you've pushed the fix."
+    pronunciation: '/rɪˈzɒlv/ · re-ZOLV'
+
+  - id: english:w03-clean-up
+    tier: extended
+    front: clean up
+    back: dọn dẹp code (bỏ phần thừa, sắp xếp lại cho gọn)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Danh từ: "a cleanup" hoặc "a clean-up PR". Dọn code thường là bỏ log debug, import thừa, đoạn code bị comment lại.'
+    example: "Before I request a review, I'll clean up the debug logs and the unused imports."
+    pronunciation: '/ˌkliːn ˈʌp/ · clean UP'
+
+  - id: english:w03-test-coverage
+    tier: extended
+    front: test coverage
+    back: độ bao phủ của test (phần code được test chạy qua)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói theo phần trăm: "80% test coverage". Coverage cao chưa chắc test tốt; quan trọng là có test các edge case.'
+    example: 'This module has almost no test coverage, so please add tests before we change the pricing logic.'
+    pronunciation: '/ˈtest ˌkʌv.ər.ɪdʒ/ · TEST cov-er-age'
+
+  - id: english:w03-unit-test
+    tier: extended
+    front: unit test
+    back: test cho một phần nhỏ (một hàm, một class), chạy riêng lẻ
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Phân biệt với "integration test" (test nhiều phần chạy cùng nhau) và "end-to-end test" (test cả luồng như người dùng thật).'
+    example: 'Could you add a unit test for the case where the discount code has expired?'
+    pronunciation: '/ˈjuː.nɪt ˌtest/ · YOO-nit test'
+
+  - id: english:w03-naming-convention
+    tier: extended
+    front: naming convention
+    back: quy ước đặt tên (biến, hàm, file…) mà cả team theo
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Ví dụ: camelCase cho biến trong JavaScript, snake_case trong Python. Góp ý hay gặp: "This doesn''t follow our naming convention."'
+    example: 'Our naming convention says booleans start with "is" or "has", so could you rename `active` to `isActive`?'
+    pronunciation: '/ˈneɪ.mɪŋ kənˌven.ʃən/ · NAME-ing con-ven-tion'
+
+  - id: english:w03-consistent
+    tier: extended
+    front: consistent
+    back: nhất quán, thống nhất với phần còn lại
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay dùng "consistent with + thứ khác": "consistent with the rest of the codebase". Danh từ: consistency.'
+    example: "Let's keep the error format consistent with the other endpoints so the frontend can handle it in one place."
+    pronunciation: '/kənˈsɪs.tənt/ · con-SIS-tent'
+
+  - id: english:w03-self-explanatory
+    tier: extended
+    front: self-explanatory
+    back: tự nó đã rõ nghĩa, không cần giải thích thêm
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Tên biến, tên hàm tốt thì self-explanatory, không cần thêm comment giải thích.'
+    example: 'If we rename the function to `retryFailedPayments`, it becomes self-explanatory and we can drop the comment.'
+    pronunciation: '/ˌself.ɪkˈsplæn.ə.tər.i/ · self-ex-PLAN-a-to-ry'
+
+  - id: english:w03-extract
+    tier: extended
+    front: extract
+    back: tách (một đoạn code) ra thành hàm, biến hoặc file riêng
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay nói "extract … into a function / a helper". Động từ nhấn âm hai (ex-TRACT); danh từ "an extract" (đoạn trích) nhấn âm đầu.'
+    example: 'Could we extract the validation into a separate function so both endpoints can use it?'
+    pronunciation: '/ɪkˈstrækt/ · ex-TRACT'
+
+  - id: english:w03-nested
+    tier: extended
+    front: nested
+    back: lồng nhau (vòng lặp, if, callback nằm bên trong nhau)
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay gặp "deeply nested" (lồng nhiều tầng), "nested loops". Code lồng quá sâu khó đọc; một cách sửa là dùng early return.'
+    example: 'This function has four levels of nested ifs, which makes it hard to follow.'
+    pronunciation: '/ˈnes.tɪd/ · NES-ted'
+
+  - id: english:w03-early-return
+    tier: extended
+    front: early return
+    back: thoát khỏi hàm ngay khi gặp trường hợp đặc biệt, thay vì bọc cả hàm trong if
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Còn gọi là "guard clause". Gợi ý review quen thuộc: "Consider an early return here to reduce nesting."'
+    example: 'An early return for empty input would remove one level of nesting here.'
+    pronunciation: '/ˌɜː.li rɪˈtɜːn/ · ear-ly re-TURN'
+
+  - id: english:w03-null-check
+    tier: extended
+    front: null check
+    back: đoạn kiểm tra một giá trị có bị null (rỗng) không trước khi dùng
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thiếu null check là nguồn lỗi kinh điển ("NullPointerException", "Cannot read properties of undefined"). Động từ: "check for null".'
+    example: 'We need a null check here because `user.address` is missing for accounts created before 2020.'
+    pronunciation: '/ˈnʌl ˌtʃek/ · NULL check'
+
+  - id: english:w03-overkill
+    tier: extended
+    front: overkill
+    back: làm quá mức cần thiết, dùng dao mổ trâu giết gà
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng "overkill for + việc" hoặc nói nhẹ "a bit of overkill". Cách góp ý khi ai đó làm phức tạp quá: "Isn''t a new service overkill here?"'
+    example: 'A separate microservice feels like overkill for one small cron job.'
+    pronunciation: '/ˈəʊ.və.kɪl/ · OH-ver-kill'
+
+  - id: english:w03-duplication
+    tier: extended
+    front: duplication
+    back: tình trạng code bị lặp lại ở nhiều chỗ
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "code duplication", "reduce duplication". Nguyên tắc DRY (Don''t Repeat Yourself) là để tránh điều này.'
+    example: "There's some duplication between these two handlers, so we could move the shared part into a helper."
+    pronunciation: '/ˌdjuː.plɪˈkeɪ.ʃən/ · dyoo-pli-KAY-shun'
+
+  - id: english:w03-typo
+    tier: extended
+    front: typo
+    back: lỗi đánh máy, gõ sai chính tả
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong review hay viết ngắn: "Typo: recieve → receive". Commit sửa lỗi này thường ghi "Fix typo".'
+    example: "There's a typo in the error message: it says 'pasword' instead of 'password'."
+    pronunciation: '/ˈtaɪ.pəʊ/ · TY-po'
+
+  - id: english:w03-second-pair-of-eyes
+    tier: extended
+    front: second pair of eyes
+    back: thêm một người xem lại giúp để bắt lỗi mình bỏ sót
+    usage:
+      pos: idiom
+      register: neutral
+      note: 'Cách nhờ review lịch sự: "Could you be a second pair of eyes on this?" Cũng nói "a fresh pair of eyes" (người chưa quen đoạn code nên dễ thấy vấn đề).'
+    example: "This migration touches every customer record, so I'd like a second pair of eyes on it before I run it."
+    pronunciation: '/ˌsek.ənd ˌpeər əv ˈaɪz/ · sec-ond pair of EYES'
