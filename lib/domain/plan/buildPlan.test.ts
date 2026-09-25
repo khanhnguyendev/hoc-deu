@@ -504,6 +504,28 @@ describe('buildPlan — days without a new block (§5.4 steps 6–7, RF-4, decis
     ])
   })
 
+  // Ruling M4-R9: only the track's first new selection of the day forces its first item — here
+  // the first review block's fallback. The second fallback finds p2 (20) over the 15 minutes left
+  // and forces nothing, so there is no second new block.
+  it('Saturday [review, review], new learner, 60 min → one new block [lesson, p1]; the second fallback forces nothing (M4-R9)', () => {
+    const template: PlanWeeklyTemplate = { sat: [{ kind: 'review' }, { kind: 'review' }] }
+    const plan = buildPlan(
+      dsaOnly(
+        { planDate: SATURDAY },
+        enrollment('dsa', { budgetMinutes: 60, weeklyTemplate: template }),
+      ),
+    )
+    expect(plan.blocks).toStrictEqual([
+      {
+        id: '2026-10-03:dsa:new:1',
+        trackId: 'dsa',
+        kind: 'new',
+        estMinutes: 45,
+        items: [item('dsa:lesson-arrays', 'new', 25), item('dsa:p1', 'new', 20)],
+      },
+    ])
+  })
+
   it('the spill never forces its first item: 10 minutes left → no new block', () => {
     const items = statesOf(due('dsa:p1', SATURDAY), due('dsa:p2', SATURDAY))
     const plan = buildPlan(
