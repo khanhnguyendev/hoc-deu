@@ -1,0 +1,55 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mảng đã sắp xếp tăng dần, nên chỉ cần so `target` với phần tử ở giữa đoạn đang xét là biết `target`, nếu có, nằm ở nửa nào; nửa còn lại bị bỏ hẳn. Đó là <Term vi="tìm kiếm nhị phân">binary search</Term>: sau mỗi bước, đoạn cần tìm còn không quá một nửa, nên chỉ cần khoảng `log2(n)` bước. Điều phải giữ đúng suốt vòng lặp là một <Term vi="bất biến">invariant</Term>: nếu `target` có trong mảng thì nó nằm trong đoạn `nums[lo..hi]`, tính cả hai đầu.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đặt hai biên">`lo = 0` và `hi = len(nums) - 1`: lúc đầu đoạn đang xét là cả mảng.</Step>
+
+<Step title="Xét phần tử giữa">Chừng nào `lo <= hi`, tính `mid = lo + (hi - lo) // 2`. Nếu `nums[mid] == target`, trả về `mid`.</Step>
+
+<Step title="Bỏ một nửa">Nếu `nums[mid] < target`, mọi phần tử từ `lo` tới `mid` đều quá nhỏ: đặt `lo = mid + 1`. Ngược lại, mọi phần tử từ `mid` tới `hi` đều quá lớn: đặt `hi = mid - 1`.</Step>
+
+<Step title="Đoạn rỗng">Khi `lo > hi`, không còn phần tử nào để xét: trả về `-1`.</Step>
+
+</Steps>
+
+Chạy thử với một giá trị không có trong mảng:
+
+<VarTable caption="nums = [2, 5, 8, 12, 16, 23, 38], target = 13">
+
+| Bước | lo | hi | mid | `nums[mid]` | Hành động |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 6 | 3 | 12 | Nhỏ hơn 13: `lo = 4` |
+| 2 | 4 | 6 | 5 | 23 | Lớn hơn 13: `hi = 4` |
+| 3 | 4 | 4 | 4 | 16 | Lớn hơn 13: `hi = 3` |
+| 4 | 4 | 3 | — | — | `lo > hi`: trả về `-1` |
+
+</VarTable>
+
+<Callout tone="warning" title="Hai lỗi hay gặp">
+
+- Viết `while lo < hi` với đoạn tính cả hai đầu thì bỏ sót đoạn chỉ còn một phần tử, chẳng hạn tìm 7 trong `[7]`.
+- Viết `lo = mid` hoặc `hi = mid` thay cho `mid + 1` và `mid - 1`: khi đoạn còn một hoặc hai phần tử, `lo` và `hi` có thể không đổi và vòng lặp chạy mãi.
+
+</Callout>
+
+<Callout tone="tip" title="Vì sao không viết (lo + hi) / 2?">
+
+Hai cách cho cùng kết quả, nhưng `lo + (hi - lo) / 2` không bao giờ tạo ra số lớn hơn `hi`. Trong Java, `lo + hi` có thể vượt quá giới hạn của `int` khi mảng rất lớn và gây <Term vi="tràn số">overflow</Term>; viết theo cách này là một thói quen an toàn cho cả ba ngôn ngữ.
+
+</Callout>
+
+<Complexity time="O(log n)" space="O(1)" />
+
+Sau mỗi bước, đoạn `[lo, hi]` còn không quá một nửa, nên vòng lặp chạy khoảng `log2(n) + 1` lần; ngoài ba biến `lo`, `hi`, `mid` không cần thêm bộ nhớ.
+
+<Solution />
+
+<Bilingual vi="Mảng đã sắp xếp nên so target với phần tử giữa đoạn đang xét: phần tử giữa nhỏ hơn thì tìm tiếp ở nửa phải, lớn hơn thì tìm ở nửa trái, cho tới khi gặp target hoặc đoạn rỗng." en="The array is sorted, so compare the target with the middle element of the current range. If the middle is smaller, keep searching the right half; if it is larger, search the left half; if equal, return its index. When the range is empty, return -1. O(log n) time, O(1) space." />

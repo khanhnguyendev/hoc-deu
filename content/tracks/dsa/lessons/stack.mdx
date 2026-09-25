@@ -1,0 +1,174 @@
+---
+id: dsa:lesson-stack
+format: pattern
+topic: stack
+title: 'Stack: vào sau, ra trước'
+anchor: dsa:lc-0020
+practice: dsa:lc-0739
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="ngăn xếp">stack</Term> khi gặp một trong các dấu hiệu sau:
+
+- Có các cặp **mở – đóng lồng nhau**: dấu ngoặc, thẻ mở và thẻ đóng, lời gọi hàm và lúc hàm trả về.
+- Phần tử mới cần được xử lý cùng phần tử **gần nhất** còn đang dang dở, chứ không phải phần tử cũ nhất.
+- Thứ tự xử lý là vào sau ra trước, <Term vi="vào sau ra trước">LIFO</Term>: tính một biểu thức mà toán tử đứng sau toán hạng, hay hoàn tác (<Term vi="hoàn tác">undo</Term>) từng bước theo thứ tự ngược.
+- Với mỗi phần tử, cần tìm phần tử gần nhất về một phía lớn hơn hoặc nhỏ hơn nó.
+- Chỉ cần thêm, bỏ và xem ở **một đầu**, mỗi thao tác `O(1)`.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Khi một phần tử mới tới, nó cần đối chiếu với phần tử nào trước đó? Nếu luôn là phần tử gần nhất chưa được giải quyết, đó là việc của stack.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Sau giờ cơm trưa, quán cơm xếp đĩa sạch thành một chồng: chiếc rửa xong sau cùng nằm trên cùng, và người phục vụ luôn lấy chiếc trên cùng. Không ai rút một chiếc ở giữa chồng. Đó là stack: chỉ đặt vào, lấy ra và nhìn ở **đỉnh**.
+
+Kiểm tra dấu ngoặc giống như đóng một bộ hộp quà lồng nhau. Mở hộp to, bên trong có hộp vừa, trong nữa có hộp nhỏ. Muốn đóng lại cho đúng, phải đóng hộp nhỏ, tức hộp mở sau cùng, trước tiên; đóng hộp to khi hộp nhỏ bên trong còn mở là sai.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Valid Parentheses: kiểm tra một chuỗi ngoặc `()`, `[]`, `{}` có được mở và đóng đúng cách không. Mỗi hàng là một ký tự.
+
+<VarTable caption='s = "[{}(]"'>
+
+| Bước | Ký tự | Đỉnh stack | Hành động | Stack sau bước (đáy → đỉnh) |
+| --- | --- | --- | --- | --- |
+| 1 | `[` | — | Dấu mở: push | `[` |
+| 2 | `{` | `[` | Dấu mở: push | `[{` |
+| 3 | `}` | `{` | Khớp: pop | `[` |
+| 4 | `(` | `[` | Dấu mở: push | `[(` |
+| 5 | `]` | `(` | Cần `[` nhưng đỉnh là `(`: trả về `false` | `[(` |
+
+</VarTable>
+
+Dấu `]` ở bước 5 không được đóng "xuyên qua" dấu `(` còn đang mở bên trong nó.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Chọn thứ cần nhớ">Stack giữ những phần tử **đang dang dở**: dấu mở chưa có dấu đóng, số chưa được dùng tới, việc chưa làm xong.</Step>
+
+<Step title="Duyệt một lượt">Đi từ trái sang phải. Mỗi phần tử mới hoặc được đẩy vào stack (<Term vi="đẩy vào">push</Term>), hoặc giải quyết phần tử ở đỉnh rồi lấy nó ra (<Term vi="lấy ra">pop</Term>).</Step>
+
+<Step title="Chỉ nhìn đỉnh">Phần tử cần đối chiếu luôn là phần tử ở đỉnh, tức phần tử dang dở gần nhất. Kiểm tra stack rỗng trước khi xem hoặc lấy đỉnh.</Step>
+
+<Step title="Xét phần còn lại">Hết đầu vào, những gì còn trong stack cũng mang thông tin: với dấu ngoặc, đó là các dấu mở chưa được đóng, nên chuỗi sai.</Step>
+
+</Steps>
+
+### Vì sao đúng
+
+Giả sử một dấu đóng khớp với một dấu mở cũ hơn dấu mở ở đỉnh. Khi đó dấu mở ở đỉnh nằm bên trong cặp này nhưng lại chưa được đóng, như `[(])`: hai cặp đan chéo nhau chứ không lồng nhau. Vì thế một dấu đóng **chỉ** có thể khớp với đỉnh stack.
+
+### Các biến thể trong tuần
+
+- **Min Stack:** mỗi phần tử mang theo một thông tin tóm tắt về phần stack bên dưới nó, để đọc ra ngay ở đỉnh.
+- **Evaluate Reverse Polish Notation:** stack chứa các giá trị trung gian; mỗi toán tử lấy hai giá trị ở đỉnh ra và đẩy kết quả vào.
+- **Daily Temperatures** và **Largest Rectangle in Histogram** cũng dùng stack, nhưng theo một cách riêng: đó là phần để bạn tự khám phá.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải Python của Valid Parentheses. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import List
+
+
+class Solution:
+    def isValid(self, s: str) -> bool:
+        # Each closing bracket must match the most recent unmatched opening bracket.
+        opener = {")": "(", "]": "[", "}": "{"}
+        stack: List[str] = []
+        for ch in s:
+            if ch in opener:
+                if not stack or stack[-1] != opener[ch]:
+                    return False
+                stack.pop()
+            else:
+                stack.append(ch)
+        # Anything left open was never closed.
+        return not stack
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi ký tự được push hoặc pop nhiều nhất một lần, và mỗi thao tác trên stack là `O(1)`. Stack dài nhất khi mọi ký tự đều là dấu mở.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Dùng stack khi mỗi phần tử mới phải được đối chiếu với phần tử dang dở gần nhất: đẩy phần tử còn dang dở vào, và chỉ xem hoặc lấy ra phần tử ở đỉnh." en="Use a stack when each new element must be matched against the most recent unresolved one. Push elements that are still open, and only look at or pop the top. Push, pop and peek are O(1), so one pass over the input takes O(n) time and up to O(n) space." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0739" />
+
+Thử Daily Temperatures: nếu không muốn quét về phía sau cho từng ngày như cách vét cạn, khi đi qua mảng bạn cần nhớ những ngày nào?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Chuỗi [(]) có số dấu mở bằng số dấu đóng cho từng loại ngoặc. Vì sao chỉ đếm như vậy là chưa đủ?" answer="b">
+
+<Choice id="a">Đếm chậm hơn dùng stack</Choice>
+
+<Choice id="b">Đếm không kiểm tra được thứ tự đóng: ở đây `]` đóng khi `(` bên trong vẫn còn mở</Choice>
+
+<Choice id="c">Đếm không xử lý được chuỗi rỗng</Choice>
+
+</Question>
+
+<Question prompt="Đang duyệt Valid Parentheses thì gặp một dấu đóng trong khi stack rỗng. Kết luận gì?" answer="a">
+
+<Choice id="a">Chuỗi không hợp lệ: không có dấu mở nào để khớp</Choice>
+
+<Choice id="b">Bỏ qua dấu đóng đó và đi tiếp</Choice>
+
+<Choice id="c">Đẩy dấu đóng đó vào stack</Choice>
+
+</Question>
+
+<Question prompt="Duyệt hết chuỗi, stack vẫn còn một dấu mở. Kết quả là gì?" answer="c">
+
+<Choice id="a">`true`, vì mọi dấu đóng đều đã khớp</Choice>
+
+<Choice id="b">Tùy loại của dấu mở còn lại</Choice>
+
+<Choice id="c">`false`, vì có một dấu mở chưa được đóng</Choice>
+
+</Question>
+
+<Question prompt="Trong Evaluate Reverse Polish Notation, gặp toán tử - thì giá trị lấy ra khỏi stack đầu tiên là gì?" answer="a">
+
+<Choice id="a">Toán hạng bên phải</Choice>
+
+<Choice id="b">Toán hạng bên trái</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

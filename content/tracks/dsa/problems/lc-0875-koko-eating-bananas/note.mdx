@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đáp án là một tốc độ ăn, nằm trong khoảng từ 1 tới số chuối của đống lớn nhất. Điều then chốt là tính <Term vi="đơn điệu">monotonic</Term>: nếu một tốc độ ăn kịp trong `h` giờ thì mọi tốc độ lớn hơn cũng kịp. Vì vậy có thể dùng <Term vi="tìm kiếm nhị phân">binary search</Term> ngay trên khoảng đáp án `[1, max(piles)]` thay vì trên một mảng; cách làm này gọi là <Term vi="tìm kiếm nhị phân trên đáp án">binary search on the answer</Term>. Mỗi lần thử một tốc độ, ta cộng số giờ của mọi đống trong `O(n)`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khoảng đáp án">`lo = 1` và `hi = max(piles)`. Ở tốc độ `max(piles)` mỗi đống mất đúng một giờ, và số giờ cho phép không ít hơn số đống, nên tốc độ này luôn kịp; ăn nhanh hơn nữa cũng không bớt được giờ nào.</Step>
+
+<Step title="Đếm giờ ở một tốc độ">Đống có `pile` quả mất `ceil(pile / speed)` giờ, tính bằng số nguyên là `(pile + speed - 1) // speed`. Cộng lại cho mọi đống được `hours_at(speed)`.</Step>
+
+<Step title="Thu hẹp">Chừng nào `lo < hi`, lấy `mid = lo + (hi - lo) // 2`. Nếu `hours_at(mid) <= h` thì `mid` đủ nhanh và đáp án không lớn hơn `mid`: đặt `hi = mid`, giữ `mid` lại. Ngược lại `mid` quá chậm: đặt `lo = mid + 1`.</Step>
+
+<Step title="Kết quả">Khi `lo == hi`, đó là tốc độ nhỏ nhất ăn kịp.</Step>
+
+</Steps>
+
+Chạy thử với `piles = [4, 9, 6]` và `h = 5`:
+
+<VarTable caption="piles = [4, 9, 6], h = 5">
+
+| lo | hi | mid | Số giờ ở tốc độ `mid` | Hành động |
+| --- | --- | --- | --- | --- |
+| 1 | 9 | 5 | 1 + 2 + 2 = 5 | Kịp: `hi = 5` |
+| 1 | 5 | 3 | 2 + 3 + 2 = 7 | Quá 5 giờ: `lo = 4` |
+| 4 | 5 | 4 | 1 + 3 + 2 = 6 | Quá 5 giờ: `lo = 5` |
+| 5 | 5 | — | — | `lo == hi`: trả về 5 |
+
+</VarTable>
+
+<Callout tone="warning" title="Tràn số trong Java">
+
+Vì `lo < hi` nên `mid < hi`, và `mid + 1` cũng không vượt quá `hi`: mọi tốc độ đều nằm trong `[1, max(piles)]`, nên `lo`, `hi`, `mid` không bao giờ tràn `int`. Tổng số giờ thì khác: khi tốc độ nhỏ và có nhiều đống lớn, tổng có thể vượt quá giới hạn của `int`, nên lời giải Java cộng dồn bằng `long`. Số nguyên của Python không có giới hạn, còn `int` của Go là 64 bit trên máy 64 bit.
+
+</Callout>
+
+<Complexity time="O(n log m)" space="O(1)" />
+
+Với `n` là số đống và `m = max(piles)`: binary search thử khoảng `log2(m)` tốc độ, và mỗi lần tính `hours_at` mất `O(n)`. Ngoài vài biến, không cần thêm bộ nhớ.
+
+<Solution />
+
+<Bilingual vi="Tìm nhị phân trên tốc độ ăn, từ 1 tới đống lớn nhất: một tốc độ đủ nhanh khi tổng số giờ, làm tròn lên cho từng đống, không vượt quá h; tốc độ lớn hơn cũng đủ nhanh, nên thu hẹp dần về tốc độ nhỏ nhất đạt yêu cầu." en="Binary search on the eating speed, from 1 to the largest pile. A speed works if the sum of ceil(pile / speed) over all piles is at most h, and every faster speed also works, so shrink the range to the smallest speed that works. O(n log m) time, where m is the largest pile." />
