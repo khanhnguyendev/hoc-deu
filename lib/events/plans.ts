@@ -102,7 +102,12 @@ const tracksSchema = z.record(z.string(), trackSnapshotSchema)
 
 /**
  * A day_plans row → StoredPlan; blocks and roadmap_weeks Zod-validated (planBlockSchema,
- * trackSnapshotSchema); a malformed row → null (M5 treats it as no plan and rebuilds).
+ * trackSnapshotSchema). A malformed row returns null, and M5 (task 5.1) decides what to show: the
+ * row is still stored, so a baseline or resume write for its date returns `plan_exists` — only a
+ * `rebuild` with the row's version replaces it, and only while the plan is untouched; otherwise
+ * the error state. Validating the blocks with planBlockSchema before `storePlan` writes them (so
+ * the server never stores a plan it cannot read back, final review M-4) is M5's too; nothing here
+ * does it yet.
  */
 export function storedPlanFromRow(row: DayPlanRow): StoredPlan | null {
   const blocks = blocksSchema.safeParse(row.blocks)
