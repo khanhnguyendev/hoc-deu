@@ -1,0 +1,5 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [standup]
+    decks: [english:deck-w01-standup]

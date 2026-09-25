@@ -1,0 +1,8 @@
+- id: english:prompt-w01-standup-update
+  tag: weekend-task
+  week: 1
+  minutes: 15
+  instruction:
+    vi: 'Ghi âm một bản cập nhật stand-up dài 1 phút'
+    en: 'Record a one-minute stand-up update'
+  rubric: [what you did, what you will do, one blocker]

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
 import { createHighlighter, type Highlighter } from './highlight'
 
 const PYTHON_SOLUTION = `class Solution:
@@ -116,6 +117,12 @@ describe('createHighlighter', () => {
   it('treats lang "text" as plain code, no highlighting', () => {
     const code = highlighter.highlight('x = 1\n', 'text')
     expect(code).toEqual({ lang: 'text', lines: [['x = 1']] })
+  })
+
+  it('highlights every code language of the platform (CODE_LANGUAGES)', () => {
+    for (const lang of CODE_LANGUAGES) {
+      expect(highlighter.highlight('x = 1\n', lang).lang).toBe(lang)
+    }
   })
 
   it('throws on an unsupported language', () => {

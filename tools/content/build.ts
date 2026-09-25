@@ -1,0 +1,174 @@
+/**
+ * `pnpm content:build` (platform design §3.6): load and check `content/**`, keep `content/ids.lock`,
+ * highlight code, and emit `.generated/`. Every issue is collected before the build fails, and
+ * nothing is written unless there are none. Task 3.2c adds the cross-references, derived decks,
+ * coverage and the full report.
+ */
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import type { Catalog, DeckSummary } from '@/lib/content/catalog-types'
+import { codeBlockKey, type CodeBundle, type HighlightedCode } from '@/lib/content/code-tokens'
+import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
+import type { Roadmap } from '@/lib/content/schemas/roadmap'
+import { emitGenerated } from './emit'
+import { createHighlighter } from './highlight'
+import { diffLock, formatLock, lockIssues, parseLock, type LockDiff } from './ids-lock'
+import { formatIssue, sortIssues, type ContentIssue } from './issues'
+import { loadContent, type LoadedContent, type LoadedMdx } from './load'
+
+export type BuildOptions = {
+  repoRoot: string
+  /** Default `<repoRoot>/content`. */
+  contentDir?: string
+  /** Default `<repoRoot>/.generated`. */
+  outDir?: string
+  /** Never write `ids.lock`; a stale one is an issue (CI, Vercel). */
+  check: boolean
+}
+
+export type BuildResult = {
+  ok: boolean
+  issues: ContentIssue[]
+  /** Null when the build failed. */
+  catalog: Catalog | null
+  lock: LockDiff
+  /** The summary line, or every issue and a count. */
+  report: string
+}
+
+/** CI values that mean "not CI". */
+const NOT_CI: ReadonlySet<string> = new Set(['', '0', 'false'])
+
+/**
+ * Check mode (fix 19): `--check`, or `CI` set to anything but '', '0' or 'false' — GitHub Actions
+ * sets CI=true and Vercel builds CI=1, so neither ever writes the lock.
+ */
+export function isCheckMode(
+  argv: readonly string[],
+  env: Readonly<Record<string, string | undefined>>, // `process.env`
+): boolean {
+  if (argv.includes('--check')) return true
+  const ci = env.CI
+  return ci !== undefined && !NOT_CI.has(ci.trim().toLowerCase())
+}
+
+const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+const sortedRecord = <T>(entries: readonly [string, T][]): Record<string, T> =>
+  Object.fromEntries([...entries].sort(([a], [b]) => compareNames(a, b)))
+
+const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+/** The catalog of loaded content (3.2c adds derived decks, `deepDiveId` and coverage). */
+function buildCatalog(loaded: LoadedContent): Catalog {
+  const roadmaps: Record<string, Record<string, Roadmap>> = {}
+  for (const track of loaded.tracks) roadmaps[track.id] = {}
+  for (const { trackId, variant, roadmap } of loaded.roadmapFiles) {
+    roadmaps[trackId] = sortedRecord([
+      ...Object.entries(roadmaps[trackId] ?? {}),
+      [variant, roadmap],
+    ])
+  }
+  const missingRoadmaps = loaded.tracks.flatMap((track) =>
+    track.roadmaps
+      .filter((ref) => roadmaps[track.id]?.[ref.id] === undefined)
+      .map((ref) => ({ trackId: track.id, variant: ref.id })),
+  )
+  return {
+    schemaVersion: 1,
+    tracks: loaded.tracks,
+    roadmaps,
+    missingRoadmaps,
+    decks: sortedRecord(loaded.decks.map((deck): [string, DeckSummary] => [deck.id, deck])),
+    items: sortedRecord(loaded.items.map((item) => [item.id, item])),
+    coverage: {},
+  }
+}
+
+/**
+ * Step 8: a bundle per problem with a note (its solutions and the note's fenced blocks) and per
+ * lesson with fenced blocks. Runs only on content without issues (every language is allowed).
+ */
+async function highlightBundles(loaded: LoadedContent): Promise<Record<string, CodeBundle>> {
+  const wanted = loaded.mdx.filter(
+    (entry: LoadedMdx) => entry.context === 'note' || entry.facts.codeBlocks.length > 0,
+  )
+  if (wanted.length === 0) return {}
+
+  const highlighter = await createHighlighter()
+  try {
+    const bundles: Record<string, CodeBundle> = {}
+    for (const entry of wanted) {
+      const blocks: [string, HighlightedCode][] = entry.facts.codeBlocks.map((block) => [
+        codeBlockKey(block.lang, block.value),
+        highlighter.highlight(block.value, block.lang),
+      ])
+      const solutions: CodeBundle['solutions'] = {}
+      const files = entry.context === 'note' ? loaded.problemFiles.get(entry.itemId) : undefined
+      for (const language of CODE_LANGUAGES) {
+        const file = files?.solutions[language]
+        if (file !== undefined) solutions[language] = highlighter.highlight(file.source, language)
+      }
+      bundles[entry.itemId] = { solutions, blocks: sortedRecord(blocks) }
+    }
+    return bundles
+  } finally {
+    highlighter.dispose()
+  }
+}
+
+export async function buildContent(options: BuildOptions): Promise<BuildResult> {
+  const started = performance.now()
+  const repoRoot = path.resolve(options.repoRoot)
+  const contentDir = path.resolve(options.contentDir ?? path.join(repoRoot, 'content'))
+  const outDir = path.resolve(options.outDir ?? path.join(repoRoot, '.generated'))
+
+  const loaded = await loadContent({ repoRoot, contentDir })
+
+  // Step 9: ids.lock (decision 8).
+  const lockPath = path.join(contentDir, 'ids.lock')
+  const lockFile = path.relative(repoRoot, lockPath).split(path.sep).join('/')
+  const lockText = existsSync(lockPath) ? readFileSync(lockPath, 'utf8') : ''
+  const parsedLock = parseLock(lockText)
+  const lock = diffLock(
+    parsedLock.lock,
+    loaded.items.map((item) => item.id),
+    lockText,
+  )
+  // While content has issues, an ID can be missing only because its file failed to load.
+  const checkedLock = loaded.issues.length > 0 ? { ...lock, removed: [] } : lock
+  const issues = sortIssues([
+    ...loaded.issues,
+    ...parsedLock.issues.map((message) => ({ file: lockFile, message })),
+    ...lockIssues(checkedLock, options.check, lockFile),
+  ])
+
+  if (issues.length > 0) {
+    const report = [...issues.map(formatIssue), `✗ ${count(issues.length, 'issue')}`].join('\n')
+    return { ok: false, issues, catalog: null, lock, report }
+  }
+
+  // Steps 8 and 10: highlight and emit, then record new IDs (never in check mode).
+  const catalog = buildCatalog(loaded)
+  emitGenerated({
+    repoRoot,
+    outDir,
+    catalog,
+    mdx: Object.fromEntries(loaded.mdx.map((entry) => [entry.key, entry.absPath])),
+    code: await highlightBundles(loaded),
+  })
+  if (!options.check && (lock.added.length > 0 || !lock.normalized)) {
+    const { published, retired } = parsedLock.lock
+    writeFileSync(lockPath, formatLock({ published: [...published, ...lock.added], retired }))
+  }
+
+  const seconds = ((performance.now() - started) / 1000).toFixed(1)
+  const report = [
+    'content:build',
+    count(catalog.tracks.length, 'track'),
+    count(Object.keys(catalog.items).length, 'item'),
+    `ids.lock +${lock.added.length}`,
+    `${seconds} s`,
+  ].join(' · ')
+  return { ok: true, issues: [], catalog, lock, report }
+}

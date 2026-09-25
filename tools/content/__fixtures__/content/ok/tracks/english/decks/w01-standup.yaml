@@ -1,0 +1,29 @@
+id: english:deck-w01-standup
+kind: vocabulary
+week: 1
+topic: standup
+title: { vi: 'Họp stand-up', en: 'Stand-up meetings' }
+cards:
+  - id: english:w01-blocker
+    tier: core
+    front: blocker
+    back: vấn đề đang chặn, khiến bạn chưa làm tiếp được
+    hint: Hay đi với "have" hoặc "hit".
+    usage: { pos: noun, register: neutral }
+    example: "I have one blocker: I'm still waiting for access to the staging database."
+    pronunciation: '/ˈblɒk.ər/ · BLOCK-er'
+  - id: english:w01-on-track
+    tier: core
+    front: on track
+    back: đúng tiến độ
+    usage: { pos: phrase, register: neutral }
+    example: 'The migration is on track for Friday.'
+    pronunciation: '/ɒn træk/ · on TRACK'
+  - id: english:w01-heads-up
+    tier: extended
+    status: draft
+    front: heads-up
+    back: lời báo trước
+    usage: { pos: noun, register: informal, note: 'Thường nói "Just a heads-up: …".' }
+    example: "Just a heads-up: I'll be out tomorrow afternoon."
+    pronunciation: '/ˈhedz.ʌp/ · HEADS-up'

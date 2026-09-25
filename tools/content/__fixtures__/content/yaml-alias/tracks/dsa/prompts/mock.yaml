@@ -1,0 +1,8 @@
+- id: dsa:prompt-mock-1
+  tag: mock-interview
+  week: 1
+  instruction: &same { vi: 'Phỏng vấn thử', en: 'Mock interview' }
+- id: dsa:prompt-mock-2
+  tag: mock-interview
+  week: 2
+  instruction: *same

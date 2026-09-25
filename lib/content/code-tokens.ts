@@ -6,6 +6,7 @@
  * and `HighlightedCode` (gate-review fix 1); `features/items/code-tokens.types.test.ts` pins the
  * two declarations equal with `expectTypeOf(...).toEqualTypeOf(...)`, checked by `pnpm typecheck`.
  */
+import type { CodeLanguage } from './schemas/common'
 
 export const CODE_TOKEN_KINDS = ['keyword', 'string', 'constant', 'comment'] as const
 export type CodeTokenKind = (typeof CODE_TOKEN_KINDS)[number]
@@ -16,8 +17,8 @@ export type CodeLine = ReadonlyArray<string | readonly [text: string, kind: Code
 export type HighlightedCode = { lang: string; lines: readonly CodeLine[] }
 
 export type CodeBundle = {
-  /** A problem's solution files; 3.2b replaces the union by `CodeLanguage` (3.1). */
-  solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>
+  /** A problem's solution files, by language. */
+  solutions: Partial<Record<CodeLanguage, HighlightedCode>>
   /** Fenced blocks of the item's MDX, keyed by `codeBlockKey`. */
   blocks: Readonly<Record<string, HighlightedCode>>
 }

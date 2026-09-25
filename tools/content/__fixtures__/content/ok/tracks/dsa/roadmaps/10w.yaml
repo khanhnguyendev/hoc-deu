@@ -1,0 +1,9 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    core: [dsa:lc-0001, dsa:lc-0217]
+  - week: 2
+    topics: [two-pointers]
+    core: [dsa:lc-0167, dsa:lc-0015]
+    recap: [{ item: dsa:lc-0001, mode: recall }]

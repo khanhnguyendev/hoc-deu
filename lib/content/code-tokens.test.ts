@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { codeBlockKey, plainCode } from './code-tokens'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import { codeBlockKey, plainCode, type CodeBundle } from './code-tokens'
+import type { CodeLanguage } from './schemas/common'
+
+describe('CodeBundle', () => {
+  it('keys solutions by the shared CodeLanguage (checked by pnpm typecheck)', () => {
+    expectTypeOf<keyof CodeBundle['solutions']>().toEqualTypeOf<CodeLanguage>()
+  })
+})
 
 describe('plainCode', () => {
   it('splits on newline into one plain run per line, with no trailing empty line', () => {

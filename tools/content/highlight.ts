@@ -9,7 +9,7 @@
  */
 import { createHighlighterCore, createCssVariablesTheme } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
-import type { ThemedToken } from 'shiki/core'
+import type { LanguageRegistration, ThemedToken } from 'shiki/core'
 import go from 'shiki/langs/go.mjs'
 import java from 'shiki/langs/java.mjs'
 import python from 'shiki/langs/python.mjs'
@@ -19,6 +19,7 @@ import {
   type CodeTokenKind,
   type HighlightedCode,
 } from '@/lib/content/code-tokens'
+import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 
 export type Highlighter = {
   highlight(code: string, lang: string): HighlightedCode
@@ -27,8 +28,10 @@ export type Highlighter = {
 
 const THEME_NAME = 'hoc-deu-code-tokens'
 
-/** The languages this project highlights; every other language throws in `highlight()`. */
-const SUPPORTED_LANGS = new Set(['python', 'java', 'go'])
+/** A grammar per code language of the platform: adding a language to `CODE_LANGUAGES` without
+ *  one is a type error. Every other language throws in `highlight()`. */
+const GRAMMARS: { readonly [K in CodeLanguage]: LanguageRegistration[] } = { python, java, go }
+const SUPPORTED_LANGS: ReadonlySet<string> = new Set(CODE_LANGUAGES)
 
 /** The CSS-variables theme's `--shiki-token-*` suffix → this project's token kind (decision 13). */
 const KIND_BY_COLOR_SUFFIX: Readonly<Record<string, CodeTokenKind>> = {
@@ -77,7 +80,7 @@ export async function createHighlighter(): Promise<Highlighter> {
   const theme = createCssVariablesTheme({ name: THEME_NAME })
   const core = await createHighlighterCore({
     themes: [theme],
-    langs: [python, java, go],
+    langs: CODE_LANGUAGES.map((language) => GRAMMARS[language]),
     engine: createJavaScriptRegexEngine(),
   })
 

@@ -1,0 +1,7 @@
+# content/ids.lock — every published content ID (platform design §3.3, ADR-0010).
+# IDs are append-only: events reference them forever. `pnpm content:build` adds new IDs.
+# An ID may leave content/** only after you move it from [published] to [retired] by hand.
+
+[published]
+
+[retired]
