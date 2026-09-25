@@ -63,6 +63,10 @@ select is(
   '... but changes nothing'
 );
 
+-- The pending versions below come after onboarding: before it a learner's version starts at most
+-- 5 minutes ahead (4.12, 013). Each lies at or after the next day start of the version before it.
+update public.profiles set onboarded_at = now() where id in (:'learner', :'other');
+
 -- 2. day_starts_at: 00:00-12:00 in 30-minute steps (decision 5).
 select tests.authenticate_as(:'learner');
 select throws_ok(
@@ -352,9 +356,10 @@ select is(
   'the tracks are gone'
 );
 
--- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role. These
---    learners have not onboarded, so the 5-minute rule is the one that applies; once
---    onboarded_at is set, a learner's version also waits for the next day start (013, 4.12).
+-- 6. History (owner review MF3): past days are never rewritten (§5.9), for every role. Until the
+--    pending version this learner has not onboarded, so the 5-minute rule is the one that
+--    applies; once onboarded_at is set, a learner's version also waits for the next day start
+--    (013, 4.12).
 select tests.authenticate_as(:'history');
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
@@ -377,10 +382,13 @@ select lives_ok(
     values (auth.uid(), now() - interval '4 minutes')$$,
   'a version up to 5 minutes in the past is not backdated'
 );
+select tests.clear_authentication();
+update public.profiles set onboarded_at = now() where id = :'history';
+select tests.authenticate_as(:'history');
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
     values (auth.uid(), now() + interval '1 day')$$,
-  'a pending version inserts'
+  'a pending version inserts (after onboarding)'
 );
 select lives_ok(
   $$update public.schedule_versions set day_starts_at = '05:00'

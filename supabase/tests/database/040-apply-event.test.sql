@@ -19,6 +19,8 @@ select tests.create_user('apply-learner@hocdeu.test') as learner \gset
 select tests.create_user('apply-other@hocdeu.test') as other \gset
 select tests.create_user('apply-pending@hocdeu.test', 'pending') as pending \gset
 select tests.create_user('apply-schedule@hocdeu.test') as schedule_user \gset
+-- Onboarded: before onboarding a learner's version may start at most 5 minutes ahead (4.12, 013).
+update public.profiles set onboarded_at = now() where id = :'schedule_user';
 select tests.create_user('apply-settings@hocdeu.test') as settings_user \gset
 select tests.create_user('apply-quota@hocdeu.test') as quota_user \gset
 

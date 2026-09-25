@@ -1,18 +1,21 @@
 -- Task 4.12: schedule-history floor and first-version lock (platform design §4.1, §5.9,
--- ADR-0017). Once a learner has onboarded, a version they insert (directly or through
--- apply_event) takes effect no earlier than the next day start of the schedule in force at now(),
--- minus 65 minutes (5 minutes of clock skew, plus one hour for a day start inside a DST gap or
--- overlap, where Postgres and nextDayStart pick different instants), and never more than 5
--- minutes in the past. Before onboarding the pre-4.12 rules stay (the first version at any time,
--- later ones up to 5 minutes back), under the per-user advisory lock. service_role and definer
--- functions keep the pre-4.12 rules.
+-- ADR-0017; rulings M4-R16, M4-R17). Once a learner has onboarded, a version they insert
+-- (directly or through apply_event) never lands before a pending version, and takes effect no
+-- earlier than the next day start of its predecessor (the latest earlier version, pending ones
+-- included), after greatest(now(), its effective_at), minus 65 minutes — 5 minutes of slack for a
+-- version written just before it takes effect, plus one hour for a day start inside a DST gap or
+-- overlap, where Postgres and nextDayStart pick different instants — and never more than 5
+-- minutes in the past; a pending version with a later one pending cannot change. Before
+-- onboarding a learner's version takes effect no later than 5 minutes from now (the first at any
+-- time before that, later ones up to 5 minutes back), under the per-user advisory lock.
+-- service_role and definer functions keep the pre-4.12 rules.
 -- now() is the transaction's start: every statement below sees the same instant.
 begin;
 set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(37);
+select plan(49);
 
 select tests.create_user('floor@hocdeu.test') as floor \gset
 select tests.create_user('near@hocdeu.test') as near \gset
@@ -22,6 +25,8 @@ select tests.create_user('pair@hocdeu.test') as pair \gset
 select tests.create_user('vn-floor@hocdeu.test') as vn \gset
 select tests.create_user('ny-floor@hocdeu.test') as ny \gset
 select tests.create_user('seeded-floor@hocdeu.test') as seeded \gset
+select tests.create_user('chain@hocdeu.test') as chain \gset
+select tests.create_user('early@hocdeu.test') as early \gset
 
 -- A schedule whose next day start is at least 6 hours away, whatever time the suite runs:
 -- Asia/Ho_Chi_Minh and America/Panama are 12 hours apart and neither has DST, so their 04:00 day
@@ -45,16 +50,20 @@ where v.local::time < time '12:00' \gset
 -- version may lie in the past), and one onboarded learner without a version.
 insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at) values
   (:'floor', now() - interval '30 days', :'zone', '04:00'),
+  (:'chain', now() - interval '30 days', :'zone', '04:00'),
   (:'near', now() - interval '30 days', :'near_zone', :'near_ds'),
   (:'vn', now() - interval '30 days', 'Asia/Ho_Chi_Minh', '04:00'),
   (:'ny', now() - interval '30 days', 'America/New_York', '02:30');
 update public.profiles set onboarded_at = now() - interval '29 days'
-where id in (:'floor', :'near', :'late_first', :'vn', :'ny', :'seeded');
+where id in (:'floor', :'near', :'late_first', :'vn', :'ny', :'seeded', :'chain');
 
 -- The next day start of the schedule in force, with the rule's own expression (the brief's):
 -- ((user_local_day(user, now()) + 1) + <in-force day_starts_at>) at time zone <in-force timezone>.
 select ((public.user_local_day(:'floor', now()) + 1) + time '04:00') at time zone :'zone'
   as nds \gset
+-- The next day start after a version of :'zone' 04:00 taking effect at :'nds' (1c).
+select ((public.local_day(:'nds', :'zone', time '04:00') + 1) + time '04:00') at time zone :'zone'
+  as nds2 \gset
 select ((public.local_day(now(), 'Asia/Ho_Chi_Minh', time '04:00') + 1) + time '04:00')
   at time zone 'Asia/Ho_Chi_Minh' as default_nds \gset
 select ((public.user_local_day(:'vn', now()) + 1) + time '04:00') at time zone 'Asia/Ho_Chi_Minh'
@@ -99,13 +108,7 @@ select throws_ok(
   ),
   'P0001', 'schedule_backdated', 'a later version 65 minutes and 1 second before it raises'
 );
-select lives_ok(
-  format(
-    $$insert into public.schedule_versions (user_id, effective_at) values (auth.uid(), %L)$$,
-    :'nds'
-  ),
-  'a later version at the next day start of the schedule in force is fine'
-);
+-- Each accepted early version goes again (as postgres), so none is pending before the next case.
 select lives_ok(
   format(
     $$insert into public.schedule_versions (user_id, effective_at)
@@ -114,7 +117,6 @@ select lives_ok(
   ),
   'a later version 60 minutes before it is fine (the tolerance)'
 );
--- The cap allows 2 pending versions: the 60-minute one goes (as postgres) before the next case.
 select tests.clear_authentication();
 delete from public.schedule_versions
 where user_id = :'floor' and effective_at = :'nds'::timestamptz - interval '60 minutes';
@@ -126,6 +128,17 @@ select lives_ok(
     :'nds'
   ),
   'a later version exactly 65 minutes before it is fine'
+);
+select tests.clear_authentication();
+delete from public.schedule_versions
+where user_id = :'floor' and effective_at = :'nds'::timestamptz - interval '65 minutes';
+select tests.authenticate_as(:'floor');
+select lives_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at) values (auth.uid(), %L)$$,
+    :'nds'
+  ),
+  'a later version at the next day start of the schedule in force is fine'
 );
 select lives_ok(
   format(
@@ -143,8 +156,88 @@ select results_eq(
       from public.schedule_versions where effective_at > now()$$,
     :'nds'
   ),
-  $$values (2, 1)$$,
+  $$values (1, 1)$$,
   '... it added no row and changed the pending version'
+);
+
+-- 1a. Pending versions (M4-R17): a second one is measured from the first, never lands before one,
+--     and a pending version with a later one pending cannot change.
+select tests.authenticate_as(:'chain');
+select lives_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L, %L, '04:00')$$,
+    :'nds', :'zone'
+  ),
+  'chain: a first pending version P1 at the next day start'
+);
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L::timestamptz + interval '12 hours', 'Pacific/Pago_Pago', '12:00')$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated',
+  'a second pending version in the middle of P1''s first day (Pago Pago 12:00) raises'
+);
+select lives_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L, 'Pacific/Pago_Pago', '12:00')$$,
+    :'nds2'
+  ),
+  'a second pending version P2 at P1''s next day start is fine'
+);
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at)
+      values (auth.uid(), %L::timestamptz - interval '30 minutes')$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated', 'a version 30 minutes before the pending P1 raises'
+);
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at)
+      values (auth.uid(), %L::timestamptz - interval '30 minutes')$$,
+    :'nds2'
+  ),
+  'P0001', 'schedule_backdated',
+  'a version 30 minutes before the pending P2 (above its own floor) raises'
+);
+select lives_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L, 'Pacific/Pago_Pago', '11:00')
+      on conflict (user_id, effective_at) do update set day_starts_at = excluded.day_starts_at$$,
+    :'nds2'
+  ),
+  'an upsert of the last pending version P2 still works'
+);
+select throws_ok(
+  format(
+    $$insert into public.schedule_versions (user_id, effective_at, timezone, day_starts_at)
+      values (auth.uid(), %L, 'Pacific/Kiritimati', '00:00')
+      on conflict (user_id, effective_at) do update set timezone = excluded.timezone$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated', 'an upsert of P1 while P2 is pending raises'
+);
+select throws_ok(
+  format(
+    $$update public.schedule_versions set timezone = 'Pacific/Kiritimati'
+      where effective_at = %L$$,
+    :'nds'
+  ),
+  'P0001', 'schedule_backdated',
+  '... and so does a direct update of P1 (P2''s floor was measured from it)'
+);
+select lives_ok(
+  format(
+    $$update public.schedule_versions set day_starts_at = '10:00' where effective_at = %L$$,
+    :'nds2'
+  ),
+  'a direct update of the last pending version P2 works'
 );
 
 -- 1b. Near a day start the floor lies before now() − 5 minutes: the 5-minute rule still holds.
@@ -158,10 +251,11 @@ select throws_ok(
 select lives_ok(
   $$insert into public.schedule_versions (user_id, effective_at)
     values (auth.uid(), now() - interval '4 minutes')$$,
-  '... and one 4 minutes back is fine (clock skew), as before'
+  '... and one 4 minutes back is fine (the 5-minute slack), as before'
 );
 
--- 2. The first version: at any time only while onboarded_at is null.
+-- 2. The first version: at any time in the past only while onboarded_at is null; before
+--    onboarding no version starts more than 5 minutes ahead (M4-R17).
 select tests.authenticate_as(:'late_first');
 select throws_ok(
   format(
@@ -209,6 +303,23 @@ select throws_ok(
     values (auth.uid(), now() - interval '1 hour')$$,
   'P0001', 'schedule_backdated', '... but one more than 5 minutes back raises, as before'
 );
+select throws_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    values (auth.uid(), now() + interval '1 day')$$,
+  'P0001', 'schedule_backdated',
+  'before onboarding, a version more than 5 minutes ahead raises (M4-R17)'
+);
+select tests.authenticate_as(:'early');
+select throws_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    values (auth.uid(), now() + interval '10 minutes')$$,
+  'P0001', 'schedule_backdated', '... a first version too'
+);
+select lives_ok(
+  $$insert into public.schedule_versions (user_id, effective_at)
+    values (auth.uid(), now() + interval '5 minutes')$$,
+  '... one 5 minutes ahead is fine'
+);
 select tests.authenticate_as_service_role();
 select is(
   public.apply_system_event(
@@ -250,7 +361,8 @@ select ok(
       '.*v_first := not exists \(\s*select 1 from public\.schedule_versions')
     from pg_catalog.pg_proc p
     where p.oid = 'public.schedule_versions_guard_history()'::regprocedure),
-  'the first-version check runs after the per-user advisory lock (''schedule_versions:'' || id)'
+  'structural: the first-version check runs after the per-user advisory lock '
+  '(''schedule_versions:'' || id)'
 );
 
 -- 4. The settings flow's own values at now(): nextDayStart(now, schedule in force), which equals
@@ -328,7 +440,7 @@ select ok(
     ((public.local_day('2026-03-07T12:00:00Z', 'America/New_York', '02:30') + 1) + time '02:30')
       at time zone 'America/New_York'
   ) - interval '5 minutes',
-  '... which the 5-minute skew alone would have rejected'
+  '... which the 5-minute slack alone would have rejected'
 );
 select is(
   ((public.local_day('2026-10-31T12:00:00Z', 'America/New_York', '01:30') + 1) + time '01:30')
@@ -348,7 +460,7 @@ select ok(
     ((public.local_day('2026-10-31T12:00:00Z', 'America/New_York', '01:30') + 1) + time '01:30')
       at time zone 'America/New_York'
   ) - interval '5 minutes',
-  '... which the 5-minute skew alone would have rejected'
+  '... which the 5-minute slack alone would have rejected'
 );
 
 -- 6. service_role and definer functions keep the pre-4.12 rules (e2e seeds an onboarded learner's
