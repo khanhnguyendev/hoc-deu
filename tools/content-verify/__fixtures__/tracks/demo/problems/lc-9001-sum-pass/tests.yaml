@@ -1,0 +1,7 @@
+# content-verify fixture: every language is correct.
+signature: { kind: function, name: sumList, params: { nums: 'int[]' }, returns: int }
+cases:
+  - { name: example-1, input: { nums: [1, 2, 3] }, expected: 6 }
+  - { name: example-2, input: { nums: [5] }, expected: 5 }
+  - { name: empty, input: { nums: [] }, expected: 0 }
+  - { name: negatives, input: { nums: [-4, -2, 3] }, expected: -3 }

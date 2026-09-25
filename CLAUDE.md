@@ -29,9 +29,14 @@ pnpm db:reset       # re-apply migrations and seed data
 pnpm db:types       # regenerate lib/supabase/database.types.ts from the local schema
 pnpm test:db        # pgTAP tests (supabase test db) — needs pnpm db:start
 pnpm verify:full    # verify + test:db + test:e2e — needs pnpm db:start
+pnpm content:verify # run every solution against its tests.yaml (Python ≥ 3.11, JDK ≥ 21, Go ≥ 1.22)
 pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
+
+`content:verify` takes `--problem <id>` (repeatable), `--lang`, `--jobs` and `--root`. It needs the
+three toolchains on `PATH` locally; CI runs it in the `content-verify` workflow as a no-network
+sandbox user (ADR-0012).
 
 Later milestones add `pnpm bot`.
 
@@ -118,6 +123,10 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
   (`create or replace …`). CI resets the database from scratch, so an edited old migration passes
   CI but diverges staging and production.
 - **No new dependencies without asking the owner** (approved list: platform design §7.10).
+- `content:verify` executes solution code. Locally it runs the repository's solutions as you; on
+  GitHub Actions it refuses to run without `CONTENT_VERIFY_SANDBOX_USER` (fail closed, ADR-0012) —
+  never weaken that check or the workflow's sandbox steps. Validators live in
+  `tools/content-verify/validators/`, never under `content/`.
 - Do not pull `v1.1` or `later` features into v1.0 (release scope table, platform design §0).
 
 ## Git

@@ -13,13 +13,15 @@ v1.1 — a daily AI bot that personalises plans and grows the shared content.
 ## Development
 
 Requirements: Node ≥ 22.12, pnpm 11, [Docker](https://www.docker.com/) (for the local Supabase
-stack).
+stack), and Python ≥ 3.11, JDK ≥ 21 and Go ≥ 1.22 on `PATH` (for `pnpm content:verify`, which runs
+the DSA solutions).
 
 ```bash
 pnpm install
 cp .env.example .env.local   # then fill in the Supabase values `pnpm db:start` prints
 pnpm dev            # http://localhost:3000
 pnpm content:build  # validate content/**, update content/ids.lock, write .generated/
+pnpm content:verify # run every solution against its tests.yaml (Python, Java, Go)
 pnpm verify         # typecheck, lint (ESLint + Prettier), unit tests, build
 pnpm db:start       # start the local Supabase stack (db, kong, gotrue, postgrest)
 pnpm db:reset       # re-apply migrations and seed data

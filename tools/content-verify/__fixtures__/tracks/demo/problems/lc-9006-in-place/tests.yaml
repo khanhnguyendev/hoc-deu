@@ -1,0 +1,8 @@
+# content-verify fixture: an in-place signature — the runners print the mutated argument.
+signature: { kind: function, name: reverse, params: { nums: 'int[]' }, returns: void }
+compare: { kind: in-place, arg: nums }
+cases:
+  - { name: example-1, input: { nums: [1, 2, 3] }, expected: [3, 2, 1] }
+  - { name: example-2, input: { nums: [4, 5] }, expected: [5, 4] }
+  - { name: empty, input: { nums: [] }, expected: [] }
+  - { name: single-element, input: { nums: [9] }, expected: [9] }

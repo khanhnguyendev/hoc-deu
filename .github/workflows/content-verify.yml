@@ -1,0 +1,107 @@
+name: content-verify
+
+# Runs every solution against its tests.yaml (platform design §3.7, ADR-0012). A required check, so
+# it always runs: the path check lives inside the job (a workflow-level path filter would leave the
+# check pending), and every step after it carries the same `if:`.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  content-verify:
+    name: content-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - id: paths
+        name: Content or harness changed? (in-job check keeps this required check reporting)
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify lib/content/schemas \
+                  lib/content/verification.ts pnpm-lock.yaml .github/workflows/content-verify.yml; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "No content or harness change — nothing to verify."
+          fi
+
+      - if: steps.paths.outputs.run == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-python@v7
+        with: { python-version: '3.13' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: '25' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-go@v7
+        with: { go-version: '1.26', cache: false }
+      - if: steps.paths.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox user without network (OD2)
+        run: |
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin cvsandbox
+          sudo iptables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+          sudo ip6tables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox self-test (fail closed)
+        run: |
+          PY="$(command -v python3)"
+          # The sandbox user can run every toolchain.
+          sudo -n -u cvsandbox -- "$PY" -c 'print(1)'
+          sudo -n -u cvsandbox -- "$(command -v javac)" -version
+          sudo -n -u cvsandbox -- "$(command -v java)" -version
+          sudo -n -u cvsandbox -- env -i HOME=/tmp GOENV=off "$(command -v go)" version
+          # The runner itself has network, so the checks below cannot pass vacuously.
+          curl -sSf -o /dev/null --max-time 10 https://example.com
+          IP="$(getent ahostsv4 example.com | awk 'NR == 1 { print $1 }')"
+          # The sandbox user has none: not by name, not by address…
+          if sudo -n -u cvsandbox -- "$PY" -c \
+             "import urllib.request; urllib.request.urlopen('https://example.com', timeout=5)"; then
+            echo "::error::the sandbox user reached the network"; exit 1
+          fi
+          if sudo -n -u cvsandbox -- "$PY" -c \
+             "import socket; socket.create_connection(('$IP', 443), timeout=5)"; then
+            echo "::error::the sandbox user reached $IP"; exit 1
+          fi
+          # …and not loopback either.
+          "$PY" -m http.server 18080 --bind 127.0.0.1 > /dev/null 2>&1 &
+          SERVER=$!
+          for _ in $(seq 50); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.1; done
+          curl -sSf -o /dev/null --max-time 5 http://127.0.0.1:18080/
+          if sudo -n -u cvsandbox -- "$PY" -c \
+             "import socket; socket.create_connection(('127.0.0.1', 18080), timeout=5)"; then
+            kill "$SERVER"; echo "::error::the sandbox user reached loopback"; exit 1
+          fi
+          kill "$SERVER"
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Harness self-test on fixtures
+        run: pnpm vitest run tools/content-verify/integration.test.ts
+        env: { CONTENT_VERIFY_INTEGRATION: '1', CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+
+      - if: steps.paths.outputs.run == 'true'
+        run: pnpm content:verify
+        env: { CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
