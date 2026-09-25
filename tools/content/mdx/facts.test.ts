@@ -75,7 +75,10 @@ describe('mdxFacts', () => {
       bilingual: [{ vi: 'Hai con trỏ.', en: 'Two pointers.' }],
       complexity: [{ time: 'O(n)', space: 'O(1)' }],
       solutionCount: 1,
-      practice: ['dsa:lc-0167', 'dsa:lc-0015'],
+      practice: [
+        { problem: 'dsa:lc-0167', line: 35 },
+        { problem: 'dsa:lc-0015', line: 37 },
+      ],
       codeBlocks: [
         { lang: 'python', value: 'def f() -> int:\n    return 1' },
         { lang: 'text', value: 'plain' },

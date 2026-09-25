@@ -17,6 +17,7 @@ import {
   type DerivedDeck,
   type TrackManifest,
 } from '@/lib/content/schemas/manifest'
+import { byId } from './util'
 
 export type DerivedInput = {
   tracks: readonly TrackManifest[]
@@ -55,8 +56,6 @@ function fill(value: MapValue, problem: ProblemContent | null): string | null {
 
 /** Vietnamese for `note.bilingual.vi`; problem titles, templates and `note.bilingual.en` are English. */
 const langOf = (value: MapValue): 'en' | 'vi' => (value === 'note.bilingual.vi' ? 'vi' : 'en')
-
-const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 function derivedCard(
   track: TrackManifest,
@@ -104,7 +103,7 @@ export function derivedCards(input: DerivedInput): {
 } {
   const problems = Object.values(input.items)
     .filter((item): item is CatalogItem<'problem'> => item.type === 'problem')
-    .sort((a, b) => compareNames(a.id, b.id))
+    .sort(byId)
   const cards: CatalogItem<'flashcard'>[] = []
   const decks: DeckSummary[] = []
 
@@ -130,7 +129,7 @@ export function derivedCards(input: DerivedInput): {
         const problem = item?.type === 'problem' ? item.content : null
         deckCards.push(derivedCard(track, deck, parsed.sourceId, problem, 'retired', source))
       }
-      deckCards.sort((a, b) => compareNames(a.id, b.id))
+      deckCards.sort(byId)
       cards.push(...deckCards)
       decks.push({
         id: `${track.id}:${deck.id}`,
@@ -146,7 +145,7 @@ export function derivedCards(input: DerivedInput): {
     }
   }
   return {
-    cards: cards.sort((a, b) => compareNames(a.id, b.id)),
-    decks: decks.sort((a, b) => compareNames(a.id, b.id)),
+    cards: cards.sort(byId),
+    decks: decks.sort(byId),
   }
 }

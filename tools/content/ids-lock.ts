@@ -6,6 +6,7 @@
  */
 import { parseDerivedId, parseItemId } from '@/lib/content/schemas/ids'
 import type { ContentIssue } from './issues'
+import { compareNames, count } from './util'
 
 export type IdsLock = { published: string[]; retired: string[] }
 
@@ -34,8 +35,7 @@ const SECTIONS = { '[published]': 'published', '[retired]': 'retired' } as const
 
 const isContentId = (id: string): boolean => parseItemId(id) !== null || parseDerivedId(id) !== null
 
-const sortedUnique = (ids: Iterable<string>): string[] =>
-  [...new Set(ids)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+const sortedUnique = (ids: Iterable<string>): string[] => [...new Set(ids)].sort(compareNames)
 
 /** The lock in a file's text; a missing file is ''. Issues name their line. */
 export function parseLock(text: string): { lock: IdsLock; issues: string[] } {
@@ -113,10 +113,9 @@ export function lockIssues(
     ),
   ]
   if (check && diff.added.length > 0) {
-    const count = diff.added.length
     issues.push(
       issue(
-        `${LOCK_FILE} is missing ${count} ID${count === 1 ? '' : 's'} — run \`pnpm content:build\` and commit ${LOCK_FILE}`,
+        `${LOCK_FILE} is missing ${count(diff.added.length, 'ID')} — run \`pnpm content:build\` and commit ${LOCK_FILE}`,
       ),
     )
   }

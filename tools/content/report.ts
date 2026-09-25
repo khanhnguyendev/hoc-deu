@@ -8,6 +8,7 @@ import type { ItemStatus, ItemType } from '@/lib/content/schemas/common'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
 import { weekSizes } from '@/lib/content/schemas/roadmap'
 import type { LockDiff } from './ids-lock'
+import { compareNames, count } from './util'
 
 /** The item rows and status columns, in order. */
 const ITEM_ROWS: readonly ItemType[] = ['problem', 'lesson', 'flashcard', 'exercise', 'prompt']
@@ -15,7 +16,6 @@ const STATUS_COLUMNS: readonly ItemStatus[] = ['active', 'draft', 'retired']
 /** An indented type name and a gap before the first count. */
 const LABEL_WIDTH = 2 + Math.max(...ITEM_ROWS.map((type) => type.length)) + 6
 
-const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 const listOrNone = (values: readonly string[]): string =>
   values.length === 0 ? 'none' : values.join(', ')
 
@@ -145,7 +145,7 @@ export function formatReport(catalog: Catalog, lock: LockDiff, ms: number): stri
         ? [item.content.note.mdxKey]
         : [],
     ),
-  ].sort()
+  ].sort(compareNames)
   const summary = [
     'content:build',
     count(catalog.tracks.length, 'track'),

@@ -159,7 +159,7 @@ describe('crossrefIssues — one fixture per rule, each yields exactly its issue
         file: at('xref-recap-before', ROADMAP),
         path: 'weeks.0.recap.0.item',
         message:
-          'dsa:lc-0167 is recapped (redo) in week 1 but not placed (core, bonus or a recap without a mode) by then',
+          'dsa:lc-0167 is recapped (redo) in week 1 but not placed (core or a recap without a mode) by then',
       },
     ],
     [
@@ -207,6 +207,7 @@ describe('crossrefIssues — one fixture per rule, each yields exactly its issue
       'xref-practice-component',
       {
         file: at('xref-practice-component', LESSON),
+        line: 18,
         message: `<Practice problem="dsa:lc-0001"> must be the lesson's practice, dsa:lc-0217`,
       },
     ],
@@ -239,6 +240,14 @@ describe('crossrefIssues — one fixture per rule, each yields exactly its issue
         file: at('xref-derived-source', 'tracks/english/track.yaml'),
         path: 'decks.0.from.track',
         message: 'track algo does not exist',
+      },
+    ],
+    [
+      'xref-derived-deck-id',
+      {
+        file: at('xref-derived-deck-id', 'tracks/english/track.yaml'),
+        path: 'decks.0.id',
+        message: `english:deck-w01-standup is already the ID of an authored deck (${at('xref-derived-deck-id', 'tracks/english/decks/w01-standup.yaml')})`,
       },
     ],
   ]
@@ -345,21 +354,44 @@ describe('crossrefIssues — roadmaps', () => {
     ])
   })
 
-  it('a recap entry with a mode may follow its placement in the same week or a bonus list', async () => {
+  const week1 = (lists: readonly string[]) =>
+    [
+      'id: 10w',
+      'weeks:',
+      '  - week: 1',
+      '    topics: [arrays-hashing, two-pointers]',
+      ...lists,
+      '',
+    ].join('\n')
+
+  it('a recap entry with a mode may follow its placement in the same week', async () => {
     expect(
       await crossrefWith('xref-recap-before', {
-        [ROADMAP]: [
-          'id: 10w',
-          'weeks:',
-          '  - week: 1',
-          '    topics: [arrays-hashing, two-pointers]',
+        [ROADMAP]: week1([
           '    core: [dsa:lc-0001]',
-          '    bonus: [dsa:lc-0167]',
-          '    recap: [{ item: dsa:lc-0001, mode: redo }, { item: dsa:lc-0167, mode: recall }]',
-          '',
-        ].join('\n'),
+          '    recap: [{ item: dsa:lc-0167 }, { item: dsa:lc-0001, mode: redo }]',
+        ]),
       }),
     ).toEqual([])
+  })
+
+  it('a bonus problem is not placed for a recap with a mode (bonus is opt-in, §5.3)', async () => {
+    expect(
+      await crossrefWith('xref-recap-before', {
+        [ROADMAP]: week1([
+          '    core: [dsa:lc-0001]',
+          '    bonus: [dsa:lc-0167]',
+          '    recap: [{ item: dsa:lc-0167, mode: recall }]',
+        ]),
+      }),
+    ).toEqual([
+      {
+        file: 'content/tracks/dsa/roadmaps/10w.yaml',
+        path: 'weeks.0.recap.0.item',
+        message:
+          'dsa:lc-0167 is recapped (recall) in week 1 but not placed (core or a recap without a mode) by then',
+      },
+    ])
   })
 })
 

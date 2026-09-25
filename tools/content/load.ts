@@ -46,6 +46,7 @@ import { mdxFacts, type MdxFacts } from './mdx/facts'
 import { parseMdx, type MdxRoot } from './mdx/parse'
 import { checkMdx } from './mdx/safety'
 import { bomIssue, decodeUtf8, nfcIssues, nfcSourceIssue } from './nfc'
+import { byId, compareNames } from './util'
 
 export type LoadOptions = { repoRoot: string; contentDir: string }
 
@@ -184,8 +185,6 @@ type Loader = {
 
 /** A track folder being loaded. */
 type Track = { id: string; dir: string; manifest: TrackManifest | null }
-
-const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /** The repo-relative, `/`-separated path of `abs`. */
 const labelOf = (loader: Loader, abs: string): string =>
@@ -847,7 +846,7 @@ export async function loadContent({ repoRoot, contentDir }: LoadOptions): Promis
 
   const items = uniqueItems(loader)
   return {
-    tracks: [...loader.tracks].sort((a, b) => compareNames(a.id, b.id)),
+    tracks: [...loader.tracks].sort(byId),
     manifestFiles: loader.manifestFiles,
     roadmapFiles: loader.roadmapFiles,
     items,

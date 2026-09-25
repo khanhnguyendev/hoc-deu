@@ -7,8 +7,7 @@
 import type { CatalogItem, DeckSummary, WeekCoverage } from '@/lib/content/catalog-types'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
 import { placedItems, type Roadmap } from '@/lib/content/schemas/roadmap'
-
-const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+import { byId } from './util'
 
 /** An active problem with an active note. */
 const isNoted = (item: CatalogItem | undefined): boolean =>
@@ -22,7 +21,7 @@ export function weekCoverage(
 ): WeekCoverage[] {
   const trackItems = Object.values(items)
     .filter((item) => item.trackId === track.id && item.status === 'active')
-    .sort((a, b) => compareNames(a.id, b.id))
+    .sort(byId)
   const formats = track.lessonFormats ?? {}
   // Topic lessons: formats without `about` (a deep-dive is about a problem, not a week topic).
   const topicLessons = trackItems.filter(

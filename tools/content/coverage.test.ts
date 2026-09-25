@@ -22,7 +22,7 @@ const trackOf = (id: string): TrackManifest => {
   return track
 }
 
-const byId = <T extends { id: string }>(values: readonly T[]): Record<string, T> =>
+const recordOf = <T extends { id: string }>(values: readonly T[]): Record<string, T> =>
   Object.fromEntries(values.map((value) => [value.id, value]))
 
 const problemId = (n: number): string => `dsa:lc-${String(n).padStart(4, '0')}`
@@ -112,7 +112,7 @@ describe('weekCoverage', () => {
       9: 'active',
       10: 'active',
     }
-    const items = byId<CatalogItem>([
+    const items = recordOf<CatalogItem>([
       ...[...core, 9, 10, 11].map((n) =>
         problem(n, notes[n] ?? null, n === 4 ? 'draft' : 'active'),
       ),
@@ -155,9 +155,9 @@ describe('weekCoverage', () => {
   it("counts the active core and extended cards of the week's decks, its exercises and prompts", () => {
     const roadmap = loaded.roadmapFiles.find((file) => file.trackId === 'english')?.roadmap
     if (roadmap === undefined) throw new Error('no English roadmap')
-    const decks: Record<string, DeckSummary> = byId(loaded.decks)
+    const decks: Record<string, DeckSummary> = recordOf(loaded.decks)
     // w01-heads-up is an extended card, but a draft.
-    expect(weekCoverage(trackOf('english'), roadmap, byId(loaded.items), decks)).toEqual([
+    expect(weekCoverage(trackOf('english'), roadmap, recordOf(loaded.items), decks)).toEqual([
       {
         week: 1,
         topics: ['standup'],

@@ -10,11 +10,12 @@ import type { Catalog, CatalogItem, DeckSummary } from '@/lib/content/catalog-ty
 import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 import { parseItemId } from '@/lib/content/schemas/ids'
 import { LESSON_REFS, type Topic, type TrackManifest } from '@/lib/content/schemas/manifest'
-import type { Roadmap } from '@/lib/content/schemas/roadmap'
+import { placedItems, type Roadmap } from '@/lib/content/schemas/roadmap'
 import { testsMinimumIssues, type TestsFile } from '@/lib/content/schemas/tests'
 import { sortIssues, type ContentIssue } from './issues'
 import { SOLUTION_FILES, type LoadedContent, type LoadedRoadmap } from './load'
 import type { MdxFacts } from './mdx/facts'
+import { byId, compareNames, count } from './util'
 
 export type CrossrefInput = {
   tracks: readonly TrackManifest[]
@@ -28,10 +29,6 @@ export type CrossrefInput = {
   facts: ReadonlyMap<string, MdxFacts>
   problemFiles: ReadonlyMap<string, { solutions: CodeLanguage[]; tests: TestsFile | null }>
 }
-
-const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-const byId = <T extends { id: string }>(a: T, b: T): number => compareNames(a.id, b.id)
-const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 /** trackId → variant (file name) → roadmap, for the roadmap files that exist; variants sorted. */
 export function roadmapRecord(
@@ -169,7 +166,11 @@ function checkRoadmap(check: TrackCheck, file: string, roadmap: Roadmap): void {
     issue(file, undefined, `the track does not list roadmap ${variant} in roadmaps (${manifest})`)
   }
 
-  /** Topics listed so far; items placed so far (core, bonus, recap entries without a mode). */
+  /**
+   * Topics listed so far; items placed so far — core and recap entries without a mode, the new
+   * items every learner gets (§5.3). Bonus is opt-in (`include_bonus`), so a recap with a mode of a
+   * bonus-only problem would reach learners who never had it.
+   */
   const reached = new Set<string>()
   const placed = new Set<string>()
   /** A bonus or introducing recap item: its topic, or all of its topic's requires, reached. */
@@ -202,8 +203,7 @@ function checkRoadmap(check: TrackCheck, file: string, roadmap: Roadmap): void {
       }
       reached.add(topic)
     })
-    for (const id of [...week.core, ...week.bonus]) placed.add(id)
-    for (const entry of week.recap) if (entry.mode === undefined) placed.add(entry.item)
+    for (const id of placedItems(week)) placed.add(id)
 
     week.core.forEach((id, j) => {
       const topic = problemRef(check, file, at('core', j), id)?.content.topic
@@ -231,7 +231,7 @@ function checkRoadmap(check: TrackCheck, file: string, roadmap: Roadmap): void {
         issue(
           file,
           where,
-          `${entry.item} is recapped (${entry.mode}) in week ${n} but not placed (core, bonus or a recap without a mode) by then`,
+          `${entry.item} is recapped (${entry.mode}) in week ${n} but not placed (core or a recap without a mode) by then`,
         )
       }
     })
@@ -299,14 +299,15 @@ function checkLesson(check: TrackCheck, lesson: CatalogItem<'lesson'>): void {
 
   // `<Practice problem>` is the frontmatter's practice (a missing required one is reported above).
   if (practice === undefined && format.requires.includes('practice')) return
-  for (const value of facts?.practice ?? []) {
-    if (value === practice) continue
+  for (const { problem, line } of facts?.practice ?? []) {
+    if (problem === practice) continue
     issue(
       file,
       undefined,
       practice === undefined
-        ? `<Practice problem="${value}"> is not allowed: the ${content.format} format has no practice`
-        : `<Practice problem="${value}"> must be the lesson's practice, ${practice}`,
+        ? `<Practice problem="${problem}"> is not allowed: the ${content.format} format has no practice`
+        : `<Practice problem="${problem}"> must be the lesson's practice, ${practice}`,
+      line > 0 ? line : undefined,
     )
   }
 }
@@ -422,11 +423,24 @@ function checkWeeks(check: TrackCheck): void {
   }
 }
 
-/** A derived deck's source track exists and lists the source item type (it may have none yet). */
-function checkDerivedSources(check: TrackCheck): void {
+/**
+ * A derived deck's ID is its own — not an authored deck's, which the catalog would otherwise
+ * overwrite — and its source track exists and lists the source item type (it may have none yet).
+ */
+function checkDerivedDecks(check: TrackCheck): void {
   const { input, track, issue } = check
   const file = input.manifestFiles.get(track.id) ?? 'track.yaml'
   track.decks.forEach((deck, index) => {
+    const authored = input.decks[`${track.id}:${deck.id}`]
+    if (authored !== undefined) {
+      const deckFile = input.items[authored.cardIds[0] ?? '']?.source
+      const where = deckFile === undefined ? '' : ` (${deckFile})`
+      issue(
+        file,
+        `decks.${index}.id`,
+        `${authored.id} is already the ID of an authored deck${where}`,
+      )
+    }
     const at = `decks.${index}.from.track`
     const source = input.tracks.find((candidate) => candidate.id === deck.from.track)
     if (source === undefined) {
@@ -469,7 +483,7 @@ export function crossrefIssues(input: CrossrefInput): ContentIssue[] {
     checkTopics(check)
     checkNotes(check)
     checkWeeks(check)
-    checkDerivedSources(check)
+    checkDerivedDecks(check)
   }
   return sortIssues(issues)
 }

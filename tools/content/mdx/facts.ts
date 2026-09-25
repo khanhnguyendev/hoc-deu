@@ -10,8 +10,8 @@ export type MdxFacts = {
   bilingual: { vi: string; en: string }[]
   complexity: { time: string; space: string }[]
   solutionCount: number
-  /** `<Practice problem>` values. */
-  practice: string[]
+  /** `<Practice problem>` values, with their lines. */
+  practice: { problem: string; line: number }[]
   /** Fenced code; `value` has no trailing newline. */
   codeBlocks: { lang: string; value: string }[]
   /** Inline images; width and height are 0 when the size title is missing or malformed. */
@@ -71,7 +71,7 @@ function collectElement(node: MdxNode, facts: MdxFacts): void {
     }
     case 'Practice': {
       const problem = value('problem')
-      if (problem !== undefined) facts.practice.push(problem)
+      if (problem !== undefined) facts.practice.push({ problem, line: lineOf(node) })
       break
     }
     case 'Solution':

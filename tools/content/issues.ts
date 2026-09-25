@@ -1,3 +1,5 @@
+import { compareNames } from './util'
+
 /**
  * One problem found in a content file: an MDX position (`line`/`column`) or a YAML `path`
  * (`cards.3.front`), or neither for a file-level problem.
@@ -21,8 +23,6 @@ export function formatIssue(issue: ContentIssue): string {
   return `${location}:${path} ${issue.message}`
 }
 
-const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-
 /** Missing values first, then ascending. */
 function compareOptional<T>(a: T | undefined, b: T | undefined, compare: (a: T, b: T) => number) {
   if (a === undefined || b === undefined) return a === b ? 0 : a === undefined ? -1 : 1
@@ -37,7 +37,7 @@ function comparePath(a: string, b: string): number {
     const x = left[index] ?? ''
     const y = right[index] ?? ''
     const numeric = /^\d+$/.test(x) && /^\d+$/.test(y)
-    const order = numeric ? Number(x) - Number(y) : compareText(x, y)
+    const order = numeric ? Number(x) - Number(y) : compareNames(x, y)
     if (order !== 0) return order
   }
   return left.length - right.length
@@ -47,10 +47,10 @@ function comparePath(a: string, b: string): number {
 export function sortIssues(issues: readonly ContentIssue[]): ContentIssue[] {
   return [...issues].sort(
     (a, b) =>
-      compareText(a.file, b.file) ||
+      compareNames(a.file, b.file) ||
       compareOptional(a.line, b.line, (x, y) => x - y) ||
       compareOptional(a.column, b.column, (x, y) => x - y) ||
       compareOptional(a.path, b.path, comparePath) ||
-      compareText(a.message, b.message),
+      compareNames(a.message, b.message),
   )
 }

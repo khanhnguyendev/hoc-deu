@@ -1,8 +1,10 @@
 /**
  * `pnpm content:build` (platform design §3.6): load and check `content/**`, check the
  * cross-references, derive cards, keep `content/ids.lock`, highlight code, emit `.generated/`, and
- * report counts, verification and coverage. Every issue is collected before the build fails, and
- * nothing is written unless there are none.
+ * report counts, verification and coverage. Every load and lock issue is collected before the build
+ * fails; the cross-references wait until every file loads cleanly (a file that failed to load
+ * would only cascade into missing references), so they are reported in a second run. Nothing is
+ * written unless there are no issues.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -25,6 +27,7 @@ import { formatIssue, sortIssues, type ContentIssue } from './issues'
 import { loadContent, type LoadedContent, type LoadedMdx } from './load'
 import { decodeUtf8 } from './nfc'
 import { formatReport } from './report'
+import { compareNames, count } from './util'
 
 export type BuildOptions = {
   repoRoot: string
@@ -62,12 +65,8 @@ export function isCheckMode(
   return ci !== undefined && !NOT_CI.has(ci.trim().toLowerCase())
 }
 
-const compareNames = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-
 const sortedRecord = <T>(entries: readonly [string, T][]): Record<string, T> =>
   Object.fromEntries([...entries].sort(([a], [b]) => compareNames(a, b)))
-
-const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 type Derived = ReturnType<typeof derivedCards>
 
