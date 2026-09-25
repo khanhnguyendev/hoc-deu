@@ -12,7 +12,11 @@ export type MdxFacts = {
   solutionCount: number
   /** `<Practice problem>` values, with their lines. */
   practice: { problem: string; line: number }[]
-  /** Fenced code; `value` has no trailing newline. */
+  /**
+   * Fenced code; `value` is the text the renderer's `pre` gets: the code plus the one trailing `\n`
+   * MDX adds. `codeBlockKey` and the highlighter drop exactly that one, on both sides, so a fence
+   * that ends with a blank line keys (and highlights) the same at build time and at render time.
+   */
   codeBlocks: { lang: string; value: string }[]
   /** Inline images; width and height are 0 when the size title is missing or malformed. */
   images: { url: string; alt: string; width: number; height: number; line: number }[]
@@ -45,7 +49,8 @@ export function mdxFacts(tree: MdxRoot): MdxFacts {
   const visit = (node: MdxNode): void => {
     if (isJsxElement(node)) collectElement(node, facts)
     else if (node.type === 'code') {
-      facts.codeBlocks.push({ lang: node.lang ?? '', value: (node.value ?? '').replace(/\n$/, '') })
+      // As mdast-util-to-hast hands it to `pre` (an empty fence gets '' there: the same key).
+      facts.codeBlocks.push({ lang: node.lang ?? '', value: `${node.value ?? ''}\n` })
     } else if (node.type === 'image') {
       const size = parseImageSize(node.title) ?? { width: 0, height: 0 }
       facts.images.push({ url: node.url ?? '', alt: node.alt ?? '', ...size, line: lineOf(node) })

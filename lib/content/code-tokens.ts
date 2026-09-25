@@ -52,9 +52,9 @@ export function plainCode(lang: string, code: string): HighlightedCode {
 
 /**
  * A stable, opaque key for `code` in `lang`: `${lang}:${fnv1a32 hex of the code without one
- * trailing '\n'}`. The MDX `pre` override gets the fenced block's text with a trailing newline
- * (spike finding); `content:build` computes it without one; both normalise the same way first, so
- * they agree on the key for the same source.
+ * trailing '\n'}`. The MDX `pre` override gets the fenced block's text with the trailing newline
+ * MDX adds (spike finding), and `content:build` keys the same text (`mdxFacts`), so both drop the
+ * same newline — a fence whose code itself ends with a blank line keeps it on both sides.
  */
 export function codeBlockKey(lang: string, code: string): string {
   return `${lang}:${fnv1a32(trimOneTrailingNewline(code))}`
