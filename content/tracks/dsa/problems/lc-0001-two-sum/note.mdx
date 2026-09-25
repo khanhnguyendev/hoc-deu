@@ -1,0 +1,45 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Với mỗi số `x`, số còn thiếu là <Term vi="phần bù">complement</Term> `target - x`. Thử mọi cặp thì mất `O(n^2)`. Thay vào đó, dùng một <Term vi="bảng băm">hash map</Term> ghi `giá trị → chỉ số` của các số đã đi qua, để hỏi "phần bù đã xuất hiện chưa?" trong `O(1)`. Mẹo then chốt: **tra phần bù trước, lưu `x` sau**. Nhờ vậy một phần tử không bao giờ bị ghép với chính nó, và chỉ cần duyệt mảng một lượt.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Tạo map rỗng">`index_of` ghi giá trị → chỉ số của các số đã đi qua.</Step>
+
+<Step title="Tính phần bù">Tại vị trí `i` có giá trị `num`, tính `complement = target - num`.</Step>
+
+<Step title="Tra map">Nếu `complement` có trong map, trả về `[index_of[complement], i]`.</Step>
+
+<Step title="Ghi nhớ">Nếu chưa có, lưu `index_of[num] = i` rồi sang số tiếp theo.</Step>
+
+</Steps>
+
+<VarTable caption="nums = [4, 1, 6, 3], target = 7">
+
+| i | num | complement | Có trong map? | map sau bước này |
+| --- | --- | --- | --- | --- |
+| 0 | 4 | 3 | Không | `{4: 0}` |
+| 1 | 1 | 6 | Không | `{4: 0, 1: 1}` |
+| 2 | 6 | 1 | Có, ở chỉ số 1 | Trả về `[1, 2]` |
+
+</VarTable>
+
+<Callout tone="warning">
+
+Đừng lưu `num` vào map trước khi tra. Với `nums = [3, 5]` và `target = 6`, số `3` sẽ tìm thấy chính nó và trả về `[0, 0]`. Tra trước thì trường hợp hai số bằng nhau như `[3, 3]` vẫn đúng: số `3` thứ hai tìm thấy số `3` thứ nhất đã nằm sẵn trong map.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi số được tra và lưu một lần, mỗi lần `O(1)` trung bình; trong trường hợp xấu nhất map chứa gần đủ `n` số.
+
+<Solution />
+
+<Bilingual vi="Duyệt mảng một lần với hash map giá trị → chỉ số: với mỗi số, tra xem target trừ số đó đã có trong map chưa; có thì trả về hai chỉ số, chưa thì lưu số hiện tại." en="Walk the array once with a hash map from value to index. For each number, look up target minus that number; if it is in the map, return both indices, otherwise store the current number. Looking up before storing never pairs a number with itself. O(n) time and space." />

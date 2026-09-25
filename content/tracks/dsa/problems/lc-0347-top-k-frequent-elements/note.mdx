@@ -1,0 +1,44 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Bài gồm hai bước: đếm <Term vi="tần suất">frequency</Term> của từng giá trị bằng <Term vi="bảng băm">hash map</Term>, rồi lấy `k` giá trị có tần suất cao nhất. Sắp xếp theo tần suất tốn `O(n log n)`; một <Term vi="đống">heap</Term> giữ `k` phần tử tốn `O(n log k)`. Mẹo để đạt `O(n)`: tần suất của một giá trị chỉ nằm trong khoảng từ 1 tới `n`, nên dùng được <Term vi="sắp xếp theo xô">bucket sort</Term>: xô thứ `f` chứa các giá trị xuất hiện đúng `f` lần, rồi lấy dần từ xô cao nhất xuống.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đếm">`counts[num]` là số lần `num` xuất hiện trong mảng.</Step>
+
+<Step title="Chia xô">Tạo `n + 1` xô rỗng (chỉ số từ 0 tới `n`), rồi thêm mỗi giá trị vào xô `buckets[counts[num]]`.</Step>
+
+<Step title="Lấy từ trên xuống">Duyệt `f` từ `n` về 1, lấy các giá trị trong xô `f` cho tới khi đủ `k` giá trị.</Step>
+
+</Steps>
+
+<VarTable caption="nums = [4, 6, 4, 8, 6, 4, 9], k = 2">
+
+| Bước | Trạng thái |
+| --- | --- |
+| Đếm | `4: 3, 6: 2, 8: 1, 9: 1` |
+| Chia xô | xô 3: `[4]`, xô 2: `[6]`, xô 1: `[8, 9]` |
+| Lấy xô 3 | kết quả `[4]` |
+| Lấy xô 2 | kết quả `[4, 6]`: đủ `k = 2`, dừng |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Các xô từ 7 xuống 4 đều rỗng nhưng vẫn phải đi qua; tổng số xô là `n + 1` nên phần duyệt này vẫn chỉ là `O(n)`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Đếm, chia xô và duyệt các xô đều là `O(n)`: có `n + 1` xô và tổng số giá trị nằm trong các xô không vượt quá `n`.
+
+<Solution />
+
+<Bilingual vi="Đếm tần suất bằng hash map, rồi đặt mỗi giá trị vào xô có chỉ số bằng tần suất của nó; duyệt các xô từ tần suất cao xuống và lấy cho đủ k giá trị." en="Count each value with a hash map, then bucket the values by frequency: bucket f holds the values seen exactly f times, and f is at most n. Walk the buckets from the highest frequency down, collecting values until there are k. This avoids sorting: O(n) time and space." />

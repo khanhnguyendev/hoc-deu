@@ -1,0 +1,45 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Hai chuỗi là <Term>anagram</Term> của nhau khi mỗi chữ cái xuất hiện cùng số lần ở cả hai bên, bất kể thứ tự. Vì vậy ta so <Term vi="tần suất">frequency</Term> của từng chữ cái chứ không so chuỗi. Chuỗi chỉ gồm 26 chữ cái thường, nên một mảng 26 ô đếm là đủ thay cho <Term vi="bảng băm">hash map</Term>: chữ cái `ch` ứng với ô `ch - 'a'`. Mẹo: chỉ cần **một** mảng, cộng 1 cho mỗi chữ của `s` và trừ 1 cho mỗi chữ của `t`; hai chuỗi là anagram khi cuối cùng mọi ô đều bằng 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="So độ dài">Độ dài khác nhau thì không thể là anagram: trả về `false` ngay.</Step>
+
+<Step title="Đếm chênh lệch">Duyệt song song hai chuỗi theo cùng chỉ số `i`: tăng ô của `s[i]`, giảm ô của `t[i]`.</Step>
+
+<Step title="Kiểm tra">Mọi ô bằng 0 thì trả về `true`. Còn một ô khác 0 nghĩa là có chữ cái xuất hiện ở một bên nhiều hơn bên kia.</Step>
+
+</Steps>
+
+Trong lúc đếm, một ô có thể tạm âm; chỉ kết quả cuối cùng mới quan trọng.
+
+<VarTable caption="s = aab, t = aba">
+
+| i | s[i] | t[i] | Các ô khác 0 sau bước này |
+| --- | --- | --- | --- |
+| 0 | a | a | (không có) |
+| 1 | a | b | `a: 1, b: -1` |
+| 2 | b | a | (không có): trả về `true` |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Nếu chuỗi có thể chứa ký tự Unicode bất kỳ (một câu hỏi mở rộng hay gặp), thay mảng 26 ô bằng một hash map `ký tự → số lần`. Ý tưởng cộng rồi trừ vẫn giữ nguyên.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi ký tự được đọc một lần. Mảng đếm luôn có 26 ô, không phụ thuộc độ dài chuỗi, nên bộ nhớ thêm là hằng số.
+
+<Solution />
+
+<Bilingual vi="Hai chuỗi phải dài bằng nhau; dùng một mảng đếm 26 chữ cái, cộng 1 cho mỗi chữ của s, trừ 1 cho mỗi chữ của t, rồi kiểm tra mọi ô đều bằng 0." en="If the lengths differ, return false. Otherwise keep one array of 26 letter counts: add one for each letter of s and subtract one for each letter of t. The strings are anagrams exactly when every count ends at zero. O(n) time and O(1) extra space." />

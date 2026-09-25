@@ -1,0 +1,189 @@
+---
+id: dsa:lesson-arrays-hashing
+format: pattern
+topic: arrays-hashing
+title: 'Arrays & Hashing: tra cứu nhanh bằng hash map'
+anchor: dsa:lc-0001
+practice: dsa:lc-0049
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="bảng băm">hash map</Term> hoặc <Term vi="tập hợp băm">hash set</Term> khi gặp một trong các dấu hiệu sau:
+
+- Cách làm thô có hai vòng lặp lồng nhau, và vòng trong chỉ để **tìm** một giá trị: "số này đã gặp chưa?", "có số nào cộng với nó ra `target` không?".
+- Cần **đếm** số lần xuất hiện của từng phần tử, hoặc so sánh hai tập hợp không theo thứ tự, như kiểm tra hai chuỗi là <Term>anagram</Term>.
+- Cần **gom nhóm** các phần tử có chung một đặc điểm: tìm được một <Term>key</Term> giống nhau cho mọi phần tử cùng nhóm.
+- Được phép dùng thêm bộ nhớ `O(n)` để đổi thời gian từ `O(n^2)` xuống `O(n)`.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Trong cách làm thô, mình đang lặp đi lặp lại việc tìm kiếm nào? Nếu ghi kết quả của việc đó vào một hash map, mỗi lần tìm chỉ còn `O(1)`.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Cô giáo muốn ghép các bạn thành từng cặp có tổng điểm đúng 15, và các bạn vào lớp lần lượt từng người.
+
+- Cách chậm: mỗi bạn mới vào lại đi hỏi từng bạn đã ngồi trong lớp "bạn được mấy điểm?". Lớp càng đông, càng mất thời gian.
+- Cách nhanh: cô ghi lên bảng "điểm → tên" của từng bạn đã vào. Bạn được 9 điểm vừa bước vào chỉ cần nhìn bảng xem có ai được đúng 6 điểm hay không, rồi mới ghi tên mình lên bảng.
+
+Cái bảng ấy chính là hash map: nhìn theo key (số điểm) là thấy ngay giá trị (tên), không phải hỏi lần lượt từng người.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Two Sum: tìm chỉ số của hai số có tổng bằng `target`. Mỗi hàng là một bước; map ghi `giá trị: chỉ số` của các số đã đi qua.
+
+<VarTable caption="nums = [5, 2, 8, 1], target = 9">
+
+| i | num | Cần tìm (target - num) | Có trong map? | map sau bước này |
+| --- | --- | --- | --- | --- |
+| 0 | 5 | 4 | Không | `{5: 0}` |
+| 1 | 2 | 7 | Không | `{5: 0, 2: 1}` |
+| 2 | 8 | 1 | Không | `{5: 0, 2: 1, 8: 2}` |
+| 3 | 1 | 8 | Có, ở chỉ số 2 | Trả về `[2, 3]` |
+
+</VarTable>
+
+Mỗi số chỉ được xem một lần. Cách thô phải thử tới 6 cặp với 4 số; ở đây chỉ có 4 lần tra map.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Tìm việc tra cứu bị lặp lại">Viết cách làm thô và chỉ ra vòng lặp trong đang tìm gì: một giá trị, số lần xuất hiện, hay nhóm của một phần tử.</Step>
+
+<Step title="Chọn key và giá trị">Key là thứ mang đi tra: giá trị, phần bù, hay một key được thiết kế riêng cho cả một nhóm. Giá trị đi kèm key là thứ cần lấy lại: chỉ số, số lần, hay danh sách phần tử. Chỉ cần biết có hay không thì dùng hash set.</Step>
+
+<Step title="Duyệt một lượt: tra trước, ghi sau">Với mỗi phần tử, tra map để lấy thông tin về các phần tử **đã qua**, rồi mới ghi phần tử hiện tại vào. Thứ tự này ngăn một phần tử ghép với chính nó.</Step>
+
+<Step title="Đọc đáp án">Trả về ngay khi tìm thấy (Two Sum, Contains Duplicate), hoặc sau khi duyệt hết thì đọc đáp án từ map (đếm, gom nhóm).</Step>
+
+</Steps>
+
+#### Ba cách dùng hay gặp
+
+1. **Tra cứu**: `giá trị → chỉ số` hoặc một set các giá trị đã gặp (Two Sum, Contains Duplicate, Longest Consecutive Sequence).
+2. **Đếm**: `phần tử → số lần` (Valid Anagram, Top K Frequent Elements).
+3. **Gom nhóm**: `key → danh sách phần tử` (Group Anagrams).
+
+Khi key chỉ có ít giá trị cố định, như 26 chữ cái thường hay 9 chữ số của Sudoku, một mảng có kích thước cố định làm được việc của hash map mà nhanh hơn.
+
+</Section>
+
+<Section kind="code">
+
+Ba khuôn mẫu ứng với ba cách dùng; lời giải đầy đủ của Two Sum bằng Python, Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import Callable
+
+
+def pair_with_sum(nums: list[int], target: int) -> list[int]:
+    # 1. Lookup: value -> index of the numbers already passed.
+    index_of: dict[int, int] = {}
+    for i, num in enumerate(nums):
+        need = target - num
+        if need in index_of:  # look up first ...
+            return [index_of[need], i]
+        index_of[num] = i  # ... then store the current number
+    return []
+
+
+def count(items: list[str]) -> dict[str, int]:
+    # 2. Counting: item -> how many times it appears.
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item] = counts.get(item, 0) + 1
+    return counts
+
+
+def group_by(words: list[str], key_of: Callable[[str], str]) -> list[list[str]]:
+    # 3. Grouping: key -> the items that share it. key_of must return equal keys for
+    # exactly the items of one group, e.g. lambda word: word[:1] groups by first letter.
+    groups: dict[str, list[str]] = {}
+    for word in words:
+        groups.setdefault(key_of(word), []).append(word)
+    return list(groups.values())
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi lần tra hoặc ghi vào hash map tốn `O(1)` trung bình, nên một lượt duyệt là `O(n)`; map chứa nhiều nhất `n` phần tử. Đây là phép đổi quen thuộc: thêm `O(n)` bộ nhớ để bỏ đi vòng lặp trong.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Thay vòng lặp lồng nhau bằng một hash map: duyệt một lượt, với mỗi phần tử tra trước điều cần tìm trong O(1), rồi mới ghi phần tử đó vào map." en="Replace the inner loop with a hash map. Walk the input once; for each element, first look up what you need (a complement, a count or a group key) in O(1) on average, then record the element. You trade O(n) extra memory for O(n) time." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0049" />
+
+Thử cách dùng thứ ba, gom nhóm: tự hỏi hai chuỗi là anagram của nhau thì có chung điều gì để làm key, rồi gom mọi chuỗi vào hash map trong một lượt duyệt.
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Trong Two Sum, vì sao phải tra phần bù trước rồi mới lưu số hiện tại vào map?" answer="b">
+
+<Choice id="a">Để map luôn giữ các số theo thứ tự tăng dần</Choice>
+
+<Choice id="b">Để một số không bị ghép với chính nó, ví dụ số 3 khi target bằng 6</Choice>
+
+<Choice id="c">Vì tra sau khi lưu thì chậm hơn</Choice>
+
+</Question>
+
+<Question prompt="Chỉ cần biết một giá trị đã xuất hiện hay chưa. Cấu trúc nào vừa đủ?" answer="a">
+
+<Choice id="a">Một hash set</Choice>
+
+<Choice id="b">Một hash map từ giá trị tới danh sách chỉ số</Choice>
+
+<Choice id="c">Một mảng đã sắp xếp, tra bằng tìm tuần tự</Choice>
+
+</Question>
+
+<Question prompt="Khi gom nhóm bằng hash map, key của mỗi phần tử cần thỏa điều gì?" answer="c">
+
+<Choice id="a">Key phải là một số nguyên</Choice>
+
+<Choice id="b">Mỗi phần tử phải có một key khác mọi phần tử còn lại</Choice>
+
+<Choice id="c">Hai phần tử cùng nhóm có key bằng nhau, khác nhóm thì key khác nhau</Choice>
+
+<Choice id="d">Key phải ngắn hơn chính phần tử đó</Choice>
+
+</Question>
+
+<Question prompt="Trung bình, một lần tra cứu trong hash map tốn bao lâu?" answer="o1">
+
+<Choice id="o1">`O(1)`</Choice>
+
+<Choice id="ologn">`O(log n)`</Choice>
+
+<Choice id="on">`O(n)`</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

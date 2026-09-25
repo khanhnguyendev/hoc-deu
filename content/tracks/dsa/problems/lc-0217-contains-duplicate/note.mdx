@@ -1,0 +1,46 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Với mỗi phần tử, câu hỏi thật ra chỉ là: "giá trị này đã gặp chưa?". So từng cặp phần tử thì mất `O(n^2)`. Thay vào đó, dùng một <Term vi="tập hợp băm">hash set</Term> để nhớ các giá trị đã đi qua: kiểm tra một giá trị có trong set hay không chỉ tốn `O(1)` trung bình. Gặp lại một giá trị đã có trong set là dừng được ngay.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Tạo set rỗng">`seen` sẽ chứa các giá trị đã duyệt qua.</Step>
+
+<Step title="Hỏi trước">Với mỗi `num`, nếu `num` đã có trong `seen` thì đây là lần gặp thứ hai: trả về `true` ngay.</Step>
+
+<Step title="Ghi nhớ sau">Nếu chưa có, thêm `num` vào `seen` rồi sang số tiếp theo.</Step>
+
+<Step title="Hết mảng">Không giá trị nào lặp lại: trả về `false`.</Step>
+
+</Steps>
+
+<VarTable caption="nums = [3, 8, 1, 8, 5]">
+
+| i | num | Có trong seen? | seen sau bước này |
+| --- | --- | --- | --- |
+| 0 | 3 | Không | `{3}` |
+| 1 | 8 | Không | `{3, 8}` |
+| 2 | 1 | Không | `{3, 8, 1}` |
+| 3 | 8 | Có | Dừng, trả về `true` (số 5 không cần xét) |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Nếu không muốn tốn thêm bộ nhớ cho set, có thể sắp xếp mảng rồi so từng cặp phần tử kề nhau: hai giá trị bằng nhau sẽ nằm cạnh nhau. Đổi lại, thời gian thành `O(n log n)` và thứ tự của mảng gốc bị thay đổi.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi số được kiểm tra và thêm vào set nhiều nhất một lần, mỗi lần `O(1)` trung bình. Khi không có số nào lặp lại, set chứa đủ `n` giá trị.
+
+<Solution />
+
+<Bilingual vi="Duyệt mảng một lượt với một hash set: số hiện tại đã có trong set thì mảng có phần tử lặp, trả về true; chưa có thì thêm nó vào set." en="Scan the array once while keeping a hash set of the values seen so far. If the current value is already in the set, there is a duplicate, so return true; otherwise add it. Reaching the end means all values are distinct. O(n) time and O(n) space." />

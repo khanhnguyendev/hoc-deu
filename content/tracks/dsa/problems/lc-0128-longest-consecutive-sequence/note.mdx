@@ -1,0 +1,51 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Sắp xếp rồi đếm các đoạn số liền nhau thì mất `O(n log n)`. Để đạt `O(n)`, bỏ mọi số vào một <Term vi="tập hợp băm">hash set</Term> để hỏi "`x + 1` có không?" trong `O(1)`. Mẹo then chốt: chỉ bắt đầu đếm từ số **đứng đầu** một <Term vi="dãy số liên tiếp">consecutive sequence</Term>, tức là số `x` mà `x - 1` không có trong set. Nhờ vậy mỗi dãy chỉ được đếm một lần, từ đầu dãy, dù bên trong có một vòng `while`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Tạo set">`values = set(nums)`: bỏ các số trùng và cho phép tra cứu `O(1)`.</Step>
+
+<Step title="Tìm điểm đầu">Duyệt từng `num` trong set; nếu `num - 1` cũng có trong set thì `num` không phải điểm đầu dãy: bỏ qua.</Step>
+
+<Step title="Đếm độ dài">Từ điểm đầu, tăng `length` chừng nào `num + length` còn trong set.</Step>
+
+<Step title="Cập nhật">`longest = max(longest, length)`; duyệt hết thì trả về `longest`.</Step>
+
+</Steps>
+
+Set không có thứ tự; bảng dưới đi theo thứ tự các số trong mảng cho dễ theo dõi.
+
+<VarTable caption="nums = [10, 4, 20, 1, 3, 2, 11]">
+
+| num | num - 1 có trong set? | Dãy đếm được | longest |
+| --- | --- | --- | --- |
+| 10 | Không (9) | 10, 11: dài 2 | 2 |
+| 4 | Có (3) | Bỏ qua | 2 |
+| 20 | Không (19) | 20: dài 1 | 2 |
+| 1 | Không (0) | 1, 2, 3, 4: dài 4 | 4 |
+| 3 | Có (2) | Bỏ qua | 4 |
+| 2 | Có (1) | Bỏ qua | 4 |
+| 11 | Có (10) | Bỏ qua | 4 |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Duyệt trên set chứ không trên mảng: nếu mảng có nhiều bản sao của cùng một điểm đầu, duyệt mảng sẽ đếm lại cùng một dãy nhiều lần và mất `O(n^2)` trong trường hợp xấu.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Vòng `while` chỉ chạy từ các điểm đầu, và mỗi số thuộc đúng một dãy, nên tổng số bước của mọi vòng `while` không vượt quá `n`. Set chứa nhiều nhất `n` số.
+
+<Solution />
+
+<Bilingual vi="Bỏ mọi số vào hash set; chỉ bắt đầu đếm ở số x mà x - 1 không có trong set, rồi đếm tiếp x + 1, x + 2… chừng nào còn trong set; mỗi số chỉ được bước qua một lần." en="Put every number in a hash set. Only start counting at a number x whose x - 1 is missing, because x begins a run; then extend while x + 1, x + 2, and so on are in the set. Each number is stepped over once, so the whole scan is O(n) time and O(n) space, with no sorting." />
