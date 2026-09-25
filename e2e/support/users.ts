@@ -163,6 +163,69 @@ export async function seedLearnerSetup(
   }
 }
 
+const DAY_MS = 86_400_000
+
+/**
+ * Sets the enrollment to `paused` and records a `track.paused` event `daysAgo` days in the past
+ * (inserted with the secret key: the insert trigger only forces `occurred_at`, `actor_id` and
+ * `source` for the `authenticated` role — a direct insert from the service role keeps them as
+ * given, like a real learner pause, while `local_day` is always recomputed from `occurred_at` by
+ * the trigger, so the placeholder passed here is never actually stored).
+ */
+export async function seedPausedTrack(
+  userId: string,
+  trackId: string,
+  daysAgo: number,
+): Promise<void> {
+  const { error: trackError } = await admin()
+    .from('user_tracks')
+    .update({ status: 'paused' })
+    .eq('user_id', userId)
+    .eq('track_id', trackId)
+  if (trackError) {
+    throw new Error(`seedPausedTrack(${userId}, ${trackId}) failed: ${trackError.message}`)
+  }
+
+  const occurredAt = new Date(Date.now() - daysAgo * DAY_MS).toISOString()
+  const { error: eventError } = await admin()
+    .from('events')
+    .insert({
+      id: randomUUID(),
+      user_id: userId,
+      actor_id: userId,
+      source: 'learner',
+      type: 'track.paused',
+      occurred_at: occurredAt,
+      local_day: occurredAt.slice(0, 10),
+      track_id: trackId,
+      payload: {},
+    })
+  if (eventError) {
+    throw new Error(`seedPausedTrack event(${userId}, ${trackId}) failed: ${eventError.message}`)
+  }
+}
+
+/** The payload of the user's latest event of `type` for `trackId`, or null. */
+export async function latestEventPayload(
+  userId: string,
+  type: string,
+  trackId: string,
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await admin()
+    .from('events')
+    .select('payload')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .eq('track_id', trackId)
+    .order('occurred_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) {
+    throw new Error(`latestEventPayload(${userId}, ${type}, ${trackId}) failed: ${error.message}`)
+  }
+  return (data?.payload as Record<string, unknown> | null | undefined) ?? null
+}
+
 /** How many events the user's log holds — of one type (and track) when given. */
 export async function countEvents(
   userId: string,
