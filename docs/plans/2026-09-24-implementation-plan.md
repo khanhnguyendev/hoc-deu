@@ -9603,8 +9603,10 @@ alter table public.events add constraint events_plan_id_fkey
 Plus, in the same migration:
 
 - **`public.plan_lock_key(p_user_id uuid, p_plan_date date) returns bigint`** — `language sql
-  immutable`, `search_path ''`: `pg_catalog.hashtextextended('day_plan:' || p_user_id || ':' ||
-  p_plan_date, 0)`. The one key of the `(user, plan_date)` advisory lock (decision 33), used by
+  immutable`, `search_path ''`: `pg_catalog.hashtextextended('day_plan:' || p_user_id::text || ':'
+  || (p_plan_date - date '2000-01-01')::text, 0)` — a day number, not the date's text, which would
+  depend on the session's `DateStyle` and make the function not immutable (ruling M4-R12, 4.9a
+  review). The one key of the `(user, plan_date)` advisory lock (decision 33), used by
   `apply_event` (4.9b) and `apply_system_event` (4.9c). Revoke PUBLIC; grant `authenticated`,
   `service_role` (the invoker `apply_event` calls it as the learner); 001 allowlist.
 - **`events_prepare`** (`create or replace`, the 000200 body unchanged plus): for `authenticated`,
