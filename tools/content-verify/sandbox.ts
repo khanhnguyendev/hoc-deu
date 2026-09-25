@@ -14,9 +14,9 @@
  * plant a `sudo` the runner would then run (fix round 1).
  */
 import { spawnSync } from 'node:child_process'
-import { lstatSync, realpathSync, rmSync } from 'node:fs'
+import { lstatSync, readlinkSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute } from 'node:path'
+import { dirname, isAbsolute, resolve } from 'node:path'
 
 export type Sandbox = { user: string } | null
 
@@ -51,6 +51,7 @@ export const SANDBOX_BINARIES = {
   pgrep: '/usr/bin/pgrep',
   chown: '/usr/bin/chown',
   rm: '/usr/bin/rm',
+  kill: '/usr/bin/kill',
 } as const
 
 /**
@@ -133,9 +134,11 @@ const pause = (ms: number): void => {
 }
 
 /**
- * `pkill -KILL` the sandbox user's processes, by effective and by real user, until `pgrep` finds
- * none — after every command, so nothing a solution started survives into the next case (fix 6).
- * Throws (the run stops, exit 2) when a process outlives every round or `pgrep` fails.
+ * Kills the sandbox user's processes after every command, so nothing a solution started survives
+ * into the next case (fix 6). Each round: `kill -KILL -1` as that user (every process of the uid in
+ * one syscall, so a fork-and-exit chain cannot outrun it), then `pkill -KILL` by effective and by
+ * real user as root, then `pgrep`; done when `pgrep` finds none. Throws (the run stops, exit 2)
+ * when a process outlives every round or `pgrep` fails.
  */
 export function killSandboxProcesses(
   sandbox: Sandbox,
@@ -143,8 +146,9 @@ export function killSandboxProcesses(
   { rounds = 20, pauseMs = 50 }: { rounds?: number; pauseMs?: number } = {},
 ): void {
   if (sandbox === null) return
-  const { sudo, pkill, pgrep } = SANDBOX_BINARIES
+  const { sudo, pkill, pgrep, kill } = SANDBOX_BINARIES
   for (let round = 0; round < rounds; round++) {
+    run(sudo, ['-n', '-u', sandbox.user, '--', kill, '-KILL', '--', '-1'])
     run(sudo, ['-n', pkill, '-KILL', '-u', sandbox.user])
     run(sudo, ['-n', pkill, '-KILL', '-U', sandbox.user])
     const left = [run(pgrep, ['-u', sandbox.user]).status, run(pgrep, ['-U', sandbox.user]).status]
@@ -191,7 +195,10 @@ export const workRootParent = (sandbox: Sandbox): string => (sandbox === null ? 
 export function removeWorkRoot(sandbox: Sandbox, workRoot: string, run: RunSync = runSync): void {
   if (!isAbsolute(workRoot)) throw new Error(`refusing to remove a relative path: ${workRoot}`)
   if (sandbox !== null) {
-    run(SANDBOX_BINARIES.sudo, ['-n', SANDBOX_BINARIES.rm, '-rf', '--', workRoot])
+    const result = run(SANDBOX_BINARIES.sudo, ['-n', SANDBOX_BINARIES.rm, '-rf', '--', workRoot])
+    if (result.status !== 0) {
+      throw new Error(`sudo rm -rf ${workRoot} failed: ${result.stderr.trim()}`)
+    }
     return
   }
   rmSync(workRoot, { recursive: true, force: true })
@@ -211,25 +218,36 @@ function components(path: string): string[] {
   return ['/', ...parts.map((_, index) => `/${parts.slice(0, index + 1).join('/')}`)]
 }
 
+const MAX_HOPS = 40
+
 /**
  * Why executing `path` could run something the sandbox user controls. Every directory from `/`
- * down to the file, along the given path and along its resolved target, must be writable by its
- * owner only: `rootOwned` (privileged binaries) also requires root to own each one, otherwise
+ * down to the file must be writable by its owner only — along the given path, along every hop of
+ * its symlink chain (`/usr/bin/sudo → /etc/alternatives/sudo → …`, review N6) and along the final
+ * resolved target: `rootOwned` (privileged binaries) also requires root to own each one, otherwise
  * (toolchains owned by the runner) only the others-write bit is refused. Symlink permissions are
  * meaningless; their directories are checked instead. `[]` means trusted.
  */
 export function trustIssues(
   path: string,
   { rootOwned }: { rootOwned: boolean },
-  fs: { lstat: (path: string) => StatLike; realpath: (path: string) => string } = {
-    lstat: lstatSync,
-    realpath: realpathSync,
-  },
+  fs: {
+    lstat: (path: string) => StatLike
+    readlink: (path: string) => string
+    realpath: (path: string) => string
+  } = { lstat: lstatSync, readlink: readlinkSync, realpath: realpathSync },
 ): string[] {
   const issues: string[] = []
   try {
+    const hops = [path]
+    let current = path
+    while (fs.lstat(current).isSymbolicLink()) {
+      if (hops.length > MAX_HOPS) return [`${path}: more than ${MAX_HOPS} symlink hops`]
+      current = resolve(dirname(current), fs.readlink(current))
+      hops.push(current)
+    }
     const target = fs.realpath(path)
-    const chain = [...new Set([...components(path), ...components(target)])]
+    const chain = [...new Set([...hops.flatMap(components), ...components(target)])]
     for (const component of chain) {
       const stat = fs.lstat(component)
       if (stat.isSymbolicLink()) continue

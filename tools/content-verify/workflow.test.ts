@@ -12,11 +12,20 @@ const ROOT = resolve(import.meta.dirname, '..', '..')
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'content-verify.yml')
 const RUN_IF = "steps.paths.outputs.run == 'true'"
 
-type Step = { id?: string; name?: string; if?: string; run?: string; shell?: string; uses?: string }
-const workflow = parseYaml(readFileSync(WORKFLOW, 'utf8')) as {
-  jobs: { 'content-verify': { steps: Step[] } }
+type Step = {
+  id?: string
+  name?: string
+  if?: string
+  run?: string
+  shell?: string
+  uses?: string
+  env?: Record<string, string>
 }
-const steps = workflow.jobs['content-verify'].steps
+const workflow = parseYaml(readFileSync(WORKFLOW, 'utf8')) as {
+  jobs: { 'content-verify': { 'runs-on': string; steps: Step[] } }
+}
+const job = workflow.jobs['content-verify']
+const steps = job.steps
 const pathsIndex = steps.findIndex((step) => step.id === 'paths')
 const later = steps.slice(pathsIndex + 1)
 
@@ -115,9 +124,99 @@ describe('content-verify workflow', () => {
       'No sandbox process survived the harness self-test',
       'Verify content',
       'No sandbox process survived content:verify',
+      'Runner temp stayed off /tmp',
     ].map(at)
     expect(order).toEqual([...order].sort((a, b) => a - b))
     const unsandboxed = later[at('CLI refuses to run unsandboxed (exit 2)')]
     expect(JSON.stringify(unsandboxed)).not.toContain('CONTENT_VERIFY_SANDBOX_USER')
+  })
+
+  const step = (name: string): Step => {
+    const found = later.find((candidate) => candidate.name === name)
+    if (found === undefined) throw new Error(`no step "${name}"`)
+    return found
+  }
+  const script = (name: string): string => step(name).run ?? ''
+
+  it('pins the runner image (newer images swap /usr/bin tools for sudo-rs / uutils)', () => {
+    expect(job['runs-on']).toBe('ubuntu-24.04')
+  })
+
+  it('creates a sandbox user with no extra groups, no cron/at, no name-service or snapd sockets', () => {
+    const setup = script('Sandbox user without network (OD2)')
+    expect(setup).toContain('/etc/cron.deny')
+    expect(setup).toContain('/etc/at.deny')
+    expect(setup).toContain('id -Gn cvsandbox')
+    for (const socketPath of [
+      '/run/systemd/resolve',
+      '/run/dbus/system_bus_socket',
+      '/run/nscd/socket',
+      '/run/snapd.socket',
+    ]) {
+      expect(setup).toContain(socketPath)
+    }
+    expect(setup).toContain('getfacl -p')
+  })
+
+  it('runs the positive-controlled audit as the sandbox user and fails on findings or a broken audit (N1)', () => {
+    const audit = script(
+      'Sandbox audit: nothing the runner executes is writable by the sandbox user',
+    )
+    expect(audit).toContain(
+      'sudo -n -u cvsandbox -- /usr/bin/python3 -I -B - --user cvsandbox --path "$PATH"',
+    )
+    expect(audit).toContain('< tools/content-verify/sandbox_audit.py')
+    expect(audit).toMatch(/0\) ;;/)
+    expect(audit).toMatch(/1\) echo "::error::/)
+    expect(audit).toMatch(/\*\) echo "::error::/)
+    expect(audit).toContain('$SECONDS')
+  })
+
+  it('proves the name-service, D-Bus, docker and snapd sockets refuse the sandbox user (N8)', () => {
+    const selfTest = script('Sandbox self-test (fail closed)')
+    expect(selfTest).toContain('PermissionError')
+    for (const socketPath of [
+      '/run/systemd/resolve/io.systemd.Resolve',
+      '/run/dbus/system_bus_socket',
+      '/var/run/docker.sock',
+      '/run/snapd.socket',
+    ]) {
+      expect(selfTest).toContain(socketPath)
+    }
+  })
+
+  it('checks the unsandboxed refusal against an empty root, by its message (N2)', () => {
+    const canary = script('CLI refuses to run unsandboxed (exit 2)')
+    expect(canary).toContain('--root "$RUNNER_TEMP/cv-empty"')
+    expect(canary).toContain('refusing to run solutions unsandboxed')
+  })
+
+  it('fails the harness self-test when its tests were skipped (N3)', () => {
+    const selfTest = step('Harness self-test on fixtures')
+    expect(selfTest.env).toEqual({
+      CONTENT_VERIFY_INTEGRATION: '1',
+      CONTENT_VERIFY_SANDBOX_USER: 'cvsandbox',
+    })
+    expect(selfTest.run).toContain('--outputFile.json=')
+    expect(selfTest.run).toContain('numPassedTests')
+    expect(selfTest.run).toContain('numPendingTests')
+  })
+
+  it('treats a pgrep error as a failure, not as "no process left" (N4)', () => {
+    for (const name of [
+      'No sandbox process survived the harness self-test',
+      'No sandbox process survived content:verify',
+    ]) {
+      const check = script(name)
+      expect(check).toContain('for flag in -u -U; do')
+      expect(check).toContain('/usr/bin/pgrep -a "$flag" cvsandbox || status=$?')
+      expect(check).toMatch(/1\) ;;/)
+      expect(check).toMatch(/0\) echo "::error::/)
+      expect(check).toMatch(/\*\) echo "::error::/)
+    }
+  })
+
+  it('fails when tsx left a runner-owned directory in /tmp', () => {
+    expect(script('Runner temp stayed off /tmp')).toContain("-name 'tsx-*'")
   })
 })

@@ -19,8 +19,10 @@ as a required check that always runs.
 - **A dedicated no-network user instead of a container (OD2, a deviation from §3.7).** The
   `content-verify` workflow creates a system user `cvsandbox` on the GitHub runner and rejects all
   of its outgoing IPv4 and IPv6 traffic — loopback included — with iptables and ip6tables owner
-  matches; an ACL denies it systemd-resolved's varlink directory and the D-Bus system socket, so it
-  cannot resolve names by any route either. The same orchestrator runs locally and in CI; CI wraps
+  matches; an ACL denies it systemd-resolved's varlink directory, the D-Bus system socket, nscd and
+  snapd's sockets, so it cannot resolve names or reach the snap store by any route either. It has
+  no supplementary group and is listed in `cron.deny` and `at.deny`, so it cannot schedule a
+  process that outlives the run. The same orchestrator runs locally and in CI; CI wraps
   each toolchain command as `sudo -n -u cvsandbox -- timeout --kill-after=1 <limit> prlimit
   --nproc=512 --fsize=256MiB --core=0 -- env -i PATH=<toolchain dirs> HOME=/tmp … <absolute tool>
   <args>`. No image is pulled or maintained, and the toolchains are the ones the setup actions
@@ -35,14 +37,19 @@ as a required check that always runs.
     a symlinked problem directory, `tests.yaml` or solution is an error, not something the runner
     copies.
   - Nothing the runner or root executes after sandboxed code comes from a PATH lookup: `sudo`,
-    `timeout`, `prlimit`, `env`, `pkill`, `pgrep`, `chown` and `rm` are fixed `/usr/bin` paths,
-    checked root-owned and writable by root only (every directory up to `/`) before sandbox mode
-    starts; the toolchains must not be writable by others. The workflow removes other-write from
-    the tool cache and every PATH directory, then fails unless the sandbox user can write nothing
-    under PATH, `/opt`, `/usr/local`, `/home` or `/etc`. The runner's own temp files move to
-    `RUNNER_TEMP`.
-  - After every command `pkill -KILL` by effective and real user repeats until `pgrep` finds no
-    sandbox process (or the run stops), so in sandbox mode units run one at a time. A unit
+    `timeout`, `prlimit`, `env`, `pkill`, `pgrep`, `kill`, `chown` and `rm` are fixed `/usr/bin`
+    paths, checked root-owned and writable by root only — every directory up to `/`, along every
+    hop of a symlink chain — before sandbox mode starts; the toolchains must not be writable by
+    others. The runner image is pinned (`ubuntu-24.04`). The workflow removes other-write from the
+    tool cache and every PATH directory, then runs `sandbox_audit.py` as the sandbox user over
+    these roots: every PATH directory (for a missing one, its nearest existing parent), `/opt`,
+    `/usr/local`, `/home` and `/etc`, each symlink chain in them hop by hop. It fails on any
+    writable file, directory, link hop or target, and fails as broken unless its positive controls
+    hold (it runs as the sandbox user, `/tmp` is writable, it walked a real tree). The runner's own
+    temp files move to `RUNNER_TEMP`.
+  - After every command, `kill -KILL -1` as the sandbox user (every process of the uid in one
+    syscall), then `pkill -KILL` by effective and real user, repeat until `pgrep` finds no sandbox
+    process (or the run stops), so in sandbox mode units run one at a time. A unit
     directory is handed to the sandbox user (`chown -R -P`) right after the runner wrote it; the
     shared Go cache only once, while empty.
   - A runaway case meets four fences: the Node timer (SIGTERM, then SIGKILL; a kill the runner may
@@ -52,8 +59,10 @@ as a required check that always runs.
   `CONTENT_VERIFY_SANDBOX_USER` (exit 2), and the workflow checks that it does. Before verifying
   content, a self-test step proves the sandbox user can run every toolchain and can neither
   resolve a name nor connect by address or on loopback (`ECONNREFUSED`, with positive controls
-  from the runner, so the checks cannot pass vacuously); the integration test then runs the
-  fixtures through the sandbox, and a step after each run checks no sandbox process survived.
+  from the runner, so the checks cannot pass vacuously), nor open the resolver, D-Bus, docker or
+  snapd sockets (`PermissionError`); the integration test then runs the fixtures through the
+  sandbox and must report every test passed (none skipped), and a step after each run checks no
+  sandbox process survived.
 - **The job** has `permissions: contents: read`, no secrets, `persist-credentials: false`. It is a
   required check that always reports: the path check (content, the harness, everything it imports,
   the dependency and test configuration, the workflow; pinned by
@@ -80,13 +89,15 @@ as a required check that always runs.
   developer's local run is unsandboxed: it executes the repository's own solutions as the
   developer, like any test suite.
 - **Blocked** for the sandbox user: every IPv4/IPv6 packet it sends (TCP, UDP, ICMP, loopback
-  included), name resolution (port 53 by iptables; systemd-resolved's varlink socket and D-Bus by
-  ACL), writing anywhere the runner later executes from (audited), leaving a process behind,
-  more than 512 processes or a file over 256 MiB.
+  included), name resolution (port 53 by iptables; systemd-resolved's varlink socket, D-Bus and
+  nscd by ACL), the snapd sockets, writing under the audited roots (the PATH directories, `/opt`,
+  `/usr/local`, `/home`, `/etc`), leaving a process behind or scheduling one (cron, at), more than
+  512 processes or a file over 256 MiB.
 - **Not blocked** (accepted, the job holds nothing worth stealing — no secrets, a read-only token,
   no persisted credentials): reading world-readable files, whose content a solution can print into
-  the public log; Unix-domain sockets it has file permission for, and abstract-namespace sockets,
-  which no file permission governs; writing to the shared `/tmp`, `/var/tmp` and `/dev/shm`;
+  the public log; other Unix-domain sockets it has file permission for, and abstract-namespace
+  sockets, which no file permission governs; writing outside the audited roots where the runner
+  does not execute from (for example `/var/lib`); writing to the shared `/tmp`, `/var/tmp` and `/dev/shm`;
   memory beyond Java's `-Xmx` (no address-space cap: it breaks the JVM), bounded only by the
   runner and the timeouts. All units share one sandbox user, and Go units share a build cache, so
   a hostile solution could tamper with another problem's verdict within the same run; the damage

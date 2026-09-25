@@ -50,6 +50,7 @@ describe('SANDBOX_BINARIES', () => {
       pgrep: '/usr/bin/pgrep',
       chown: '/usr/bin/chown',
       rm: '/usr/bin/rm',
+      kill: '/usr/bin/kill',
     })
   })
 
@@ -133,7 +134,7 @@ describe('killSandboxProcesses', () => {
     expect(calls).toEqual([])
   })
 
-  it('kills by effective and real user until pgrep finds nothing (fix 6)', () => {
+  it('kills every process of the user in one syscall, then by pkill, until pgrep finds nothing', () => {
     let rounds = 0
     const { calls, run } = recorder((cmd, args) => {
       if (cmd === '/usr/bin/pgrep') return rounds >= 2 ? 1 : 0
@@ -141,13 +142,15 @@ describe('killSandboxProcesses', () => {
       return 0
     })
     killSandboxProcesses(sandbox, run)
-    expect(calls.slice(0, 4)).toEqual([
+    expect(calls.slice(0, 5)).toEqual([
+      // kill(-1) as the user: a fork-and-exit chain cannot outrun one syscall (review N9)
+      ['/usr/bin/sudo', '-n', '-u', 'cvsandbox', '--', '/usr/bin/kill', '-KILL', '--', '-1'],
       ['/usr/bin/sudo', '-n', '/usr/bin/pkill', '-KILL', '-u', 'cvsandbox'],
       ['/usr/bin/sudo', '-n', '/usr/bin/pkill', '-KILL', '-U', 'cvsandbox'],
       ['/usr/bin/pgrep', '-u', 'cvsandbox'],
       ['/usr/bin/pgrep', '-U', 'cvsandbox'],
     ])
-    expect(calls.filter(([cmd]) => cmd === '/usr/bin/sudo')).toHaveLength(4)
+    expect(calls.filter(([cmd]) => cmd === '/usr/bin/sudo')).toHaveLength(6)
     expect(calls.at(-1)).toEqual(['/usr/bin/pgrep', '-U', 'cvsandbox'])
   })
 
@@ -195,6 +198,11 @@ describe('grantSandboxDir / removeWorkRoot', () => {
       ['/usr/bin/sudo', '-n', '/usr/bin/rm', '-rf', '--', '/tmp/content-verify-abc'],
     ])
   })
+
+  it('throws when rm fails', () => {
+    const { run } = recorder(() => 1)
+    expect(() => removeWorkRoot(sandbox, '/tmp/content-verify-abc', run)).toThrow(/rm -rf/)
+  })
 })
 
 describe('trustIssues', () => {
@@ -205,14 +213,31 @@ describe('trustIssues', () => {
     isDirectory: () => kind === 'dir',
     isSymbolicLink: () => kind === 'link',
   })
-  const fs = (entries: Record<string, StatLike>, links: Record<string, string> = {}) => ({
-    lstat: (path: string): StatLike => {
-      const found = entries[path]
-      if (found === undefined) throw new Error(`ENOENT ${path}`)
-      return found
-    },
-    realpath: (path: string): string => links[path] ?? path,
-  })
+  /** `links` maps each symlink to the text it holds; realpath follows them all. */
+  const fs = (entries: Record<string, StatLike>, links: Record<string, string> = {}) => {
+    const readlink = (path: string): string => {
+      const target = links[path]
+      if (target === undefined) throw new Error(`EINVAL ${path}`)
+      return target
+    }
+    return {
+      lstat: (path: string): StatLike => {
+        const found = entries[path]
+        if (found === undefined) throw new Error(`ENOENT ${path}`)
+        return found
+      },
+      readlink,
+      realpath: (path: string): string => {
+        let current = path
+        for (let hop = 0; links[current] !== undefined; hop++) {
+          if (hop > 50) throw new Error(`ELOOP ${path}`)
+          const target = readlink(current)
+          current = target.startsWith('/') ? target : `/${target.replace(/^(\.\.\/)+/, '')}`
+        }
+        return current
+      },
+    }
+  }
   const system = {
     '/': entry(0, 0o40755),
     '/usr': entry(0, 0o40755),
@@ -261,6 +286,30 @@ describe('trustIssues', () => {
       '/opt/evil is not owned by root',
       '/opt/evil is writable by group or others',
       '/opt/evil/timeout is not owned by root',
+    ])
+  })
+
+  it('checks the directories of every hop of a symlink chain, not just the ends (review N6)', () => {
+    const entries = {
+      ...system,
+      '/usr/bin/sudo': entry(0, 0o120777, 'link'),
+      '/etc': entry(0, 0o40755),
+      '/etc/alternatives': entry(0, 0o40775),
+      '/etc/alternatives/sudo': entry(0, 0o120777, 'link'),
+      '/usr/lib': entry(0, 0o40755),
+      '/usr/lib/sudo-rs': entry(0, 0o40755),
+      '/usr/lib/sudo-rs/sudo': entry(0, 0o104755, 'file'),
+    }
+    const links = {
+      '/usr/bin/sudo': '../../etc/alternatives/sudo',
+      '/etc/alternatives/sudo': '/usr/lib/sudo-rs/sudo',
+    }
+    expect(trustIssues('/usr/bin/sudo', { rootOwned: true }, fs(entries, links))).toEqual([
+      '/etc/alternatives is writable by group or others',
+    ])
+    const tooMany = { '/usr/bin/sudo': '/usr/bin/sudo' }
+    expect(trustIssues('/usr/bin/sudo', { rootOwned: true }, fs(entries, tooMany))).toEqual([
+      '/usr/bin/sudo: more than 40 symlink hops',
     ])
   })
 
