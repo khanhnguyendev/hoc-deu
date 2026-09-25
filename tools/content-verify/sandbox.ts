@@ -15,7 +15,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import { lstatSync, readlinkSync, realpathSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { tmpdir, userInfo } from 'node:os'
 import { dirname, isAbsolute, resolve } from 'node:path'
 
 export type Sandbox = { user: string } | null
@@ -243,7 +243,9 @@ export function trustIssues(
     let current = path
     while (fs.lstat(current).isSymbolicLink()) {
       if (hops.length > MAX_HOPS) return [`${path}: more than ${MAX_HOPS} symlink hops`]
-      current = resolve(dirname(current), fs.readlink(current))
+      // Against the real directory the link sits in: `..` after a symlinked parent goes where the
+      // kernel goes, not where the text suggests (review M4).
+      current = resolve(fs.realpath(dirname(current)), fs.readlink(current))
       hops.push(current)
     }
     const target = fs.realpath(path)
@@ -274,12 +276,24 @@ export function assertTrustedBinaries(): void {
   }
 }
 
+function invokingUserName(): string {
+  try {
+    return userInfo().username
+  } catch {
+    return ''
+  }
+}
+
 /**
  * The sandbox from the environment: `CONTENT_VERIFY_SANDBOX_USER` names it. On GitHub Actions
  * (`GITHUB_ACTIONS=true`) a missing sandbox user is an error — CI never runs solutions unsandboxed
- * (fail closed, fix 6); the CLI exits 2.
+ * (fail closed, fix 6); the CLI exits 2. The sandbox user can be neither root nor the user running
+ * content:verify (`kill -KILL -1` as that user would end the run's own session).
  */
-export function assertSandboxPolicy(env: Readonly<Record<string, string | undefined>>): Sandbox {
+export function assertSandboxPolicy(
+  env: Readonly<Record<string, string | undefined>>,
+  invokingUser: string = invokingUserName(),
+): Sandbox {
   const user = env.CONTENT_VERIFY_SANDBOX_USER?.trim() ?? ''
   if (user !== '') {
     if (!USER_NAME.test(user)) {
@@ -287,6 +301,11 @@ export function assertSandboxPolicy(env: Readonly<Record<string, string | undefi
     }
     if (user === 'root') {
       throw new Error('CONTENT_VERIFY_SANDBOX_USER must not be root')
+    }
+    if (user === invokingUser) {
+      throw new Error(
+        `CONTENT_VERIFY_SANDBOX_USER must not be ${user}, the user running content:verify`,
+      )
     }
     return { user }
   }

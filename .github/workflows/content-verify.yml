@@ -113,14 +113,30 @@ jobs:
           set -euo pipefail
           # Every PATH dir (a missing one: its nearest existing parent), /opt, /usr/local, /home and
           # /etc, symlink chains included; positive controls inside (user, /tmp, entry count).
+          # Production defaults only: none of the script's test-only options.
           started=$SECONDS
+          log="$RUNNER_TEMP/sandbox-audit.log"
           status=0
           (cd / && sudo -n -u cvsandbox -- /usr/bin/python3 -I -B - --user cvsandbox --path "$PATH" \
-            /opt /usr/local /home /etc) < tools/content-verify/sandbox_audit.py || status=$?
+            /opt /usr/local /home /etc) < tools/content-verify/sandbox_audit.py | tee "$log" \
+            || status=$?
           echo "Audit took $((SECONDS - started)) s."
+          # No exit status counts without the summary line: exit 0 or 1 with no summary means sudo or
+          # python never ran the audit.
+          summary="$(tail -n 1 "$log")"
+          clean='^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: 0 findings$'
+          counted='^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: [0-9]+ findings$'
           case "$status" in
-            0) ;;
-            1) echo "::error::the sandbox user can write where the runner executes from (above)"; exit 1 ;;
+            0) if ! grep -Eq "$clean" <<< "$summary"; then
+                 echo "::error::the sandbox audit exited 0 without its clean summary line: it proved nothing"
+                 exit 1
+               fi ;;
+            1) if grep -Eq "$counted" <<< "$summary"; then
+                 echo "::error::the sandbox user can write where the runner executes from (above)"
+               else
+                 echo "::error::the sandbox audit never ran (exit 1, no summary line): sudo or python failed"
+               fi
+               exit 1 ;;
             *) echo "::error::the sandbox audit is broken (exit $status): it proved nothing"; exit 1 ;;
           esac
 

@@ -15,8 +15,14 @@ Positive controls, so the audit cannot pass by checking nothing: it must run as 
 --writable-control directory (/tmp) must be writable, and it must walk at least --min-entries
 entries. A directory it cannot read is unreachable (fine); any other error breaks the audit.
 
-Exit 0: clean · 1: findings (printed) · 2: the audit itself is broken. The last stdout line is a
-summary. --assume-trusted DIR skips DIR and its ancestors (for tests on a developer's machine).
+A writable directory is reported once and not descended into (everything below it is the
+sandbox user's anyway); a directory it can enter but not list is a finding too (writable paths may
+be reachable by name). Findings are printed as they are found, up to --max-printed, then counted;
+progress goes to stderr, so the run is never silent.
+
+Exit 0: clean · 1: findings (printed) · 2: the audit itself is broken. The last stdout line is
+always the summary `audited N entries under K roots as USER: M findings` — CI trusts no exit status
+without it. --assume-trusted DIR skips DIR and its ancestors (for tests on a developer's machine).
 """
 
 import argparse
@@ -27,12 +33,14 @@ import sys
 
 MAX_HOPS = 40
 PSEUDO = ("/proc/", "/sys/")
+PROGRESS_EVERY = 50_000
 
 
 class Audit:
-    def __init__(self, trusted):
+    def __init__(self, trusted, max_printed):
         self.trusted = [os.path.realpath(path) for path in trusted]
-        self.findings = []
+        self.max_printed = max_printed
+        self.findings = {}  # insertion-ordered set: O(1) de-duplication
         self.errors = []
         self.entries = 0
         self._writable = {}
@@ -49,8 +57,11 @@ class Audit:
         return self._writable[path]
 
     def find(self, message):
-        if message not in self.findings:
-            self.findings.append(message)
+        if message in self.findings:
+            return
+        self.findings[message] = None
+        if len(self.findings) <= self.max_printed:
+            print(message, flush=True)
 
     def first_writable_above(self, path):
         """The first writable directory from / down to dirname(path), skipping trusted ones."""
@@ -74,7 +85,10 @@ class Audit:
         current = link
         for _ in range(MAX_HOPS):
             target = os.readlink(current)
-            current = os.path.normpath(os.path.join(os.path.dirname(current), target))
+            # Against the real directory the link sits in: `..` after a symlinked parent goes
+            # where the kernel goes, not where the text suggests.
+            base = os.path.realpath(os.path.dirname(current))
+            current = os.path.normpath(os.path.join(base, target))
             above = self.first_writable_above(current)
             if above is not None:
                 self.find(f"link {link}: {above} is writable")
@@ -94,28 +108,44 @@ class Audit:
         self.find(f"link {link}: more than {MAX_HOPS} hops")
 
     def check_entry(self, path):
+        """Checks one entry; True when it is a writable directory (reported, not descended)."""
         self.entries += 1
+        if self.entries % PROGRESS_EVERY == 0:
+            print(f"sandbox_audit: {self.entries} entries so far ({path})", file=sys.stderr, flush=True)
         try:
             mode = os.lstat(path).st_mode
         except (FileNotFoundError, PermissionError):
-            return  # vanished, or not reachable by this user
+            return False  # vanished, or not reachable by this user
         if stat.S_ISLNK(mode):
             self.check_link(path)
-        elif (stat.S_ISDIR(mode) or stat.S_ISREG(mode)) and self.writable(path):
+            return False
+        if (stat.S_ISDIR(mode) or stat.S_ISREG(mode)) and self.writable(path):
             self.find(f"writable: {path}")
+            return stat.S_ISDIR(mode)
+        return False
 
     def walk(self, root):
+        print(f"sandbox_audit: walking {root}", file=sys.stderr, flush=True)
         above = self.first_writable_above(root)
         if above is not None:
             self.find(f"writable: {above} (above {root})")
 
         def on_error(error):
-            if not isinstance(error, (PermissionError, FileNotFoundError)):
+            if isinstance(error, PermissionError):
+                # Unlistable is fine unless it can still be entered: then a writable path below
+                # may be reachable by a name the audit cannot see.
+                if error.filename and os.access(error.filename, os.X_OK):
+                    self.find(
+                        f"searchable but unlistable: {error.filename} (writable paths may hide by name)"
+                    )
+            elif not isinstance(error, FileNotFoundError):
                 self.errors.append(f"{error.filename}: {error}")
 
-        self.check_entry(root)
+        if self.check_entry(root):
+            return
         for directory, dirs, files in os.walk(root, onerror=on_error, followlinks=False):
-            for name in dirs + files:
+            dirs[:] = [name for name in dirs if not self.check_entry(os.path.join(directory, name))]
+            for name in files:
                 self.check_entry(os.path.join(directory, name))
 
     def check_path_entry(self, entry):
@@ -155,6 +185,7 @@ def main():
     parser.add_argument("--path", required=True)
     parser.add_argument("--writable-control", default="/tmp")
     parser.add_argument("--min-entries", type=int, default=100)
+    parser.add_argument("--max-printed", type=int, default=200)
     parser.add_argument("--assume-trusted", action="append", default=[])
     parser.add_argument("roots", nargs="+")
     args = parser.parse_args()
@@ -165,7 +196,7 @@ def main():
     if not os.access(args.writable_control, os.W_OK):
         broken(f"positive control: {args.writable_control} is not writable")
 
-    audit = Audit(args.assume_trusted)
+    audit = Audit(args.assume_trusted, args.max_printed)
     roots = []
     for entry in args.path.split(":"):
         existing = audit.check_path_entry(entry)
@@ -180,11 +211,13 @@ def main():
         broken("could not audit:\n" + "\n".join(audit.errors[:20]))
     if audit.entries < args.min_entries:
         broken(f"walked only {audit.entries} entries (< {args.min_entries})")
-    for finding in audit.findings:
-        print(finding)
+    hidden = len(audit.findings) - args.max_printed
+    if hidden > 0:
+        print(f"… {hidden} more findings not shown", flush=True)
     print(
         f"audited {audit.entries} entries under {len(roots)} roots as {actual}: "
-        f"{len(audit.findings)} findings"
+        f"{len(audit.findings)} findings",
+        flush=True,
     )
     sys.exit(1 if audit.findings else 0)
 

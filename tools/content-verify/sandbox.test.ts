@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   assertSandboxPolicy,
@@ -213,29 +214,41 @@ describe('trustIssues', () => {
     isDirectory: () => kind === 'dir',
     isSymbolicLink: () => kind === 'link',
   })
-  /** `links` maps each symlink to the text it holds; realpath follows them all. */
+  /** `links` maps each symlink to the text it holds. Like the kernel, lstat and readlink follow
+   * symlinked parent directories; realpath follows everything. */
   const fs = (entries: Record<string, StatLike>, links: Record<string, string> = {}) => {
-    const readlink = (path: string): string => {
-      const target = links[path]
-      if (target === undefined) throw new Error(`EINVAL ${path}`)
-      return target
+    const realpath = (path: string): string => {
+      let parts = path.split('/').filter((part) => part !== '')
+      let resolved = '/'
+      let hops = 0
+      while (parts.length > 0) {
+        const next = posix.join(resolved, parts.shift() as string)
+        const target = links[next]
+        if (target === undefined) {
+          resolved = next
+          continue
+        }
+        if (++hops > 50) throw new Error(`ELOOP ${path}`)
+        const joined = posix.isAbsolute(target) ? target : posix.join(resolved, target)
+        parts = [...joined.split('/').filter((part) => part !== ''), ...parts]
+        resolved = '/'
+      }
+      return resolved
     }
+    const located = (path: string): string =>
+      path === '/' ? '/' : posix.join(realpath(posix.dirname(path)), posix.basename(path))
     return {
       lstat: (path: string): StatLike => {
-        const found = entries[path]
+        const found = entries[located(path)]
         if (found === undefined) throw new Error(`ENOENT ${path}`)
         return found
       },
-      readlink,
-      realpath: (path: string): string => {
-        let current = path
-        for (let hop = 0; links[current] !== undefined; hop++) {
-          if (hop > 50) throw new Error(`ELOOP ${path}`)
-          const target = readlink(current)
-          current = target.startsWith('/') ? target : `/${target.replace(/^(\.\.\/)+/, '')}`
-        }
-        return current
+      readlink: (path: string): string => {
+        const target = links[located(path)]
+        if (target === undefined) throw new Error(`EINVAL ${path}`)
+        return target
       },
+      realpath,
     }
   }
   const system = {
@@ -313,6 +326,35 @@ describe('trustIssues', () => {
     ])
   })
 
+  it('resolves a hop against the real directory it sits in, not lexically (review M4)', () => {
+    // /usr/bin is a symlink to /opt/x/bin, and /opt/x/bin/tool -> ../y/tool. The kernel lands in
+    // /opt/x/y/tool (a writable directory), not in the decoy /usr/y/tool; both lead on to the
+    // clean /usr/lib/tool, so only the hop itself shows the problem.
+    const entries = {
+      ...system,
+      '/usr/bin': entry(0, 0o120777, 'link'),
+      '/usr/y': entry(0, 0o40755),
+      '/usr/y/tool': entry(0, 0o120777, 'link'),
+      '/usr/lib': entry(0, 0o40755),
+      '/usr/lib/tool': entry(0, 0o100755, 'file'),
+      '/opt': entry(0, 0o40755),
+      '/opt/x': entry(0, 0o40755),
+      '/opt/x/bin': entry(0, 0o40755),
+      '/opt/x/bin/tool': entry(0, 0o120777, 'link'),
+      '/opt/x/y': entry(0, 0o40777),
+      '/opt/x/y/tool': entry(0, 0o120777, 'link'),
+    }
+    const links = {
+      '/usr/bin': '/opt/x/bin',
+      '/opt/x/bin/tool': '../y/tool',
+      '/opt/x/y/tool': '/usr/lib/tool',
+      '/usr/y/tool': '/usr/lib/tool',
+    }
+    expect(trustIssues('/usr/bin/tool', { rootOwned: true }, fs(entries, links))).toEqual([
+      '/opt/x/y is writable by group or others',
+    ])
+  })
+
   it('for a toolchain, only rejects what others can write', () => {
     const entries = {
       '/': entry(0, 0o40755),
@@ -360,5 +402,14 @@ describe('assertSandboxPolicy', () => {
       /user name/,
     )
     expect(() => assertSandboxPolicy({ CONTENT_VERIFY_SANDBOX_USER: 'root' })).toThrow(/root/)
+  })
+
+  it('rejects the invoking user: kill -KILL -1 as yourself would end your own session', () => {
+    expect(() => assertSandboxPolicy({ CONTENT_VERIFY_SANDBOX_USER: 'runner' }, 'runner')).toThrow(
+      /the user running content:verify/,
+    )
+    expect(assertSandboxPolicy({ CONTENT_VERIFY_SANDBOX_USER: 'cvsandbox' }, 'runner')).toEqual({
+      user: 'cvsandbox',
+    })
   })
 })

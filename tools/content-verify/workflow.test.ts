@@ -166,10 +166,30 @@ describe('content-verify workflow', () => {
       'sudo -n -u cvsandbox -- /usr/bin/python3 -I -B - --user cvsandbox --path "$PATH"',
     )
     expect(audit).toContain('< tools/content-verify/sandbox_audit.py')
-    expect(audit).toMatch(/0\) ;;/)
-    expect(audit).toMatch(/1\) echo "::error::/)
+    expect(audit).toContain('0) if ! grep -Eq "$clean" <<< "$summary"; then')
+    expect(audit).toContain('1) if grep -Eq "$counted" <<< "$summary"; then')
     expect(audit).toMatch(/\*\) echo "::error::/)
     expect(audit).toContain('$SECONDS')
+  })
+
+  it('trusts the audit only with its summary line, and runs it with the production defaults (M2)', () => {
+    const audit = script(
+      'Sandbox audit: nothing the runner executes is writable by the sandbox user',
+    )
+    // green needs exit 0 AND the clean summary as the last line
+    expect(audit).toContain(
+      "'^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: 0 findings$'",
+    )
+    // exit 1 without a summary line means sudo or python never ran: broken, not findings
+    expect(audit).toContain(
+      "'^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: [0-9]+ findings$'",
+    )
+    expect(audit).toContain('tail -n 1')
+    // the test-only knobs never reach CI
+    expect(audit).not.toContain('--assume-trusted')
+    expect(audit).not.toContain('--min-entries')
+    expect(audit).not.toContain('--max-printed')
+    expect(audit).not.toContain('--writable-control')
   })
 
   it('proves the name-service, D-Bus, docker and snapd sockets refuse the sandbox user (N8)', () => {

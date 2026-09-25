@@ -8,6 +8,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -90,14 +91,67 @@ describe.runIf(HAS_PYTHON)('sandbox_audit.py', () => {
     )
   })
 
-  it('reports writable files and directories', () => {
-    writeFileSync(join(root, 'bin', 'open-file'), '')
-    chmodSync(join(root, 'bin', 'open-file'), 0o644)
-    chmodSync(root, 0o555)
+  it('reports a writable directory once, without descending into it (review M1)', () => {
+    mkdirSync(join(root, 'bin', 'open'))
+    for (let index = 0; index < 50; index++) {
+      writeFileSync(join(root, 'bin', 'open', `file-${index}`), '')
+    }
+    lockRoot()
     const { status, lines } = audit()
     expect(status).toBe(1)
-    expect(lines).toContain(`writable: ${join(root, 'bin')}`)
+    expect(lines.filter((line) => line.startsWith('writable:'))).toEqual([
+      `writable: ${join(root, 'bin', 'open')}`,
+    ])
+    expect(lines.at(-1)).toMatch(/: 1 findings$/)
+  })
+
+  it('reports a writable file in a directory it cannot write', () => {
+    writeFileSync(join(root, 'bin', 'open-file'), '')
+    chmodSync(join(root, 'bin', 'open-file'), 0o644)
+    lockRoot()
+    const { status, lines } = audit()
+    expect(status).toBe(1)
     expect(lines).toContain(`writable: ${join(root, 'bin', 'open-file')}`)
+  })
+
+  it('caps the printed findings but counts them all, and prints as it goes (review M1)', () => {
+    for (const name of ['a', 'b', 'c', 'd']) mkdirSync(join(root, 'bin', name))
+    lockRoot()
+    const { status, lines } = audit(['--max-printed', '2'])
+    expect(status).toBe(1)
+    expect(lines.filter((line) => line.startsWith('writable:'))).toHaveLength(2)
+    expect(lines.at(-2)).toBe('… 2 more findings not shown')
+    expect(lines.at(-1)).toMatch(/: 4 findings$/)
+    const source = readFileSync(SCRIPT, 'utf8')
+    expect(source).toContain('flush=True')
+  })
+
+  it('reports a directory it can enter but not list (review M3)', () => {
+    mkdirSync(join(root, 'bin', 'hidden'))
+    chmodSync(join(root, 'bin', 'hidden'), 0o111)
+    lockRoot()
+    const { status, lines } = audit()
+    expect(status).toBe(1)
+    expect(lines).toContain(
+      `searchable but unlistable: ${join(root, 'bin', 'hidden')} (writable paths may hide by name)`,
+    )
+  })
+
+  it('resolves a hop against the real directory it sits in, not lexically (review M4)', () => {
+    const real = join(base, 'real')
+    mkdirSync(join(real, 'sub'), { recursive: true })
+    writeFileSync(join(real, 'target'), '')
+    symlinkSync('../target', join(real, 'sub', 'l2'))
+    chmodSync(join(real, 'sub'), 0o555)
+    symlinkSync(join(real, 'sub'), join(base, 'alias'))
+    symlinkSync(join(base, 'alias', 'l2'), join(root, 'bin', 'through-alias'))
+    lockRoot()
+    const { status, lines } = audit()
+    expect(status).toBe(1)
+    // lexically base/alias/../target = base/target (missing, harmless); really real/target
+    expect(lines).toContain(
+      `link ${join(root, 'bin', 'through-alias')}: target ${join(real, 'target')} is writable`,
+    )
   })
 
   it('follows every symlink hop: a writable hop directory, a writable target, a dangling link', () => {
