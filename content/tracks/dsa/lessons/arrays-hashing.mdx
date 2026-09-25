@@ -29,9 +29,9 @@ Trong cách làm thô, mình đang lặp đi lặp lại việc tìm kiếm nào
 Cô giáo muốn ghép các bạn thành từng cặp có tổng điểm đúng 15, và các bạn vào lớp lần lượt từng người.
 
 - Cách chậm: mỗi bạn mới vào lại đi hỏi từng bạn đã ngồi trong lớp "bạn được mấy điểm?". Lớp càng đông, càng mất thời gian.
-- Cách nhanh: cô ghi lên bảng "điểm → tên" của từng bạn đã vào. Bạn được 9 điểm vừa bước vào chỉ cần nhìn bảng xem có ai được đúng 6 điểm hay không, rồi mới ghi tên mình lên bảng.
+- Cách nhanh: cô kẻ trên bảng 11 cột, mỗi cột ứng với một mức điểm từ 0 tới 10, và ghi tên từng bạn đã vào dưới cột điểm của bạn ấy. Bạn được 9 điểm vừa bước vào chỉ cần nhìn thẳng vào cột 6 xem đã có tên ai chưa, rồi mới ghi tên mình vào cột 9.
 
-Cái bảng ấy chính là hash map: nhìn theo key (số điểm) là thấy ngay giá trị (tên), không phải hỏi lần lượt từng người.
+Cái bảng ấy chính là hash map: key (số điểm) chỉ thẳng tới đúng cột cần xem, nên mỗi lần tra chỉ mất `O(1)`, lớp đông tới đâu cũng không phải hỏi lần lượt từng người.
 
 </Section>
 
@@ -68,7 +68,7 @@ Mỗi số chỉ được xem một lần. Cách thô phải thử tới 6 cặp
 
 </Steps>
 
-#### Ba cách dùng hay gặp
+### Ba cách dùng hay gặp
 
 1. **Tra cứu**: `giá trị → chỉ số` hoặc một set các giá trị đã gặp (Two Sum, Contains Duplicate, Longest Consecutive Sequence).
 2. **Đếm**: `phần tử → số lần` (Valid Anagram, Top K Frequent Elements).
@@ -83,12 +83,12 @@ Khi key chỉ có ít giá trị cố định, như 26 chữ cái thường hay 
 Ba khuôn mẫu ứng với ba cách dùng; lời giải đầy đủ của Two Sum bằng Python, Java và Go nằm trong ghi chú của bài.
 
 ```python
-from typing import Callable
+from typing import Callable, Dict, Hashable, List
 
 
-def pair_with_sum(nums: list[int], target: int) -> list[int]:
-    # 1. Lookup: value -> index of the numbers already passed.
-    index_of: dict[int, int] = {}
+def pair_with_sum(nums: List[int], target: int) -> List[int]:
+    # 1. Lookup template: value -> index of the numbers already passed.
+    index_of: Dict[int, int] = {}
     for i, num in enumerate(nums):
         need = target - num
         if need in index_of:  # look up first ...
@@ -97,18 +97,18 @@ def pair_with_sum(nums: list[int], target: int) -> list[int]:
     return []
 
 
-def count(items: list[str]) -> dict[str, int]:
-    # 2. Counting: item -> how many times it appears.
-    counts: dict[str, int] = {}
+def count(items: List[str]) -> Dict[str, int]:
+    # 2. Counting template: item -> how many times it appears.
+    counts: Dict[str, int] = {}
     for item in items:
         counts[item] = counts.get(item, 0) + 1
     return counts
 
 
-def group_by(words: list[str], key_of: Callable[[str], str]) -> list[list[str]]:
-    # 3. Grouping: key -> the items that share it. key_of must return equal keys for
-    # exactly the items of one group, e.g. lambda word: word[:1] groups by first letter.
-    groups: dict[str, list[str]] = {}
+def group_by(words: List[str], key_of: Callable[[str], Hashable]) -> List[List[str]]:
+    # 3. Grouping template: key -> the items that share it. key_of must return equal keys
+    # for exactly the items of one group, e.g. lambda word: word[:1] groups by first letter.
+    groups: Dict[Hashable, List[str]] = {}
     for word in words:
         groups.setdefault(key_of(word), []).append(word)
     return list(groups.values())
@@ -162,7 +162,7 @@ Thử cách dùng thứ ba, gom nhóm: tự hỏi hai chuỗi là anagram của 
 
 </Question>
 
-<Question prompt="Khi gom nhóm bằng hash map, key của mỗi phần tử cần thỏa điều gì?" answer="c">
+<Question prompt="Khi gom nhóm bằng hash map, key của mỗi phần tử cần thoả điều gì?" answer="c">
 
 <Choice id="a">Key phải là một số nguyên</Choice>
 

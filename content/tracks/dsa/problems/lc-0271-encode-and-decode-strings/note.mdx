@@ -6,16 +6,6 @@ status: active
 
 Bài yêu cầu thiết kế một <Term vi="bộ mã hoá và giải mã">codec</Term>: `encode` biến một danh sách chuỗi thành một chuỗi duy nhất, `decode` khôi phục đúng danh sách ban đầu. Cách nghĩ tới đầu tiên là nối các chuỗi bằng một <Term vi="ký tự phân cách">delimiter</Term> như `,` hay `#`, nhưng chuỗi đầu vào có thể chứa bất kỳ ký tự nào, kể cả chính delimiter đó. Cách chắc chắn là <Term vi="tiền tố độ dài">length prefix</Term>: ghi độ dài của chuỗi, một dấu `#`, rồi mới tới nội dung. Khi giải mã, độ dài cho biết chính xác phải lấy bao nhiêu ký tự, nên nội dung chứa `#` hay chữ số cũng không sao.
 
-### Vì sao delimiter thất bại
-
-- Nối `["a#b", "c"]` bằng `#` được `a#b#c`; tách theo `#` lại ra `["a", "b", "c"]`: sai.
-- Ký tự nào cũng có thể nằm trong chuỗi, nên không có delimiter nào "an toàn". Có thể <Term vi="thoát ký tự">escape</Term> delimiter, nhưng khi đó phải escape cả ký tự escape, dễ sai hơn nhiều.
-- Nối bằng delimiter còn không phân biệt được danh sách rỗng `[]` với `[""]`: cả hai đều thành chuỗi rỗng. Với length prefix, `[""]` thành `0#` còn `[]` vẫn là chuỗi rỗng.
-
-### Vì sao cần dấu `#` sau độ dài
-
-Độ dài có thể có một, hai hay ba chữ số (một chuỗi 150 ký tự có độ dài `150`), nên cần một dấu để biết phần số kết thúc ở đâu. Phần độ dài chỉ gồm chữ số, nên dấu `#` **đầu tiên** kể từ vị trí đang đọc luôn là dấu kết thúc độ dài, không bao giờ là một `#` nằm trong nội dung.
-
 ## Cách làm
 
 <Steps>
@@ -29,6 +19,18 @@ Bài yêu cầu thiết kế một <Term vi="bộ mã hoá và giải mã">codec
 <Step title="Sang chuỗi kế tiếp">Đặt `i = j + 1 + length` và lặp lại cho tới khi đọc hết chuỗi mã hoá.</Step>
 
 </Steps>
+
+<Callout tone="info" title="Vì sao length prefix đúng còn delimiter thì không">
+
+**Delimiter thất bại** vì ký tự nào cũng có thể nằm trong chuỗi:
+
+- Nối `["a#b", "c"]` bằng `#` được `a#b#c`; tách theo `#` lại ra `["a", "b", "c"]`: sai.
+- Không có delimiter nào "an toàn". Có thể <Term vi="thoát ký tự">escape</Term> delimiter, nhưng khi đó phải escape cả ký tự escape, dễ sai hơn nhiều.
+- Nối bằng delimiter còn không phân biệt được danh sách rỗng `[]` với `[""]`: cả hai đều thành chuỗi rỗng. Với length prefix, `[""]` thành `0#` còn `[]` vẫn là chuỗi rỗng.
+
+**Dấu `#` sau độ dài** là cần thiết vì độ dài có thể có một, hai hay ba chữ số (một chuỗi 150 ký tự có độ dài `150`), nên phải biết phần số kết thúc ở đâu. Phần độ dài chỉ gồm chữ số, nên dấu `#` **đầu tiên** kể từ vị trí đang đọc luôn là dấu kết thúc độ dài, không bao giờ là một `#` nằm trong nội dung.
+
+</Callout>
 
 Mã hoá `["4#ab", "#"]`: mỗi chuỗi có tiền tố độ dài riêng.
 
@@ -61,4 +63,4 @@ Với `m` là tổng số ký tự và `n` là số chuỗi: mỗi ký tự đư
 
 <Solution />
 
-<Bilingual vi="Mã hoá mỗi chuỗi thành độ dài, dấu #, rồi nội dung; khi giải mã, đọc số tới dấu # đầu tiên rồi lấy đúng chừng ấy ký tự, nên nội dung chứa ký tự gì cũng được." en="Encode each string as its length, a '#', then the string itself. To decode, read the digits up to the next '#', then take exactly that many characters and repeat. The length marks where each string ends, so any character, even '#', is safe, unlike a plain delimiter join." />
+<Bilingual vi="Mã hoá mỗi chuỗi thành độ dài, dấu #, rồi nội dung; khi giải mã, đọc số tới dấu # đầu tiên rồi lấy đúng chừng ấy ký tự, nên nội dung chứa ký tự gì cũng được." en="Encode each string as its length, a '#', then the string. To decode, read the digits up to the next '#', take exactly that many characters, and repeat. The length marks where each string ends, so any character, even '#', is safe, unlike a delimiter join. Linear time and space." />
