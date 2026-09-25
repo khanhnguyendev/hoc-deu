@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanRoadmap, PlanRoadmapWeek } from '../catalog'
+import type { PlanCatalog, PlanItem, PlanRoadmap, PlanRoadmapWeek } from '../catalog'
 import type { ItemState } from '../state'
-import { CATALOG, DSA_8W, ENGLISH_10W, itemState, statesOf, withItems } from './__tests__/fixtures'
+import {
+  CATALOG,
+  DSA_8W,
+  ENGLISH_10W,
+  itemState,
+  planItem,
+  statesOf,
+  withItems,
+} from './__tests__/fixtures'
 import {
   coreItemsOfWeek,
   isPassed,
@@ -102,13 +110,33 @@ describe('roadmapWeek', () => {
     expect(roadmapWeek(DSA_8W, CATALOG, introduced('dsa:p1', 'dsa:p2', 'dsa:p3'))).toBe(2)
   })
 
-  it('counts the retired p8 as passed and clamps to the last week', () => {
+  it('clamps to the last week once every active core item is introduced (p8 is retired)', () => {
     const items = introduced('dsa:p1', 'dsa:p2', 'dsa:p3', 'dsa:p5', 'dsa:p6')
     expect(roadmapWeek(DSA_8W, CATALOG, items)).toBe(2)
   })
 
   it('is week 1 without a roadmap', () => {
     expect(roadmapWeek(null, CATALOG, introduced('dsa:p1', 'dsa:p2', 'dsa:p3'))).toBe(1)
+  })
+
+  it('does not run ahead because of a retired core item in a later week (decision 16, amended)', () => {
+    // p3 is still new: the retired p8 of W2 counts neither as passed nor in W2's size.
+    expect(roadmapWeek(DSA_8W, CATALOG, introduced('dsa:p1', 'dsa:p2'))).toBe(1)
+  })
+
+  it('does not run ahead because of a draft deck in a later week', () => {
+    // A draft deck's cards are drafts (tools/content/load.ts: the stricter status wins).
+    const drafts = withItems(CATALOG, {
+      'english:e5': { status: 'draft' },
+      'english:e6': { status: 'draft' },
+    })
+    const deck = CATALOG.decks['english:deck-w2']
+    if (deck === undefined) throw new Error('no english:deck-w2')
+    const catalog: PlanCatalog = deepFreeze({
+      ...drafts,
+      decks: { ...drafts.decks, [deck.id]: { ...deck, status: 'draft' } },
+    })
+    expect(roadmapWeek(ENGLISH_10W, catalog, introduced('english:e1', 'english:e2'))).toBe(1)
   })
 })
 
@@ -162,6 +190,46 @@ describe('newQueue', () => {
     )
   })
 
+  /** `CATALOG` plus `lessons`, appended after the fixture's items. */
+  const withLessons = (...lessons: readonly PlanItem[]): PlanCatalog =>
+    deepFreeze({
+      ...CATALOG,
+      items: {
+        ...CATALOG.items,
+        ...Object.fromEntries(lessons.map((lesson) => [lesson.id, lesson])),
+      },
+    })
+
+  it('DSA: takes pattern lessons from its own track only', () => {
+    const catalog = withLessons(
+      planItem({
+        id: 'english:lesson-arrays',
+        trackId: 'english',
+        itemType: 'lesson',
+        topicId: 'arrays',
+      }),
+    )
+    expect(dsaQueue({}, { catalog })).toEqual(DSA_NOTHING_INTRODUCED)
+  })
+
+  it("DSA: orders pattern lessons by the week's topics, then by ID", () => {
+    const roadmap: PlanRoadmap = {
+      id: 'two-topics',
+      weeks: [
+        { week: 1, topics: ['two-pointers', 'arrays'], core: [], bonus: [], recap: [], decks: [] },
+      ],
+    }
+    // Listed after dsa:lesson-arrays in the catalog, but sorts before it by ID.
+    const catalog = withLessons(
+      planItem({ id: 'dsa:lesson-aa', trackId: 'dsa', itemType: 'lesson', topicId: 'arrays' }),
+    )
+    expect(newQueue({ trackId: 'dsa', roadmap, catalog, items: {}, includeBonus: false })).toEqual([
+      'dsa:lesson-two-pointers',
+      'dsa:lesson-aa',
+      'dsa:lesson-arrays',
+    ])
+  })
+
   it('English: core cards, extended cards, week by week', () => {
     expect(englishQueue({})).toEqual([
       'english:e1',
@@ -197,6 +265,18 @@ describe('newQueue', () => {
     const [p2, p1] = unlocked
     const items = frozen({ ...p2, lastResultOn: '2026-10-02' }, p1)
     expect(englishQueue(items).slice(4, 6)).toEqual([derived('dsa:p2'), derived('dsa:p1')])
+  })
+
+  it('English: derived cards come before the extended cards of a week whose core cards are introduced', () => {
+    const core = ['e1', 'e2', 'e3', 'e4'].map((card) => itemState(`english:${card}`, DAY))
+    expect(englishQueue(frozen(...unlocked, ...core))).toEqual([
+      derived('dsa:p2'),
+      derived('dsa:p1'),
+      'english:x1',
+      'english:x2',
+      'english:e5',
+      'english:e6',
+    ])
   })
 
   it('English: derived cards move to the next week that still has new cards', () => {

@@ -55,17 +55,28 @@ export function weekForProgress(passedCore: number, sizes: readonly number[]): n
   return Math.max(sizes.length, 1)
 }
 
-/** The learner's roadmap week on this track; 1 without a roadmap. */
+/** Each week's active core items; draft, retired and missing ones count nowhere (decision 16). */
+function activeCoreItems(roadmap: PlanRoadmap, catalog: PlanCatalog): string[][] {
+  return roadmap.weeks.map((week) =>
+    coreItemsOfWeek(week, catalog).filter((id) => isActive(id, catalog)),
+  )
+}
+
+/** The learner's roadmap week on this track (decision 16, as amended): weekForProgress over
+ *  ACTIVE core items only — the introduced active ones against the active ones per week; 1
+ *  without a roadmap. */
 export function roadmapWeek(
   roadmap: PlanRoadmap | null,
   catalog: PlanCatalog,
   items: ItemStates,
 ): number {
   if (roadmap === null) return 1
-  const passedCore = roadmap.weeks
-    .flatMap((week) => coreItemsOfWeek(week, catalog))
-    .filter((id) => isPassed(id, catalog, items)).length
-  return weekForProgress(passedCore, weekSizes(roadmap, catalog))
+  const weeks = activeCoreItems(roadmap, catalog)
+  const introducedCore = weeks.flat().filter((id) => items[id] !== undefined).length
+  return weekForProgress(
+    introducedCore,
+    weeks.map((week) => week.length),
+  )
 }
 
 /** The derived cards of `trackId` whose source has a result, by (source introducedOn, source ID). */
