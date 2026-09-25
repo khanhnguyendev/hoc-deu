@@ -48,6 +48,8 @@ describe('/dev/content fixtures', () => {
   it('resolve every Practice problem of the lesson', async () => {
     const { practice } = await facts('app/dev/content/sample-lesson.mdx')
     expect(practice.length).toBeGreaterThan(0)
-    for (const id of practice) expect(SAMPLE_BINDINGS.resolvePractice(id), id).not.toBeNull()
+    for (const { problem } of practice) {
+      expect(SAMPLE_BINDINGS.resolvePractice(problem), problem).not.toBeNull()
+    }
   })
 })
