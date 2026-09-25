@@ -69,3 +69,16 @@ Options considered:
   replaces the row, so it must be dated at the last result it replaces, not at compaction time —
   otherwise a later `item.skipped`, `item.readded`, `track.reset` or `track.resumed` that stays in
   the log would be undone by it in replay order.
+- Accepted (known limitation, M4 final review M-7): replay order is not always the order the live
+  tables saw. Replay sorts by `occurred_at`, but `occurred_at` is the transaction's start —
+  `events_prepare` sets it to `now()` before `events_20_quota` waits on the user-day's quota row —
+  while the live tables change in commit order. So under a concurrent `track.reset` or
+  `track.resumed`, an item's first result can start first, wait on the quota row, and commit
+  after the reset with the earlier `occurred_at`: live keeps the row it inserted, replay applies
+  the reset after it and deletes (or, for a resume, shifts) that row. The window is the head start
+  of a transaction before its insert, about a millisecond. v1.0 runs replay only in tests; the
+  future drift check (§4.7) must reconcile such rows or order by commit (for example, the quota
+  trigger could set `occurred_at := clock_timestamp()` once it holds the row, raising
+  `day_changed` if the local day moved). Related: replay sorts to the millisecond
+  (`Date.parse`, then `id`), while the database stores microseconds, so two events of one user in
+  the same millisecond replay in id order, not in the order they happened.
