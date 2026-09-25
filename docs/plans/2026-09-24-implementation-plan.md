@@ -260,7 +260,7 @@ scenario moves with overrides to 6.6 (31).
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
 | 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`); Modify: `next.config.ts` — remove the `/admin` → `/admin/users` redirect added in 2.8 (it would shadow the new `/admin` page) **Writes ADR-0031.** | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
 | 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
-| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), Vercel Production Branch back to `main` (a placeholder since 2.2, `docs/ops/staging.md` §5), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** M1 deferred #17: `global-error.tsx` follows the saved theme. | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
+| 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), Vercel Production Branch back to `main` (a placeholder since 2.2, `docs/ops/staging.md` §5), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** M1 deferred #17: `global-error.tsx` follows the saved theme. Part B-M4 decision 37: after the owner's first two weeks of dogfooding, compare the real pace with the onboarding projection (ADR-0014's skip-day model decides 11.4 vs 13.3 weeks for 8w @ 60); more than 15 % slower → revisit the model and the defaults before inviting learners. | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
@@ -7323,8 +7323,10 @@ owner can overturn):
 single local Supabase stack — `pnpm db:reset` / `pnpm test:db` (DB) or `pnpm test:e2e` (e2e); one
 stack holder per wave, because a `db:reset` under a running e2e breaks it.
 
-**Owner hold (2026-09-25):** the SQL parts (4.9a–c, decision 33) and everything touching
-`supabase/**` wait for the owner's approval. Until then the pure-TypeScript tasks run in their
+**Owner hold (2026-09-25), lifted the same day:** the owner approved the SQL parts (4.9a–c) and
+decision 33 after tracing every write path's lock order, and added decisions 35–37. Before that,
+the SQL parts (4.9a–c, decision 33) and everything touching `supabase/**` waited for the owner's
+approval. Until then the pure-TypeScript tasks run in their
 waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependency order
 (4.9a → 4.9b → 4.9c → 4.12 → 4.11), one at a time.
 
@@ -7335,12 +7337,12 @@ waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependenc
 | 4.4a roadmap position, new queue, recap source | 4.0 | — | — |
 | 4.4b due queue, weak topics, practice pickers | 4.0 | — | — |
 | 4.5 budget and throttle | 4.0 | — | — |
-| 4.9a migration: plans and derived tables | 4.0 | DB | `lib/domain/rules.ts`, `tools/db/sql-sync.test.ts`, `lib/supabase/database.types.ts`, `supabase/tests/database/{001,012,030,040,060}-*.sql`, `docs/adr/0007-*.md` |
+| 4.9a migration: plans and derived tables | 4.0 | DB | `lib/domain/rules.ts`, `lib/domain/plan/*.generated.json`, spec §4.1, `tools/db/sql-sync.test.ts`, `lib/supabase/database.types.ts`, `supabase/tests/database/{001,012,030,040,060}-*.sql`, `docs/adr/0007-*.md` |
 | 4.2 projection and replay | 4.1 | — | `lib/domain/events.ts` (+ test) |
 | 4.3 gate and plan history | 4.0 | — | — |
 | 4.7 stats, weekday, time-zone cache | 4.0 | — | `lib/domain/time/timeZones.ts` (+ test) |
 | 4.10 plan catalog adapter | 4.0 | — | — |
-| 4.9b `apply_event` with derived changes | 4.9a | DB | `lib/events/apply.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,040}-*.sql` |
+| 4.9b `apply_event` with derived changes | 4.9a | DB | `lib/events/apply.ts` (+ test), `lib/domain/events.ts` (+ test), `features/settings/actions.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,040}-*.sql` |
 | 4.6 `buildPlan`, resume, property tests | 4.3, 4.4a, 4.4b, 4.5, 4.7 | — | — |
 | 4.9c `apply_system_event`: plans, auto check-in | 4.9b | DB | `lib/events/apply.ts` (+ test), `lib/supabase/database.types.ts`, `supabase/tests/database/{001,041}-*.sql` |
 | F1 M3 follow-ups (separate PR) | — | — | its own branch: `tools/content/derived.ts` (+ test), the fence-parity test, `vitest.config.ts`, `tools/content-verify/workflow.test.ts` |
@@ -7531,6 +7533,19 @@ waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependenc
 34. **Check-in minutes are whole numbers** (`block.checked_in` and `plan_block_state.minutes` are
     integers, but card minutes are 1.5 / 0.5): the one-tap and auto check-in pre-fill
     `checkInMinutes(block) = Math.ceil(block.estMinutes)` (4.6).
+35. **Plans are permanent** (owner SQL review, must-fix): `events.plan_id` cascades on plan
+    deletion, so a direct `day_plans` delete — a server bug with the secret key, or a future prune
+    job — would silently delete source-of-truth events. A `BEFORE DELETE` trigger on `day_plans`
+    raises `plans_are_permanent` for any direct delete, whatever the role; only the
+    account-deletion cascade (which reaches the trigger through the foreign-key trigger, one level
+    deeper) removes plans (4.9a). Plans are never pruned (spec §4.1 note).
+36. **`pausedDays` is bounded** (owner SQL review): `track.resumed.pausedDays` must be an integer
+    0–3650 — the Zod schema (`MAX_PAUSED_DAYS`), the settings action (clamps) and `apply_event`
+    (`invalid_event` before the cast) agree (4.9b).
+37. **Pace check after dogfooding** (owner, §0 rollout): after the owner's first two weeks, task 5.8
+    compares the real pace with the onboarding projection — the skip-day model in ADR-0014 decides
+    11.4 vs 13.3 weeks for 8w @ 60 — and if the owner is more than 15 % slower, the model and the
+    defaults are revisited before inviting learners.
 
 **Review focus for M4** — inputs the spec implies but no happy-path test exercises; each line's test
 is in the task named (the plan-level RF-1…RF-5 lines are marked where they land):
@@ -9488,7 +9503,10 @@ for 364 days; one that still does not finish makes the CLI exit non-zero (the UI
 
 - Create: `supabase/migrations/20260926000100_day_plans_and_derived_tables.sql`,
   `supabase/tests/database/070-derived-tables.test.sql`
-- Modify: `lib/domain/rules.ts` (`RULES_VERSION = 2`), `tools/db/sql-sync.test.ts` (decision 18:
+- Modify: `lib/domain/plan/projections.generated.json` and `lib/domain/plan/sim-inputs.generated.json`
+  (ruling M4-R11: `pnpm sim:projections` after the bump, same commit — `tools/sim/projections.test.ts`
+  pins `rulesVersion` and the inputs hash), `docs/plans/2026-09-23-platform-design.md` (§4.1: "plans
+  are never pruned", decision 35), `lib/domain/rules.ts` (`RULES_VERSION = 2`), `tools/db/sql-sync.test.ts` (decision 18:
   a case reading `supabase/tests/database/070-derived-tables.test.sql` with
   `/select is\(\s*public\.rules_version\(\),\s*(\d+)/` and expecting `String(RULES_VERSION)`),
   `lib/supabase/database.types.ts` (`pnpm db:types`), `supabase/tests/database/{001,012,030,040,060}-*.sql` (the allowlist, and
@@ -9604,6 +9622,13 @@ Plus, in the same migration:
   now())`; `plan_block_state_known_block` → `unknown_block` unless the plan belongs to
   `new.user_id` and `exists (select 1 from jsonb_array_elements(d.blocks) b where b ->> 'id' =
   new.block_id)`.
+- **Plans are permanent (decision 35):** `create trigger day_plans_permanent before delete on
+  public.day_plans for each row execute function public.day_plans_reject_delete()`, where the
+  function raises `plans_are_permanent` when `pg_trigger_depth() < 2`. Inside a trigger function
+  the depth is 1 for a delete statement issued directly (by any role — `authenticated` has no
+  delete grant anyway, `service_role` and `postgres` do) and at least 2 when the delete comes from
+  the account-deletion cascade (the foreign-key action runs it from its own trigger). Revoke
+  PUBLIC; no grants (trigger function).
 - **`mark_plan_seen(p_plan_id uuid) returns boolean`** — `SECURITY DEFINER`, `search_path ''`:
   `auth.uid()` null → `not_authenticated`; `not public.is_active()` → `inactive`; `update
   public.day_plans set seen_at = now() where id = p_plan_id and user_id = auth.uid() and seen_at
@@ -9643,14 +9668,20 @@ Plus, in the same migration:
   6b. `plan_lock_key(u, d)` is deterministic and differs for another day;
   7. account deletion (`delete from auth.users`) removes the user's plans, block states, item
      states, daily activity and events that name a plan, with no `events_are_append_only` error;
-  8. `user_tracks.reset_on` exists and defaults to null; `item_state_user_due_idx` exists.
+  8. `user_tracks.reset_on` exists and defaults to null; `item_state_user_due_idx` exists;
+  9. **plans are permanent** (decision 35): a direct `delete from public.day_plans` as
+     `service_role` and as `postgres` → `plans_are_permanent`, the plan and its events and block
+     states intact; account deletion still removes the user's plans, their block states and the
+     events that name them, with no error (item 7 covers the cascade; assert both here).
 - [ ] **Step 2:** `pnpm db:reset && pnpm test:db` — 070 fails (no tables).
 - [ ] **Step 3: Write the migration**; bump `RULES_VERSION` to 2 in `lib/domain/rules.ts`; update
   the 001 allowlist (`mark_plan_seen`, `plan_lock_key`) and the `rules_version` expectations in
   012, 030, 040 and 060 where they assert a value a learner wrote (a test that *sends* `rules_version: 1` may keep
   sending it — the trigger forces the current version for learners; assert 2).
-- [ ] **Step 4:** `pnpm db:reset && pnpm test:db` — all green; `pnpm db:types`; `pnpm verify`
-  (the sql-sync test checks `RULES_VERSION` = `rules_version()`).
+- [ ] **Step 4:** `pnpm db:reset && pnpm test:db` — all green; `pnpm db:types`; `pnpm
+  sim:projections` (ruling M4-R11: the bump changes `rulesVersion` and the inputs hash of the
+  generated files); `pnpm verify` (the sql-sync test checks `RULES_VERSION` = `rules_version()`;
+  `tools/sim/projections.test.ts` the regenerated files). Add the §4.1 spec note.
 - [ ] **Step 5: Commit** `feat(db): day_plans and the derived tables, mark_plan_seen, rules
   version 2`.
 
@@ -9662,7 +9693,9 @@ Plus, in the same migration:
 - Create: `supabase/migrations/20260926000200_apply_event_derived.sql`,
   `supabase/tests/database/071-apply-event-derived.test.sql`, `lib/events/derived.ts`
   (+ `derived.test.ts`)
-- Modify: `lib/events/apply.ts` (+ `apply.test.ts`), `lib/supabase/database.types.ts` (the new
+- Modify: `lib/domain/events.ts` (+ test: `export const MAX_PAUSED_DAYS = 3650`, and
+  `track.resumed.pausedDays` gains `.max(MAX_PAUSED_DAYS)`), `features/settings/actions.ts` (+ test:
+  the resume action clamps `pausedDays` to `MAX_PAUSED_DAYS`), `lib/events/apply.ts` (+ `apply.test.ts`), `lib/supabase/database.types.ts` (the new
   public function `apply_derived_changes` appears), `supabase/tests/database/001-schema-invariants.test.sql`
   (allowlist: `apply_derived_changes`), `supabase/tests/database/040-apply-event.test.sql` (its four
   `not_implemented` expectations become: `item.result` without `item_id` → `invalid_event`;
@@ -9695,9 +9728,11 @@ Plus, in the same migration:
      `invalid_transition`, none → `track_not_enrolled`); `delete from public.item_state where
      user_id = v_uid and track_id = v_track`; `update public.user_tracks set reset_on =
      <event local_day>`;
-   - `track.resumed`: after the status update, `update public.item_state set due_on = due_on +
-     (v_payload ->> 'pausedDays')::integer, version = version + 1 where user_id = v_uid and
-     track_id = v_track and due_on is not null`.
+   - `track.resumed`: first `pausedDays` must be a JSON integer 0–3650 (`jsonb_typeof = 'number'`,
+     integral, within bounds — decision 36) else `invalid_event`, checked before any cast; after
+     the status update, `update public.item_state set due_on = due_on + (v_payload ->>
+     'pausedDays')::integer, version = version + 1 where user_id = v_uid and track_id = v_track and
+     due_on is not null`.
 8. Derived rows: `v_versions := public.apply_derived_changes(v_uid, p_event, v_local_day,
    p_changes, p_expected)`; return `{ outcome: 'applied', versions: v_versions }`.
 
@@ -9778,7 +9813,8 @@ reloads and recomputes — only on a retryable error, at most `attempts` times, 
   8. `track.reset` deletes only that track's `item_state` rows, sets `reset_on`; on a removed track
      → `invalid_transition`; on no enrollment → `track_not_enrolled`;
   9. `track.paused` then `track.resumed { pausedDays: 5 }` shifts that track's `due_on` by 5 (null
-     ones stay null, other tracks untouched) — the same fixture as 4.2's resume test;
+     ones stay null, other tracks untouched) — the same fixture as 4.2's resume test; `pausedDays`
+     `"5"` (a string), `-1`, `3651` and `2.5` → `invalid_event`, nothing shifted (decision 36);
   10. re-enrolling (`track.enrolled`) after setting `newPerDay`, `throttle`, `weeklyTemplate`,
       `includeBonus` resets them; `track.updated` on a removed track → `track_not_enrolled`;
   11. every M2 case of 040 still passes with its four updated expectations (Files); run the whole
