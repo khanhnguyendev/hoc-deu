@@ -35,20 +35,27 @@
 --     starts after that day start of the schedule it follows, nor more than 65 minutes before
 --     it. The hour below D (plus the 5 minutes above) is for a day start inside a DST gap or
 --     overlap: there Postgres reads the later instant and nextDayStart (TypeScript) takes the
---     earliest instant of the next local day, which the settings flow sends; for the version in
---     force, D is the day start the settings flow computes. A sweep of every picker zone × day
---     start around its 2026 offset changes (task 4.12 report) found nextDayStart never after D,
---     and more than 65 minutes before it only for Antarctica/Troll (2-hour shift): its settings
---     change is rejected on the day before its spring-forward day (last Sunday of March; day
---     start 02:30, 90 minutes) and before its fall-back day (last Sunday of October; day starts
---     01:00-02:30, 120 minutes), and succeeds the next day.
+--     earliest instant of the next local day, which the settings flow sends. So for the version in
+--     force D is the day start the settings flow computes only when that day start lies outside a
+--     DST gap or overlap; inside one the flow sends an instant up to an hour before D. A sweep of
+--     every picker zone × day start around its 2026 offset changes (task 4.12 report) found
+--     nextDayStart never after D, and more than 65 minutes before it only for Antarctica/Troll
+--     (2-hour shift): its settings change is rejected on the day before its spring-forward day
+--     (last Sunday of March; day start 02:30, 90 minutes) and before its fall-back day (last
+--     Sunday of October; day starts 01:00-02:30, 120 minutes), and succeeds the next day.
 -- - service_role and SECURITY DEFINER functions (current_user is their owner) keep the pre-4.12
 --   rules: the first version at any time, any other no more than 5 minutes in the past.
 -- On update the 000100 rules stay (only a pending version, never moved into the past), and an
 -- onboarded learner may change a pending version only while no later version is pending: the
--- later one's window was measured from it (task 4.12 fix round 1). A learner cannot move a
--- version's effective_at (their column grant is timezone and day_starts_at only), so the window
--- checked on insert still holds after any update they can make.
+-- later one's window was measured from it (task 4.12 fix round 1). The update takes the same
+-- per-user advisory lock first (re-entrant: an upsert's update half already holds it from the
+-- BEFORE INSERT trigger), so a direct update of a pending version (a PostgREST PATCH of its
+-- timezone) cannot interleave with an insert whose window is measured from it: whichever comes
+-- second sees the other once it commits (final review M-1). RLS's using clause lets a learner's
+-- update reach this trigger only for their own rows, so a learner never takes another user's lock
+-- here. A learner cannot move a version's effective_at (their column grant is timezone and
+-- day_starts_at only), so under that lock the window checked on insert still holds after any
+-- update they can make.
 create or replace function public.schedule_versions_guard_history() returns trigger
 language plpgsql set search_path = '' as $$
 declare
@@ -116,6 +123,9 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('schedule_versions:' || old.user_id::text, 0)
+    );
     if old.effective_at <= now() then
       raise exception 'schedule_in_force';
     end if;

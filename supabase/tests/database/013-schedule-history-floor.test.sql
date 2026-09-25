@@ -15,7 +15,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(48);
+select plan(49);
 
 select tests.create_user('floor@hocdeu.test') as floor \gset
 select tests.create_user('near@hocdeu.test') as near \gset
@@ -268,6 +268,20 @@ select lives_ok(
     :'nds2'
   ),
   'a direct update of the last pending version P2 works'
+);
+-- A direct update (a PostgREST PATCH of a pending version's timezone) takes the per-user lock
+-- too, before its checks: otherwise it could interleave with an insert whose window is measured
+-- from the row it changes (review M-1). An upsert's update half already holds the lock (the
+-- BEFORE INSERT trigger took it; advisory locks are re-entrant). One session: pinned structurally.
+select ok(
+  (select p.prosrc ~ ('if tg_op = ''UPDATE'' then\s+'
+      '(if [^;]*then\s+)?perform pg_catalog\.pg_advisory_xact_lock\(\s*pg_catalog\.hashtextextended\(\s*'
+      '''schedule_versions:'' \|\| old\.user_id::text, 0\s*\)\s*\);'
+      '.*if old\.effective_at <= now\(\) then')
+    from pg_catalog.pg_proc p
+    where p.oid = 'public.schedule_versions_guard_history()'::regprocedure),
+  'structural: the update branch takes the per-user advisory lock (''schedule_versions:'' || id) '
+  'before its checks'
 );
 
 -- 1b. Near a day start the floor lies before now() − 5 minutes: the 5-minute rule still holds.
