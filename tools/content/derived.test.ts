@@ -158,6 +158,30 @@ describe('derivedCards', () => {
     ).toEqual([[CARD_ID, 'retired', 'dsa:lc-0001', 'dsa:lc-0001']])
   })
 
+  it("a locked card's draft check reads its own source track, not deck.from.track (m1)", () => {
+    const dsaTrack = loaded.tracks.find((track) => track.id === 'dsa')
+    if (dsaTrack === undefined) throw new Error('no dsa track')
+    // A second track, draft, unrelated to this deck's `from.track` (dsa, still active).
+    const draftTrack: TrackManifest = { ...dsaTrack, id: 'dsa-draft', status: 'draft', decks: [] }
+    const items = itemsOf()
+    const twoSum = items['dsa:lc-0001']
+    if (twoSum?.type !== 'problem') throw new Error('no Two Sum')
+    // The locked card's source item now belongs to the draft track, not to deck.from.track.
+    items[twoSum.id] = {
+      ...twoSum,
+      trackId: 'dsa-draft',
+      content: { ...twoSum.content, title: 'DRAFT TRACK TITLE' },
+    }
+    const { cards } = run(items, new Set([CARD_ID]), [...loaded.tracks, draftTrack])
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({
+      id: CARD_ID,
+      status: 'retired',
+      content: { status: 'retired', back: 'dsa:lc-0001', hint: 'dsa:lc-0001' },
+    })
+    expect(JSON.stringify(cards)).not.toContain('DRAFT TRACK TITLE')
+  })
+
   it('a locked card whose problem is gone stays, retired, its text the source ID', () => {
     const items = itemsOf()
     delete items['dsa:lc-0001']

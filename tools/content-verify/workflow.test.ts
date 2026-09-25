@@ -292,6 +292,14 @@ describe('content-verify workflow', () => {
     )
   })
 
+  it('"left" is the exact default-ACL awk count over acl-after, feeding the -ne 0 check (M3-R16 m4)', () => {
+    const strip = script(STRIP)
+    const AWK_PROGRAM = String.raw`awk '/^default:user::/ { n++ } END { print n + 0 }'`
+    expect(strip).toContain(`left="$(${AWK_PROGRAM} "$out/acl-after")"`)
+    // Immediately followed by the -ne 0 check that fails the job: left drives it, nothing else.
+    expect(strip).toContain(`left="$(${AWK_PROGRAM} "$out/acl-after")"\nif [ "$left" -ne 0 ]; then`)
+  })
+
   it('removes write and unlistable search for others, and fails on anything the sandbox owns (CI round 1)', () => {
     const strip = script(STRIP).replace(/\s*\\\n\s*/g, ' ')
     expect(strip).toContain('! -type l -perm -0002 -fprint0 "$out/others-write"')
