@@ -7449,10 +7449,14 @@ waves (wave 1: 4.1, 4.4a, 4.4b, 4.5); after it, the stack tasks run in dependenc
     so the kinds of a week come grouped — `fill-1, fill-2, respond-1, …` — accepted; a weekly
     prompt falls back to the earliest not-introduced one of an earlier week, then to nothing; recap
     filler items use the normal review mode (Weak problem → redo).
-16. **Roadmap week counts passed core items:** introduced, or not active (draft, retired, missing
-    from the catalog), so a retired core problem never blocks the week, `fromWeek` or the recap.
-    Publishing a draft core item the learner has already passed can move the week back by one step
-    — accepted (owner-only content change).
+16. **Roadmap week counts active core items** (amended during 4.4a's review, ruling M4-R5):
+    `roadmapWeek` = `weekForProgress(introduced active core items, active core items per week)` —
+    draft, retired or missing core items count on neither side, so a retired problem never blocks
+    the week and a draft deck in a later week never pushes the learner ahead (the first version
+    counted non-active items as passed everywhere, which put a learner a week early). The recap
+    source still asks whether **all** of a week's core items are passed (introduced or not
+    active). Publishing a draft core item, or retiring an introduced one, can move the week by one
+    step — accepted (owner-only content change).
 17. **SRS edge rules:** a first-attempt fail sets Weak but is not a lapse; mastered items have
     `due_on` null; `item.readded` puts a mastered item back at the top level, due today,
     `top_successes` 0; completion-only items (lessons, exercises, prompts) get an `item_state` row
@@ -8728,7 +8732,9 @@ export function isPassed(
  *  1 when `sizes` is empty. [8, 8, 7]: 0 → 1, 7 → 1, 8 → 2, 20 → 3, 99 → 3. */
 export function weekForProgress(passedCore: number, sizes: readonly number[]): number
 
-/** The learner's roadmap week on this track; 1 without a roadmap. */
+/** The learner's roadmap week on this track (decision 16, as amended): weekForProgress over
+ *  ACTIVE core items only — the introduced active ones against the active ones per week; 1
+ *  without a roadmap. */
 export function roadmapWeek(
   roadmap: PlanRoadmap | null,
   catalog: PlanCatalog,
