@@ -4891,11 +4891,11 @@ when this section was committed.
     remark-frontmatter@5.0.0 remark-gfm@4.0.1
   pnpm add --save-exact -D shiki@4.4.3 @types/mdx@2.0.14 @mdx-js/mdx@3.1.1   # OD1
   pnpm remove yaml && pnpm add --save-exact -D yaml@2.9.1                     # fix 10, decision 6
-  pnpm pkg set scripts.content:verify="tsx tools/content-verify/cli.ts"        # the CLI arrives in 3.5b
   pnpm verify
   ```
 
-  Commit `build(deps): MDX, remark plugins and shiki for the content pipeline`.
+  plus the script `"content:verify": "tsx tools/content-verify/cli.ts"` in `package.json`, added
+  by hand (`pnpm pkg` is not implemented in pnpm 11; the CLI arrives in 3.5b). Commit `build(deps): MDX, remark plugins and shiki for the content pipeline`.
 - [ ] **Step 4: Housekeeping** — `.prettierignore` gains `**/*.mdx` (fix 3; 3.2b adds only
   `.generated/`); `.env.example`'s `ADMIN_EMAILS` comment says the bootstrap promotes a listed
   e-mail only while no active admin exists (M2 ruling R13); `CLAUDE.md` Safety says
