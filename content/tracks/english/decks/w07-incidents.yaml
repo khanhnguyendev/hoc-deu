@@ -1,0 +1,181 @@
+id: english:deck-w07-incidents
+kind: vocabulary
+week: 7
+topic: incidents
+title: { vi: 'Sự cố và trực on-call', en: 'Incidents and on-call' }
+cards:
+  - id: english:w07-outage
+    tier: core
+    front: outage
+    back: sự cố làm dịch vụ ngừng hoạt động
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay gặp: "a partial/full outage", "during the outage".'
+    example: 'The outage lasted 40 minutes and affected all users in Southeast Asia.'
+    pronunciation: '/ˈaʊ.tɪdʒ/ · OUT-ij'
+
+  - id: english:w07-downtime
+    tier: core
+    front: downtime
+    back: khoảng thời gian hệ thống không dùng được
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Không đếm được: "some downtime", "zero-downtime deployment". "outage" là bản thân sự cố, "downtime" là khoảng thời gian bị ngừng.'
+    example: "The database upgrade needs about ten minutes of downtime, so we'll do it at 2 a.m."
+    pronunciation: '/ˈdaʊn.taɪm/ · DOWN-time'
+
+  - id: english:w07-on-call
+    tier: core
+    front: on call
+    back: đang trong ca trực, phải phản hồi khi có sự cố
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Đứng trước danh từ thì có gạch nối: an on-call engineer, the on-call rotation.'
+    example: "I'm on call this weekend, so I'll keep my laptop with me."
+    pronunciation: '/ɒn ˈkɔːl/ · on CALL'
+
+  - id: english:w07-page
+    tier: core
+    front: page
+    back: gọi báo động cho người đang trực (qua app trực sự cố, điện thoại…)
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay dùng bị động: "I got paged at 3 a.m." Ở đây không phải "trang" (page) như trang web.'
+    example: 'The disk alert paged me twice last night, both times for the same backup job.'
+    pronunciation: '/peɪdʒ/ · PAGE'
+
+  - id: english:w07-escalate
+    tier: core
+    front: escalate
+    back: đưa vấn đề lên người hoặc team có thẩm quyền, chuyên môn cao hơn
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Cấu trúc "escalate to + người/team". Escalate sớm khi vượt quá khả năng của mình là việc nên làm, không phải yếu kém.'
+    example: "If the payment provider hasn't replied in 30 minutes, escalate to their support manager."
+    pronunciation: '/ˈes.kə.leɪt/ · ES-ca-late'
+
+  - id: english:w07-mitigate
+    tier: core
+    front: mitigate
+    back: giảm tác động của sự cố (chưa phải sửa tận gốc)
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Khi có sự cố: mitigate trước (giảm thiệt hại), fix sau (sửa nguyên nhân). Danh từ: mitigation.'
+    example: 'We mitigated the issue by turning off the new search feature. The real fix goes out tomorrow.'
+    pronunciation: '/ˈmɪt.ɪ.ɡeɪt/ · MIT-i-gate'
+
+  - id: english:w07-root-cause
+    tier: core
+    front: root cause
+    back: nguyên nhân gốc rễ của sự cố
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "find the root cause", "root cause analysis" (RCA).'
+    example: 'The root cause was an expired certificate, not the new deployment.'
+    pronunciation: '/ˌruːt ˈkɔːz/ · root CAUSE'
+
+  - id: english:w07-postmortem
+    tier: core
+    front: postmortem
+    back: buổi họp hoặc bản phân tích sau sự cố để rút kinh nghiệm
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Còn viết "post-mortem"; nhiều công ty gọi là "incident review". Nên "blameless": tìm lỗ hổng trong quy trình, không đổ lỗi cho người.'
+    example: "We'll write the postmortem by Wednesday and go through it with the whole team on Friday."
+    pronunciation: '/ˌpəʊstˈmɔː.təm/ · post-MOR-tem'
+
+  - id: english:w07-roll-back
+    tier: core
+    front: roll back
+    back: quay lại phiên bản chạy ổn trước đó
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Động từ viết tách (roll back); danh từ viết liền (a rollback).'
+    example: "Error rates doubled after the release, so we rolled back to yesterday's version."
+    pronunciation: '/ˌrəʊl ˈbæk/ · roll BACK'
+
+  - id: english:w07-hotfix
+    tier: core
+    front: hotfix
+    back: bản sửa lỗi khẩn, đưa thẳng lên production
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay gặp: "deploy a hotfix", "hotfix branch". Vẫn cần review, chỉ là nhanh hơn quy trình thường.'
+    example: "We're deploying a hotfix for the checkout crash tonight. The other fixes can wait for Monday."
+    pronunciation: '/ˈhɒt.fɪks/ · HOT-fix'
+
+  - id: english:w07-degraded
+    tier: core
+    front: degraded
+    back: vẫn chạy nhưng chậm hoặc mất một phần chức năng
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay thấy trên status page: "degraded performance". Nhẹ hơn "outage".'
+    example: 'Search is degraded right now. Results take about ten seconds to load.'
+    pronunciation: '/dɪˈɡreɪ.dɪd/ · de-GRAY-ded'
+
+  - id: english:w07-sla
+    tier: core
+    front: SLA
+    back: cam kết chất lượng dịch vụ với khách hàng, ví dụ uptime 99,9%
+    usage:
+      pos: abbreviation
+      register: neutral
+      note: 'Viết tắt của "service level agreement", đọc từng chữ cái. Hay nói "meet/breach the SLA" (đạt/vi phạm SLA).'
+    example: "Our SLA with this client is 99.9% uptime, so we have to report today's outage to them."
+    pronunciation: '/ˌes.elˈeɪ/ · es-el-AY'
+
+  - id: english:w07-spike
+    tier: core
+    front: spike
+    back: sự tăng vọt đột ngột (lỗi, traffic, CPU…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Đi với "in": "a spike in errors/traffic". Dùng được cả động từ: "CPU spiked to 100%."'
+    example: 'We saw a spike in 500 errors right after the deploy at 10:15.'
+    pronunciation: '/spaɪk/ · SPIKE'
+
+  - id: english:w07-latency
+    tier: core
+    front: latency
+    back: độ trễ, thời gian từ lúc gửi request tới lúc nhận phản hồi
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "high/low latency", "p99 latency" (mức mà 99% request nhanh hơn).'
+    example: 'P99 latency jumped from 200 ms to two seconds when the cache node went down.'
+    pronunciation: '/ˈleɪ.tən.si/ · LAY-ten-cy'
+
+  - id: english:w07-handover
+    tier: core
+    front: handover
+    back: việc bàn giao (ca trực, công việc) cho người tiếp theo
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Tiếng Anh-Mỹ hay nói "handoff". Một handover tốt nêu rõ: việc đang dở, cảnh báo đang theo dõi, người cần liên hệ.'
+    example: 'In your on-call handover, mention the disk alert on db-2. It might fire again tonight.'
+    pronunciation: '/ˈhænd.əʊ.vər/ · HAND-o-ver'
+
+  - id: english:w07-up-and-running
+    tier: core
+    front: up and running
+    back: đã chạy lại bình thường
+    usage:
+      pos: idiom
+      register: neutral
+      note: 'Hay dùng khi báo sự cố đã qua: "The service is back up and running."'
+    example: "The API is back up and running. We'll keep monitoring it for the next hour."
+    pronunciation: '/ˌʌp ən ˈrʌn.ɪŋ/ · up and RUN-ning'

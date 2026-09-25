@@ -1,0 +1,148 @@
+id: english:deck-w10-demos
+kind: vocabulary
+week: 10
+topic: demos
+title: { vi: 'Demo và nhận phản hồi', en: 'Demos and feedback' }
+cards:
+  - id: english:w10-demo
+    tier: core
+    front: demo
+    back: trình diễn (tính năng, sản phẩm) cho người khác xem
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng được cả động từ lẫn danh từ: "I''ll demo the new flow", "a quick demo". Số nhiều: demos.'
+    example: "I'll demo the new onboarding flow first, and then we can take questions."
+    pronunciation: '/ˈdem.əʊ/ · DEM-oh'
+
+  - id: english:w10-share-my-screen
+    tier: core
+    front: share my screen
+    back: chia sẻ màn hình (trong cuộc gọi online)
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Hay đi kèm câu kiểm tra: "Can everyone see my screen?" Đổi đại từ theo ngữ cảnh: "Could you share your screen?"'
+    example: 'Let me share my screen. Can everyone see the staging dashboard?'
+    pronunciation: '/ˌʃeər maɪ ˈskriːn/ · share my SCREEN'
+
+  - id: english:w10-bear-with-me
+    tier: core
+    front: bear with me
+    back: chờ tôi một chút nhé (xin người nghe kiên nhẫn)
+    usage:
+      pos: idiom
+      register: neutral
+      note: '"bear" ở đây nghĩa là chịu đựng, không phải con gấu. Đừng viết nhầm thành "bare with me".'
+    example: 'Bear with me, the page is still loading. Staging is a bit slow today.'
+    pronunciation: '/ˈbeər wɪð miː/ · BEAR with me'
+
+  - id: english:w10-live
+    tier: core
+    front: live
+    back: đã chạy thật trên production, người dùng đang dùng
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Tính từ đọc /laɪv/ (vần với "five"), khác động từ live /lɪv/ (sống). Hay nói "go live" (chính thức chạy).'
+    example: 'The new pricing page went live on Monday, and sign-ups are already up 8%.'
+    pronunciation: '/laɪv/ · LIVE (as in "five")'
+
+  - id: english:w10-under-the-hood
+    tier: core
+    front: under the hood
+    back: ở bên trong, về cách hệ thống thực sự chạy phía sau
+    usage:
+      pos: idiom
+      register: informal
+      note: 'Hay dùng khi chuyển từ phần giao diện sang phần kỹ thuật: "Let me show you what''s happening under the hood."'
+    example: 'It looks like one button, but under the hood it calls three different services.'
+    pronunciation: '/ˌʌn.dər ðə ˈhʊd/ · un-der the HOOD'
+
+  - id: english:w10-rough-edges
+    tier: core
+    front: rough edges
+    back: những chỗ còn thô, chưa hoàn thiện
+    usage:
+      pos: idiom
+      register: informal
+      note: 'Nói trước khi demo để người xem không bất ngờ: "There are still a few rough edges."'
+    example: 'The main flow works, but there are still some rough edges in the error messages.'
+    pronunciation: '/ˌrʌf ˈedʒ.ɪz/ · rough EDG-es'
+
+  - id: english:w10-end-to-end
+    tier: core
+    front: end-to-end
+    back: trọn vẹn từ đầu đến cuối (cả một luồng)
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay gặp: "the end-to-end flow", "end-to-end tests" (viết tắt E2E).'
+    example: 'Let me walk you through the end-to-end flow, from sign-up to the first invoice.'
+    pronunciation: '/ˌend.təˈend/ · end-to-END'
+
+  - id: english:w10-ship
+    tier: core
+    front: ship
+    back: phát hành, đưa (tính năng) tới tay người dùng
+    usage:
+      pos: verb
+      register: informal
+      note: 'Nghĩa gốc là gửi hàng; dân IT dùng rất nhiều: "We shipped it last week", "Ship it!".'
+    example: "We shipped dark mode last Thursday. Today I'll show what users have said so far."
+    pronunciation: '/ʃɪp/ · SHIP'
+
+  - id: english:w10-feedback
+    tier: core
+    front: feedback
+    back: ý kiến góp ý, nhận xét
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Không đếm được: nói "some feedback", "a piece of feedback"; không nói "a feedback" hay "feedbacks".'
+    example: "Thanks for the feedback. I'll make the chart labels bigger before the next demo."
+    pronunciation: '/ˈfiːd.bæk/ · FEED-back'
+
+  - id: english:w10-constructive
+    tier: core
+    front: constructive
+    back: mang tính xây dựng, giúp người nhận làm tốt hơn
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay đi với "feedback", "criticism". Góp ý mang tính xây dựng thường cụ thể và kèm đề xuất.'
+    example: 'The session was really constructive. They liked the flow but found the filters hard to discover.'
+    pronunciation: '/kənˈstrʌk.tɪv/ · con-STRUC-tive'
+
+  - id: english:w10-stakeholder
+    tier: core
+    front: stakeholder
+    back: người có liên quan hoặc bị ảnh hưởng bởi dự án (sếp, khách hàng, team khác…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "key stakeholders", "keep stakeholders updated". Buổi demo thường là để stakeholder xem và góp ý.'
+    example: "We're demoing to the stakeholders on Friday, so let's do a dry run on Thursday."
+    pronunciation: '/ˈsteɪkˌhəʊl.dər/ · STAKE-hold-er'
+
+  - id: english:w10-feature-request
+    tier: core
+    front: feature request
+    back: đề xuất thêm tính năng mới
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay xuất hiện sau buổi demo. Nên ghi thành ticket thay vì hứa làm ngay: "Good idea, I''ll log it as a feature request."'
+    example: "A few people asked for Excel export, so I've logged it as a feature request."
+    pronunciation: '/ˈfiː.tʃər rɪˌkwest/ · FEA-ture re-quest'
+
+  - id: english:w10-iterate
+    tier: core
+    front: iterate
+    back: cải tiến dần qua nhiều vòng làm, nhận góp ý rồi sửa
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay nói "iterate on + sản phẩm/thiết kế". Danh từ: iteration (một vòng như vậy).'
+    example: "This is the first version. We'll iterate on it based on what we hear this week."
+    pronunciation: '/ˈɪt.ər.eɪt/ · IT-er-ate'

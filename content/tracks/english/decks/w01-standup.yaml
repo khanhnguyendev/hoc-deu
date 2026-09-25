@@ -1,0 +1,137 @@
+id: english:deck-w01-standup
+kind: vocabulary
+week: 1
+topic: standup
+title: { vi: 'Họp stand-up', en: 'Stand-up meetings' }
+cards:
+  - id: english:w01-blocker
+    tier: core
+    front: blocker
+    back: vấn đề đang chặn, khiến bạn chưa làm tiếp được
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay đi với "have" hoặc "hit".'
+    example: "I have one blocker: I'm still waiting for access to the staging database."
+    pronunciation: '/ˈblɒk.ər/ · BLOCK-er'
+
+  - id: english:w01-unblock
+    tier: core
+    front: unblock
+    back: gỡ vướng cho ai đó để họ làm tiếp được
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Thường dùng với người: "unblock someone". Câu nhờ hay gặp trong stand-up: "Can someone unblock me?"'
+    example: 'Could someone with admin rights unblock me? I need write access to the CI settings.'
+    pronunciation: '/ʌnˈblɒk/ · un-BLOCK'
+
+  - id: english:w01-on-track
+    tier: core
+    front: on track
+    back: đúng tiến độ, không bị trễ
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Hay nói "on track for + mốc thời gian". Ngược lại: "behind schedule" (chậm tiến độ).'
+    example: "The payment integration is still on track for Thursday's release."
+    pronunciation: '/ɒn ˈtræk/ · on TRACK'
+
+  - id: english:w01-on-my-plate
+    tier: core
+    front: on my plate
+    back: (việc) mình đang phải lo, đang ôm
+    usage:
+      pos: idiom
+      register: informal
+      note: 'Hay gặp trong "a lot on my plate" (đang ôm nhiều việc). Đổi đại từ theo người: on your plate, on her plate.'
+    example: "I've got a lot on my plate this week, so I can't take the new ticket until Monday."
+    pronunciation: '/ɒn maɪ ˈpleɪt/ · on my PLATE'
+
+  - id: english:w01-wrap-up
+    tier: core
+    front: wrap up
+    back: làm nốt, hoàn tất phần việc còn lại
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Dùng cho cả việc lẫn cuộc họp: "wrap up the PR", "Let''s wrap up here." Danh từ: a wrap-up.'
+    example: "I'll wrap up the retry logic this morning and open the PR after lunch."
+    pronunciation: '/ˌræp ˈʌp/ · wrap UP'
+
+  - id: english:w01-pick-up
+    tier: core
+    front: pick up
+    back: nhận làm (ticket, việc tiếp theo)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Trong stand-up: "pick up + ticket/task". Còn có nghĩa làm tiếp từ chỗ đang dở: "pick up where I left off".'
+    example: "Once the login fix is merged, I'll pick up the next ticket at the top of the board."
+    pronunciation: '/ˌpɪk ˈʌp/ · pick UP'
+
+  - id: english:w01-wait-on
+    tier: core
+    front: wait on
+    back: đang chờ (ai đó, việc gì) mới làm tiếp được
+    usage:
+      pos: phrasal-verb
+      register: informal
+      note: 'Hay dùng trong tiếng Anh-Mỹ, nghĩa như "wait for": "I''m waiting on + người/việc".'
+    example: "I'm waiting on the design team for the final mockups, so I'm fixing small bugs in the meantime."
+    pronunciation: '/ˈweɪt ɒn/ · WAIT on'
+
+  - id: english:w01-make-progress
+    tier: core
+    front: make progress
+    back: có tiến triển (với một việc)
+    usage:
+      pos: phrase
+      register: neutral
+      note: '"progress" không đếm được: nói "make good progress", không nói "a progress" hay "progresses". Đi với "on": make progress on the API.'
+    example: 'I made good progress on the search endpoint yesterday. The filters work now.'
+    pronunciation: '/ˌmeɪk ˈprəʊ.ɡres/ · make PRO-gress'
+
+  - id: english:w01-pair-with
+    tier: core
+    front: pair with
+    back: ngồi làm cặp với ai trên cùng một đoạn code (pair programming)
+    usage:
+      pos: verb
+      register: neutral
+      note: '"pair with + người", "pair on + việc". Buổi làm cặp gọi là "a pairing session".'
+    example: "I'm going to pair with Minh on the flaky checkout test this afternoon."
+    pronunciation: '/ˈpeər wɪð/ · PAIR with'
+
+  - id: english:w01-take-it-offline
+    tier: core
+    front: take it offline
+    back: để bàn riêng sau, không bàn tiếp trong cuộc họp chung
+    usage:
+      pos: idiom
+      register: neutral
+      note: 'Câu lịch sự để dừng một cuộc thảo luận dài trong stand-up: "Let''s take this offline." Không liên quan tới mạng internet.'
+    example: "This sounds like a longer discussion. Let's take it offline after stand-up."
+    pronunciation: '/ˌteɪk ɪt ˌɒfˈlaɪn/ · take it off-LINE'
+
+  - id: english:w01-eta
+    tier: core
+    front: ETA
+    back: thời điểm dự kiến xong
+    usage:
+      pos: abbreviation
+      register: neutral
+      note: 'Viết tắt của "estimated time of arrival"; trong IT dùng để hỏi khi nào xong: "What''s the ETA on…?" Đọc từng chữ cái.'
+    example: "What's the ETA on the staging fix? QA wants to start testing this afternoon."
+    pronunciation: '/ˌiː.tiːˈeɪ/ · ee-tee-AY'
+
+  - id: english:w01-ooo
+    tier: core
+    front: OOO
+    back: nghỉ, không có mặt ở công ty (out of office)
+    usage:
+      pos: abbreviation
+      register: informal
+      note: 'Hay thấy trong Slack, lịch và email trả lời tự động. Khi nói, thường nói cả cụm "out of office".'
+    example: "Just so you know, I'll be OOO on Friday, so Linh will cover my code reviews."
+    pronunciation: '/ˌaʊt əv ˈɒf.ɪs/ · out of OF-fice'

@@ -4,6 +4,17 @@ title: { vi: 'Tiếng Anh cho môi trường IT', en: 'English for IT workplaces
 accent: track-2
 itemTypes: [flashcard, exercise, prompt]
 srs: { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
+topics: # one per week of the 10w roadmap (Q3, decision 30)
+  - { id: standup, title: { vi: 'Họp stand-up', en: 'Stand-up meetings' } }
+  - { id: tickets, title: { vi: 'Ticket và báo lỗi', en: 'Tickets and bug reports' } }
+  - { id: code-review, title: { vi: 'Code review', en: 'Code review' } }
+  - { id: pull-requests, title: { vi: 'Pull request và commit', en: 'Pull requests and commits' } }
+  - { id: meetings, title: { vi: 'Họp và thảo luận', en: 'Meetings and discussions' } }
+  - { id: estimates, title: { vi: 'Ước lượng và lập kế hoạch', en: 'Estimates and planning' } }
+  - { id: incidents, title: { vi: 'Sự cố và trực on-call', en: 'Incidents and on-call' } }
+  - { id: documentation, title: { vi: 'Viết tài liệu kỹ thuật', en: 'Technical writing' } }
+  - { id: interviews, title: { vi: 'Phỏng vấn xin việc', en: 'Job interviews' } }
+  - { id: demos, title: { vi: 'Demo và nhận phản hồi', en: 'Demos and feedback' } }
 defaults:
   budgetMinutes: 25
   newPerDay: 8
@@ -12,6 +23,7 @@ estimates: { flashcard: { new: 1.5, review: 0.5 }, exercise: 5, prompt: 10 }
 decks:
   - id: explaining-code
     kind: derived
+    title: { vi: 'Giải thích code bằng tiếng Anh', en: 'Explaining code in English' }
     from: { track: dsa, itemType: problem }
     unlock: attempted
     map:

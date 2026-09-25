@@ -1,0 +1,159 @@
+id: english:deck-w04-pull-requests
+kind: vocabulary
+week: 4
+topic: pull-requests
+title: { vi: 'Pull request và commit', en: 'Pull requests and commits' }
+cards:
+  - id: english:w04-merge-conflict
+    tier: core
+    front: merge conflict
+    back: xung đột khi gộp nhánh, do hai bên cùng sửa một chỗ
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Đi với "resolve/fix a merge conflict". Hay nói gọn: "I have conflicts with main."'
+    example: "I've got a merge conflict in the routes file. I'll resolve it and push again."
+    pronunciation: '/ˈmɜːdʒ ˌkɒn.flɪkt/ · MERGE con-flict'
+
+  - id: english:w04-rebase
+    tier: core
+    front: rebase
+    back: chuyển các commit của nhánh mình lên trên commit mới nhất của nhánh gốc
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay nói "rebase on/onto main". Sau khi rebase thường phải force-push. Đừng rebase nhánh đang dùng chung với người khác.'
+    example: 'Could you rebase on main? The CI fix was merged this morning.'
+    pronunciation: '/ˌriːˈbeɪs/ · re-BASE'
+
+  - id: english:w04-squash
+    tier: core
+    front: squash
+    back: gộp nhiều commit thành một
+    usage:
+      pos: verb
+      register: neutral
+      note: '"Squash and merge" là một tuỳ chọn merge trên GitHub. Hay dùng khi lịch sử commit có nhiều commit kiểu "fix typo".'
+    example: "Let's squash these six commits before merging. Most of them are typo fixes."
+    pronunciation: '/skwɒʃ/ · SQUASH'
+
+  - id: english:w04-commit-message
+    tier: core
+    front: commit message
+    back: dòng mô tả đi kèm mỗi commit
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Dòng đầu nên ngắn và dùng thể mệnh lệnh: "Fix login redirect", không phải "Fixed…" hay "Fixing…".'
+    example: "Could you use a clearer commit message than 'update'? Something like 'Fix time zone in invoice dates'."
+    pronunciation: '/kəˈmɪt ˌmes.ɪdʒ/ · com-MIT mes-sage'
+
+  - id: english:w04-feature-branch
+    tier: core
+    front: feature branch
+    back: nhánh riêng để làm một tính năng hoặc một ticket
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Tạo từ nhánh chính: "branch off main". Tên nhánh thường kèm mã ticket, ví dụ feat/PAY-142-refunds.'
+    example: 'I created a feature branch for the refund flow and pushed my first two commits.'
+    pronunciation: '/ˈfiː.tʃər ˌbrɑːntʃ/ · FEA-ture branch'
+
+  - id: english:w04-revert
+    tier: core
+    front: revert
+    back: huỷ một commit bằng một commit làm ngược lại
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Không cần thêm "back": nói "revert the commit", không nói "revert back". Khác "roll back" (quay lại cả bản deploy).'
+    example: 'The last merge broke the build, so I reverted it. We can reapply it once the tests are fixed.'
+    pronunciation: '/rɪˈvɜːt/ · re-VERT'
+
+  - id: english:w04-draft-pr
+    tier: core
+    front: draft PR
+    back: PR nháp, đang làm dở, chưa cần review
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Mở draft PR sớm để chạy CI và xin góp ý về hướng làm; bấm "Ready for review" khi xong.'
+    example: 'I opened a draft PR so you can check the approach before I write the tests.'
+    pronunciation: '/ˌdrɑːft ˌpiːˈɑːr/ · draft pee-AR'
+
+  - id: english:w04-ci
+    tier: core
+    front: CI
+    back: hệ thống tự build và chạy test mỗi khi có code mới (continuous integration)
+    usage:
+      pos: abbreviation
+      register: neutral
+      note: 'Hay nói "CI is green/red" (pass/fail), "CI is failing". Đọc từng chữ cái: C-I.'
+    example: 'CI is red on my branch, but the failing test looks unrelated to my change.'
+    pronunciation: '/ˌsiːˈaɪ/ · see-EYE'
+
+  - id: english:w04-flaky
+    tier: core
+    front: flaky
+    back: (test) lúc pass lúc fail dù code không đổi
+    usage:
+      pos: adjective
+      register: informal
+      note: 'Hay gặp: "a flaky test". Đừng chạy lại cho qua mãi; nên tạo ticket để sửa.'
+    example: "That test is flaky. It failed on CI but passes locally, so I'll rerun it and file a ticket."
+    pronunciation: '/ˈfleɪ.ki/ · FLAY-kee'
+
+  - id: english:w04-cherry-pick
+    tier: core
+    front: cherry-pick
+    back: lấy riêng một commit từ nhánh này sang nhánh khác
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Hay dùng để đưa một bản sửa lỗi sang nhánh release. Nghĩa đời thường: chỉ chọn lấy phần có lợi cho mình.'
+    example: "Can you cherry-pick the fix onto the release branch? We don't want the other changes there yet."
+    pronunciation: '/ˈtʃer.i.pɪk/ · CHER-ry-pick'
+
+  - id: english:w04-breaking-change
+    tier: core
+    front: breaking change
+    back: thay đổi làm hỏng code hoặc ứng dụng đang dùng nó, nếu bên đó không sửa theo
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Phải ghi rõ trong PR và changelog. Ví dụ: đổi tên field trong API, bỏ một tham số.'
+    example: 'Renaming this field is a breaking change for the mobile app, so we need a new API version.'
+    pronunciation: '/ˈbreɪ.kɪŋ ˈtʃeɪndʒ/ · BREAK-ing CHANGE'
+
+  - id: english:w04-force-push
+    tier: core
+    front: force-push
+    back: đẩy code lên và ghi đè lịch sử của nhánh trên remote
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Thường cần sau khi rebase hoặc squash. Chỉ làm trên nhánh của riêng mình; dùng --force-with-lease cho an toàn.'
+    example: "I force-pushed after rebasing, so if you've checked out my branch, reset it to the remote first."
+    pronunciation: '/ˈfɔːs ˌpʊʃ/ · FORCE-push'
+
+  - id: english:w04-diff
+    tier: core
+    front: diff
+    back: phần khác nhau giữa hai phiên bản code (dòng thêm, dòng xoá)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay nói "the diff is small/big", "look at the diff". Dùng được như động từ: "diff the two files".'
+    example: 'The diff looks big, but most of it is the generated lock file.'
+    pronunciation: '/dɪf/ · DIFF'
+
+  - id: english:w04-wip
+    tier: core
+    front: WIP
+    back: đang làm dở, chưa xong (work in progress)
+    usage:
+      pos: abbreviation
+      register: informal
+      note: 'Hay đặt ở đầu tiêu đề PR hoặc commit: "WIP: add refund API". Thường đọc như một từ ("wip").'
+    example: "It's still WIP, so don't review it yet. I'll ping you when the tests are in."
+    pronunciation: '/wɪp/ · WIP'

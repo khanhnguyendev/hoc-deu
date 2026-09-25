@@ -1,0 +1,159 @@
+id: english:deck-w03-code-review
+kind: vocabulary
+week: 3
+topic: code-review
+title: { vi: 'Code review', en: 'Code review' }
+cards:
+  - id: english:w03-nit
+    tier: core
+    front: nit
+    back: góp ý rất nhỏ (tên biến, khoảng trắng…), sửa hay không cũng được
+    usage:
+      pos: noun
+      register: informal
+      note: 'Viết ở đầu comment, "Nit: …", để báo đây không phải lỗi bắt buộc sửa. Từ gốc: nitpick (bới lông tìm vết).'
+    example: "Nit: I'd rename `data` to `invoices` so it's clear what the list holds."
+    pronunciation: '/nɪt/ · NIT'
+
+  - id: english:w03-lgtm
+    tier: core
+    front: LGTM
+    back: tôi thấy ổn rồi (thường kèm duyệt PR)
+    usage:
+      pos: abbreviation
+      register: informal
+      note: 'Viết tắt của "looks good to me", chủ yếu dùng khi viết. Có thể kèm điều kiện: "LGTM once CI passes."'
+    example: 'LGTM once the tests pass. Thanks for cleaning up the error handling!'
+    pronunciation: '/ˌel.dʒiː.tiːˈem/ · el-jee-tee-EM'
+
+  - id: english:w03-approve
+    tier: core
+    front: approve
+    back: duyệt (PR) để có thể merge
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng trực tiếp với PR, không cần "for": "I approved your PR." Trên GitHub, hai lựa chọn chính khi review là Approve và Request changes.'
+    example: "I approved the PR, but please wait for Hoa's review before you merge."
+    pronunciation: '/əˈpruːv/ · a-PROOV'
+
+  - id: english:w03-request-changes
+    tier: core
+    front: request changes
+    back: yêu cầu sửa trước khi PR được merge
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Là một lựa chọn khi review trên GitHub. Nên nói rõ lý do và cần sửa gì, đừng chỉ bấm nút.'
+    example: "I requested changes because the new endpoint doesn't check permissions yet."
+    pronunciation: '/rɪˈkwest ˈtʃeɪn.dʒɪz/ · re-QUEST CHANGE-es'
+
+  - id: english:w03-address
+    tier: core
+    front: address
+    back: xử lý, sửa theo (góp ý, vấn đề)
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Không phải "địa chỉ": "address a comment" là xử lý một góp ý. Động từ nhấn âm thứ hai: a-DRESS.'
+    example: "I've addressed all your comments except the caching one. Can we talk about that on a call?"
+    pronunciation: '/əˈdres/ · a-DRESS'
+
+  - id: english:w03-take-a-look
+    tier: core
+    front: take a look
+    back: xem qua (giúp)
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Cách nhờ review lịch sự, đi với "at": "Could you take a look at my PR when you have a moment?"'
+    example: "Could you take a look at my PR when you have a minute? It's a small change to the config loader."
+    pronunciation: '/ˌteɪk ə ˈlʊk/ · take a LOOK'
+
+  - id: english:w03-edge-case
+    tier: core
+    front: edge case
+    back: trường hợp đặc biệt ở biên (rỗng, âm, rất lớn…)
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Câu hỏi hay gặp khi review: "What happens in this edge case?" Ví dụ: danh sách rỗng, input null, múi giờ khác.'
+    example: "What happens if the list is empty? That edge case isn't covered by the tests."
+    pronunciation: '/ˈedʒ ˌkeɪs/ · EDGE case'
+
+  - id: english:w03-refactor
+    tier: core
+    front: refactor
+    back: sắp xếp lại code cho gọn, dễ đọc hơn mà không đổi hành vi
+    usage:
+      pos: verb
+      register: neutral
+      note: 'Dùng được cả danh từ: "a refactor". Nên tách refactor ra PR riêng, đừng trộn với thay đổi tính năng.'
+    example: 'Can we keep this PR small and refactor the parser in a follow-up?'
+    pronunciation: '/ˌriːˈfæk.tər/ · re-FAC-tor'
+
+  - id: english:w03-readability
+    tier: core
+    front: readability
+    back: mức độ dễ đọc, dễ hiểu của code
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay dùng: "for readability" (cho dễ đọc), "improve readability".'
+    example: 'For readability, could we split this 80-line function into a few smaller helpers?'
+    pronunciation: '/ˌriː.dəˈbɪl.ə.ti/ · read-a-BIL-i-ty'
+
+  - id: english:w03-hard-coded
+    tier: core
+    front: hard-coded
+    back: (giá trị) gán cứng trong code thay vì lấy từ cấu hình
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Hay gặp: "a hard-coded URL/value/path". Động từ: hard-code.'
+    example: 'The API URL is hard-coded here. Could we read it from an environment variable instead?'
+    pronunciation: '/ˌhɑːdˈkəʊ.dɪd/ · hard-CO-ded'
+
+  - id: english:w03-side-effect
+    tier: core
+    front: side effect
+    back: tác động phụ ngoài ý muốn, như hàm vô tình thay đổi dữ liệu bên ngoài
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Trong lập trình còn là thuật ngữ: hàm làm thay đổi trạng thái bên ngoài nó (ghi file, sửa biến toàn cục, gọi API…).'
+    example: 'This getter also writes to the cache. Is that side effect intended?'
+    pronunciation: '/ˈsaɪd ɪˌfekt/ · SIDE ef-fect'
+
+  - id: english:w03-non-blocking
+    tier: core
+    front: non-blocking
+    back: (góp ý) không bắt buộc sửa trước khi merge
+    usage:
+      pos: adjective
+      register: neutral
+      note: 'Ghi đầu comment để người nhận biết có thể để sau: "Non-blocking: …". Ngược lại: blocking.'
+    example: 'Non-blocking: we could memoize this later if the page gets slow.'
+    pronunciation: '/ˌnɒnˈblɒk.ɪŋ/ · non-BLOCK-ing'
+
+  - id: english:w03-have-you-considered
+    tier: core
+    front: have you considered
+    back: bạn đã tính tới … chưa? (cách gợi ý nhẹ nhàng)
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Theo sau là V-ing hoặc danh từ: "Have you considered using a map here?" Lịch sự hơn nhiều so với "You should…".'
+    example: 'Have you considered using a Set here? The lookup would be O(1) instead of O(n).'
+    pronunciation: '/həv juː kənˈsɪd.əd/ · have you con-SID-ered'
+
+  - id: english:w03-dead-code
+    tier: core
+    front: dead code
+    back: code không bao giờ chạy tới hoặc không còn ai dùng
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Hay đi với "remove/delete dead code". Nên xoá hẳn thay vì comment lại, vì Git đã lưu lịch sử.'
+    example: 'This branch can never run now that the old flag is gone. Can we delete the dead code?'
+    pronunciation: '/ˌded ˈkəʊd/ · dead CODE'

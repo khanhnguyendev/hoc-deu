@@ -1,0 +1,126 @@
+id: english:deck-w09-interviews
+kind: vocabulary
+week: 9
+topic: interviews
+title: { vi: 'Phỏng vấn xin việc', en: 'Job interviews' }
+cards:
+  - id: english:w09-walk-me-through
+    tier: core
+    front: walk me through
+    back: trình bày lần lượt từng bước cho tôi nghe
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Câu hỏi phỏng vấn rất hay gặp: "Walk me through your resume/this project/your solution." Nên trả lời theo đúng thứ tự, từng bước.'
+    example: 'Can you walk me through how you designed the notification service?'
+    pronunciation: '/ˌwɔːk miː ˈθruː/ · walk me THROUGH'
+
+  - id: english:w09-hands-on-experience
+    tier: core
+    front: hands-on experience
+    back: kinh nghiệm thực tế, tự tay làm
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Đi với "with": "hands-on experience with Kubernetes". Thuyết phục hơn nhiều so với "I know about…".'
+    example: 'I have hands-on experience with Kafka. I built and ran our event pipeline for two years.'
+    pronunciation: '/ˌhændzˈɒn ɪkˈspɪə.ri.əns/ · hands-ON ex-PEER-i-ence'
+
+  - id: english:w09-take-ownership
+    tier: core
+    front: take ownership
+    back: chủ động nhận trách nhiệm và theo một việc tới cùng
+    usage:
+      pos: phrase
+      register: neutral
+      note: 'Hay gặp trong câu hỏi hành vi: "Tell me about a time you took ownership of a problem."'
+    example: 'When our release process kept failing, I took ownership of it and automated the checklist.'
+    pronunciation: '/ˌteɪk ˈəʊ.nə.ʃɪp/ · take OWN-er-ship'
+
+  - id: english:w09-behavioral-question
+    tier: core
+    front: behavioral question
+    back: câu hỏi về cách bạn đã xử lý một tình huống thực tế trong quá khứ
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường bắt đầu bằng "Tell me about a time…". Nên trả lời theo STAR. Tiếng Anh-Anh viết "behavioural".'
+    example: 'The second round was mostly behavioral questions, like how I handled a disagreement with a teammate.'
+    pronunciation: '/bɪˈheɪ.vjər.əl ˈkwes.tʃən/ · be-HAY-vyer-al QUES-tion'
+
+  - id: english:w09-star-method
+    tier: core
+    front: STAR method
+    back: 'cách trả lời câu hỏi hành vi theo 4 phần: Situation, Task, Action, Result'
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Dành nhiều thời gian nhất cho Action (bạn đã làm gì) và Result (kết quả, có số liệu càng tốt).'
+    example: "Use the STAR method, and end with a concrete result, like 'we cut build time by 40%'."
+    pronunciation: '/ˈstɑːr ˌmeθ.əd/ · STAR meth-od'
+
+  - id: english:w09-think-out-loud
+    tier: core
+    front: think out loud
+    back: vừa nghĩ vừa nói ra suy nghĩ của mình
+    usage:
+      pos: idiom
+      register: neutral
+      note: 'Rất quan trọng khi phỏng vấn coding: người phỏng vấn cần nghe cách bạn suy luận, không chỉ đáp án.'
+    example: "I'll think out loud as I go. My first idea is to use a hash map to count the characters."
+    pronunciation: '/ˌθɪŋk aʊt ˈlaʊd/ · think out LOUD'
+
+  - id: english:w09-clarifying-question
+    tier: core
+    front: clarifying question
+    back: câu hỏi để làm rõ đề bài, yêu cầu trước khi bắt tay vào làm
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Nên hỏi trước khi code, ví dụ: "Can the input be empty?", "Is the array sorted?"'
+    example: 'Before I start, I have a clarifying question: can the array contain negative numbers?'
+    pronunciation: '/ˈklær.ɪ.faɪ.ɪŋ ˈkwes.tʃən/ · CLAR-i-fy-ing QUES-tion'
+
+  - id: english:w09-brute-force
+    tier: core
+    front: brute force
+    back: cách giải vét cạn, thử hết mọi khả năng
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Đứng trước danh từ thì có gạch nối: "a brute-force solution". Khi phỏng vấn, nên nêu cách brute force trước rồi mới tối ưu.'
+    example: 'Brute force would be O(n²), so let me see if a hash map gets it down to O(n).'
+    pronunciation: '/ˌbruːt ˈfɔːs/ · brute FORCE'
+
+  - id: english:w09-notice-period
+    tier: core
+    front: notice period
+    back: thời gian phải báo trước (và làm tiếp) trước khi nghỉ việc
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Nhà tuyển dụng hay hỏi: "What''s your notice period?" Trả lời ngắn gọn: "It''s 30 days."'
+    example: 'My notice period is 30 days, so I could start in early November.'
+    pronunciation: '/ˈnəʊ.tɪs ˌpɪə.ri.əd/ · NO-tis peer-i-od'
+
+  - id: english:w09-salary-expectations
+    tier: core
+    front: salary expectations
+    back: mức lương mong muốn
+    usage:
+      pos: noun
+      register: neutral
+      note: 'Thường dùng số nhiều: "What are your salary expectations?" Nên trả lời bằng một khoảng và nói rõ gross hay net.'
+    example: 'My salary expectations are between 2,500 and 3,000 USD a month, gross, depending on the benefits.'
+    pronunciation: '/ˈsæl.ər.i ˌek.spekˈteɪ.ʃənz/ · SAL-a-ry ex-pec-TAY-tions'
+
+  - id: english:w09-reach-out
+    tier: core
+    front: reach out
+    back: chủ động liên hệ (với ai đó)
+    usage:
+      pos: phrasal-verb
+      register: neutral
+      note: 'Đi với "to": reach out to someone. Hay gặp trong email tuyển dụng: "Thanks for reaching out", "I''m reaching out about…".'
+    example: "Thanks for reaching out. I'm interested in the backend role and free for a call on Thursday."
+    pronunciation: '/ˌriːtʃ ˈaʊt/ · reach OUT'
