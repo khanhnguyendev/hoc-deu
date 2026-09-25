@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Một đoạn liên tiếp biến được thành toàn một chữ với tối đa `k` lần thay khi độ dài đoạn trừ số lần xuất hiện của chữ **nhiều nhất** trong đoạn không vượt quá `k`: ta giữ chữ phổ biến nhất và thay tất cả các chữ còn lại. Điều kiện này cập nhật được khi thêm hoặc bỏ một chữ, nên dùng <Term vi="cửa sổ trượt">sliding window</Term> cùng một mảng đếm 26 chữ cái. Mẹo then chốt: biến `top`, số đếm lớn nhất từng thấy, không cần giảm khi mép trái dịch đi.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Mở rộng mép phải">Thêm `s[right]` vào mảng đếm và cập nhật `top = max(top, counts[s[right]])`.</Step>
+
+<Step title="Dịch mép trái khi vượt k">Nếu `right - left + 1 - top > k`, bớt `s[left]` khỏi mảng đếm và tăng `left`. Cửa sổ vừa dài thêm đúng một ô và `top` không giảm, nên bước này chạy nhiều nhất một lần: cửa sổ giữ nguyên độ dài và trượt sang phải.</Step>
+
+<Step title="Ghi nhận">Cập nhật `best = max(best, right - left + 1)`.</Step>
+
+</Steps>
+
+Chạy thử với `s = "ABBAC"` và `k = 1`:
+
+<VarTable caption='s = "ABBAC", k = 1'>
+
+| right | Chữ mới | `top` | Cửa sổ | Độ dài − `top` | Hành động | `best` |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | `A` | 1 | `A` | 0 | Hợp lệ | 1 |
+| 1 | `B` | 1 | `AB` | 1 | Hợp lệ | 2 |
+| 2 | `B` | 2 | `ABB` | 1 | Hợp lệ | 3 |
+| 3 | `A` | 2 | `ABBA` | 2 | Vượt `k`: bỏ `A` bên trái, còn `BBA` | 3 |
+| 4 | `C` | 2 | `BBAC` | 2 | Vượt `k`: bỏ `B` bên trái, còn `BAC` | 3 |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao không cần giảm top?">
+
+Cửa sổ chỉ có thể dài hơn kỷ lục khi có một chữ xuất hiện nhiều hơn `top`. Khi `top` cũ lớn hơn số đếm thật — như ở bước cuối, `BAC` không có chữ nào xuất hiện hai lần — cửa sổ chỉ trượt đi với độ dài đã từng đạt chứ không dài thêm, nên `best` vẫn đúng là 3.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi chữ vào cửa sổ một lần và ra nhiều nhất một lần; mảng đếm luôn có đúng 26 ô.
+
+<Solution />
+
+<Bilingual vi="Trượt một cửa sổ và đếm chữ cái trong đó; cửa sổ hợp lệ khi độ dài trừ số lần xuất hiện của chữ nhiều nhất không vượt quá k, nếu vượt thì dịch mép trái một bước." en="Slide a window and count its letters. It is valid while its length minus the count of its most frequent letter is at most k, since the other letters get replaced. If it becomes invalid, move the left edge one step. Track the longest window. O(n) time." />

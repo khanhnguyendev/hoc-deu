@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mảng đã được <Term vi="sắp xếp">sort</Term> tăng dần, nên không cần <Term>hash map</Term> như bài Two Sum. Đây là mẫu <Term vi="hai con trỏ">two pointers</Term> kinh điển: đặt một con trỏ ở số nhỏ nhất, một con trỏ ở số lớn nhất rồi xem tổng. Tổng nhỏ hơn `target` thì cần tăng tổng, nên dịch con trỏ trái sang phải; tổng lớn hơn thì dịch con trỏ phải sang trái. Mỗi bước loại được một số chắc chắn không nằm trong đáp án, nên chỉ cần một lượt duyệt và bộ nhớ `O(1)`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đặt hai con trỏ">`left = 0` và `right = len(numbers) - 1`.</Step>
+
+<Step title="Tính tổng">`total = numbers[left] + numbers[right]`.</Step>
+
+<Step title="Loại một đầu">Nếu `total` nhỏ hơn `target`, số ở `left` cộng với số nào còn lại cũng không đủ lớn: tăng `left`. Nếu `total` lớn hơn, số ở `right` cộng với số nào còn lại cũng quá lớn: giảm `right`.</Step>
+
+<Step title="Trả chỉ số">Khi `total == target`, trả về `[left + 1, right + 1]` vì đáp án đánh số từ 1.</Step>
+
+</Steps>
+
+Chạy thử với `numbers = [1, 3, 4, 6, 8]` và `target = 10`:
+
+<VarTable caption="numbers = [1, 3, 4, 6, 8], target = 10">
+
+| Bước | left | right | Tổng | Hành động |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 4 | 1 + 8 = 9 | Nhỏ hơn 10: tăng `left` |
+| 2 | 1 | 4 | 3 + 8 = 11 | Lớn hơn 10: giảm `right` |
+| 3 | 1 | 3 | 3 + 6 = 9 | Nhỏ hơn 10: tăng `left` |
+| 4 | 2 | 3 | 4 + 6 = 10 | Bằng 10: trả về `[3, 4]` |
+
+</VarTable>
+
+<Callout tone="warning">
+
+Đáp án đánh số từ 1, không phải từ 0: nhớ cộng 1 vào cả hai chỉ số trước khi trả về.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi bước, một con trỏ tiến một ô vào trong, nên có nhiều nhất `n - 1` bước; ngoài hai con trỏ không cần thêm bộ nhớ.
+
+<Solution />
+
+<Bilingual vi="Mảng đã sắp xếp nên đặt hai con trỏ ở hai đầu: tổng nhỏ hơn target thì tăng con trỏ trái, lớn hơn thì giảm con trỏ phải, cho tới khi tổng bằng target." en="Because the array is sorted, put one pointer at each end. If the pair sums below the target, move the left pointer right; if above, move the right pointer left. Each step rules out one number, so it takes O(n) time and O(1) space." />

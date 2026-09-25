@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+`s2` chứa một <Term vi="hoán vị">permutation</Term> của `s1` khi và chỉ khi trong `s2` có một đoạn liên tiếp dài đúng bằng `s1` và có cùng số lần xuất hiện của từng chữ cái. Đó là <Term vi="cửa sổ trượt">sliding window</Term> có kích thước cố định: trượt một khung dài `len(s1)` trên `s2`, mỗi bước thêm chữ đi vào bên phải, bớt chữ rơi ra bên trái, rồi so sánh hai mảng đếm 26 ô.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Loại trường hợp dễ">Nếu `s1` dài hơn `s2` thì trả về `false`.</Step>
+
+<Step title="Đếm chữ của s1">Mảng `need` có 26 ô; mỗi ô là số lần một chữ cái xuất hiện trong `s1`.</Step>
+
+<Step title="Trượt cửa sổ trên s2">Với mỗi `right`, tăng `window` cho chữ `s2[right]`. Khi `right >= len(s1)`, giảm `window` cho chữ vừa rơi ra là `s2[right - len(s1)]`.</Step>
+
+<Step title="So sánh">Nếu `window == need` thì trả về `true`. Hết `s2` mà chưa khớp lần nào thì trả về `false`.</Step>
+
+</Steps>
+
+Chạy thử với `s1 = "abc"` và `s2 = "xcabz"`:
+
+<VarTable caption='s1 = "abc", s2 = "xcabz"'>
+
+| right | Chữ vào | Chữ ra | Cửa sổ | Khớp `need`? |
+| --- | --- | --- | --- | --- |
+| 0 | `x` | — | `x` | Chưa đủ 3 chữ |
+| 1 | `c` | — | `xc` | Chưa đủ 3 chữ |
+| 2 | `a` | — | `xca` | Không: có `x`, thiếu `b` |
+| 3 | `b` | `x` | `cab` | Có: trả về `true` |
+
+</VarTable>
+
+<Callout tone="tip">
+
+Có thể giữ thêm một biến đếm số chữ cái đang khớp để khỏi so sánh cả 26 ô ở mỗi bước. Nhưng với bảng chữ cái cố định, phép so sánh trực tiếp vẫn là `O(1)` mỗi bước và dễ viết đúng hơn.
+
+</Callout>
+
+<Complexity time="O(n + m)" space="O(1)" />
+
+Với `n = len(s1)` và `m = len(s2)`: đếm `s1` tốn `O(n)`, mỗi bước trượt thêm một phép so sánh 26 ô, nên tổng là `O(n + 26m)`, tức `O(n + m)`. Hai mảng đếm có kích thước cố định.
+
+<Solution />
+
+<Bilingual vi="Đếm chữ cái của s1, rồi trượt một cửa sổ dài bằng s1 trên s2, thêm chữ đi vào và bớt chữ rơi ra; nếu hai bảng đếm trùng nhau thì s2 chứa một hoán vị của s1." en="A permutation of s1 is a window of s2 with the same letter counts. Count the letters of s1, then slide a window of that length over s2, adding the letter that enters and removing the one that leaves. Return true as soon as the counts match. O(n) time." />

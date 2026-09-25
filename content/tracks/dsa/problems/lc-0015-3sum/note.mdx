@@ -1,0 +1,53 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Sau khi <Term vi="sắp xếp">sort</Term> mảng và cố định số nhỏ nhất của bộ ba là `nums[i]`, việc còn lại là tìm hai số ở bên phải có tổng bằng `-nums[i]` — chính là bài Two Sum II trên mảng đã sắp xếp, giải bằng <Term vi="hai con trỏ">two pointers</Term>. Phần khó là không để bộ ba bị lặp: bỏ qua `nums[i]` nếu nó bằng số ngay trước, và sau mỗi bộ ba tìm được thì cho `left` vượt qua các giá trị trùng. Thêm một mẹo dừng sớm: khi `nums[i] > 0` thì cả ba số đều dương, không thể có tổng bằng 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Sắp xếp">Sắp xếp một bản sao của mảng, để các số bằng nhau đứng cạnh nhau và hai con trỏ dùng được.</Step>
+
+<Step title="Cố định số đầu tiên">Duyệt `i` từ trái sang. Dừng khi `nums[i] > 0`; bỏ qua `i` nếu `nums[i] == nums[i - 1]`, vì mọi bộ ba bắt đầu bằng giá trị này đã được tìm ở lượt trước.</Step>
+
+<Step title="Hai con trỏ trên phần còn lại">Đặt `left = i + 1` và `right = n - 1`. Tổng ba số âm thì tăng `left`, dương thì giảm `right`.</Step>
+
+<Step title="Ghi nhận và bỏ trùng">Tổng bằng 0 thì lưu bộ ba, dịch cả hai con trỏ, rồi tăng `left` chừng nào nó còn bằng giá trị vừa dùng. `right` không cần bước này: với `left` mới lớn hơn, tổng sẽ dương và `right` tự lùi qua các giá trị trùng.</Step>
+
+</Steps>
+
+Chạy thử với `nums = [2, -2, 0, 1, -1, -2]`, sau khi sắp xếp thành `[-2, -2, -1, 0, 1, 2]`:
+
+<VarTable caption="Mảng đã sắp xếp: [-2, -2, -1, 0, 1, 2]">
+
+| i | `nums[i]` | left | right | Tổng | Hành động |
+| --- | --- | --- | --- | --- | --- |
+| 0 | -2 | 1 | 5 | (-2) + (-2) + 2 = -2 | Âm: tăng `left` |
+| 0 | -2 | 2 | 5 | (-2) + (-1) + 2 = -1 | Âm: tăng `left` |
+| 0 | -2 | 3 | 5 | (-2) + 0 + 2 = 0 | Lưu `[-2, 0, 2]`, dịch cả hai: `left = right = 4`, hết lượt |
+| 1 | -2 | — | — | — | Trùng với `nums[0]`: bỏ qua |
+| 2 | -1 | 3 | 5 | (-1) + 0 + 2 = 1 | Dương: giảm `right` |
+| 2 | -1 | 3 | 4 | (-1) + 0 + 1 = 0 | Lưu `[-1, 0, 1]`, dịch cả hai: `left > right`, hết lượt |
+| 3 | 0 | 4 | 5 | 0 + 1 + 2 = 3 | Dương: giảm `right`, `left = right`, hết lượt |
+
+</VarTable>
+
+Kết quả: `[[-2, 0, 2], [-1, 0, 1]]`.
+
+<Callout tone="tip">
+
+Hãy bỏ trùng ngay trong lúc duyệt thay vì gom mọi bộ ba vào một <Term>set</Term> rồi lọc: vừa nhanh hơn, vừa không phải băm cả danh sách.
+
+</Callout>
+
+<Complexity time="O(n^2)" space="O(n)" />
+
+Sắp xếp tốn `O(n log n)`; mỗi `i` chạy một lượt hai con trỏ `O(n)`, nên tổng là `O(n^2)`. Bộ nhớ `O(n)` là bản sao đã sắp xếp, không tính danh sách kết quả.
+
+<Solution />
+
+<Bilingual vi="Sắp xếp mảng, cố định số nhỏ nhất của bộ ba, rồi dùng hai con trỏ trên phần bên phải để tìm hai số còn lại; bỏ qua các giá trị trùng để không lặp bộ ba." en="Sort the array, fix each number as the smallest of the triplet, and find the other two with two pointers on the part to its right: move left when the sum is too small, right when it is too large. Skip equal neighbours to avoid duplicates. O(n^2) time." />
