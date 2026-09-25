@@ -1,0 +1,36 @@
+signature:
+  kind: design-class
+  className: TimeMap
+  methods:
+    set: { params: { key: string, value: string, timestamp: int }, returns: void }
+    get: { params: { key: string, timestamp: int }, returns: string }
+cases:
+  - name: example-1
+    ops: [TimeMap, set, get, get, set, get, get]
+    args:
+      [[], ['foo', 'bar', 1], ['foo', 1], ['foo', 3], ['foo', 'bar2', 4], ['foo', 4], ['foo', 5]]
+    expected: [null, null, 'bar', 'bar', null, 'bar2', 'bar2']
+  # a timestamp before the key's first set has no value
+  - name: before-first-set
+    ops: [TimeMap, set, get, get]
+    args: [[], ['a', 'x', 5], ['a', 4], ['a', 5]]
+    expected: [null, null, '', 'x']
+  - name: missing-key
+    ops: [TimeMap, set, get]
+    args: [[], ['alpha', 'v1', 1], ['beta', 1]]
+    expected: [null, null, '']
+  # keys are independent; the latest timestamp <= the query wins
+  - name: several-keys
+    ops: [TimeMap, set, set, set, get, get, get, get]
+    args:
+      [
+        [],
+        ['k1', 'a', 1],
+        ['k2', 'b', 2],
+        ['k1', 'c', 3],
+        ['k1', 2],
+        ['k2', 2],
+        ['k1', 10000000],
+        ['k2', 1],
+      ]
+    expected: [null, null, null, null, 'a', 'b', 'c', '']

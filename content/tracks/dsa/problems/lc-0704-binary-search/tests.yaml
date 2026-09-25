@@ -1,0 +1,9 @@
+signature: { kind: function, name: search, params: { nums: 'int[]', target: int }, returns: int }
+cases:
+  - { name: example-1, input: { nums: [-1, 0, 3, 5, 9, 12], target: 9 }, expected: 4 }
+  - { name: example-2, input: { nums: [-1, 0, 3, 5, 9, 12], target: 2 }, expected: -1 }
+  - { name: single-element-found, input: { nums: [5], target: 5 }, expected: 0 }
+  - { name: single-element-missing, input: { nums: [5], target: -5 }, expected: -1 }
+  - { name: target-first, input: { nums: [-9999, -3, 0, 7], target: -9999 }, expected: 0 }
+  - { name: target-last, input: { nums: [-9999, -3, 0, 7, 9999], target: 9999 }, expected: 4 }
+  - { name: below-all, input: { nums: [1, 3, 5], target: 0 }, expected: -1 }
