@@ -15,6 +15,8 @@ keys, `getClaims()` never `getSession()` on the server) · Vitest 5 · Playwrigh
 
 ```bash
 pnpm dev            # dev server
+pnpm content:build  # validate content/**, update content/ids.lock, write .generated/
+                    # (runs first in verify, build, dev, test:e2e)
 pnpm verify         # typecheck → lint (ESLint + Prettier) → unit tests → build — must be green
 pnpm typecheck      # next typegen + tsc
 pnpm lint           # ESLint (layer, token, style rules) + Prettier check
@@ -31,7 +33,7 @@ pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
 
-Later milestones add `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
+Later milestones add `pnpm bot`.
 
 ## Component layers (enforced by ESLint — platform design §7.2)
 
@@ -92,6 +94,19 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
   `<html lang="vi">`; wrap English learning content in `lang="en"`.
 - WCAG 2.1 AA: visible focus, keyboard access, 44 px touch targets, never colour alone,
   `prefers-reduced-motion` respected. axe runs in CI.
+
+## Content
+
+- Content is data: `content/**` holds YAML and MDX only, validated by `pnpm content:build`
+  (platform design §3.6).
+- Never copy LeetCode problem statements: a link, our own notes and the examples in `tests.yaml`
+  only.
+- IDs are append-only: `content/ids.lock` lists every published ID; an ID leaves `content/**`
+  only after it is moved to `[retired]` by hand (ADR-0010).
+- MDX may use only the components in `tools/content/allowlist.ts`.
+- Images come only from the `content-images` bucket (`docs/ops/content-images.md`), never from
+  git.
+- Generated code lives in `.generated/`: never edited, never committed.
 
 ## Safety
 

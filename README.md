@@ -19,6 +19,7 @@ stack).
 pnpm install
 cp .env.example .env.local   # then fill in the Supabase values `pnpm db:start` prints
 pnpm dev          # http://localhost:3000
+pnpm content:build  # validate content/**, update content/ids.lock, write .generated/
 pnpm verify       # typecheck, lint (ESLint + Prettier), unit tests, build
 pnpm db:start     # start the local Supabase stack (db, kong, gotrue, postgrest)
 pnpm db:reset     # re-apply migrations and seed data
