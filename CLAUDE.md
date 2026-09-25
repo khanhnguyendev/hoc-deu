@@ -15,6 +15,8 @@ keys, `getClaims()` never `getSession()` on the server) · Vitest 5 · Playwrigh
 
 ```bash
 pnpm dev            # dev server
+pnpm content:build  # validate content/**, update content/ids.lock, write .generated/
+                    # (runs first in dev, build, typecheck, test and test:e2e — they read .generated/)
 pnpm verify         # typecheck → lint (ESLint + Prettier) → unit tests → build — must be green
 pnpm typecheck      # next typegen + tsc
 pnpm lint           # ESLint (layer, token, style rules) + Prettier check
@@ -27,11 +29,16 @@ pnpm db:reset       # re-apply migrations and seed data
 pnpm db:types       # regenerate lib/supabase/database.types.ts from the local schema
 pnpm test:db        # pgTAP tests (supabase test db) — needs pnpm db:start
 pnpm verify:full    # verify + test:db + test:e2e — needs pnpm db:start
+pnpm content:verify # run every solution against its tests.yaml (Python ≥ 3.11, JDK ≥ 21, Go ≥ 1.22)
 pnpm format         # Prettier write
 pnpm tokens:sync    # regenerate docs/design/tokens.css and the token block of app/globals.css
 ```
 
-Later milestones add `pnpm content:build`, `pnpm content:verify`, `pnpm bot`.
+`content:verify` takes `--problem <id>` (repeatable), `--lang`, `--jobs` and `--root`. It needs the
+three toolchains on `PATH` locally; CI runs it in the `content-verify` workflow as a no-network
+sandbox user (ADR-0012).
+
+Later milestones add `pnpm bot`.
 
 ## Component layers (enforced by ESLint — platform design §7.2)
 
@@ -93,15 +100,33 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 - WCAG 2.1 AA: visible focus, keyboard access, 44 px touch targets, never colour alone,
   `prefers-reduced-motion` respected. axe runs in CI.
 
+## Content
+
+- Content is data: `content/**` holds YAML and MDX only, validated by `pnpm content:build`
+  (platform design §3.6).
+- Never copy LeetCode problem statements: a link, our own notes and the examples in `tests.yaml`
+  only.
+- IDs are append-only: `content/ids.lock` lists every published ID; an ID leaves `content/**`
+  only after it is moved to `[retired]` by hand (ADR-0010).
+- MDX may use only the components in `tools/content/allowlist.ts`.
+- Images come only from the `content-images` bucket (`docs/ops/content-images.md`), never from
+  git.
+- Generated code lives in `.generated/`: never edited, never committed.
+
 ## Safety
 
 - **Never read or commit `.env*`, `docs/credentials/` or any secret.** Never print secrets.
-  `.env.example` is the committed template; every other `.env*` stays unread.
+  `.env.example` is the committed template and may be read and edited; every other `.env*`
+  stays unread.
 - Per-user data never goes into the repo; `supabase/seed.sql` holds synthetic users only.
 - **Never edit a migration that is merged to `main`;** add a new migration
   (`create or replace …`). CI resets the database from scratch, so an edited old migration passes
   CI but diverges staging and production.
 - **No new dependencies without asking the owner** (approved list: platform design §7.10).
+- `content:verify` executes solution code. Locally it runs the repository's solutions as you; on
+  GitHub Actions it refuses to run without `CONTENT_VERIFY_SANDBOX_USER` (fail closed, ADR-0012) —
+  never weaken that check or the workflow's sandbox steps. Validators live in
+  `tools/content-verify/validators/`, never under `content/`.
 - Do not pull `v1.1` or `later` features into v1.0 (release scope table, platform design §0).
 
 ## Git

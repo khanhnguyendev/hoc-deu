@@ -1,9 +1,0 @@
-id: demo-draft
-status: draft
-title: { vi: 'Demo nháp', en: 'Demo draft' }
-accent: track-2
-itemTypes: [lesson]
-defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
-roadmaps: [{ id: 8w }]
-weeklyTemplate:
-  mon-fri: [{ kind: review }]

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
+import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import {
   daysBetween,
   localDay,
@@ -11,9 +12,10 @@ import {
   type Schedule,
   type ScheduleVersion,
 } from '@/lib/domain/time/localDay'
-import { canonicalTimeZone, isValidTimeZone } from '@/lib/domain/time/timeZones'
+import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId } from '@/lib/events/ids'
+import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -35,13 +37,18 @@ const copy = vi.settings
 const errors = vi.onboarding.errors
 const PATH = '/settings'
 
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
+/**
+ * The account's tracks or schedules changed since the page was rendered (another tab, a day start
+ * that passed): re-render it, so it shows the current state (ruling R17 adds the schedule codes).
+ */
+const STALE: ReadonlySet<EventError['code']> = new Set([
+  'invalid_transition',
+  'track_not_enrolled',
+  'too_many_pending_schedules',
+  'schedule_in_force',
+  'schedule_backdated',
+])
 
-/** The account's tracks changed since the page was rendered: re-render it (current state). */
-const STALE: ReadonlySet<EventError['code']> = new Set(['invalid_transition', 'track_not_enrolled'])
-
-const withTitle = (text: string, title: string) => text.replace('{title}', () => title)
 const titleOf = (trackId: string) => getTrack(trackId)?.title.vi ?? trackId
 
 const stale = (message: string = vi.errors.invalidTransition): SettingsResult => {
@@ -89,7 +96,7 @@ export async function updateSchedule(
   )
   if (!parsed.success) return invalidInput(parsed.error)
   const timezone = canonicalTimeZone(parsed.data.timezone)
-  if (!isValidTimeZone(timezone)) return fieldError('timezone', errors.timezone)
+  if (!isTimeZoneOption(timezone)) return fieldError('timezone', errors.timezone)
   const desired: Schedule = { timezone, dayStartsAt: parsed.data.dayStartsAt }
 
   const supabase = await createClient()

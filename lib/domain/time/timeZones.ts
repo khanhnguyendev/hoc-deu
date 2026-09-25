@@ -39,3 +39,12 @@ export function timeZoneOptions(): readonly string[] {
   canonical.add('Asia/Ho_Chi_Minh')
   return [...canonical].sort()
 }
+
+/**
+ * Whether `id` is exactly one of `timeZoneOptions()` — the only zones the server stores (M2 ruling
+ * R17). Stricter than `isValidTimeZone`: `Intl` also accepts other capitalisations and aliases.
+ * Canonicalise first (`canonicalTimeZone`).
+ */
+export function isTimeZoneOption(id: string): boolean {
+  return timeZoneOptions().includes(id)
+}

@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest'
 const eslint = new ESLint({ cwd: process.cwd() })
 const LAYERS = 'layers/imports'
 
+/**
+ * The first lint of a file loads the config and its plugins (Tailwind's included): about a second
+ * alone, but over 5 s — Vitest's default — under a parallel `pnpm verify` load (PR A: 5.9–7.1 s at
+ * 40 busy processes on 8 cores). Every block here gets 30 s; the global default stays.
+ */
+const COLD_ESLINT = { timeout: 30_000 }
+
 async function ruleIds(code: string, filePath: string): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath })
   return (result?.messages ?? []).map((m) => m.ruleId ?? 'fatal')
@@ -14,7 +21,7 @@ async function layerMessages(code: string, filePath: string): Promise<string[]> 
   return (result?.messages ?? []).filter((m) => m.ruleId === LAYERS).map((m) => m.message)
 }
 
-describe('layer rules (platform design §7.2)', () => {
+describe('layer rules (platform design §7.2)', COLD_ESLINT, () => {
   it('forbids ui primitives importing patterns', async () => {
     const ids = await ruleIds(
       "import { PageHeader } from '@/components/patterns/page-header'\nexport const x = PageHeader\n",
@@ -227,7 +234,7 @@ describe('layer rules (platform design §7.2)', () => {
 })
 
 // Owner review SF7: server configuration and the secret-key client never reach a client bundle.
-describe('client modules (owner review SF7)', () => {
+describe('client modules (owner review SF7)', COLD_ESLINT, () => {
   const CLIENT_FILE = 'features/x/components/c.tsx'
   const MESSAGE = 'Client modules must not import server configuration or the secret-key client.'
 
@@ -280,7 +287,7 @@ describe('client modules (owner review SF7)', () => {
   })
 })
 
-describe('token rules (platform design §7.3)', () => {
+describe('token rules (platform design §7.3)', COLD_ESLINT, () => {
   it('rejects arbitrary values', async () => {
     const ids = await ruleIds(
       'export const C = () => <div className="p-[13px]" />\n',
@@ -354,7 +361,7 @@ describe('token rules (platform design §7.3)', () => {
   })
 })
 
-describe('style props (platform design §7.3)', () => {
+describe('style props (platform design §7.3)', COLD_ESLINT, () => {
   it('rejects style properties that are not custom properties', async () => {
     const ids = await ruleIds(
       'export const C = () => (\n  <div\n    style={{\n      width: 240,\n    }}\n  />\n)\n',
@@ -382,5 +389,39 @@ describe('style props (platform design §7.3)', () => {
       'components/patterns/ring.tsx',
     )
     expect(ids).toEqual([])
+  })
+})
+
+// Task 3.3b review: tools/ is build-time code (content:build, guards, CLIs); the running app —
+// components, features and routes — reaches shared rules through lib/ (spec §7.2). Only the
+// catalog (app/dev) may import tools/ for its fixtures and tests.
+describe('app code never imports tools/', COLD_ESLINT, () => {
+  const MESSAGE = 'tools/ is build-time code; the app imports shared rules from lib/.'
+
+  it.each([
+    [
+      'features/items/components/mdx/x.tsx',
+      "import { parseImageSize } from '@/tools/content/allowlist'",
+    ],
+    [
+      'features/items/components/mdx/x.tsx',
+      "import { x } from '../../../../tools/content/allowlist'",
+    ],
+    ['components/patterns/x.tsx', "import { x } from '@/tools/content/highlight'"],
+    ['app/(app)/today/page.tsx', "import { x } from '@/tools/content/allowlist'"],
+    ['app/api/x/route.ts', "const m = import('@/tools/content/allowlist')"],
+  ])('%s: rejects %s', async (file, importLine) => {
+    const messages = await layerMessages(`${importLine}\nexport const y = 1\n`, file)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toContain(MESSAGE)
+  })
+
+  it.each([
+    ['app/dev/content/fixtures.test.ts', "import { x } from '@/tools/content/mdx/parse'"],
+    ['tools/content/cli.ts', "import { x } from '@/tools/content/allowlist'"],
+    ['features/items/components/mdx/x.tsx', "import { x } from '@/lib/content/images'"],
+  ])('%s: allows %s', async (file, importLine) => {
+    const ids = await ruleIds(`${importLine}\nexport const y = x\n`, file)
+    expect(ids).not.toContain(LAYERS)
   })
 })

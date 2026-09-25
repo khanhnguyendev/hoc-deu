@@ -1,8 +1,10 @@
 'use client'
 
+import { MapIcon } from 'lucide-react'
 import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type * as React from 'react'
 import { ChoiceCard } from '@/components/patterns/choice-card'
+import { EmptyState } from '@/components/patterns/empty-state'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField, FormFieldError } from '@/components/patterns/form-field'
 import { StepIndicator } from '@/components/patterns/step-indicator'
@@ -13,8 +15,10 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { VariantPicker, WeeklyTemplatePreview } from '@/features/tracks'
+import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 import type { TrackOption } from '@/lib/content/track-options'
 import { defaultVariant } from '@/lib/domain/plan/variant'
+import { BUDGET_MINUTES, isBudgetMinutes, MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import {
   addDays,
   DAY_STARTS,
@@ -27,14 +31,8 @@ import {
 import { canonicalTimeZone, isValidTimeZone } from '@/lib/domain/time/timeZones'
 import { formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
-import {
-  isBudgetMinutes,
-  trackFieldKey,
-  type OnboardingInput,
-  type OnboardingState,
-} from '../schema'
+import { trackFieldKey, type OnboardingInput, type OnboardingState } from '../schema'
 
-type CodeLanguage = TrackOption['codeLanguages'][number]
 type StepKey = 'tracks' | 'minutes' | 'variant' | 'schedule' | 'language' | 'preview'
 
 const STEP_ORDER: readonly StepKey[] = [
@@ -45,9 +43,6 @@ const STEP_ORDER: readonly StepKey[] = [
   'language',
   'preview',
 ]
-const LANGUAGES: readonly CodeLanguage[] = ['python', 'java', 'go']
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
 const IDLE: OnboardingState = { status: 'idle' }
 const copy = vi.onboarding
 const messages = copy.errors
@@ -96,7 +91,7 @@ const serverTimeZone = () => null
  * change. Server errors appear in the summary at the top (DESIGN_SYSTEM §5) and the wizard
  * returns to the step of the first field in error.
  */
-function OnboardingWizard({
+function OnboardingSteps({
   tracks,
   timeZones,
   now,
@@ -141,7 +136,7 @@ function OnboardingWizard({
 
   const selectedTracks = tracks.filter((track) => selected.includes(track.id))
   const variantTracks = selectedTracks.filter((track) => track.roadmaps.length > 1)
-  const languages = LANGUAGES.filter((language) =>
+  const languages = CODE_LANGUAGES.filter((language) =>
     selectedTracks.some((track) => track.codeLanguages.includes(language)),
   )
   const language = languages.includes(codeLanguage) ? codeLanguage : languages[0]
@@ -400,9 +395,9 @@ function OnboardingWizard({
                   {...control}
                   type="number"
                   inputMode="numeric"
-                  min={10}
-                  max={240}
-                  step={5}
+                  min={BUDGET_MINUTES.min}
+                  max={BUDGET_MINUTES.max}
+                  step={BUDGET_MINUTES.step}
                   value={minutes[track.id] ?? ''}
                   onChange={(event) =>
                     setMinutes((current) => ({ ...current, [track.id]: event.target.value }))
@@ -575,6 +570,23 @@ function OnboardingWizard({
       </div>
     </form>
   )
+}
+
+/**
+ * The wizard, or — when no track is active, so no step could be completed — an empty state
+ * (RF-4). A separate component, so the steps' hooks always run in the same order.
+ */
+function OnboardingWizard(props: OnboardingWizardProps) {
+  if (props.tracks.length === 0) {
+    return (
+      <EmptyState
+        icon={MapIcon}
+        title={copy.noTracks.title}
+        description={copy.noTracks.description}
+      />
+    )
+  }
+  return <OnboardingSteps {...props} />
 }
 
 export { OnboardingWizard }

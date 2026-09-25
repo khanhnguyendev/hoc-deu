@@ -6,9 +6,10 @@ import { FormActions } from '@/components/patterns/form-actions'
 import { FormFieldError } from '@/components/patterns/form-field'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import type { CodeLanguage } from '@/lib/auth/dal'
+import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
+import { isCodeLanguage } from '@/lib/domain/settings'
 import { vi } from '@/lib/i18n/vi'
-import { CODE_LANGUAGES, type SettingsAction } from '../schema'
+import type { SettingsAction } from '../schema'
 import { failureOf, fieldErrorsOf, useSettingsAction } from './use-settings-action'
 
 const copy = vi.settings.codeLanguage
@@ -20,9 +21,6 @@ type CodeLanguageFormProps = {
   requestId: string
   updateCodeLanguage: SettingsAction
 }
-
-const isCodeLanguage = (value: string): value is CodeLanguage =>
-  CODE_LANGUAGES.some((language) => language === value)
 
 /** Python / Java / Go for solutions and sample code (§2.4), saved with "Lưu". */
 function CodeLanguageForm({ codeLanguage, requestId, updateCodeLanguage }: CodeLanguageFormProps) {

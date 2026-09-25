@@ -1,0 +1,27 @@
+# content-verify fixture: a design class — compile-only (plus the signature check) until M3c.
+signature:
+  kind: design-class
+  className: MinStack
+  constructor: {}
+  methods:
+    push: { params: { val: int }, returns: void }
+    pop: { returns: void }
+    top: { returns: int }
+    getMin: { returns: int }
+cases:
+  - name: example-1
+    ops: [MinStack, push, push, getMin, pop, top]
+    args: [[], [4], [1], [], [], []]
+    expected: [null, null, null, 1, null, 4]
+  - name: single-element
+    ops: [MinStack, push, top, getMin]
+    args: [[], [7], [], []]
+    expected: [null, null, 7, 7]
+  - name: equal-minimums
+    ops: [MinStack, push, push, pop, getMin]
+    args: [[], [1], [1], [], []]
+    expected: [null, null, null, null, 1]
+  - name: increasing
+    ops: [MinStack, push, push, getMin, top]
+    args: [[], [1], [2], [], []]
+    expected: [null, null, null, 1, 2]

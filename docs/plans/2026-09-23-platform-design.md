@@ -376,8 +376,9 @@ Every variable is v1.0 unless marked **(v1.1)**.
 **Admin bootstrap:** on each sign-in the auth callback (server) compares the provider-verified email
 with `ADMIN_EMAILS`. On a match, if the profile is not yet an admin, it calls
 `admin_bootstrap(user_id)` with the secret key: role `admin`, status `active`, audit event
-`admin.bootstrapped`. Removing an email from the list does not demote anyone; demotion is an admin
-action.
+`admin.bootstrapped` (superseded by decision 23 / R13 — implementation plan, Part B-M2: only
+while no active admin exists). Removing an email from the list does not demote anyone; demotion is
+an admin action.
 
 ---
 
@@ -1669,7 +1670,7 @@ an unseen AI plan, §5.2) and `skipped_gate_closed`, without sending those users
             "difficulty": "M", "level": 1, "weak": true, "daysOverdue": 2 }],   // ≤ 50
   "newQueueHead": [{ "itemId": "dsa:lc-0020", "type": "problem", "topic": "stack",
                      "difficulty": "E", "estMinutes": 20 }],                      // first 10 per track
-  "deepDives": [{ "itemId": "dsa:deep-dive-lc-0049", "about": "dsa:lc-0049" }],  // active only
+  "deepDives": [{ "itemId": "dsa:lesson-deep-dive-lc-0049", "about": "dsa:lc-0049" }],  // active only
   "weakTopics": ["arrays-hashing"],
   "customItems": [{ "itemId": "user:k3j9…:ah-anagram-drill", "type": "flashcard",
                     "topic": "arrays-hashing", "status": "active", "srsStatus": "ok",
@@ -2229,7 +2230,8 @@ pnpm bot <command>
   `@testing-library/react`, `@testing-library/user-event`, `fast-check`, `@playwright/test`,
   `@axe-core/playwright`, `supabase` (CLI), `tsx`, `yaml`, `shiki` (code highlighting **at build
   time** in `content:build` — zero runtime CPU and zero client JS), `@types/node`, `@types/react`,
-  `@types/mdx`.
+  `@types/mdx`, `@mdx-js/mdx` (the MDX syntax tree for the safety check in `content:build`;
+  approved 2026-09-25, implementation plan Part B-M3 OD1).
 - Exact versions are pinned in M0 (`pnpm-lock.yaml`); Dependabot proposes weekly updates, which
   are merged manually.
 

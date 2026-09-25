@@ -1,0 +1,8 @@
+# content-verify fixture: the Python solution loops forever on an empty row (a timeout).
+signature: { kind: function, name: firstMark, params: { grid: 'char[][]' }, returns: char }
+cases:
+  - { name: example-1, input: { grid: [['.', '.'], ['.', x]] }, expected: x }
+  - { name: example-2, input: { grid: [[a]] }, expected: a }
+  - { name: all-dots, input: { grid: [['.', '.']] }, expected: '.' }
+  - { name: empty-row, input: { grid: [[], ['.', q]] }, expected: q }
+timeoutMs: 1000

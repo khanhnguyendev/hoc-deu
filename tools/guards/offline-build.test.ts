@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 
 /** The build must work offline (platform design §2.1, §6.8): fonts are self-hosted. */
 const SOURCE_DIRS = ['app', 'components', 'features', 'lib']
+/** Root files the build loads (M1 deferred #20): the Next config, PostCSS and the MDX components. */
+const ROOT_FILES = ['next.config.ts', 'postcss.config.mjs', 'mdx-components.tsx']
 const SOURCE = /\.(?:[cm]?[jt]sx?|css)$/
 // Split so this file does not match itself.
 const BANNED = ['next/font/' + 'google', 'fonts.' + 'googleapis.com', 'fonts.' + 'gstatic.com']
@@ -19,8 +21,12 @@ function files(dir: string): string[] {
 }
 
 describe('offline build (platform design §2.1)', () => {
+  it('scans the root files the build loads', () => {
+    expect(ROOT_FILES.filter((file) => !existsSync(file))).toEqual([])
+  })
+
   it('never loads fonts from Google', () => {
-    const hits = SOURCE_DIRS.flatMap(files).flatMap((file) => {
+    const hits = [...SOURCE_DIRS.flatMap(files), ...ROOT_FILES].flatMap((file) => {
       const text = readFileSync(file, 'utf8')
       return BANNED.filter((needle) => text.includes(needle)).map((needle) => `${file}: ${needle}`)
     })

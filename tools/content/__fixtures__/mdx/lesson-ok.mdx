@@ -1,0 +1,129 @@
+---
+id: dsa:lesson-two-pointers
+title: Two pointers
+format: pattern
+topic: two-pointers
+anchor: dsa:lc-0167
+practice: dsa:lc-0015
+---
+
+<Section kind="signals">
+
+### Khi nào nghĩ tới hai con trỏ
+
+Mảng **đã sắp xếp** và đề hỏi về một cặp phần tử: thử <Term vi="hai con trỏ">two pointers</Term> trước khi dùng hash map.
+
+<Callout tone="tip" title="Dấu hiệu">
+
+Đề có chữ "sorted" và hỏi một cặp (*pair*) có tổng bằng `target`.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Hai người đi từ hai đầu một cây cầu, mỗi bước chỉ một người tiến lại gần người kia.
+
+</Section>
+
+<Section kind="visual">
+
+![Hai con trỏ left và right tiến lại gần nhau](https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/dsa/lesson-two-pointers/walk.svg "640x360")
+
+<VarTable caption="nums = [1, 3, 4, 6], target = 7">
+
+| Bước | left | right | Tổng | Hành động |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 3 | 7 | Trả về `[0, 3]` |
+
+</VarTable>
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Khởi tạo">Đặt `left = 0` và `right = n - 1`.</Step>
+
+<Step title="Thu hẹp">
+
+So sánh tổng với `target`: nhỏ hơn thì tăng `left`, lớn hơn thì giảm `right`.
+
+</Step>
+
+</Steps>
+
+#### Vì sao đúng
+
+Mỗi bước loại được một phần tử không thể nằm trong đáp án — xem thêm [bài viết của LeetCode](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/).
+
+</Section>
+
+<Section kind="code">
+
+```python
+def two_sum(numbers: list[int], target: int) -> list[int]:
+    left, right = 0, len(numbers) - 1
+    while left < right:
+        total = numbers[left] + numbers[right]
+        if total == target:
+            return [left + 1, right + 1]
+        if total < target:
+            left += 1
+        else:
+            right -= 1
+    return []
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(1)" />
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Hai con trỏ đi từ hai đầu mảng đã sắp xếp và thu hẹp dần." en="Two pointers start at both ends of a sorted array and move inward." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0015" />
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Mảng chưa sắp xếp thì có dùng được hai con trỏ ngay không?" answer="b">
+  <Choice id="a">Có, luôn luôn</Choice>
+  <Choice id="b">Không, phải sắp xếp trước hoặc dùng hash map</Choice>
+</Question>
+
+<Question prompt="Độ phức tạp thời gian là bao nhiêu?" answer="n">
+
+<Choice id="n">`O(n)`</Choice>
+
+<Choice id="n2">
+
+`O(n^2)` — duyệt mọi cặp
+
+</Choice>
+
+</Question>
+
+</Quiz>
+
+<Reveal label="Gợi ý">
+
+Nghĩ xem khi tổng quá lớn thì phần tử nào chắc chắn không thuộc đáp án.
+
+</Reveal>
+
+</Section>

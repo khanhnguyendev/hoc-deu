@@ -1,0 +1,34 @@
+id: dsa
+status: active
+title: { vi: 'Cấu trúc dữ liệu & Giải thuật', en: 'Data Structures & Algorithms' }
+accent: track-1
+itemTypes: [lesson, problem, prompt]
+codeLanguages: [python, java, go]
+srs: { intervals: [7, 21, 60], relearnDays: 3, masteredAfter: 2 }
+review: { recallMinutes: 5, redoFactor: 0.6 }
+topics:
+  - { id: arrays-hashing, title: { vi: 'Arrays & Hashing', en: 'Arrays & Hashing' } }
+  - {
+      id: two-pointers,
+      title: { vi: 'Two Pointers', en: 'Two Pointers' },
+      requires: [arrays-hashing],
+    }
+lessonFormats:
+  pattern:
+    sections: [signals, analogy, visual, approach, code, complexity, bilingual, practice, quiz]
+    requires: [anchor, practice]
+    rules: [anchor!=practice, same-topic, one-per-topic]
+  deep-dive:
+    sections: [analogy, visual, approach, code, complexity, bilingual, practice, quiz]
+    requires: [about, practice]
+    rules: [practice!=about, same-topic, max-1-per-about]
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates:
+  lesson: 25
+  problem: { new: { E: 20, M: 35, H: 50 } }
+  prompt: 10
+roadmaps: [{ id: 8w, recommendedBelowMinutes: 75 }, { id: 10w }]
+weeklyTemplate:
+  mon-fri: [{ kind: review, maxMinutes: 15 }, { kind: new }]
+  sat: [{ kind: review }]
+  sun: [{ kind: practice, tag: mock-interview, minutes: 45 }, { kind: recap, count: 3 }]

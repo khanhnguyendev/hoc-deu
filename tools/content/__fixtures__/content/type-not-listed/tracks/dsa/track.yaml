@@ -1,0 +1,12 @@
+id: dsa
+status: active
+title: { vi: 'Giải thuật', en: 'Algorithms' }
+accent: track-1
+itemTypes: [problem]
+codeLanguages: [python, java, go]
+srs: { intervals: [7, 21, 60], relearnDays: 3, masteredAfter: 2 }
+review: { recallMinutes: 5, redoFactor: 0.6 }
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates: { problem: { new: { E: 20, M: 35, H: 50 } } }
+roadmaps: [{ id: 10w }]
+weeklyTemplate: { mon-fri: [{ kind: new }] }

@@ -5,6 +5,7 @@ import { FormField, FormFieldError } from '@/components/patterns/form-field'
 import { Input } from '@/components/ui/input'
 import { VariantPicker } from '@/features/tracks'
 import type { TrackOption } from '@/lib/content/track-options'
+import { BUDGET_MINUTES } from '@/lib/domain/settings'
 import { variantLabel } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { parseBudgetMinutes } from '../schema'
@@ -57,9 +58,9 @@ function TrackBudgetFields({
             name="budgetMinutes"
             type="number"
             inputMode="numeric"
-            min={10}
-            max={240}
-            step={5}
+            min={BUDGET_MINUTES.min}
+            max={BUDGET_MINUTES.max}
+            step={BUDGET_MINUTES.step}
             value={minutes}
             onChange={(event) => onMinutesChange(event.target.value)}
             className="max-w-40"

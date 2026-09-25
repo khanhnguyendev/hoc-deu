@@ -1,0 +1,5 @@
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    decks: [dsa:deck-w01-hashing]

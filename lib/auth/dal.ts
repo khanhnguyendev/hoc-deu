@@ -6,11 +6,11 @@
 import 'server-only'
 import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
+import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 import { createClient } from '@/lib/supabase/server'
 
 export type Role = 'learner' | 'admin'
 export type AccountStatus = 'pending' | 'active' | 'rejected' | 'suspended'
-export type CodeLanguage = 'python' | 'java' | 'go'
 
 export type SessionUser = {
   id: string
@@ -27,7 +27,6 @@ export type SessionUser = {
 }
 
 const STATUSES: readonly AccountStatus[] = ['pending', 'active', 'rejected', 'suspended']
-const CODE_LANGUAGES: readonly CodeLanguage[] = ['python', 'java', 'go']
 
 // The database's check constraints allow exactly these values; anything else reads as the least
 // privileged value, never as a grant.

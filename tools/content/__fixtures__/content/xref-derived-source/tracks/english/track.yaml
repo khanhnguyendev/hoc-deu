@@ -1,0 +1,16 @@
+id: english
+status: active
+title: { vi: 'Tiếng Anh', en: 'English' }
+accent: track-2
+itemTypes: [flashcard]
+srs: { intervals: [1, 3, 7], relearnDays: 1, masteredAfter: 2 }
+defaults: { budgetMinutes: 25, newPerDay: 8, throttle: [] }
+estimates: { flashcard: { new: 1.5, review: 0.5 } }
+decks:
+  - id: explaining-code
+    kind: derived
+    from: { track: algo, itemType: problem }
+    unlock: attempted
+    map: { front: problem.title, back: note.bilingual.en }
+roadmaps: [{ id: 10w }]
+weeklyTemplate: { mon-fri: [{ kind: new }] }

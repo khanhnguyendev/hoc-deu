@@ -1,11 +1,12 @@
 /**
  * The settings forms' inputs and results (§2.4, task 2.11): shared by the forms (types) and the
  * actions (parsing), so both speak the same field names and Vietnamese messages. Client-safe:
- * zod, the pure domain and the strings only.
+ * zod, the pure domain, the content constants and the strings only.
  */
 import { z } from 'zod'
-import type { CodeLanguage } from '@/lib/auth/dal'
+import { CODE_LANGUAGES } from '@/lib/content/schemas/common'
 import type { TrackOption } from '@/lib/content/track-options'
+import { budgetMinutesSchema } from '@/lib/domain/settings'
 import { isDayStart, isLocalDay } from '@/lib/domain/time/localDay'
 import { vi } from '@/lib/i18n/vi'
 
@@ -39,22 +40,13 @@ export type Enrollment = {
 /** An active track and the learner's enrollment in it (`null`: never enrolled). */
 export type SettingsTrack = { option: TrackOption; enrollment: Enrollment | null }
 
-export const CODE_LANGUAGES = ['python', 'java', 'go'] as const satisfies readonly CodeLanguage[]
-
-/** Minutes per track: 10–240 in steps of 5 (decision 22). Form values arrive as text. */
+/** Minutes per track (`BUDGET_MINUTES`, decision 22). Form values arrive as text. */
 const budgetMinutes = z
   .string({ error: errors.minutes })
   .trim()
   .regex(/^\d+$/, errors.minutes)
   .transform(Number)
-  .pipe(
-    z
-      .number()
-      .int(errors.minutes)
-      .min(10, errors.minutes)
-      .max(240, errors.minutes)
-      .multipleOf(5, errors.minutes),
-  )
+  .pipe(budgetMinutesSchema(errors.minutes))
 
 /** The typed minutes as a number when they are a valid budget, else null (for live previews). */
 export function parseBudgetMinutes(text: string): number | null {

@@ -1,0 +1,27 @@
+id: english
+status: active
+title: { vi: 'Tiếng Anh cho môi trường IT', en: 'English for IT workplaces' }
+accent: track-2
+itemTypes: [flashcard, exercise, prompt]
+srs: { intervals: [1, 3, 7, 14], relearnDays: 1, masteredAfter: 2 }
+topics:
+  - { id: standup, title: { vi: 'Họp stand-up', en: 'Stand-up meetings' } }
+defaults: { budgetMinutes: 25, newPerDay: 8, throttle: [{ dueAbove: 40, newPerDay: 4 }] }
+estimates: { flashcard: { new: 1.5, review: 0.5 }, exercise: 5, prompt: 10 }
+decks:
+  - id: explaining-code
+    kind: derived
+    from: { track: dsa, itemType: problem }
+    unlock: attempted
+    map:
+      front: { template: 'Explain the optimal approach for {problem.title} in English.' }
+      back: note.bilingual.en
+      hint: note.bilingual.vi
+# 4w has no roadmap file: a missing roadmap is coverage, not an error (decision 4).
+roadmaps: [{ id: 10w }, { id: 4w }]
+weeklyTemplate:
+  mon-fri:
+    - { kind: practice, itemType: exercise, minutes: 5 }
+    - { kind: review }
+    - { kind: new }
+  sun: [{ kind: practice, tag: weekend-task, minutes: 15 }, { kind: review }]

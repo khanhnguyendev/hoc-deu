@@ -273,6 +273,16 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     expect(events()).toEqual([])
   })
 
+  it('refuses a time zone Intl accepts but the picker does not offer (ruling R17)', async () => {
+    // Intl accepts any capitalisation; only timeZoneOptions() spellings are stored.
+    await expect(save({ timezone: 'asia/tokyo', dayStartsAt: '04:00' })).resolves.toEqual({
+      ok: false,
+      message: 'Kiểm tra lại các mục được đánh dấu.',
+      fieldErrors: { timezone: 'Múi giờ không hợp lệ.' },
+    })
+    expect(events()).toEqual([])
+  })
+
   it('refuses a day start outside 00:00–12:00 in 30-minute steps', async () => {
     await expect(save({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '13:00' })).resolves.toEqual({
       ok: false,
@@ -302,6 +312,25 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     })
     expect(revalidated()).toEqual([])
   })
+
+  it.each([
+    [
+      'too_many_pending_schedules',
+      'Đã có một thay đổi lịch đang chờ áp dụng. Bạn tải lại trang nhé.',
+    ],
+    ['schedule_in_force', 'Không lưu được thay đổi. Bạn thử lại nhé.'],
+    ['schedule_backdated', 'Không lưu được thay đổi. Bạn thử lại nhé.'],
+  ] as const)(
+    'shows the message for %s and re-renders the page (its schedules changed, ruling R17)',
+    async (code, message) => {
+      fake.failOn = { type: 'schedule.changed', error: new EventError(code) }
+      await expect(save({ timezone: 'Asia/Tokyo', dayStartsAt: '04:00' })).resolves.toEqual({
+        ok: false,
+        message,
+      })
+      expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+    },
+  )
 
   it('puts a zone the database rejects on the time-zone field', async () => {
     fake.failOn = { type: 'schedule.changed', error: new EventError('invalid_timezone') }

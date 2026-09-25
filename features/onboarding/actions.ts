@@ -3,8 +3,9 @@
 import { redirect } from 'next/navigation'
 import { requireActive } from '@/lib/auth/dal'
 import { activeTracks } from '@/lib/content/tracks'
+import { MAX_START_DAYS_AHEAD } from '@/lib/domain/settings'
 import { daysBetween, localDay, type Schedule } from '@/lib/domain/time/localDay'
-import { canonicalTimeZone, isValidTimeZone } from '@/lib/domain/time/timeZones'
+import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, applySystemEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId } from '@/lib/events/ids'
 import { vi } from '@/lib/i18n/vi'
@@ -19,9 +20,6 @@ import {
 } from './schema'
 
 const errors = vi.onboarding.errors
-
-/** A future start date may be at most this many days ahead (decision 22). */
-const MAX_START_DAYS_AHEAD = 60
 
 /**
  * The first schedule takes effect this long before the server's `now` (decision 5). The database
@@ -51,9 +49,9 @@ type Checked = { input: OnboardingInput; schedule: Schedule; startDate: string }
 
 /**
  * What the schema cannot know: every track is active, each variant is one of its roadmaps, the
- * code language is required exactly when a selected track uses one, the time zone is real
- * (canonicalised, decision 6), and the start date is at most 60 days ahead — a past one becomes
- * today, in the learner's own schedule (decision 22).
+ * code language is required exactly when a selected track uses one, the time zone is one the
+ * picker offers (canonicalised, decision 6; ruling R17), and the start date is at most 60 days
+ * ahead — a past one becomes today, in the learner's own schedule (decision 22).
  */
 function check(input: OnboardingInput, now: Date): Checked | Record<string, string> {
   const fieldErrors: Record<string, string> = {}
@@ -80,7 +78,7 @@ function check(input: OnboardingInput, now: Date): Checked | Record<string, stri
   }
 
   const timezone = canonicalTimeZone(input.timezone)
-  if (!isValidTimeZone(timezone)) {
+  if (!isTimeZoneOption(timezone)) {
     fieldErrors.timezone = errors.timezone
     return fieldErrors
   }

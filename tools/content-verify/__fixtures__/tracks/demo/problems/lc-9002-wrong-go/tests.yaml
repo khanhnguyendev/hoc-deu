@@ -1,0 +1,9 @@
+# content-verify fixture: the Go solution skips empty words, so one case fails in Go only.
+signature:
+  { kind: function, name: groupByLength, params: { words: 'string[]' }, returns: 'string[][]' }
+compare: unordered-nested
+cases:
+  - { name: example-1, input: { words: [ab, c, de, f] }, expected: [[ab, de], [c, f]] }
+  - { name: example-2, input: { words: [x] }, expected: [[x]] }
+  - { name: empty-list, input: { words: [] }, expected: [] }
+  - { name: with-empty-word, input: { words: ['', a, ''] }, expected: [['', ''], [a]] }

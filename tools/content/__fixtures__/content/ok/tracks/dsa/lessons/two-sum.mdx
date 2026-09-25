@@ -1,0 +1,71 @@
+---
+id: dsa:lesson-two-sum
+title: Two Sum, từng bước
+format: deep-dive
+topic: arrays-hashing
+about: dsa:lc-0001
+practice: dsa:lc-0217
+---
+
+<Section kind="analogy">
+
+Như tra danh bạ: thay vì gọi thử từng số, bạn tra thẳng tên người cần tìm.
+
+</Section>
+
+<Section kind="visual">
+
+<VarTable caption="nums = [3, 2, 4], target = 6">
+
+| i | x | Phần bù | Đã gặp |
+| --- | --- | --- | --- |
+| 0 | 3 | 3 | `{}` |
+| 1 | 2 | 4 | `{3: 0}` |
+| 2 | 4 | 2 | `{3: 0, 2: 1}` |
+
+</VarTable>
+
+</Section>
+
+<Section kind="approach">
+
+Với mỗi phần tử, tra phần bù `target - x` trong hash map trước khi lưu chính nó.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải ba ngôn ngữ nằm trong ghi chú của bài.
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(n)" />
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Tra phần bù trước, rồi mới lưu số hiện tại." en="Look up the complement first, then store the current number." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0217" />
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Vì sao phải tra trước khi lưu?" answer="a">
+  <Choice id="a">Để không ghép một phần tử với chính nó</Choice>
+  <Choice id="b">Để tiết kiệm bộ nhớ</Choice>
+</Question>
+
+</Quiz>
+
+</Section>

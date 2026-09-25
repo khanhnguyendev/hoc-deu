@@ -1,0 +1,6 @@
+id: 8w
+weeks:
+  - week: 1
+    topics: [arrays-hashing, two-pointers]
+    core: [dsa:lc-0001, dsa:lc-0217, dsa:lc-0167]
+    bonus: [dsa:lc-0015]

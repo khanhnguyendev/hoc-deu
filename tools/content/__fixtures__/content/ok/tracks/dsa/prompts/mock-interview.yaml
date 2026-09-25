@@ -1,0 +1,8 @@
+- id: dsa:prompt-mock-interview
+  tag: mock-interview
+  repeatable: true
+  minutes: 45
+  instruction:
+    vi: 'Phỏng vấn thử: giải một bài trong 30 phút và nói to cách làm'
+    en: 'Mock interview: solve one problem in 30 minutes and explain it aloud'
+  rubric: ['Nêu ý tưởng trước khi viết code', 'Phân tích độ phức tạp']

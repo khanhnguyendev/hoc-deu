@@ -61,6 +61,8 @@ export default defineConfig([
     'playwright-report/**',
     'test-results/**',
     'docs/**',
+    // Written by `pnpm content:build` (platform design §3.6): never edited, never committed.
+    '.generated/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],

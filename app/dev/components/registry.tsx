@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, Inbox, Info, Plus, Settings, Trophy } from 'lucide-react'
+import { Clock, Inbox, Info, MapIcon, Plus, Settings, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import type * as React from 'react'
@@ -8,6 +8,7 @@ import { AppShell } from '@/components/patterns/app-shell'
 import { Banner } from '@/components/patterns/banner'
 import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar-heatmap'
 import { ChoiceCard } from '@/components/patterns/choice-card'
+import { CodeBlock } from '@/components/patterns/code-block'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
@@ -17,6 +18,7 @@ import { FocusLayout } from '@/components/patterns/focus-layout'
 import { FormActions } from '@/components/patterns/form-actions'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField } from '@/components/patterns/form-field'
+import { LinkRow } from '@/components/patterns/link-row'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { PageHeader } from '@/components/patterns/page-header'
@@ -87,7 +89,48 @@ import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
+import { DifficultyBadge, PremiumBadge } from '@/features/items/components/difficulty-badge'
+import { FillBlankExercise } from '@/features/items/components/fill-blank-exercise'
+import { FlashcardView } from '@/features/items/components/flashcard-view'
+import { ItemPageFrame } from '@/features/items/components/item-page-frame'
+import { ItemStatusBadge, ItemStatusNotice } from '@/features/items/components/item-status-badge'
+import { Bilingual } from '@/features/items/components/mdx/bilingual'
+import { Callout } from '@/features/items/components/mdx/callout'
+import { CodePre } from '@/features/items/components/mdx/code-pre'
+import { Complexity } from '@/features/items/components/mdx/complexity'
+import { ContentImage } from '@/features/items/components/mdx/content-image'
+import { ExternalLink } from '@/features/items/components/mdx/external-link'
+import { PracticeCard } from '@/features/items/components/mdx/practice-card'
+import { Choice, Question, Quiz } from '@/features/items/components/mdx/quiz'
+import { Reveal } from '@/features/items/components/mdx/reveal'
+import { Section as MdxSection } from '@/features/items/components/mdx/section'
+import { SolutionTabs } from '@/features/items/components/mdx/solution-tabs'
+import { Step, Steps } from '@/features/items/components/mdx/steps'
+import { Term } from '@/features/items/components/mdx/term'
+import { VarTable } from '@/features/items/components/mdx/var-table'
+import { RelatedItems } from '@/features/items/components/related-items'
+import { RubricList } from '@/features/items/components/rubric-list'
+import { SelfGradedExercise } from '@/features/items/components/self-graded-exercise'
+import { VerificationBadge } from '@/features/items/components/verification-badge'
+import {
+  cardItem,
+  derivedCardItem,
+  FIXTURE_LINKS,
+  fillBlankItem,
+  rewriteItem,
+} from '@/features/items/fixtures'
+import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
+import { ItemView } from '@/features/roadmap/components/item-view'
+import { RoadmapView } from '@/features/roadmap/components/roadmap-view'
+import { TrackCard } from '@/features/roadmap/components/track-card'
+import { TrackList } from '@/features/roadmap/components/track-list'
+import { TrackOverview } from '@/features/roadmap/components/track-overview'
+import { VariantLinks } from '@/features/roadmap/components/variant-links'
+import { WeekSection } from '@/features/roadmap/components/week-section'
+import type { Enrollment, TrackSummary, VariantLink } from '@/features/roadmap/queries'
+import type { RoadmapSlots, WeekSlots } from '@/features/roadmap/slots'
+import { TRACKS_HREF } from '@/features/roadmap/view-model'
 import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
 import { AdminLink } from '@/features/settings/components/admin-link'
@@ -99,8 +142,10 @@ import { TrackSettings } from '@/features/settings/components/track-settings'
 import type { SettingsAction, SettingsTrack } from '@/features/settings/schema'
 import { VariantPicker } from '@/features/tracks/components/variant-picker'
 import { WeeklyTemplatePreview } from '@/features/tracks/components/weekly-template-preview'
+import { codeBlockKey, type CodeBundle } from '@/lib/content/code-tokens'
 import type { TrackOption } from '@/lib/content/track-options'
 import { vi } from '@/lib/i18n/vi'
+import { GO_SAMPLE, JAVA_SAMPLE, LONG_LINE_SAMPLE, PYTHON_SAMPLE } from './code-samples'
 
 /**
  * Every component with its variants and states (platform design §7.7). `file` must match the
@@ -497,6 +542,166 @@ function VariantPickerDemo({
       />
     </div>
   )
+}
+
+/** MDX content demos (task 3.3b): a highlighted fence and the widths content renders at. */
+const DEMO_FENCE = 'seen = {}\nfor i, n in enumerate(nums):\n    seen[n] = i'
+const DEMO_CODE: CodeBundle = {
+  solutions: {},
+  blocks: {
+    [codeBlockKey('python', DEMO_FENCE)]: {
+      lang: 'python',
+      lines: [
+        ['seen = ', ['{}', 'constant']],
+        [['for', 'keyword'], ' i, n ', ['in', 'keyword'], ' enumerate(nums):'],
+        ['    seen[n] = i'],
+      ],
+    },
+  },
+}
+const PROSE = 'w-full max-w-prose space-y-4'
+/** MDX marks a fence's language on its `code` element (not a Tailwind class). */
+const fenceClass = (lang: string) => `language-${lang}`
+
+function VarTableDemo({ caption }: { caption?: string }) {
+  return (
+    <VarTable caption={caption}>
+      <Md.table>
+        <Md.thead>
+          <Md.tr>
+            <Md.th>i</Md.th>
+            <Md.th>x</Md.th>
+            <Md.th>Phần bù</Md.th>
+            <Md.th>map</Md.th>
+          </Md.tr>
+        </Md.thead>
+        <Md.tbody>
+          <Md.tr>
+            <Md.td>0</Md.td>
+            <Md.td>2</Md.td>
+            <Md.td>7</Md.td>
+            <Md.td>
+              <Md.code>{'{}'}</Md.code>
+            </Md.td>
+          </Md.tr>
+          <Md.tr>
+            <Md.td>1</Md.td>
+            <Md.td>7</Md.td>
+            <Md.td>2</Md.td>
+            <Md.td>
+              <Md.code>{'{2: 0}'}</Md.code>
+            </Md.td>
+          </Md.tr>
+        </Md.tbody>
+      </Md.table>
+    </VarTable>
+  )
+}
+
+/** Roadmap demos (task 3.4b): track summaries, enrollments and rows as plain LinkRows. */
+const DEMO_DSA_SUMMARY: TrackSummary = {
+  id: 'dsa',
+  title: 'Cấu trúc dữ liệu & Giải thuật',
+  titleEn: 'Data Structures & Algorithms',
+  accent: 'track-1',
+  status: 'active',
+}
+const DEMO_ENGLISH_SUMMARY: TrackSummary = {
+  id: 'english',
+  title: 'Tiếng Anh cho môi trường IT',
+  titleEn: 'English for IT workplaces',
+  accent: 'track-2',
+  status: 'active',
+}
+const DEMO_DSA_ENROLLMENT: Enrollment = {
+  status: 'active',
+  roadmapVariant: '8w',
+  budgetMinutes: 60,
+}
+const DEMO_VARIANTS: VariantLink[] = [
+  { id: '8w', label: '8 tuần', href: '/t/dsa?variant=8w', current: true },
+  { id: '10w', label: '10 tuần', href: '/t/dsa?variant=10w', current: false },
+]
+const demoRow = (href: string, title: string, meta: string[], lang?: 'en') => (
+  <LinkRow href={href} title={title} titleLang={lang} meta={meta} />
+)
+const DEMO_WEEK: WeekSlots = {
+  week: 1,
+  topics: [
+    { id: 'arrays-hashing', title: 'Arrays & Hashing' },
+    { id: 'two-pointers', title: 'Two Pointers' },
+  ],
+  lessons: [demoRow('/t/dsa/items/lesson-two-pointers', 'Two pointers', ['Pattern', '25 phút'])],
+  core: [
+    demoRow('/t/dsa/items/lc-0001', 'Two Sum', ['#1', 'Easy', 'Arrays & Hashing'], 'en'),
+    demoRow('/t/dsa/items/lc-0020', 'Valid Parentheses', ['#20', 'Easy'], 'en'),
+  ],
+  recap: [
+    {
+      row: demoRow('/t/dsa/items/lc-0049', 'Group Anagrams', ['#49', 'Medium'], 'en'),
+      mode: null,
+    },
+    { row: demoRow('/t/dsa/items/lc-0001', 'Two Sum', ['#1', 'Easy'], 'en'), mode: 'recall' },
+  ],
+  bonus: [demoRow('/t/dsa/items/lc-0015', '3Sum', ['#15', 'Medium'], 'en')],
+  decks: [
+    {
+      deck: {
+        id: 'english:deck-w01-standup',
+        trackId: 'english',
+        kind: 'vocabulary',
+        week: 1,
+        topicId: 'standup',
+        title: { vi: 'Họp stand-up', en: 'Stand-up meetings' },
+        status: 'active',
+        cardIds: [],
+      },
+      core: [demoRow('/t/english/items/w01-blocker', 'blocker', ['Cốt lõi'], 'en')],
+      extended: [demoRow('/t/english/items/w01-heads-up', 'heads-up', ['Mở rộng'], 'en')],
+    },
+  ],
+  exercises: [demoRow('/t/english/items/ex-w01-fill-1', 'Điền từ còn thiếu', ['Điền từ'])],
+  prompts: [
+    demoRow('/t/english/items/prompt-w01-standup', 'Ghi âm một bản cập nhật stand-up dài 1 phút', [
+      'Nhiệm vụ cuối tuần',
+      '10 phút',
+    ]),
+  ],
+}
+const DEMO_EMPTY_WEEK: WeekSlots = {
+  week: 2,
+  topics: [{ id: 'stack', title: 'Stack' }],
+  lessons: [],
+  core: [],
+  recap: [],
+  bonus: [],
+  decks: [],
+  exercises: [],
+  prompts: [],
+}
+const DEMO_SLOTS: RoadmapSlots = {
+  variant: '8w',
+  weeks: [DEMO_WEEK, DEMO_EMPTY_WEEK],
+  anytime: {
+    prompts: [
+      demoRow('/t/dsa/items/prompt-mock-interview', 'Phỏng vấn thử', ['Phỏng vấn thử', '45 phút']),
+    ],
+    derivedDecks: [
+      {
+        deck: {
+          id: 'english:explaining-code',
+          trackId: 'english',
+          kind: 'derived',
+          week: null,
+          topicId: null,
+          title: { vi: 'Giải thích code', en: 'Explaining code' },
+          status: 'active',
+          cardIds: [],
+        },
+        unlocked: 12,
+      },
+    ],
+  },
 }
 
 export const CATALOG: Entry[] = [
@@ -986,6 +1191,20 @@ export const CATALOG: Entry[] = [
     demos: [{ title: 'Selected and unselected', render: () => <ChoiceCardDemo /> }],
   },
   {
+    name: 'CodeBlock',
+    layer: 'patterns',
+    file: 'components/patterns/code-block.tsx',
+    demos: [
+      { title: 'Python', render: () => <CodeBlock code={PYTHON_SAMPLE} label="Lời giải Python" /> },
+      { title: 'Java', render: () => <CodeBlock code={JAVA_SAMPLE} label="Lời giải Java" /> },
+      { title: 'Go', render: () => <CodeBlock code={GO_SAMPLE} label="Lời giải Go" /> },
+      {
+        title: 'Dòng dài (cuộn ngang, không xuống dòng)',
+        render: () => <CodeBlock code={LONG_LINE_SAMPLE} label="Ví dụ dòng dài" />,
+      },
+    ],
+  },
+  {
     name: 'ConfirmDialog',
     layer: 'patterns',
     file: 'components/patterns/confirm-dialog.tsx',
@@ -1173,6 +1392,33 @@ export const CATALOG: Entry[] = [
     layer: 'patterns',
     file: 'components/patterns/form-field.tsx',
     demos: [{ title: 'Required, description and error', render: () => <FormFieldDemo /> }],
+  },
+  {
+    name: 'LinkRow',
+    layer: 'patterns',
+    file: 'components/patterns/link-row.tsx',
+    demos: [
+      {
+        title: 'Tiêu đề English, thông tin, huy hiệu, trạng thái; chỉ tiêu đề',
+        render: () => (
+          <ul role="list" className="flex w-full max-w-prose flex-col divide-y divide-border">
+            <li>
+              <LinkRow
+                href="/t/dsa/items/lc-0001"
+                title="Two Sum"
+                titleLang="en"
+                meta={['#1', 'Easy', 'Arrays & Hashing']}
+                badges={<Badge tone="outline">Premium</Badge>}
+                trailing={<StatusPill status="not-started" />}
+              />
+            </li>
+            <li>
+              <LinkRow href="/t/english/items/ex-w01-fill-1" title="Điền từ còn thiếu" />
+            </li>
+          </ul>
+        ),
+      },
+    ],
   },
   {
     name: 'LoadingState',
@@ -1524,6 +1770,20 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Không có lộ trình nào đang mở: trạng thái trống thay cho các bước (RF-4)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <OnboardingWizard
+              tracks={[]}
+              timeZones={DEMO_TIME_ZONES}
+              now={DEMO_NOW}
+              requestId={DEMO_REQUEST_ID}
+              action={demoCompleteOnboarding}
+            />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -1559,6 +1819,233 @@ export const CATALOG: Entry[] = [
                 throttle={track.throttle}
               />
             ))}
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackList',
+    layer: 'features',
+    file: 'features/roadmap/components/track-list.tsx',
+    demos: [
+      {
+        title: 'Lộ trình của bạn và lộ trình khác',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackList
+              mine={[{ track: DEMO_DSA_SUMMARY, enrollment: DEMO_DSA_ENROLLMENT }]}
+              others={[DEMO_ENGLISH_SUMMARY]}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Chưa học lộ trình nào: trạng thái trống dẫn tới Cài đặt',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackList mine={[]} others={[DEMO_DSA_SUMMARY, DEMO_ENGLISH_SUMMARY]} />
+          </div>
+        ),
+      },
+      {
+        title: 'Không có lộ trình nào (RF-4)',
+        render: () => (
+          <div className="w-full">
+            <TrackList mine={[]} others={[]} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackCard',
+    layer: 'features',
+    file: 'features/roadmap/components/track-card.tsx',
+    demos: [
+      {
+        title: 'Đang học, tạm dừng, lộ trình khác, bản nháp (quản trị viên), đã ngừng',
+        render: () => (
+          <ul role="list" className="grid w-full gap-4 md:grid-cols-2">
+            <li>
+              <TrackCard track={DEMO_DSA_SUMMARY} enrollment={DEMO_DSA_ENROLLMENT} />
+            </li>
+            <li>
+              <TrackCard
+                track={DEMO_ENGLISH_SUMMARY}
+                enrollment={{ status: 'paused', roadmapVariant: '10w', budgetMinutes: 25 }}
+              />
+            </li>
+            <li>
+              <TrackCard track={DEMO_ENGLISH_SUMMARY} enrollment={null} />
+            </li>
+            <li>
+              <TrackCard
+                track={{
+                  id: 'sysdesign',
+                  title: 'Thiết kế hệ thống',
+                  titleEn: 'System design',
+                  accent: 'track-3',
+                  status: 'draft',
+                }}
+                enrollment={null}
+              />
+            </li>
+            <li>
+              <TrackCard
+                track={{
+                  id: 'legacy',
+                  title: 'Lộ trình cũ',
+                  titleEn: 'Legacy track',
+                  accent: 'track-4',
+                  status: 'retired',
+                }}
+                enrollment={{ status: 'active', roadmapVariant: '4w', budgetMinutes: 30 }}
+              />
+            </li>
+          </ul>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TrackOverview',
+    layer: 'features',
+    file: 'features/roadmap/components/track-overview.tsx',
+    demos: [
+      {
+        title: 'Đang học, lộ trình chưa có nội dung (trạng thái trống)',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackOverview
+              track={DEMO_DSA_SUMMARY}
+              enrollment={DEMO_DSA_ENROLLMENT}
+              variants={DEMO_VARIANTS}
+              template={DEMO_DSA.template}
+              throttle={DEMO_DSA.throttle}
+            >
+              <EmptyState
+                icon={MapIcon}
+                title={vi.roadmap.noContent.title}
+                description={vi.roadmap.noContent.description}
+                action={{ label: vi.roadmap.noContent.action, href: '/tracks' }}
+              />
+            </TrackOverview>
+          </div>
+        ),
+      },
+      {
+        title: 'Lộ trình khác (thêm trong Cài đặt), có giới hạn thẻ mới',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <TrackOverview
+              track={DEMO_ENGLISH_SUMMARY}
+              enrollment={null}
+              variants={[
+                { id: '10w', label: '10 tuần', href: '/t/english?variant=10w', current: true },
+              ]}
+              template={DEMO_ENGLISH.template}
+              throttle={DEMO_ENGLISH.throttle}
+            >
+              <p className="text-sm text-muted-foreground">Nội dung lộ trình ở đây.</p>
+            </TrackOverview>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VariantLinks',
+    layer: 'features',
+    file: 'features/roadmap/components/variant-links.tsx',
+    demos: [
+      {
+        title: '8 tuần đang chọn (aria-current), 10 tuần',
+        render: () => <VariantLinks variants={DEMO_VARIANTS} />,
+      },
+    ],
+  },
+  {
+    name: 'WeekSection',
+    layer: 'features',
+    file: 'features/roadmap/components/week-section.tsx',
+    demos: [
+      {
+        title:
+          'Bài học, bài chính, ôn lại cuối tuần (có chế độ), bài thêm, bộ thẻ, bài tập, nhiệm vụ',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <WeekSection week={DEMO_WEEK} />
+          </div>
+        ),
+      },
+      {
+        title: 'Tuần chưa có nội dung (mọi mục còn là bản nháp, RF-4)',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <WeekSection week={DEMO_EMPTY_WEEK} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RoadmapView',
+    layer: 'features',
+    file: 'features/roadmap/components/roadmap-view.tsx',
+    demos: [
+      {
+        title: 'Hai tuần, rồi "Không theo tuần" (nhiệm vụ lặp lại, bộ thẻ Giải thích code)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <RoadmapView slots={DEMO_SLOTS} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemView',
+    layer: 'features',
+    file: 'features/roadmap/components/item-view.tsx',
+    demos: [
+      {
+        title: 'Liên kết về lộ trình, rồi trang của mục (thông báo do ItemPageFrame hiện, M3-R4)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <ItemView
+              backHref="/t/dsa"
+              trackTitle={DEMO_DSA_SUMMARY.title}
+              page={
+                <ItemPageFrame
+                  status="retired"
+                  title={<span lang="en">3Sum</span>}
+                  meta={[
+                    '#15',
+                    <DifficultyBadge key="difficulty" difficulty="M" />,
+                    'Two Pointers',
+                  ]}
+                >
+                  <Md.p>Nội dung của mục.</Md.p>
+                </ItemPageFrame>
+              }
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Mục của lộ trình đã ngừng mà học viên không theo: liên kết về danh sách lộ trình',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <ItemView
+              backHref={TRACKS_HREF}
+              trackTitle="Lộ trình cũ"
+              page={
+                <ItemPageFrame status="active" title="Bài luyện cũ">
+                  <Md.p>Nội dung của mục.</Md.p>
+                </ItemPageFrame>
+              }
+            />
           </div>
         ),
       },
@@ -1741,6 +2228,519 @@ export const CATALOG: Entry[] = [
             <DeleteAccount deleteAccount={demoDeleteAccountFailure} />
           </div>
         ),
+      },
+    ],
+  },
+  {
+    name: 'MdxSection',
+    layer: 'features',
+    file: 'features/items/components/mdx/section.tsx',
+    demos: [
+      {
+        title: '<Section kind="signals">: h2 từ vi.content.sections',
+        render: () => (
+          <div className={PROSE}>
+            <MdxSection kind="signals">
+              <Md.p>Mảng đã sắp xếp và đề hỏi về một cặp phần tử.</Md.p>
+            </MdxSection>
+          </div>
+        ),
+      },
+      {
+        title: 'Kind chưa có nhãn: hiện ID',
+        render: () => (
+          <div className={PROSE}>
+            <MdxSection kind="deep-dive-notes">
+              <Md.p>Một định dạng bài học mới vẫn hiển thị được.</Md.p>
+            </MdxSection>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Callout',
+    layer: 'features',
+    file: 'features/items/components/mdx/callout.tsx',
+    demos: [
+      {
+        title: 'Ba tone: info, tip (có title), warning',
+        render: () => (
+          <div className={PROSE}>
+            <Callout tone="info">
+              <Md.p>
+                Mỗi phần tử chỉ được duyệt <Md.strong>một lần</Md.strong>.
+              </Md.p>
+            </Callout>
+            <Callout tone="tip" title="Dấu hiệu">
+              <Md.p>
+                Đề có chữ &ldquo;sorted&rdquo; và hỏi một cặp có tổng bằng <Md.code>target</Md.code>{' '}
+                — xem <Md.a href="https://leetcode.com/problems/two-sum/">ví dụ</Md.a>.
+              </Md.p>
+            </Callout>
+            <Callout tone="warning">
+              <Md.p>
+                Tra phần bù <Md.em>trước</Md.em> khi thêm <Md.code>x</Md.code> vào map.
+              </Md.p>
+            </Callout>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Steps',
+    layer: 'features',
+    file: 'features/items/components/mdx/steps.tsx',
+    demos: [
+      {
+        title: 'Bước có và không có title',
+        render: () => (
+          <div className={PROSE}>
+            <Steps>
+              <Step title="Khởi tạo">
+                Đặt <Md.code>left = 0</Md.code> và <Md.code>right = n - 1</Md.code>.
+              </Step>
+              <Step title="Thu hẹp">
+                <Md.p>So sánh tổng với target: nhỏ hơn thì tăng left, lớn hơn thì giảm right.</Md.p>
+              </Step>
+              <Step>Dừng khi left gặp right.</Step>
+            </Steps>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VarTable',
+    layer: 'features',
+    file: 'features/items/components/mdx/var-table.tsx',
+    demos: [
+      {
+        title: 'Có caption (vùng cuộn, focus bằng bàn phím)',
+        render: () => (
+          <div className={PROSE}>
+            <VarTableDemo caption="nums = [2, 7, 11, 15], target = 9" />
+          </div>
+        ),
+      },
+      {
+        title: 'Không caption: nhãn "Bảng biến"',
+        render: () => (
+          <div className={PROSE}>
+            <VarTableDemo />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Complexity',
+    layer: 'features',
+    file: 'features/items/components/mdx/complexity.tsx',
+    demos: [
+      {
+        title: 'Thời gian và bộ nhớ',
+        render: () => (
+          <div className={PROSE}>
+            <Complexity time="O(n log n)" space="O(1)" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Bilingual',
+    layer: 'features',
+    file: 'features/items/components/mdx/bilingual.tsx',
+    demos: [
+      {
+        title: 'Tiếng Việt, rồi English (lang="en")',
+        render: () => (
+          <div className={PROSE}>
+            <Bilingual
+              vi="Lưu mỗi số vào hash map để tìm phần bù trong O(1)."
+              en="Store each number in a hash map to look up its complement in O(1)."
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Term',
+    layer: 'features',
+    file: 'features/items/components/mdx/term.tsx',
+    demos: [
+      {
+        title: 'Có và không có chú thích tiếng Việt',
+        render: () => (
+          <div className={PROSE}>
+            <Md.p>
+              Thử <Term vi="hai con trỏ">two pointers</Term> trước khi dùng <Term>hash map</Term>.
+            </Md.p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'PracticeCard',
+    layer: 'features',
+    file: 'features/items/components/mdx/practice-card.tsx',
+    demos: [
+      {
+        title: 'Đủ thông tin; không số LeetCode và độ khó',
+        render: () => (
+          <div className={PROSE}>
+            <PracticeCard title="3Sum" href="/t/dsa/items/lc-0015" leetcode={15} difficulty="M" />
+            <PracticeCard
+              title="Valid Parentheses"
+              href="/t/dsa/items/lc-0020"
+              leetcode={20}
+              difficulty="E"
+            />
+            <PracticeCard title="Custom drill" href="/t/dsa" leetcode={null} difficulty={null} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Quiz',
+    layer: 'features',
+    file: 'features/items/components/mdx/quiz.tsx',
+    demos: [
+      {
+        title: 'Chọn đáp án rồi bấm "Kiểm tra"; "Làm lại" để xoá',
+        render: () => (
+          <div className={PROSE}>
+            <Quiz>
+              <Question prompt="Mảng chưa sắp xếp thì dùng hai con trỏ ngay được không?" answer="b">
+                <Choice id="a">Được, luôn luôn</Choice>
+                <Choice id="b">Không, phải sắp xếp trước hoặc dùng hash map</Choice>
+              </Question>
+              <Question prompt="Độ phức tạp thời gian là bao nhiêu?" answer="n">
+                <Choice id="n">
+                  <Md.code>O(n)</Md.code>
+                </Choice>
+                <Choice id="n2">
+                  <Md.code>O(n^2)</Md.code>
+                </Choice>
+              </Question>
+            </Quiz>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'Reveal',
+    layer: 'features',
+    file: 'features/items/components/mdx/reveal.tsx',
+    demos: [
+      {
+        title: 'Nhãn mặc định ("Xem" / "Ẩn") và nhãn riêng',
+        render: () => (
+          <div className={PROSE}>
+            <Reveal>
+              <Md.p>Sắp xếp làm mất chỉ số gốc.</Md.p>
+            </Reveal>
+            <Reveal label="Gợi ý">
+              <Md.p>Khi tổng quá lớn, phần tử nào chắc chắn không thuộc đáp án?</Md.p>
+            </Reveal>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'SolutionTabs',
+    layer: 'features',
+    file: 'features/items/components/mdx/solution-tabs.tsx',
+    demos: [
+      {
+        title: 'Ba ngôn ngữ, mở ở Java (ngôn ngữ của người học)',
+        render: () => (
+          <div className={PROSE}>
+            <SolutionTabs
+              solutions={{ python: PYTHON_SAMPLE, java: JAVA_SAMPLE, go: GO_SAMPLE }}
+              defaultLanguage="java"
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Thiếu ngôn ngữ của người học (Go): mở ở tab đầu tiên',
+        render: () => (
+          <div className={PROSE}>
+            <SolutionTabs
+              solutions={{ python: PYTHON_SAMPLE, java: JAVA_SAMPLE }}
+              defaultLanguage="go"
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'CodePre',
+    layer: 'features',
+    file: 'features/items/components/mdx/code-pre.tsx',
+    demos: [
+      {
+        title: 'Khối đã tô màu lúc build; khối không có trong bundle (chữ thường)',
+        render: () => (
+          <div className={PROSE}>
+            <CodePre code={DEMO_CODE}>
+              <code className={fenceClass('python')}>{`${DEMO_FENCE}\n`}</code>
+            </CodePre>
+            <CodePre code={DEMO_CODE}>
+              <code className={fenceClass('text')}>{'[3, 2, 4] -> [2, 3, 4]\n'}</code>
+            </CodePre>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ExternalLink',
+    layer: 'features',
+    file: 'features/items/components/mdx/external-link.tsx',
+    demos: [
+      {
+        title: 'Link https (tab mới) và link không hợp lệ (chỉ hiện chữ)',
+        render: () => (
+          <div className={PROSE}>
+            <Md.p>
+              Đọc thêm{' '}
+              <ExternalLink href="https://leetcode.com/problems/two-sum/">
+                Two Sum trên LeetCode
+              </ExternalLink>
+              .
+            </Md.p>
+            <Md.p>
+              <ExternalLink href="http://x.test/">Link http bị bỏ</ExternalLink>
+            </Md.p>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ContentImage',
+    layer: 'features',
+    file: 'features/items/components/mdx/content-image.tsx',
+    demos: [
+      {
+        title:
+          'SVG 320x180 (unoptimized, nền đục); nội dung thật chỉ từ bucket content-images, nguồn khác không hiển thị',
+        render: () => (
+          <div className={PROSE}>
+            <ContentImage
+              src="/dev/content-image-sample.svg"
+              alt="Hai con trỏ đi từ hai đầu mảng lại gần nhau"
+              title="320x180"
+              baseUrl="/dev/"
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'DifficultyBadge',
+    layer: 'features',
+    file: 'features/items/components/difficulty-badge.tsx',
+    demos: [
+      {
+        title: 'Easy, Medium, Hard (thuật ngữ LeetCode giữ tiếng Anh) và PremiumBadge',
+        render: () => (
+          <>
+            <DifficultyBadge difficulty="E" />
+            <DifficultyBadge difficulty="M" />
+            <DifficultyBadge difficulty="H" />
+            <PremiumBadge />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'VerificationBadge',
+    layer: 'features',
+    file: 'features/items/components/verification-badge.tsx',
+    demos: [
+      {
+        title: 'Trang: nhãn + giải thích một dòng',
+        render: () => (
+          <div className="flex flex-col gap-3">
+            <VerificationBadge verification="tested" />
+            <VerificationBadge verification="compile-only" />
+          </div>
+        ),
+      },
+      {
+        title: 'Dòng: chỉ biểu tượng (nhãn cho trình đọc màn hình)',
+        render: () => (
+          <>
+            <VerificationBadge verification="tested" variant="icon" />
+            <VerificationBadge verification="compile-only" variant="icon" />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemStatusBadge',
+    layer: 'features',
+    file: 'features/items/components/item-status-badge.tsx',
+    demos: [
+      {
+        title: 'Dòng: Bản nháp, Đã ngừng (đang dùng: không hiện gì)',
+        render: () => (
+          <>
+            <ItemStatusBadge status="draft" />
+            <ItemStatusBadge status="retired" />
+            <ItemStatusBadge status="active" />
+          </>
+        ),
+      },
+      {
+        title: 'Trang: ItemStatusNotice ở đầu trang',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-3">
+            <ItemStatusNotice status="draft" />
+            <ItemStatusNotice status="retired" />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'ItemPageFrame',
+    layer: 'features',
+    file: 'features/items/components/item-page-frame.tsx',
+    demos: [
+      {
+        title: 'Thông báo, tiêu đề (h1 của trang), thông tin, nội dung',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <ItemPageFrame
+              status="retired"
+              title={<span lang="en">Valid Parentheses</span>}
+              meta={['#20', <DifficultyBadge key="difficulty" difficulty="E" />, 'Stack']}
+            >
+              <Md.p>Nội dung của mục.</Md.p>
+            </ItemPageFrame>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RelatedItems',
+    layer: 'features',
+    file: 'features/items/components/related-items.tsx',
+    demos: [
+      {
+        title: 'Bài mẫu, bài luyện tập, bài học chuyên sâu',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <RelatedItems
+              items={[
+                { label: 'Bài mẫu', link: FIXTURE_LINKS['dsa:lc-0167']! },
+                { label: 'Bài luyện tập', link: FIXTURE_LINKS['dsa:lc-0015']! },
+                { label: 'Bài học chuyên sâu', link: FIXTURE_LINKS['dsa:lesson-two-sum']! },
+              ]}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'RubricList',
+    layer: 'features',
+    file: 'features/items/components/rubric-list.tsx',
+    demos: [
+      {
+        title: 'Tiêu chí tiếng Anh (lang="en"), tiếng Việt (mặc định), tiêu đề h3',
+        render: () => (
+          <div className="flex flex-col gap-6">
+            <RubricList items={['polite opener', 'specific issue', 'clear ask']} lang="en" />
+            <RubricList items={['Nêu ý tưởng trước khi viết code', 'Phân tích độ phức tạp']} />
+            <RubricList items={['Nói rõ khi nào xong']} headingLevel={3} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FlashcardView',
+    layer: 'features',
+    file: 'features/items/components/flashcard-view.tsx',
+    demos: [
+      {
+        title: 'Thẻ từ vựng: "Xem nghĩa" hiện nghĩa, gợi ý, cách dùng, ví dụ, phát âm',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={cardItem().content} headingLevel={3} />
+          </div>
+        ),
+      },
+      {
+        title: 'Thẻ "Giải thích code": mặt sau tiếng Anh, gợi ý tiếng Việt',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={derivedCardItem().content} headingLevel={3} />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'FillBlankExercise',
+    layer: 'features',
+    file: 'features/items/components/fill-blank-exercise.tsx',
+    demos: [
+      {
+        title: 'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng"',
+        render: () => {
+          const { content } = fillBlankItem()
+          return content.kind === 'fill-blank' ? (
+            <div className="w-full max-w-prose">
+              <FillBlankExercise
+                text={content.text}
+                answers={content.answers}
+                hint={content.hint}
+              />
+            </div>
+          ) : null
+        },
+      },
+    ],
+  },
+  {
+    name: 'SelfGradedExercise',
+    layer: 'features',
+    file: 'features/items/components/self-graded-exercise.tsx',
+    demos: [
+      {
+        title: 'Viết lại: ô trả lời (không lưu), "Xem câu trả lời mẫu" hiện mẫu và tiêu chí',
+        render: () => {
+          const { content } = rewriteItem()
+          return content.kind === 'fill-blank' ? null : (
+            <div className="w-full max-w-prose">
+              <SelfGradedExercise
+                text={content.text}
+                sampleAnswers={content.sampleAnswers}
+                rubric={content.rubric}
+                rubricLang={content.lang.rubric}
+              />
+            </div>
+          )
+        },
       },
     ],
   },

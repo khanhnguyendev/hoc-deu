@@ -1,12 +1,12 @@
 /**
  * Active tracks as plain, serialisable options for the forms that enroll a learner: onboarding
  * (task 2.10) and settings (task 2.11). Client components import only the type (`import type`);
- * the loader reads the manifests from disk, so it runs on the server only.
+ * the loader reads the manifests from the generated catalog (server-only, decision 6).
  */
 import 'server-only'
-import type { CodeLanguage } from '@/lib/auth/dal'
-import { activeTracks } from './tracks'
+import type { CodeLanguage } from './schemas/common'
 import type { TrackManifest } from './schemas/manifest'
+import { activeTracks } from './tracks'
 import { describeThrottle, describeWeeklyTemplate, type TemplateDay } from './weekly-template'
 
 export type TrackOption = {
@@ -25,10 +25,6 @@ export type TrackOption = {
   throttle: string[]
 }
 
-const CODE_LANGUAGES: readonly CodeLanguage[] = ['python', 'java', 'go']
-const isCodeLanguage = (value: string): value is CodeLanguage =>
-  CODE_LANGUAGES.some((language) => language === value)
-
 function toOption(track: TrackManifest): TrackOption {
   return {
     id: track.id,
@@ -38,7 +34,7 @@ function toOption(track: TrackManifest): TrackOption {
     roadmaps: track.roadmaps.map(({ id, recommendedBelowMinutes }) =>
       recommendedBelowMinutes === undefined ? { id } : { id, recommendedBelowMinutes },
     ),
-    codeLanguages: (track.codeLanguages ?? []).filter(isCodeLanguage),
+    codeLanguages: [...(track.codeLanguages ?? [])],
     template: describeWeeklyTemplate(track.weeklyTemplate),
     throttle: describeThrottle(track.defaults),
   }

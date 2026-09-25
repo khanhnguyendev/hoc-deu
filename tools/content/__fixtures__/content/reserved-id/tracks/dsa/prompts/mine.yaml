@@ -1,0 +1,4 @@
+- id: user:prompt-mine
+  tag: mock-interview
+  repeatable: true
+  instruction: { vi: 'Phỏng vấn thử', en: 'Mock interview' }

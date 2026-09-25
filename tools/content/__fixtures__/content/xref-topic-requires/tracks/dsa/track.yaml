@@ -1,0 +1,38 @@
+# The shared manifest of the xref-* fixtures: each fixture breaks one cross-reference rule (3.2c).
+id: dsa
+status: active
+title: { vi: 'Giải thuật', en: 'Algorithms' }
+accent: track-1
+itemTypes: [lesson, problem, flashcard, exercise, prompt]
+codeLanguages: [python, go]
+srs: { intervals: [7, 21, 60], relearnDays: 3, masteredAfter: 2 }
+review: { recallMinutes: 5, redoFactor: 0.6 }
+topics:
+  - { id: arrays-hashing, title: { vi: 'Arrays & Hashing', en: 'Arrays & Hashing' } }
+  - {
+      id: two-pointers,
+      title: { vi: 'Two Pointers', en: 'Two Pointers' },
+      requires: [arrays-hashing],
+    }
+  - { id: trees, title: { vi: 'Trees', en: 'Trees' }, requires: [arrays-hashing] }
+  - { id: tries, title: { vi: 'Tries', en: 'Tries' }, requires: [trees] }
+lessonFormats:
+  pattern:
+    sections: [approach, practice]
+    requires: [anchor, practice]
+    rules: [anchor!=practice, same-topic, one-per-topic]
+  deep-dive:
+    sections: [approach, practice]
+    requires: [about, practice]
+    rules: [practice!=about, same-topic, max-1-per-about]
+  concept:
+    sections: [approach]
+defaults: { budgetMinutes: 60, newPerDay: null, throttle: [] }
+estimates:
+  lesson: 25
+  problem: { new: { E: 20, M: 35, H: 50 } }
+  flashcard: { new: 1.5, review: 0.5 }
+  exercise: 5
+  prompt: 10
+roadmaps: [{ id: 10w }]
+weeklyTemplate: { mon-fri: [{ kind: new }] }

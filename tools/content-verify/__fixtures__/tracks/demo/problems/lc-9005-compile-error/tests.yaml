@@ -1,0 +1,12 @@
+# content-verify fixture: the Java solution does not compile; Python and Go pass.
+signature:
+  kind: function
+  name: weightedSum
+  params: { values: 'double[]', weight: long }
+  returns: double
+compare: { kind: float, tolerance: 0.000001 }
+cases:
+  - { name: example-1, input: { values: [1.5, 2.5], weight: 2 }, expected: 8.0 }
+  - { name: example-2, input: { values: [0.1, 0.2], weight: 10 }, expected: 3.0 }
+  - { name: empty, input: { values: [], weight: 5 }, expected: 0 }
+  - { name: negative-weight, input: { values: [2.0], weight: -3 }, expected: -6.0 }

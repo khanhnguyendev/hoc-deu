@@ -37,22 +37,27 @@ sections for every task.
   M1–M7 today would describe interfaces that do not exist yet and go stale.
 - **Execution status:** M0 done (PR #1, merged 2026-09-24). M1 done (PR #3, merged 2026-09-24):
   step-level detail in [Part B-M1](#part-b-m1--component-library-step-by-step), reviewed by the
-  owner together with the M1 pull request. M2: step-level detail in
-  [Part B-M2](#part-b-m2--auth-onboarding-settings-step-by-step), written at the start of M2;
-  the owner reviews it before execution.
+  owner together with the M1 pull request. M2 done (PR #4, merged 2026-09-25): step-level detail
+  in [Part B-M2](#part-b-m2--auth-onboarding-settings-step-by-step), written at the start of M2
+  and reviewed by the owner before execution. M3: step-level detail in
+  [Part B-M3](#part-b-m3--track-manifests-content-loading-and-validation-step-by-step), written at
+  the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding.
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
-## Execution methods (approved by the owner, 2026-09-24)
+## Execution methods (approved by the owner, 2026-09-24; M3 row changed 2026-09-25)
 
 | Milestone | Method |
 | --- | --- |
 | M0 | **Native** (superpowers:executing-plans), then one fresh reviewer on the whole branch |
-| M1, M3, M5 | Native, with an end-of-milestone review |
+| M1, M5 | Native, with an end-of-milestone review |
 | M2, M4, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M3 | **Subagent-driven, parallel waves in git worktrees** — one worktree per task, one integration worktree per target branch (owner decision 2026-09-25, Part B-M3 OD5) |
 | M7 | Decided at the start of M7 |
 
-Content tasks 3.6–3.11 have no plan-engine dependency and may run in parallel with M4–M5.
+Content tasks 3.6–3.11 have no plan-engine dependency and may run in parallel with M4–M5. M3 ships
+as three pull requests (Part B-M3, OD4): M4 may start once PR A (the content pipeline) is merged;
+the content PRs B (DSA) and C (English) are reviewed in parallel with M4.
 
 ## Global Constraints
 
@@ -62,7 +67,8 @@ Every task implicitly includes these (values copied from the spec).
   React `19.3.0`; **TypeScript `6.0.x` — not 7** (typescript-eslint supports < 6.1); **ESLint
   `9.39.x` — not 10**; Tailwind `4.3.x`. Install with exact versions (`--save-exact`).
 - **Dependencies:** only those in platform design §7.10, plus `sonner` (shadcn's toast, approved
-  2026-09-24). Anything else → ask the owner first.
+  2026-09-24) and `@mdx-js/mdx` (dev: the MDX safety check's syntax tree, approved 2026-09-25 —
+  Part B-M3 OD1). Anything else → ask the owner first.
 - **Visual values** live only in `app/globals.css` (generated from `docs/design/tokens.css`). No hex,
   `rgb()`, `oklch()`, `px`/`rem`/`ms` literals or arbitrary Tailwind values (`p-[13px]`) anywhere
   else — enforced by ESLint and the token guard (§7.3).
@@ -81,11 +87,13 @@ Every task implicitly includes these (values copied from the spec).
 - **Accessibility:** WCAG 2.1 AA; axe must pass in light and dark, desktop and mobile.
 - **Release scope** (§0 table): never pull a `v1.1` or `later` item into a v1.0 milestone.
 - **Git:** Conventional Commits; one task ≈ one commit; work on a branch per milestone
-  (`feat/m<n>-<slug>`), open a PR, CI must be green; the owner merges.
+  (`feat/m<n>-<slug>`; M3 has three, Part B-M3), open a PR, CI must be green. The owner merged
+  M0–M1; from M2 on the controller merges a milestone PR once CI and its final review are green —
+  except M3's content PRs B and C, which stop for the owner's review and the owner merges (OD4).
 - **Done means verified:** a task is complete only when its verification command has been run and
   its output checked (superpowers:verification-before-completion).
 - **Gates grow with the milestones:**
-  - `pnpm verify` = typecheck → lint → unit tests → build; **from task 3.2 on it starts with
+  - `pnpm verify` = typecheck → lint → unit tests → build; **from task 3.2b on it starts with
     `content:build`** (§7.8), and CI runs it.
   - `pnpm verify:full` = `verify` + `test:e2e` in M0; **from task 2.1 on** it is
     `verify` + `test:db` + `test:e2e`.
@@ -167,7 +175,7 @@ Legend: **[owner]** = needs the owner's accounts or clicks; **v1.0 / v1.1** = re
 | 2.4 Migration: profiles, schedule_versions, user_tracks | `supabase/migrations/*`, `supabase/tests/database/*.sql` M1 deferred #21: doc drift — plan Part A 1.1 ("merge `shadcn eject` CSS", superseded by Part B-M1 decision 3) and spec §7.2's className exceptions (`app/global-error.tsx`, `app/dev/**`). | pgTAP: profile created `pending` on sign-up; column grants; `is_admin`/`is_active`; `admin_*` functions check admin and write audit events; `admin_bootstrap`; layer rule gaps (deferred minor #6): `app/api/**` follows its §7.2 row (no components), `.js`/`.jsx`/`.mjs` files are checked, the `'use client'` rule also covers `app/dev/**` — each with a rule test | `pnpm test:db && pnpm verify` |
 | 2.5 Events core | migration: `events`, `event_quota` + `SECURITY DEFINER` quota trigger, `local_day` SQL function, `apply_event` / `apply_system_event` (state-table events only; derived tables in M4); `lib/domain/events.ts` — Zod payload schemas for every event type (§4.4 table) **Writes ADR-0007, ADR-0030.** | pgTAP: **[RF-1]** SQL `local_day` equals TypeScript `localDay` on the shared fixtures; forced `actor_id`/`source`; `local_day` computed in DB; 501st learner event → `quota_exceeded`; learners cannot read/write `event_quota` | `pnpm test:db` |
 | 2.6 Supabase clients, proxy, DAL, guards | `lib/supabase/{client,server,proxy,admin}.ts`, `proxy.ts` (matcher: pages only), `lib/auth/dal.ts`, `lib/auth/guards.ts` **Writes ADR-0002, ADR-0006, ADR-0019.** | DAL returns cached profile; `requireActive` redirects pending; architecture test: every `'use server'` module and route handler calls a guard | `pnpm verify` |
-| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) **Writes ADR-0003.** M1 deferred #5: AppShell sign-out — `onSignOut` is a server action invoked as `() => void onSignOut()` (Radix passes a non-serializable Event); the top-bar title comes from the pathname, not a prop. | e2e with test login: pending user sees `/pending`; admin email becomes active admin; **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
+| 2.7 Sign-in, callback, pending | `app/(public)/sign-in`, `app/(public)/auth/callback/route.ts` (admin bootstrap), `app/(account)/pending`, `supabase/seed.sql` (synthetic test users only) **Writes ADR-0003.** M1 deferred #5: AppShell sign-out — `onSignOut` is a server action invoked as `() => void onSignOut()` (Radix passes a non-serializable Event); the top-bar title comes from the pathname, not a prop. | e2e with test login: pending user sees `/pending`; admin email becomes active admin (superseded by decision 23 / R13: only while no active admin exists); **real Google and GitHub sign-in checked on a staging preview [owner]** | `pnpm verify:full` |
 | 2.8 Admin approval queue | `features/admin/*`, `app/(admin)/admin/users` **Writes ADR-0004.** | e2e: approve/reject/suspend; non-admin gets 404/redirect; `/dev/components` admin-only in production | `pnpm verify:full` |
 | 2.9 Minimal track manifests + projection table | `content/tracks/{dsa,english}/track.yaml` (manifest fields only), tiny loader `lib/content/tracks.ts`, `lib/domain/plan/projections.ts` seeded with the §5.11 prototype table | loader parses both manifests; projection lookup interpolates and clamps | `pnpm verify` |
 | 2.10 Onboarding | `features/onboarding/*`, `app/(onboarding)/onboarding` — tracks → minutes → DSA variant (default by budget, simulated finish) → start date/timezone/day start → code language → template preview; events `track.enrolled`, `schedule.changed`, `settings.changed`, `onboarding.completed`; uses `localDay` (2.3) **Writes ADR-0015.** | 60 min → 8w default, 75 → 10w; finish text uses vi-VN decimal comma; e2e completes onboarding | `pnpm verify:full` |
@@ -193,6 +201,16 @@ run at the PR stop (4); no browser client or client env schema until a consumer 
 | 3.7–3.9 DSA W1, W2, W3 content | notes + Python/Java/Go solutions + `tests.yaml` per problem; pattern lessons (arrays-hashing, two-pointers, sliding-window, stack, binary-search) — one task per week **Writes ADR-0013.** | content-verify: `tested` for `function` problems, `compile-only` for 271/155/981; **owner review before merge, including checking every `tests.yaml` example against the LeetCode examples** | `pnpm content:build && pnpm content:verify` |
 | 3.10 English manifest, roadmap, core decks W1–W10 | `content/tracks/english/**` | build passes; derived deck mapping | `pnpm content:build` |
 | 3.11 English W1–W3 extended cards, exercises, weekend prompts | decks, `exercises/*.yaml`, `prompts/*.yaml` | build passes; exercise `week` set | `pnpm content:build` |
+
+**Part B-M3 changes to this table** (decisions there): 3.2 splits into **3.2a** / **3.2b** /
+**3.2c**, 3.3 into **3.3a** / **3.3b**, 3.4 into **3.4a** / **3.4b**, 3.5 into **3.5a** /
+**3.5b**, and each of 3.7–3.9 into **(a)** tests + solutions and **(b)** notes + lessons (3); a
+missing roadmap, lesson, note or deck is coverage, not an error, so the pipeline PR merges before
+any content (4); the track loader reads the manifests from the generated catalog and `yaml` moves
+back to `devDependencies` (6); `content-build` and `content-verify` become required checks at the
+PR A stop, not in 7.3 (22); item pages get `state: null` until M4/M5, and track-page progress and
+weak items move to 5.4 (25); MDX images live in one Supabase Storage bucket, `content-images`,
+never in git (OD3, ADR-0011).
 
 **Parallel content:** tasks 3.6–3.11 depend only on 3.1–3.5 (schemas, build, MDX, registry,
 harness), not on the plan engine, so they may run in parallel with M4–M5 on their own branches.
@@ -223,7 +241,7 @@ Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 | 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
 | 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
-| 5.4 "Học thêm" + off-plan study; "Bắt đầu lại" | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
+| 5.4 "Học thêm" + off-plan study; "Bắt đầu lại"; track-page progress and weak items | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18); track-page progress and weak items on `/t/[trackId]` (Part B-M3 decision 25) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
 | 5.6 Admin overview + content | `features/admin/*` (`/admin`, `/admin/content`); Modify: `next.config.ts` — remove the `/admin` → `/admin/users` redirect added in 2.8 (it would shadow the new `/admin` page) **Writes ADR-0031.** | red warning for weeks reached within 14 days without notes/lessons; DB-size warnings from `ops_metrics` | `pnpm verify` |
 | 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
@@ -252,7 +270,7 @@ either W4–W5 notes/lessons written or v1.1 shipped.
 | --- | --- |
 | 7.1 | `pnpm bot` CLI (`tools/bot/cli.ts`) sharing `lib/bot/contract.ts` |
 | 7.2 | `bot/ROUTINE_PROMPT.md`, `.claude/settings.json` deny rules | **Writes ADR-0022.**
-| 7.3 | Bot PR workflows: `path-guard`, `bot-content-policy`, `bot-automerge`, stale-PR closer + fixture PR tests; adds `path-guard`, `bot-content-policy`, `content-build` and `content-verify` to the existing `main` ruleset (0.10); pins every GitHub Action by commit SHA (deferred minor #11) **Writes ADR-0023, ADR-0035.** |
+| 7.3 | Bot PR workflows: `path-guard`, `bot-content-policy`, `bot-automerge`, stale-PR closer + fixture PR tests; adds `path-guard` and `bot-content-policy` to the existing `main` ruleset (0.10; `content-build` and `content-verify` are required from M3's PR A, Part B-M3 decision 22); pins every GitHub Action by commit SHA (deferred minor #11) **Writes ADR-0023, ADR-0035.** |
 | 7.4 **[owner]** | Routine environment (Custom network, API credential, no connectors, schedule 22:30 UTC); fallback workflow (dry-run) | **Writes ADR-0028.**
 | 7.5 | Dry-run acceptance week on real data → `dry_run` off, `content_proposals` on |
 
@@ -3563,7 +3581,8 @@ plan(n); … select * from finish(); rollback;`):**
   returns `false` and writes nothing (decision 23). Otherwise role `admin`,
   status `active`, `approved_at = now()`, event `admin.bootstrapped`
   (`source 'system'`, `actor_id` = the user, payload `{ targetUserId, from: <old status>, to:
-  'active' }`) → `true` (§2.5).
+  'active' }`) → `true` (§2.5). (superseded by decision 23 / R13: only while no active admin
+  exists)
 
 - Produces TypeScript:
 
@@ -3637,7 +3656,8 @@ plan(n); … select * from finish(); rollback;`):**
      admin → `forbidden`;
   4. `admin_set_role` → role changed + `admin.role_changed`; same role → `no_change`;
   5. `admin_bootstrap` on a never-processed pending user → `true`, active admin, one
-     `admin.bootstrapped` event; again → `false`, still one event; `false` with no change and no
+     `admin.bootstrapped` event (superseded by decision 23 / R13: only while no active admin
+     exists); again → `false`, still one event; `false` with no change and no
      event for: a **suspended admin** (stays suspended), a **demoted admin** (learner, active,
      `approved_at` set — stays learner), a **rejected** learner (stays rejected);
      `anon` has no execute privilege on any function of this task, `authenticated` none on
@@ -3932,7 +3952,8 @@ and colocated `*.test.tsx`; Modify `docs/design/COMPONENTS.md`, `app/dev/compone
   3. a wrong password shows the error and stays on `/sign-in`;
   4. **bootstrap** (desktop project only; each scenario first `deleteUserByEmail(<its address>)`):
      a never-processed pending `bootstrap-admin@example.test` signs in → lands on `/onboarding`
-     as an active admin; a **rejected** `bootstrap-rejected@example.test` signs in → stays on
+     as an active admin (superseded by decision 23 / R13: only while no active admin exists);
+     a **rejected** `bootstrap-rejected@example.test` signs in → stays on
      `/pending` with the rejected copy, still `learner`/`rejected`; a **demoted**
      `bootstrap-demoted@example.test` (learner, active, `approved_at` set, onboarded) signs in →
      `/today`, still `learner` (decision 23);
@@ -4567,3 +4588,2678 @@ The runbook (no secrets, no project refs) — numbered, checkable steps:
    `db`, `e2e`, CodeQL). Once the `db` job has reported on the PR, add `db` to the `main`
    ruleset's required status checks (owner review SF5; `verify` and `e2e` stay) and confirm it in
    the PR. **Stop for the owner's review** — do not merge, do not start M3.
+
+## Part B-M3 — Track manifests, content loading and validation, step by step
+
+Written at the start of M3 (2026-09-25) from the code merged in M2 (PR #4, `3055225`) and a
+throwaway spike of the MDX, highlighting and runner tooling — versions, commands and numbers are in
+the tasks below and in the controller's spike notes (`.superpowers/sdd/m3-draft/spike-findings.md`,
+not committed). Revised the same day after an independent gate review ("approve with fixes"; its
+24 fixes are applied and cited below as "fix n") and the owner's answers. Executed
+**subagent-driven with parallel worktrees** (OD5): a fresh implementer and a fresh reviewer per
+task, the tasks of one wave in separate git worktrees, then one whole-branch review per pull
+request on the most capable model.
+
+**Owner decisions (binding, 2026-09-25):**
+
+- **OD1 — `@mdx-js/mdx` 3.1.1 is approved** as a direct devDependency (exact). It is already
+  installed by the approved `@mdx-js/loader` (lockfile +3 lines, no new download) and gives the MDX
+  safety check its syntax tree (3.2a). Task 3.0 adds it to spec §7.10's approved list and to the
+  Global Constraints.
+- **OD2 — the content-verify sandbox** is a dedicated no-network Linux user on the GitHub runner
+  (`sudo` + an iptables owner match), hardened per fix 6 (3.5b): compile and run commands both run
+  as that user, `CGO_ENABLED=0`, `javac -proc:none`, stray processes killed after every case, a
+  fail-closed self-test, and the CLI refuses to run unsandboxed on GitHub Actions. ADR-0012 records
+  the deviation from §3.7's container.
+- **OD3 — MDX images live in a Supabase Storage public bucket** `content-images` in the production
+  project, referenced by every environment, so content URLs never change. The owner created the
+  bucket in the dashboard on 2026-09-25 (public read, owner-only writes, 1 MB per file, MIME types
+  `image/svg+xml`, `image/png`, `image/webp`, `image/jpeg`); no migration creates it; the v1.1 bot
+  never uploads images. `tools/content/allowlist.ts` (3.2a) holds
+  `CONTENT_IMAGE_BASE_URL = 'https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/'`
+  as committed data (a public URL, no key); an empty base URL rejects every MDX image (a tested
+  branch). The safety check requires `![alt](url "WIDTHxHEIGHT")` with non-empty alt text, an
+  `https:` URL starting exactly with the base, path characters `[a-z0-9-_/.]`, no `..`, the
+  `<track>/<item-local-id>/` prefix, extension `svg` / `png` / `webp` / `jpg`; no image files in
+  `content/`; no other hosts; no network check. `next.config.ts` `images.remotePatterns` comes from
+  the same constant; rendering is `next/image` with the size from the title (`svg` unoptimized).
+  ADR-0011 records it.
+- **OD4 — merging:** the controller merges PR A (pipeline) once CI and its final review are green
+  (as M2); PR B (DSA content) and PR C (English content) stop for the owner's review, and the owner
+  merges them.
+- **OD5 — M3 runs subagent-driven with parallel agents** (like M2): the Execution methods table row
+  for M3 becomes "Subagent-driven, parallel waves in git worktrees"; M5 stays native.
+
+**Open questions for the owner** (non-blocking; everything else below is a ruling the owner can
+overturn):
+
+- **Q2 (confirm in PR B) — the 25 selected bonus problems** that bring DSA to ~110 problems (Q5,
+  decision 29, task 3.6 table, with the selection rule and the 17 omitted NeetCode 150 problems).
+- **Q3 (confirm in PR C) — English weekly topics W2–W10** (decision 30, task 3.10 table).
+
+**Branches, pull requests and who merges** (OD4):
+
+| PR | Branch (created from) | Tasks | Merged by |
+| --- | --- | --- | --- |
+| A "M3: content pipeline" | `feat/m3-content-pipeline` (`main` after M2) | 3.0, 3.1, 3.2a, 3.2b, 3.2c, 3.3a, 3.3b, 3.4a, 3.4b, 3.5a, 3.5b | controller, once CI and the final review are green |
+| B "M3: DSA content" | `feat/m3-dsa-content` (pipeline branch at the end of wave 3; rebased onto `main` after A) | 3.6, 3.7a, 3.8a, 3.9a, 3.7b, 3.8b, 3.9b | **owner**, after review — including every `tests.yaml` example against LeetCode |
+| C "M3: English content" | `feat/m3-english-content` (pipeline branch at the end of wave 3; rebased after A) | 3.10, 3.11 | **owner**, after review |
+
+PR A carries no learning content: a missing roadmap, lesson, note or deck is coverage, not an
+error (decision 4), so A is green and mergeable alone. B and C change only `content/**` plus one
+content-pinning test each (`tools/content/dsa-content.test.ts`, `english-content.test.ts`) and, for
+B, ADR-0013 — no app code, which is what success criterion 2 asks of a content PR. M4 may start as
+soon as A is merged; B and C are reviewed in parallel with M4 (Execution methods note). M4 task 4.8
+needs B merged (its projection hash reads the DSA roadmaps and difficulties).
+
+**Execution schedule.** A task starts when every task it depends on has been cherry-picked onto its
+target branch; the waves below are that rule applied in lockstep.
+
+| Task | Depends on | Target branch | Runs e2e | Shared files it owns in its wave |
+| --- | --- | --- | --- | --- |
+| 3.0 plan, deps, housekeeping (controller) | M2 merged | pipeline | — | plan, spec §7.10, `docs/adr/README.md`, `package.json`, `pnpm-lock.yaml`, `.prettierignore`, `.env.example`, `CLAUDE.md`; Steps 6–7 (M2 rulings R17, R18): a new migration and its pgTAP tests, `lib/domain/time/localDay.ts`, the onboarding and settings actions, `docs/ops/staging.md`, spec §2.5 |
+| 3.1 content schemas | 3.0 | pipeline | no | `lib/auth/dal.ts`, `content/tracks/dsa/track.yaml` |
+| 3.2a MDX parser + safety check | 3.0 | pipeline | no | — |
+| 3.3a highlighting + CodeBlock | 3.0 | pipeline | **yes** | `COMPONENTS.md`, catalog `registry.tsx`, `DESIGN_SYSTEM.md` |
+| 3.5a content-verify, pure part | 3.0 | pipeline | no | — |
+| 3.2b `content:build` core | 3.1, 3.2a, 3.3a, 3.5a | pipeline | no | `package.json`, `eslint.config.mjs`, `.prettierignore`, `ci.yml`, `content/ids.lock`, `lib/content/code-tokens.ts` |
+| 3.3b MDX pipeline + components | 3.1, 3.2a, 3.3a | pipeline | **yes** | `next.config.ts`, `vi.ts`, `COMPONENTS.md`, catalog `registry.tsx`, `docs/ops/content-images.md`, `offline-build.test.ts` |
+| 3.5b content-verify, runtime part | 3.1, 3.5a | pipeline | no | `CLAUDE.md`, `README.md`, `content-verify.yml` |
+| 3.2c `content:build` cross-checks | 3.2b | pipeline | no | `CLAUDE.md`, `README.md` |
+| 3.4a item registry + renderers | 3.2b, 3.3b | pipeline | **yes** | `next.config.ts`, `vi.ts`, `COMPONENTS.md`, catalog `registry.tsx`, `component-catalog.test.ts`, `lib/content/tracks.ts` |
+| 3.4b track routes | 3.4a, 3.2c | pipeline | **yes** | `vi.ts`, `COMPONENTS.md`, catalog `registry.tsx`, `e2e/support/test.ts` |
+| 3.6 DSA metadata + roadmaps | 3.2c, 3.3b | dsa-content | no | `content/tracks/dsa/track.yaml` |
+| 3.10 English roadmap + core decks | 3.2c | english-content | no | `content/tracks/english/track.yaml` |
+| 3.7a / 3.8a / 3.9a DSA W1 / W2 / W3 tests + solutions | 3.6, 3.5b | dsa-content | no | — (own problem folders) |
+| 3.11 English W1–W3 extended | 3.10 | english-content | no | — (decks W1–W3, own new files) |
+| 3.7b / 3.8b / 3.9b DSA W1 / W2 / W3 notes + lessons | its (a) task | dsa-content | no | 3.7b: `docs/adr/README.md` |
+
+| Wave | Parallel tasks (one worktree each) | e2e lock holder | Controller at the end of the wave |
+| --- | --- | --- | --- |
+| 0 | 3.0 (controller, in `int-pipeline`) | — | — |
+| 1 | 3.1 ‖ 3.2a ‖ 3.3a ‖ 3.5a | 3.3a | verify + e2e |
+| 2 | 3.2b ‖ 3.3b ‖ 3.5b | 3.3b | verify + e2e; push the pipeline branch as a **draft PR A** (fix 6) |
+| 3 | 3.2c ‖ 3.4a | 3.4a | verify + e2e; create `feat/m3-dsa-content` and `feat/m3-english-content` with `int-dsa` / `int-english` |
+| 4 | 3.4b ‖ 3.6 ‖ 3.10 | 3.4b | verify + e2e on pipeline; commit `ids.lock` on both content branches |
+| 5 | 3.7a ‖ 3.8a ‖ 3.9a ‖ 3.11 | controller (PR A finish) | PR A: final review, fix pass, `verify:full`, merge; `ids.lock` on english |
+| 6 | 3.7b ‖ 3.8b ‖ 3.9b | — | `ids.lock` on dsa |
+| 7 | — | controller | content finish: rebase B and C onto `main`, content e2e, open B and C |
+
+- **Same-wave tasks share no file.** The last column of the task table names each shared file's
+  single owner in its wave; no shared file appears twice within a wave. Dependencies — including
+  moving `yaml` to devDependencies (fix 10) — are installed once in 3.0, so no worktree touches
+  `package.json` dependencies or `pnpm-lock.yaml`; the `content:verify` script is added in 3.0 too,
+  so only 3.2b edits `package.json` scripts. ADR index rows 0009–0012 are linked in 3.0 and 0013 in
+  3.7b (fix 18). `content/ids.lock` is written only by 3.2b (the empty file) on the pipeline branch
+  and **only by the controller** on the content branches (decision 8).
+- **Integration worktrees** (fix 16): the controller never switches the main checkout; it keeps one
+  worktree per target branch — `<scratchpad>/int-pipeline`, `int-dsa`, `int-english` — and
+  cherry-picks, verifies and commits there.
+- **e2e lock:** Playwright uses port 3100 and the single local Supabase stack, so at most one
+  process runs `pnpm test:e2e` at a time — the wave's e2e task, or the controller's post-wave check,
+  never both (the controller runs its check after the wave's e2e task has finished). Nobody runs
+  `db:stop` or `db:reset` (M3's one migration, 3.0 Step 6, is applied in wave 0, before any
+  task worktree exists).
+- **Task worktrees** (as M2 ruling R10): `git worktree add <scratchpad>/wt-3.x -b feat/m3-task-3.x
+  <target-branch head>` then `pnpm install --frozen-lockfile`; the implementer commits there; after
+  a clean review the controller cherry-picks the commit(s) in its integration worktree, runs `pnpm
+  verify` (plus `pnpm test:e2e` under the lock for the pipeline), and removes the task worktree and
+  its branch.
+
+**Decisions taken while writing (each is a ledger ruling; the owner can overturn any; OD1–OD5
+above are binding):**
+
+1. **Execution** — OD5.
+2. **Three pull requests** — OD4 and the table above.
+3. **Task splits:** Part A 3.2 → **3.2a** (MDX parser, safety check, allowlist) + **3.2b**
+   (`content:build` core) + **3.2c** (cross-checks, derived decks, coverage, report); 3.3 → **3.3a**
+   (build-time highlighting, CodeBlock) + **3.3b** (`@next/mdx`, content components, images); 3.4 →
+   **3.4a** (registry, a page and a row per item type) + **3.4b** (`/tracks`, `/t/…` routes); 3.5 →
+   **3.5a** (pure: schema, comparators, validators, literals) + **3.5b** (runtime: runners,
+   orchestrator, sandbox, workflow); each of 3.7–3.9 → **(a)** tests + solutions and **(b)** notes +
+   lessons (fixes 11, 13).
+4. **Missing structure is coverage, not an error.** Every file that exists is validated strictly;
+   a manifest roadmap without `roadmaps/<id>.yaml`, a topic without its pattern lesson, a problem
+   without a note, a week without decks are reported (report, `catalog.coverage`,
+   `catalog.missingRoadmaps`) and render as empty states (RF-4). A roadmap file the manifest does
+   not list is an error. So PR A merges before any content (§3.6 already treats a missing lesson
+   as coverage).
+5. **Generated outputs** (`.generated/`, already git-ignored): `catalog.json` (the §3.6 artifact,
+   for people and tools), `catalog.ts` (`export const CATALOG: Catalog = JSON.parse(<string
+   literal>)` — bundled into the server build: no JSON type inference, no file tracing), `mdx.ts`
+   (the static MDX import map, starting with `/// <reference types="mdx" />` — TypeScript 6 no
+   longer includes `@types/*` automatically, spike), `code.ts` + `code/<trackId>/<localId>.ts`
+   (highlighted code bundles, imported dynamically per item page).
+6. **`lib/content/tracks.ts` reads the manifests from the catalog** (3.4a; §3.8 "the track list
+   comes from the catalog"); `yaml` moves to `devDependencies` in 3.0 (the server bundle includes
+   it until 3.4a — Next bundles imported packages whatever their dependency group) and 3.4a removes
+   the `outputFileTracingIncludes` entry for `track.yaml` (M2 decision 12 follow-up). Owner check
+   after PR A: onboarding on a preview still lists both tracks.
+7. **Scripts:** `content:build` = `tsx tools/content/cli.ts`; `build` = `pnpm content:build && next
+   build` (Vercel and Playwright's web server); `dev` = `pnpm content:build && next dev`; `verify` =
+   `pnpm content:build && pnpm typecheck && pnpm lint && pnpm test && next build` (content:build
+   runs once); `test:e2e` = `pnpm content:build && playwright test` (specs read
+   `.generated/catalog.json` while they are collected); `content:verify` = `tsx
+   tools/content-verify/cli.ts` (added in 3.0). **Check mode** (`--check`, or `CI` set and not `''`,
+   `'0'`, `'false'` — fix 19; Vercel builds set `CI=1`) never writes `content/ids.lock` and fails
+   when it is stale; locally the lock is updated.
+8. **`content/ids.lock`**: a comment header, a `[published]` and a `[retired]` section, one ID per
+   line, sorted, unique. New IDs are added (locally) or fail (check mode); an ID in `[published]`
+   that disappeared from `content/**` fails unless moved to `[retired]` by hand; a `[retired]` ID
+   found in content fails ("reused"); derived IDs are included. A derived card whose source stops
+   qualifying stays in the catalog with `status: retired`, so moving a note back to draft never
+   breaks the build. Only item IDs are locked (decks, roadmaps and `#note` publish targets are not
+   items). **On the content branches only the controller commits it**: content tasks run
+   `pnpm content:build` and restore the file before committing; after cherry-picking a wave the
+   controller runs `pnpm content:build` in the integration worktree and commits `chore(content):
+   record new IDs in ids.lock` — so parallel content tasks never share the file.
+9. **ID and file-name rules** — the table in task 3.1 (problem folders `lc-<4+ digits>-<leetcode
+   slug>`, lessons `lesson-<file>`, decks `deck-<file>`, exercises `ex-…`, prompts `prompt-…`,
+   cards any other local ID, derived `<track>:<deck>:<source id>`; ASCII `[a-z0-9-]` only; `user:`
+   and the track ID `user` reserved).
+10. **Flashcards have one canonical shape** `front` / `back` / `hint` (the keys of the §3.4 derived
+    mapping) plus the vocabulary fields of §3.5: `usage { pos, register, note? }`, `example`,
+    `pronunciation`, `tags`, `tier`. Deck files declare `kind: vocabulary | recall` (vocabulary
+    requires usage, example and pronunciation on every card) and `lang` (default `front: en`,
+    `back: vi`). Derived cards get `tier: derived` (not allowed in deck files).
+11. **Lesson frontmatter has a required `title`** (§3.3 lists id, format, topic, anchor?,
+    practice, about?, status?; rows and pages need a title).
+12. **`explain-aloud` costs `review.recallMinutes`** (§5.4 gives no estimate; M4 calibrates).
+13. **Syntax colours reuse verified text tokens:** keyword `text-primary`, string `text-success`,
+    constant/number `text-warning`, comment `text-muted-foreground italic`, everything else the
+    inherited foreground. No new design tokens: each pair already passes 4.5:1 on
+    `surface-muted` in both themes (DESIGN_SYSTEM Appendix A). `code-*` alias tokens can come later.
+14. **Code tokens, not HTML:** shiki `codeToTokens` with the CSS-variables theme → token kinds →
+    compact JSON → React spans with token utility classes. No `dangerouslySetInnerHTML`, no inline
+    styles, zero client JS for highlighting.
+15. **Images** — OD3 (the bucket). Links are `https:` only; internal references use `<Practice
+    problem>` and frontmatter IDs.
+16. **Prettier ignores `**/*.mdx`** (added in 3.0, fix 3 — its MDX parser targets MDX 1 and
+    re-indents JSX children, spike); YAML content stays Prettier-formatted.
+17. **MDX authoring rules** (spike; enforced by 3.2a): braces in prose or tables are expressions →
+    write `` `{}` `` or `\{\}`; block components (`<Section>`, `<Choice>`, `<Solution />`, …) stand
+    on their own lines — a paragraph holding only components counts as blocks (MDX's unravel, fix
+    2), a paragraph mixing text and a block component is an error; `<Term>` is inline; headings are
+    `###`/`####` in lessons (`<Section>` renders the `h2`) and `##`–`####` in notes; `<Question
+    prompt="…" answer="…">` carries its text as an attribute, so the client quiz never inspects
+    children across the server/client boundary.
+18. **content-verify sandbox** — OD2. CI toolchains: `actions/setup-python@v7` 3.13,
+    `actions/setup-java@v6` Temurin 25 compiling with `--release 21`, `actions/setup-go@v7` 1.26.
+    Local minimums: Python 3.11, JDK 21, Go 1.22. The same orchestrator runs locally and in CI; CI
+    wraps every toolchain command with the sandbox user, local runs on a developer's machine are
+    unsandboxed (`sandbox: null`).
+19. **Runner model** (spike): Python runs a static `runner.py` (JSON request on stdin); Java and Go
+    harnesses are generated with literal arguments; each problem × language compiles once and runs
+    once per case; arguments are positional in every language; the Node orchestrator enforces the
+    per-case timeout (plus `timeout` inside the sandbox) and compares.
+20. **The `design-class` tests format is defined and validated now** (`ops` / `args` / `expected`,
+    `{ $result: n }` for codec round-trips, `{ $any: true }` to skip a value) and executed in M3c,
+    so 271, 155 and 981 need no content change later.
+21. **Verification status is derived:** `tested` iff the signature kind is in
+    `SUPPORTED_SIGNATURE_KINDS` (`lib/content/verification.ts`; M3a = `function`), else
+    `compile-only`; the required `content-verify` check backs it.
+22. **CI checks:** a `content-build` job in `ci.yml` (3.2b) and the `content-verify` workflow
+    (3.5b); both become required checks at the PR A stop (release table: v1.0), so Part A row 7.3
+    adds only `path-guard` and `bot-content-policy`.
+23. **`features/roadmap`** holds the `/tracks` and `/t/…` loaders and components, because
+    `features/tracks/index.ts` must stay client-safe (M2 decision 24); its components take rows and
+    pages as ReactNode props and never import the registry (fix 5).
+24. **Item URLs use local IDs:** `/t/[trackId]/items/[itemId]`, `itemId` = the part after
+    `<track>:`, `encodeURIComponent`-encoded (derived IDs contain colons).
+25. **Item page props** gain `viewer: { codeLanguage, isAdmin }`, preloaded `data: { Body, code }`
+    and `resolveItem`; `recordResult` is optional until 5.2; `state` is `null` until item state
+    exists (4.9/M5). Track-page **progress and weak items** move to 5.4 (Part A row updated).
+26. **Provenance fields** `origin: bot` and `createdByRun` are accepted by every item schema (data
+    model only; the "tested (bot tests)" badge, ADR-0040, stays v1.1).
+27. **ADR index rows 0009–0012 are linked in 3.0** with their final file names and **0013 in 3.7b**
+    (fix 18); tasks only create the ADR files.
+28. **Dependencies are installed once, in 3.0** (including `yaml` → devDependencies, fix 10);
+    implementers never change dependencies and only run `pnpm install --frozen-lockfile`.
+29. **Bonus problems** (Q2): the 25 **selected NeetCode 150 problems** in the 3.6 table (fix 14 —
+    hand-picked toward ~110 problems: at most 4 per topic, Easy/Medium and free first, plus 76, 252
+    and 743 from NeetCode's Advanced Graphs; the 17 omitted are listed there), each in the week of
+    its topic; the 8w variant also lists, as bonus in their topic's week, the 10w problems it drops.
+    DSA total: 114 problems (380 is not a NeetCode 150 problem; it comes from the brief's roadmap).
+30. **English weekly topics** (Q3): the 3.10 table.
+31. **M2 deferred minors absorbed** (files M3 touches anyway): 2.9 — the weekday fixture test
+    asserts the field, `DAY_ORDER` reuses `WEEKDAY_KEYS`, a practice block without tag or item
+    type cannot exist (schema rule); 2.10 — `CodeLanguage` moves to `lib/content` (no content →
+    auth import); R13 — `.env.example`'s bootstrap note (3.0).
+32. **The DSA manifest gains `estimates.flashcard: { new: 1.5, review: 0.5 }`** (§5.4 card
+    estimates): its `itemTypes` lists `flashcard`, and every listed type needs an estimate.
+33. **Section headings** come from `vi.content.sections[kind]`, falling back to the kind ID, so a
+    new track's lesson format works without code (its Vietnamese labels are a one-line follow-up).
+34. **Solutions are original, standalone and stdlib-only:** Python `class Solution` with explicit
+    `typing` imports; Java `import java.util.*;` + `class Solution` — **no `public` on top-level
+    classes** (fix 23: the file is `Solution.java`, design classes share it, and the generated
+    `Main.java` sits beside it); Go `package main`, LeetCode's function names, no `func main`;
+    design classes use LeetCode's class and method names. Never copied from LeetCode, NeetCode or
+    any editorial (Q7); comments in English.
+
+**Changes to the spec, Part A and the plan header** (applied in task 3.0): spec §7.10 lists
+`@mdx-js/mdx` among the approved dev dependencies (OD1, fix 24); the Execution methods row (OD5);
+the "Execution status" bullet ("M3: step-level detail in Part B-M3 …"); a "Part B-M3 changes to this
+table" note under the M3 table (decisions 3, 4, 6, 22, 25, OD3); Part A row 5.4 gains "track-page
+progress and weak items" (decision 25); row 7.3 adds only `path-guard` and `bot-content-policy` to
+the ruleset (decision 22); Global Constraints — Dependencies adds `@mdx-js/mdx` (OD1); "from task
+3.2 on" `verify` starts with `content:build` becomes "from task 3.2b on"; the Git bullet notes that
+M2 and later PRs are merged by the controller once CI and the final review are green, except the
+content PRs B and C (OD4).
+
+**Subagent contract for every task** (M2's contract, plus): read `CLAUDE.md`, the platform-design
+sections the task cites and this task's text; TDD (superpowers:test-driven-development) — the
+listed tests fail first; `pnpm verify` green before the commit; never read `.env*` other than the
+committed template `.env.example`, and never `docs/credentials/`.
+
+- Work only in the worktree and branch named in your brief; commit there; never push; never touch
+  the main checkout, an integration worktree or another task's worktree.
+- Run `pnpm test:e2e` only if your task says so (e2e lock); never `db:stop` or `db:reset`.
+- Change no dependency (`pnpm install --frozen-lockfile` only); if something is missing, stop and
+  report `BLOCKED`.
+- From 3.2b on, `.generated/` must exist before `typecheck` and `test`: `pnpm verify` creates it;
+  when running a single command, run `pnpm content:build` first.
+- Edit only the shared files your task owns (the schedule table); anything else shared → ask the
+  controller. On a content branch never commit `content/ids.lock` (`git checkout content/ids.lock`
+  before committing; decision 8).
+- **Wave-1 tasks (3.1, 3.2a, 3.3a, 3.5a) do not import each other's new modules** — they are
+  built side by side; where they need the same small type (`'python' | 'java' | 'go'`, an ID
+  pattern) they declare it locally, and a later task switches to the shared export (noted per task).
+- Call `redirect()` / `notFound()` outside `try`/`catch`. Nothing that runs during `next build`
+  prerendering calls `serverEnv()`.
+- **Content tasks:** never copy a LeetCode problem statement (Q7) — links, own notes, the example
+  inputs/outputs in `tests.yaml` only (sourced as 3.7a–3.9a say); solutions are original (decision
+  34); the report lists every file created and pastes the `content:build` (and `content:verify`)
+  output.
+
+### Task 3.0: Plan commit, dependencies and housekeeping (controller)
+
+Steps 6–7 come from M2 rulings **R17** and **R18** (M2's final review), carried over into wave 0
+when this section was committed.
+
+- [ ] **Step 1: Integration worktree** (fix 16), once the M2 PR is merged: `git fetch origin && git
+  worktree add <scratchpad>/int-pipeline -b feat/m3-content-pipeline origin/main`, `pnpm install
+  --frozen-lockfile` there. All controller work for PR A happens in `int-pipeline`.
+- [ ] **Step 2: Plan commit** — append this section to
+  `docs/plans/2026-09-24-implementation-plan.md` and apply the spec / Part A / header changes above
+  (including spec §7.10 + `@mdx-js/mdx`); in `docs/adr/README.md` link the rows
+  `[0009](0009-tracks-are-data-item-types-are-code.md)`,
+  `[0010](0010-namespaced-ids-and-ids-lock.md)`,
+  `[0011](0011-mdx-safety-and-build-time-highlighting.md)`,
+  `[0012](0012-sandboxed-solution-verification.md)` (task column: 3.4a, 3.2b, 3.3b, 3.5b; the 0013
+  row stays unlinked until 3.7b). Commit `docs: Part B-M3 step-level plan`.
+- [ ] **Step 3: Dependencies and scripts** (versions from the spike, exact):
+
+  ```bash
+  pnpm add --save-exact @next/mdx@16.3.6 @mdx-js/loader@3.1.1 @mdx-js/react@3.1.1 \
+    remark-frontmatter@5.0.0 remark-gfm@4.0.1
+  pnpm add --save-exact -D shiki@4.4.3 @types/mdx@2.0.14 @mdx-js/mdx@3.1.1   # OD1
+  pnpm remove yaml && pnpm add --save-exact -D yaml@2.9.1                     # fix 10, decision 6
+  pnpm verify
+  ```
+
+  plus the script `"content:verify": "tsx tools/content-verify/cli.ts"` in `package.json`, added
+  by hand (`pnpm pkg` is not implemented in pnpm 11; the CLI arrives in 3.5b). Commit `build(deps): MDX, remark plugins and shiki for the content pipeline`.
+- [ ] **Step 4: Housekeeping** — `.prettierignore` gains `**/*.mdx` (fix 3; 3.2b adds only
+  `.generated/`); `.env.example`'s `ADMIN_EMAILS` comment says the bootstrap promotes a listed
+  e-mail only while no active admin exists (M2 ruling R13); `CLAUDE.md` Safety says
+  `.env.example` is the committed template and may be read and edited, every other `.env*` stays
+  unread. `pnpm verify`. Commit `chore: MDX Prettier ignore and the .env.example bootstrap note`.
+- [ ] **Step 5:** write the dispatch context file
+  `.superpowers/sdd/2026-09-24-implementation-plan/m3-context.md` (Global Constraints + this
+  section's header, owner decisions, rulings and contract) and start the progress ledger's M3 part.
+- [ ] **Step 6: M2 ruling R17 — bound schedule history and avatar URLs; validate time zones**
+  (TDD: the tests below fail first; merged migrations are never edited — CLAUDE.md):
+  - `supabase/migrations/<next timestamp>_bound_schedule_history_and_avatar.sql`: `create or
+    replace` the pending-schedule cap `schedule_versions_limit_pending()` from `…000100` so it also
+    counts a user's versions with `effective_at > now() - interval '1 day'` (not only `> now()`)
+    and raises `too_many_pending_schedules` above **10** — this bounds history growth through the
+    `now() − 5 min` insert window to ≤ 10 rows per user per day; upserts of an existing row stay
+    free; the per-user advisory lock and R14's cap of 2 pending versions stay. `alter table
+    public.profiles add constraint avatar_url_length check (avatar_url is null or
+    char_length(avatar_url) <= 2048)`, and `handle_new_user()` (`create or replace`) stores an
+    over-long provider avatar as `null`, like an `http:` one, so a long avatar never blocks sign-up.
+  - pgTAP: 11 inserts inside the window → the 11th fails; an upsert of an existing version still
+    works; a 2049-character avatar fails; a sign-up with a 2049-character avatar gets a profile
+    with `avatar_url` null; existing tests stay green; the schema-invariants allowlist is unchanged
+    unless a new function is exposed to `authenticated`.
+  - `lib/domain/time/localDay.ts`: the per-zone `Intl.DateTimeFormat` cache is bounded (the map is
+    cleared when it would exceed 1000 entries); the onboarding and settings actions reject a time
+    zone that is not in `timeZoneOptions()` (after `canonicalTimeZone`) with the existing
+    `invalid_timezone` message — unit tests for both.
+  - `features/settings/actions.ts`: `too_many_pending_schedules`, `schedule_in_force` and
+    `schedule_backdated` join the `STALE` set (the page re-renders on those codes) — unit test.
+  - `pnpm db:reset && pnpm test:db`, `pnpm verify`. Commit `fix(db): bound schedule history and
+    avatar URLs; validate time zones against the picker list`. After PR A merges, the controller
+    runs `supabase db push` to the `hoc-deu` project.
+- [ ] **Step 7: M2 ruling R18 — docs only.** `docs/ops/staging.md`: the placeholder production
+  branch must **exist** on GitHub (Vercel rejects a missing branch) — `production` was created on
+  2026-09-25, pinned at M1 (`c2a9583`), and 5.8 switches Vercel's production branch back to
+  `main`; Vercel promotes a project's **first** deployment to production whatever the production
+  branch — after connecting the repo, redeploy the `production` branch to production (done
+  2026-09-25; `hoc-deu.vercel.app` serves M1 until 5.8); current state: previews (`main`
+  included) use the **production** Supabase project `hoc-deu` (owner decision 2026-09-25) until a
+  separate staging project exists (the Free plan allows two active projects), and preview URLs sit
+  behind Vercel's standard deployment protection (sign in to Vercel to open them); after setting
+  the Preview variables, redeploy `main` as a Preview; the image bucket `content-images` exists
+  (OD3). This plan: annotate Part A row 2.7 ("admin email becomes active admin"), the 2.5b
+  `admin_bootstrap` spec and its test item 5, and 2.7a's bootstrap e2e scenario (Step 2, item 4)
+  with "(superseded by decision 23 / R13: only while no active admin exists)"; the spec's §2.5
+  "Admin bootstrap" the same way. Commit `docs: M2 follow-ups in the runbook, plan and spec`.
+
+### Task 3.1: Content schemas — item types, roadmaps, the full manifest, IDs
+
+**Files:**
+
+- Create: `lib/content/schemas/common.ts`, `lib/content/schemas/ids.ts` (+ `ids.test.ts`),
+  `lib/content/schemas/roadmap.ts` (+ `roadmap.test.ts`), `lib/content/schemas/manifest.test.ts`,
+  `lib/content/item-types/{types,problem,lesson,flashcard,exercise,prompt,index}.ts` (+ a
+  `*.test.ts` per type file and `index.test.ts`)
+- Modify: `lib/content/schemas/manifest.ts`, `lib/content/weekly-template.ts` (+ test),
+  `lib/content/track-options.ts`, `lib/content/tracks.test.ts`, `lib/content/__fixtures__/tracks/**`
+  (fixtures gain the now-required fields), `lib/auth/dal.ts` (`CodeLanguage` comes from
+  `lib/content/schemas/common.ts`), `content/tracks/dsa/track.yaml` (`lessonFormats` verbatim from
+  §3.4; `estimates.flashcard`, decision 32)
+
+**ID and file rules** (decision 9; `ids.ts` implements the patterns, 3.2b the file checks):
+
+| What | Rule | Example |
+| --- | --- | --- |
+| Track ID | `^[a-z][a-z0-9-]{0,31}$`, not `user` | `dsa` |
+| Item ID | `<trackId>:<localId>`, local `^[a-z0-9][a-z0-9-]{0,63}$`, the track prefix = the folder's track | `english:w01-blocker` |
+| Problem | folder `lc-<leetcode, ≥ 4 digits zero-padded>-<leetcode slug>` (slug `^[a-z0-9]+(?:-[a-z0-9]+)*$`, ≤ 80 chars), ID `<track>:lc-<same digits>` | `problems/lc-0001-two-sum/` → `dsa:lc-0001` |
+| Lesson | `lessons/<slug>.mdx`, ID `<track>:lesson-<slug>` | `dsa:lesson-arrays-hashing` |
+| Deck | `decks/<slug>.yaml`, ID `<track>:deck-<slug>` | `english:deck-w01-standup` |
+| Exercise / prompt | local ID starts `ex-` / `prompt-` | `english:ex-w01-fill-1`, `dsa:prompt-mock-interview` |
+| Card | any local ID not starting `lc-`, `lesson-`, `deck-`, `ex-`, `prompt-` | `english:w01-blocker` |
+| Derived card | `<track>:<derived deck id>:<source item ID>` | `english:explaining-code:dsa:lc-0001` |
+| Topic / variant / format / tag | `^[a-z0-9][a-z0-9-]{0,31}$` | `two-pointers`, `8w`, `pattern`, `weekend-task` |
+| Reserved | any ID starting `user:`; track ID `user` | — |
+
+**Interfaces:**
+
+```ts
+// lib/content/schemas/common.ts
+export const ITEM_TYPES = ['problem', 'flashcard', 'lesson', 'exercise', 'prompt'] as const
+export type ItemType = (typeof ITEM_TYPES)[number]
+export const ITEM_STATUSES = ['draft', 'active', 'retired'] as const
+export type ItemStatus = (typeof ITEM_STATUSES)[number]
+export const CODE_LANGUAGES = ['python', 'java', 'go'] as const
+export type CodeLanguage = (typeof CODE_LANGUAGES)[number]
+export const nonEmptyText            // z.string().trim().min(1)
+export const localizedTextSchema     // z.strictObject({ vi: nonEmptyText, en: nonEmptyText })
+export type LocalizedText = z.infer<typeof localizedTextSchema>
+export const httpsUrlSchema          // z.url({ protocol: /^https$/ })
+export const itemStatusSchema        // z.enum(ITEM_STATUSES).default('active')
+export const provenanceShape         // { origin: z.literal('bot').optional(),
+                                     //   createdByRun: z.string().regex(/^run_\d{4}-\d{2}-\d{2}(?:-\d+)?$/).optional() }
+                                     // createdByRun without origin → issue (every item schema refines it)
+
+// lib/content/schemas/ids.ts
+export const RESERVED_TRACK_ID = 'user'
+export const TRACK_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
+export const LOCAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/        // topics, variants, formats, tags
+export const LOCAL_ID_PREFIX = { problem: 'lc-', lesson: 'lesson-', deck: 'deck-', exercise: 'ex-', prompt: 'prompt-' } as const
+export type ParsedItemId = { trackId: string; localId: string }
+export function parseItemId(id: string): ParsedItemId | null   // exactly one ':'; null when malformed or reserved
+export type ParsedDerivedId = { trackId: string; deckId: string; sourceId: string }
+export function parseDerivedId(id: string): ParsedDerivedId | null
+export function isReservedId(id: string): boolean
+export function derivedCardId(trackId: string, deckId: string, sourceId: string): string
+export function problemLocalId(leetcode: number): string       // 1 → 'lc-0001', 1143 → 'lc-1143', 10000 → 'lc-10000'
+export function parseProblemFolder(name: string): { leetcode: number; slug: string } | null
+// `lc-<digits>-<slug>`, slug /^[a-z0-9]+(?:-[a-z0-9]+)*$/ and ≤ 80 characters
+export const trackIdSchema, itemIdSchema, slugSchema            // Zod wrappers of the rules above
+```
+
+`lib/content/schemas/manifest.ts` becomes **strict** (M2's `looseObject` goes); existing exports
+keep their names (`TRACK_ACCENTS`, `templateBlockSchema`, `weeklyTemplateSchema`,
+`trackManifestSchema`, `TrackManifest`, `WeeklyTemplate`, `RoadmapRef`, `TemplateBlock`), plus:
+
+```ts
+export const WEEKDAY_KEYS = ['mon-fri', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+// templateBlockSchema → z.discriminatedUnion('kind', [ each strict, each may carry fromWeek?: posInt
+//   { kind: 'review', maxMinutes?: posInt }, { kind: 'new' }, { kind: 'recap', count: posInt },
+//   { kind: 'practice', minutes: posInt, tag?: slug, itemType?: ItemType } — exactly one of tag / itemType ])
+export const srsParamsSchema     // strict { intervals: posInt[] ≥ 1, strictly increasing; relearnDays: posInt; masteredAfter: posInt }
+export const srsSchema           // srsParams + byType?: z.partialRecord(z.enum(['problem', 'flashcard']), srsParamsSchema.partial())
+export const reviewSchema        // strict { recallMinutes: number > 0; redoFactor: number > 0 and ≤ 1 }
+export const estimatesSchema     // strict { lesson?: >0; problem?: { new: { E, M, H: >0 } }; prompt?: >0;
+                                 //          flashcard?: { new: >0, review: >0 }; exercise?: >0 }
+export const topicSchema         // strict { id: slug, title: localizedText, signals: nonEmptyText[] = [], requires: slug[] = [] }
+export const LESSON_REFS = ['anchor', 'practice', 'about'] as const
+export const LESSON_RULES = ['anchor!=practice', 'practice!=about', 'same-topic', 'one-per-topic', 'max-1-per-about'] as const
+export const lessonFormatSchema  // strict { sections: /^[a-z][a-z0-9-]*$/[] ≥ 1 unique; requires: LESSON_REFS[] = []; rules: LESSON_RULES[] = [] }
+export const DERIVED_FIELDS = ['note.bilingual.en', 'note.bilingual.vi', 'problem.title'] as const
+export const TEMPLATE_PLACEHOLDERS = ['problem.title', 'problem.leetcode', 'problem.difficulty'] as const
+export const derivedDeckSchema   // strict { id: LOCAL_ID; kind: 'derived'; title?: localizedText;
+                                 //   from: strict { track: trackId; itemType: 'problem' }; unlock: 'attempted';
+                                 //   map: strict { front: MapValue; back: MapValue; hint?: MapValue } }
+                                 // MapValue = strict { template: text whose {…} are TEMPLATE_PLACEHOLDERS } | enum(DERIVED_FIELDS)
+// trackManifestSchema — strict: id (trackId, not 'user'), status, title, accent, itemTypes (ItemType[] ≥ 1, unique),
+//   codeLanguages? (CodeLanguage[] ≥ 1, unique), srs, review?, topics = [], lessonFormats? (record slug → format),
+//   defaults (unchanged), estimates, decks = [] (derived decks), roadmaps (ids slug, unique), weeklyTemplate
+//   superRefine, issue path in brackets:
+//   - every listed item type has its estimate                                [estimates.<type>]
+//   - problem listed ⇒ review and codeLanguages present                      [review] [codeLanguages]
+//   - lesson listed ⇔ lessonFormats present and non-empty                     [lessonFormats]
+//   - srs.byType keys are listed item types                                  [srs.byType.<type>]
+//   - topic IDs unique, every `requires` names a topic, no cycle ('a → b → a') [topics]
+//   - decks non-empty ⇒ flashcard listed; deck IDs unique                     [decks]
+//   - a practice block's itemType is a listed item type                      [weeklyTemplate.<day>.<i>.itemType]
+export function topicCycle(topics: readonly { id: string; requires: readonly string[] }[]): string[] | null
+export type Topic = z.infer<typeof topicSchema>
+export type LessonFormat = z.infer<typeof lessonFormatSchema>
+export type LessonRule = (typeof LESSON_RULES)[number]
+export type DerivedDeck = z.infer<typeof derivedDeckSchema>
+export type TrackEstimates = Pick<TrackManifest, 'estimates' | 'review'>
+```
+
+```ts
+// lib/content/schemas/roadmap.ts
+export const RECAP_MODES = ['recall', 'redo', 'explain-aloud'] as const
+export type RecapMode = (typeof RECAP_MODES)[number]
+export const recapEntrySchema    // strict { item: itemId; mode?: RecapMode }   — no mode = introduce it (e.g. 271 in W1)
+export const roadmapWeekSchema   // strict { week: posInt; topics: slug[] ≥ 1; core: itemId[] = []; bonus: itemId[] = [];
+                                 //          recap: RecapEntry[] = []; decks: itemId[] = [] }
+export const roadmapSchema       // strict { id: slug; weeks: RoadmapWeek[] ≥ 1 }
+//   superRefine: weeks numbered 1..n in file order                  [weeks.<i>.week]
+//                an item placed at most once (core ∪ bonus ∪ recap entries without mode) [weeks.<i>.<list>.<j>]
+//                a deck listed at most once; a topic in at most one week
+export type Roadmap, RoadmapWeek, RecapEntry
+/** Items a week introduces in queue order (§5.3): core, then recap entries without a mode. */
+export function placedItems(week: RoadmapWeek): string[]
+/** §3.4 week sizes: core items plus `tier: core` cards of the week's decks. */
+export function weekSizes(roadmap: Roadmap, coreCardsInDeck: (deckId: string) => number): number[]
+```
+
+```ts
+// lib/content/item-types/types.ts
+export type Mode = 'new' | 'recall' | 'redo' | 'review' | 'explain-aloud'
+export type Outcome = 'success' | 'partial' | 'fail'
+export type ItemTypeCore<T> = {
+  type: ItemType
+  schema: z.ZodType<T>                                  // the authored entry
+  outcomes: Readonly<Record<string, Outcome>>
+  srs: boolean
+  estimateMinutes(item: T, estimates: TrackEstimates, mode: Mode): number
+}
+
+// lib/content/item-types/problem.ts
+export const DIFFICULTIES = ['E', 'M', 'H'] as const
+export type Difficulty = (typeof DIFFICULTIES)[number]
+export const problemSchema         // strict { id: itemId; leetcode: int 1–99999; title: nonEmptyText (English, never translated);
+                                   //   difficulty; topic: slug; premium: boolean = false;
+                                   //   alternatives: { label: nonEmptyText; url: httpsUrl }[] = []; status; ...provenance }
+                                   // refine: localId === problemLocalId(leetcode) [id]; premium ⇒ ≥ 1 alternative [alternatives]
+export const noteFrontmatterSchema // strict { status; ...provenance } — a note may have no frontmatter (= active)
+export type Problem = z.infer<typeof problemSchema>
+export type NoteFrontmatter = z.infer<typeof noteFrontmatterSchema>
+export const problemType: ItemTypeCore<Problem>
+// outcomes { solved: 'success', hint: 'partial', failed: 'fail' }; srs true
+// new → estimates.problem.new[difficulty]; recall | review | explain-aloud → review.recallMinutes (decision 12);
+// redo → Math.round(new × review.redoFactor)
+
+// lib/content/item-types/lesson.ts
+export const lessonFrontmatterSchema // strict { id; format: slug; topic: slug; title: nonEmptyText; anchor?: itemId;
+                                     //   practice?: itemId; about?: itemId; status; ...provenance }
+export type LessonFrontmatter
+export const lessonType: ItemTypeCore<LessonFrontmatter>  // outcomes {} (completion); srs false; estimates.lesson
+
+// lib/content/item-types/flashcard.ts
+export const PARTS_OF_SPEECH = ['noun', 'verb', 'adjective', 'adverb', 'phrase', 'phrasal-verb', 'idiom', 'abbreviation'] as const
+export const REGISTERS = ['formal', 'neutral', 'informal'] as const
+export const CARD_TIERS = ['core', 'extended', 'derived'] as const   // 'derived' only on generated cards
+export const cardSchema            // strict { id; tier: CardTier; front; back; hint?;
+                                   //   usage?: strict { pos; register; note?: nonEmptyText }; example?; pronunciation?;
+                                   //   tags: slug[] = []; status; ...provenance }
+export const deckFileSchema        // strict { id; kind: 'vocabulary' | 'recall'; week: posInt; topic: slug; title: localizedText;
+                                   //   lang: strict { front: 'en' | 'vi'; back: 'en' | 'vi' } = { front: 'en', back: 'vi' };
+                                   //   status; cards: Card[] ≥ 1 }
+                                   // refine: vocabulary ⇒ every card has usage, example, pronunciation [cards.<i>.<field>];
+                                   //         card IDs unique; `tier: derived` is not allowed in a deck file [cards.<i>.tier]
+export type CardTier = (typeof CARD_TIERS)[number]
+export type Card, DeckFile
+export const flashcardType: ItemTypeCore<Card>  // outcomes { know: 'success', unsure: 'partial', dont_know: 'fail' }; srs true;
+                                                // new → estimates.flashcard.new, any other mode → .review
+
+// lib/content/item-types/exercise.ts
+export const EXERCISE_KINDS = ['fill-blank', 'respond', 'rewrite'] as const
+export const BLANK = '{{blank}}'
+export const exerciseSchema        // z.discriminatedUnion('kind'); common strict { id; week: posInt; topic: slug;
+                                   //   instruction: localizedText; text: nonEmptyText; status; ...provenance }
+                                   // fill-blank + { answers: nonEmptyText[] ≥ 1; hint?: nonEmptyText } — text holds BLANK exactly once
+                                   // respond | rewrite + { sampleAnswers: nonEmptyText[] ≥ 1; rubric: nonEmptyText[] ≥ 1 }
+export const exercisesFileSchema   // Exercise[] ≥ 1
+export type Exercise
+export const exerciseType: ItemTypeCore<Exercise>  // outcomes { pass: 'success', close: 'partial', miss: 'fail' }; srs false; estimates.exercise
+/** §3.5: case- and whitespace-insensitive (NFC, trim, collapse spaces, toLocaleLowerCase('en')). */
+export function gradeFillBlank(input: string, answers: readonly string[], hintRevealed: boolean): 'pass' | 'close' | 'miss'
+
+// lib/content/item-types/prompt.ts
+export const promptSchema          // strict { id; tag: slug; week?: posInt; instruction: localizedText; rubric: nonEmptyText[] = [];
+                                   //   minutes?: posInt; repeatable: boolean = false; status; ...provenance }
+                                   // refine: repeatable ⇔ week absent [week]
+export const promptsFileSchema     // Prompt[] ≥ 1
+export type Prompt
+export const promptType: ItemTypeCore<Prompt>  // outcomes {} (completion); srs false; item.minutes ?? estimates.prompt
+
+// lib/content/item-types/index.ts
+export type AuthoredByType = { problem: Problem; lesson: LessonFrontmatter; flashcard: Card; exercise: Exercise; prompt: Prompt }
+export const ITEM_TYPE_CORES: { readonly [K in ItemType]: ItemTypeCore<AuthoredByType[K]> }
+export function getItemTypeCore<K extends ItemType>(type: K): ItemTypeCore<AuthoredByType[K]>
+```
+
+`weekly-template.ts`: `DAY_ORDER` is `WEEKDAY_KEYS`; the `(từ tuần n)` suffix applies to any block
+with `fromWeek`; the practice-label fallback for a block without tag/item type is removed (the
+schema forbids it). `track-options.ts` imports `CodeLanguage`/`CODE_LANGUAGES` from `common.ts`.
+
+- [ ] **Step 1: Failing tests.**
+  - `ids.test.ts`: `parseItemId('dsa:lc-0001')` → `{ dsa, lc-0001 }`; `null` for `'DSA:lc-0001'`,
+    `'dsa:lc-0001 '`, `'dsa:'`, `'dsa:Lc-1'`, `'dsa:bài-1'` (**[RF-3]** ASCII only),
+    `'dsa:lc-0001:x'`, `'user:abc'`, `'user:x:y'`; `isReservedId('user:abc')` true;
+    `parseDerivedId('english:explaining-code:dsa:lc-0001')` →
+    `{ english, explaining-code, dsa:lc-0001 }`; `problemLocalId(1)` `'lc-0001'`, `(1143)`
+    `'lc-1143'`, `(10000)` `'lc-10000'`; `parseProblemFolder('lc-0001-two-sum')` →
+    `{ 1, 'two-sum' }`, `'lc-0015-3sum'` → `{ 15, '3sum' }`,
+    `'lc-0105-construct-binary-tree-from-preorder-and-inorder-traversal'` →
+    `{ 105, 'construct-…' }`; `null` for `'lc-1-two-sum'`, `'lc-0001'`, `'lc-0001-Two-Sum'`,
+    `'lc-0001-two_sum'`, `'lc-0001-two--sum'`, `'lc-0001--two-sum'` and an 81-character slug.
+  - `manifest.test.ts`: both real manifests parse (DSA with the §3.4 `lessonFormats`); every
+    `TRACK_ACCENTS` value has a `--track-N:` definition in `docs/design/tokens.css` ("accent token
+    exists in the token set", §3.6); issues at the bracketed paths above for: a track with `problem`
+    but no `estimates.problem`; `problem` without `review`; `lesson` without `lessonFormats`;
+    `requires: [nope]`; the cycle `a → b → a` (message names both); `srs.intervals: [7, 3]`;
+    `srs.byType.lesson`; a derived deck template `{problem.slug}`; `{ kind: recap }` without
+    `count`; `{ kind: practice, minutes: 5 }` without tag/item type; `{ kind: review, minutes: 5 }`;
+    a practice block `itemType: exercise` on a track without exercises; an unknown top-level key
+    `foo` (strict); `id: user`; `topicCycle` returns the cycle path or `null`.
+  - `roadmap.test.ts`: the §3.4 10w W1 example parses; `weeks` numbered `[1, 3]` → issue;
+    `dsa:lc-0001` in W1 core and W2 bonus → issue; a recap entry without mode for an item also in
+    core → issue; a recap entry **with** mode for a core item → fine; a topic in two weeks → issue;
+    `mode: explain` → issue; `placedItems` order; `weekSizes` → `[8, 8]` for two 8-item weeks and
+    counts deck core cards through the callback.
+  - Per item type: `problem.test.ts` — premium without alternatives → issue; alternative `http://` →
+    issue; `id: dsa:lc-0002` with `leetcode: 1` → issue; `difficulty: X` → issue; estimates M new
+    35, recall 5, redo 21, explain-aloud 5, H redo 30; outcomes and `srs: true`. `lesson.test.ts` —
+    unknown key → issue; missing `title` → issue; estimate 25. `flashcard.test.ts` — a vocabulary
+    card without `pronunciation` → issue at `cards.0.pronunciation`; a recall-deck card without
+    `usage` → fine; duplicate card IDs → issue; `tier: derived` in a deck file → issue; `lang`
+    default; estimates new 1.5, review 0.5. `exercise.test.ts` — **exercise kinds**: fill-blank with
+    zero or two `{{blank}}` → issue; respond without `rubric` → issue; `kind: choose` → issue;
+    `gradeFillBlank('  Blocked ', ['blocked'], false)` → `pass`, with the hint → `close`, `'block'`
+    → `miss`; **[RF-3]** NFD input `'Café'` against `'Café'` → `pass`. `prompt.test.ts` —
+    `repeatable: true` with `week` → issue; neither → issue; estimate 45 with `minutes: 45`, 10
+    without. `index.test.ts` — every `ITEM_TYPES` entry has a core; `srs` is true exactly for
+    problem and flashcard; `createdByRun` without `origin` → issue.
+  - `weekly-template.test.ts` / `tracks.test.ts`: the weekday fixture's error names
+    `weeklyTemplate` (M2 minor); a `fromWeek` on a review block prints the suffix; fixtures updated
+    to the strict schema.
+- [ ] **Step 2: RED** — `pnpm test lib/content lib/auth`.
+- [ ] **Step 3: Implement** the schemas and cores; add `lessonFormats` (verbatim §3.4) and
+  `estimates.flashcard` to `content/tracks/dsa/track.yaml`; `pnpm format`.
+- [ ] **Step 4: GREEN** + `pnpm verify` (onboarding and settings keep working: the manifests still
+  load through the M2 loader).
+- [ ] **Step 5: Commit** — `feat(content): item-type schemas, roadmap schema and the full track
+  manifest`.
+
+**Carry-overs from M2** (M2 deferred minors owned by this task; covered by its steps — tests
+first, same commit):
+
+- one source of truth for: the code-language list (today in `lib/auth/dal.ts`,
+  `lib/content/track-options.ts`, the onboarding and settings schemas, `lib/domain/events.ts` and
+  the DB check), the budget-minutes rule (10–240 step 5; ~5 places), `MAX_START_DAYS_AHEAD` and
+  `withTitle` (duplicated in onboarding/settings) — export from `lib/content` or `lib/domain` and
+  import everywhere; move the `CodeLanguage` type out of `lib/auth/dal` (content must not depend
+  on auth);
+- manifest schema: roadmap ids use the DB `roadmap_variant` pattern; a manifest's `id` must equal
+  its folder name;
+- `lib/content/tracks.test.ts` weekday-key case asserts the field name, not only the file;
+  `weekly-template.ts` `DAY_ORDER` reuses the schema's weekday keys; a practice block without
+  `tag`/`itemType` gets no stray leading space.
+
+### Task 3.2a: MDX parser, safety check and component allowlist
+
+**Files:**
+
+- Create: `lib/content/mdx-components.ts`, `tools/content/issues.ts` (+ test),
+  `tools/content/allowlist.ts` (+ test), `tools/content/mdx/{parse,safety,facts}.ts` (+ a test
+  each), `tools/content/__fixtures__/mdx/{lesson-ok.mdx,note-ok.mdx}`
+
+**Interfaces:**
+
+```ts
+// lib/content/mdx-components.ts — the one list both the check (3.2a) and the renderers (3.3b) are typed against
+export const MDX_COMPONENT_NAMES = ['Section', 'Callout', 'Steps', 'Step', 'VarTable', 'Complexity', 'Bilingual',
+  'Solution', 'Practice', 'Quiz', 'Question', 'Choice', 'Reveal', 'Term'] as const
+export type MdxComponentName = (typeof MDX_COMPONENT_NAMES)[number]
+
+// tools/content/issues.ts
+export type ContentIssue = { file: string; line?: number; column?: number; path?: string; message: string }
+export function formatIssue(issue: ContentIssue): string
+// 'content/tracks/dsa/lessons/x.mdx:12:3: message' | 'content/tracks/dsa/decks/w01.yaml: cards.3.front: message'
+export function sortIssues(issues: readonly ContentIssue[]): ContentIssue[]   // by file, line, column, path
+
+// tools/content/allowlist.ts (§3.5: the allowlist lives in code, outside content/**)
+export type MdxContext = 'lesson' | 'note'
+export type AttributeRule = { required?: boolean; values?: readonly string[]; pattern?: RegExp; maxLength?: number }
+export type ComponentRule = {
+  attributes: Readonly<Record<string, AttributeRule>>
+  contexts: readonly MdxContext[]
+  display: 'block' | 'inline'                // block ⇒ mdxJsxFlowElement, inline ⇒ mdxJsxTextElement
+  parents?: readonly MdxComponentName[]       // allowed direct parents (component ancestors), when restricted
+  topLevel?: true                             // a direct child of the document root only
+  children?: 'none' | 'text' | 'any' | readonly MdxComponentName[] | 'table'
+  perFile?: { min?: number; max?: number }    // per file, in the contexts listed
+}
+export const MDX_COMPONENTS: { readonly [K in MdxComponentName]: ComponentRule }
+export const CODE_LANGS: readonly string[]   // ['python', 'java', 'go', 'text']
+/** OD3: the one allow-listed image source, committed as data (a public URL — no key). If it is ever
+ *  set to '', every MDX image is rejected (tested with an injected base). */
+export const CONTENT_IMAGE_BASE_URL = 'https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/'
+export const IMAGE_EXTENSIONS: readonly string[]   // ['svg', 'png', 'webp', 'jpg']
+export const IMAGE_PATH_PATTERN: RegExp            // /^[a-z0-9\-_/.]+$/ — the part after the base URL
+export const IMAGE_SIZE_TITLE: RegExp              // /^([1-9]\d{0,3})x([1-9]\d{0,3})$/ — `![alt](url "WIDTHxHEIGHT")`
+/** next.config.ts `images.remotePatterns` from the same base URL (single source): [] when it is empty. */
+export function contentImageRemotePatterns(baseUrl?: string):
+  { protocol: 'https'; hostname: string; pathname: string }[]   // pathname = the base path + '**'
+
+// tools/content/mdx/parse.ts
+export type MdxNode = { type: string; name?: string | null; value?: string; url?: string; lang?: string | null;
+  meta?: string | null; depth?: number; attributes?: MdxAttribute[]; children?: MdxNode[];
+  position?: { start: { line: number; column: number } } }
+export type MdxAttribute =
+  | { type: 'mdxJsxAttribute'; name: string; value: string | null | { type: 'mdxJsxAttributeValueExpression'; value: string } }
+  | { type: 'mdxJsxExpressionAttribute'; value: string }
+export type MdxRoot = MdxNode & { type: 'root'; children: MdxNode[] }
+export type ParseResult = { ok: true; tree: MdxRoot } | { ok: false; issue: ContentIssue }
+export function parseMdx(file: string, source: string): Promise<ParseResult>
+
+// tools/content/mdx/safety.ts
+export type CheckOptions = {
+  imageBaseUrl?: string       // default CONTENT_IMAGE_BASE_URL (tests inject a base)
+  imagePathPrefix?: string     // `<trackId>/<localId>/` — content:build passes the item's; the upload convention
+}
+export function checkMdx(file: string, tree: MdxRoot, context: MdxContext, options?: CheckOptions): ContentIssue[]
+
+// tools/content/mdx/facts.ts
+export type MdxFacts = {
+  frontmatter: string | null                           // raw YAML of the leading `yaml` node
+  sections: { kind: string; line: number }[]           // top-level <Section kind>, in order
+  bilingual: { vi: string; en: string }[]
+  complexity: { time: string; space: string }[]
+  solutionCount: number
+  practice: string[]                                   // <Practice problem> values
+  codeBlocks: { lang: string; value: string }[]        // fenced code, value without the trailing newline
+  images: { url: string; alt: string; width: number; height: number; line: number }[]
+  questions: number
+}
+export function mdxFacts(tree: MdxRoot): MdxFacts
+```
+
+`parseMdx` (OD1: `@mdx-js/mdx` is an approved dev dependency): one processor, built once —
+`createProcessor({ remarkPlugins: [remarkFrontmatter, remarkGfm] })` from `@mdx-js/mdx`, then
+`processor.parse({ path: file, value: source })`; a thrown `VFileMessage` becomes one issue with
+`line`/`column` from `place` (`place.start` when it is a range) and the message `reason`.
+
+**Block and inline placement** (gate review fix 2, mirrors MDX's own "unravel" step, which runs
+after parsing): a `paragraph` whose non-whitespace children are all JSX elements counts as flow —
+its elements are checked as block elements. "Put `<X>` on its own line" is reported only when
+text and a block component share a paragraph (e.g. prompt text followed by `<Choice>` lines).
+
+**Allowlist** (§3.5; `display` per decision 17):
+
+| Component | Attributes | Contexts | Placement and children |
+| --- | --- | --- | --- |
+| `Section` | `kind` required, `^[a-z][a-z0-9-]*$` | lesson | block, top level only; any children |
+| `Callout` | `tone` required (`info` \| `tip` \| `warning`), `title` | lesson, note | block; any |
+| `Steps` | — | lesson, note | block; children `Step` only |
+| `Step` | `title` | lesson, note | block; parent `Steps`; inline or paragraph children (one line is fine) |
+| `VarTable` | `caption` | lesson, note | block; one GFM table |
+| `Complexity` | `time`, `space` required, ≤ 40 chars | lesson, note | block, no children; note: exactly 1 |
+| `Bilingual` | `vi`, `en` required, ≤ 300 chars | lesson, note | block, no children; note: exactly 1 |
+| `Solution` | — | note | block, no children, exactly 1 |
+| `Practice` | `problem` required, `^[a-z][a-z0-9-]{0,31}:lc-\d{4,5}$` | lesson | block, no children |
+| `Quiz` | — | lesson | block; children `Question` only |
+| `Question` | `prompt` required ≤ 300 chars, `answer` required | lesson | block; parent `Quiz`; children `Choice` only (≥ 2, unique `id`, `answer` among them) |
+| `Choice` | `id` required, `^[a-z0-9]{1,8}$` | lesson | block; parent `Question`; inline or paragraph children (one line is fine) |
+| `Reveal` | `label` | lesson, note | block; any |
+| `Term` | `vi` | lesson, note | inline; text children only |
+
+**Safety rules** (`checkMdx`, one issue each, with line and column):
+
+1. `mdxjsEsm` → "import/export is not allowed in content MDX".
+2. `mdxFlowExpression` / `mdxTextExpression` → "`{…}` expressions are not allowed — write
+   `` `{}` `` or escape braces as `\{` `\}`" (spike: a `{}` table cell is an expression).
+3. A JSX element that is a fragment or not in `MDX_COMPONENTS` (including lowercase HTML such as
+   `<script>`, `<img>`, `<div>`) → "`<X>` is not an allowed component"; wrong context → "`<Solution
+   />` is only allowed in notes"; wrong display (after the unravel rule above) → "put `<Choice>` on
+   its own line — it shares a paragraph with text" / "`<Term>` must stay inside a sentence".
+4. Attributes: spread (`mdxJsxExpressionAttribute`) → not allowed; expression value → "attribute
+   values must be literal strings"; unknown name, missing required, a bare boolean attribute,
+   `values` / `pattern` / `maxLength` mismatch → one issue each.
+5. Placement: `parents`, `topLevel`, `children`, `perFile`; `Question.answer` must name one of its
+   `Choice` IDs.
+6. `link` and `definition`: the URL must start with `https://` — `http:`, relative, `mailto:`,
+   `javascript:`, `data:` and GFM autolink literals like `www.x.test` (which become `http://`) are
+   rejected.
+7. **Images** (OD3 — the `content-images` bucket): only inline `![alt](url "WIDTHxHEIGHT")`.
+   `CONTENT_IMAGE_BASE_URL` empty → "images need CONTENT_IMAGE_BASE_URL in
+   tools/content/allowlist.ts — see docs/ops/content-images.md"; otherwise one issue each for: empty
+   alt text (≤ 200 chars); a URL that does not start exactly with the base (other host, `http:`,
+   relative or local paths); a remainder outside `IMAGE_PATH_PATTERN`, containing a `..` segment or
+   `//`, or not starting with `imagePathPrefix` when given; an extension outside `IMAGE_EXTENSIONS`;
+   a missing or malformed size title (`IMAGE_SIZE_TITLE`, 1–9999 px). `imageReference`
+   (`![alt][ref]`) → "use an inline image". No network check (offline build).
+8. Fenced `code`: a language is required and must be in `CODE_LANGS`; `meta` must be empty.
+9. Headings: lesson `###`–`####` only, note `##`–`####` only.
+10. Frontmatter: a lesson must start with a `yaml` node; a `yaml` node anywhere else → issue.
+11. Any node type outside the known mdast/GFM/MDX set (root, yaml, paragraph, text, heading,
+    thematicBreak, blockquote, list, listItem, table, tableRow, tableCell, emphasis, strong,
+    delete, inlineCode, code, break, link, linkReference, definition, image, imageReference,
+    mdxJsxFlowElement, mdxJsxTextElement) → "unsupported syntax" (fail closed; footnotes are out).
+
+- [ ] **Step 1: Failing tests.** `safety.test.ts` (inline sources through `parseMdx` then
+  `checkMdx`): `lesson-ok.mdx` and `note-ok.mdx` (every allowed component, nested correctly) → `[]`;
+  then exactly one issue, with its line, for each of: `import x from 'y'`; `export const a = 1`;
+  `{1 + 1}`; `{/* c */}`; a GFM table cell `{}`; `<Callout tone={"tip"}>`;
+  `<Section {...p} kind="a">`; `<script>`; `<Unknown />`; `<img src="https://x.test/a.png" />`;
+  `[a](javascript:alert(1))`; `[b](http://x.test)`; `[c](data:text/html,x)`; `[d](/t/dsa)`;
+  `www.x.test`; `[r]: javascript:x` + `[go][r]`; a fence without language; ```` ```rust ````;
+  `# Title` in a note; `## Title` in a lesson; `<Solution />` in a lesson; two `<Solution />` in a
+  note; a note without `<Bilingual>`; `<Choice>` outside `<Question>`; `<Question answer="c">` with
+  choices `a`, `b`; a paragraph holding text and a `<Choice>`; `<Section>` inside `<Callout>`;
+  `<Term><Callout /></Term>`; `<Complexity time="O(n)" />` (missing `space`). **Unravel (fix 2):**
+  `<Steps>` whose `<Step title="a">x</Step>` sits on one line after a blank line, and a `<Question>`
+  whose one-line `<Choice id="a">x</Choice>` entries follow blank lines (or each other) → `[]`.
+  **Images (OD3)**, with
+  `imageBaseUrl: 'https://ref.supabase.co/storage/v1/object/public/content-images/'` and
+  `imagePathPrefix: 'dsa/lesson-two-pointers/'`:
+  `![Two pointers](<base>dsa/lesson-two-pointers/walk.svg "640x360")` → `[]` and `mdxFacts` reports
+  width 640, height 360; one issue each for another host
+  (`https://evil.test/dsa/lesson-two-pointers/a.png`), `http://` + the base host, empty alt
+  (`![](…)`), `a.gif`, a `../` segment, a path outside the prefix, no size title, `"640"` as title,
+  `![x][ref]`; and with `imageBaseUrl: ''` any image → the "images need CONTENT_IMAGE_BASE_URL"
+  issue. `contentImageRemotePatterns('')` → `[]`; with the base above →
+  `[{ protocol: 'https', hostname: 'ref.supabase.co', pathname: '/storage/v1/object/public/content-images/**' }]`;
+  `contentImageRemotePatterns()` (the committed base) → hostname `oelgwbxukbgaqqvociwi.supabase.co`,
+  the same pathname; `CONTENT_IMAGE_BASE_URL` starts with `https://` and ends with
+  `/content-images/`. `parse.test.ts`: an unclosed `<Section>` → `ok: false` with line 5 and a
+  message naming `Section`; an unbalanced `{` → line and column. `facts.test.ts`: sections with
+  lines in order, bilingual, complexity, practice, code block value without the trailing newline,
+  images with size, question count, raw frontmatter. `allowlist.test.ts`: the keys equal
+  `MDX_COMPONENT_NAMES`; every `parents` / `children` entry is a known component. `issues.test.ts`:
+  both output shapes and the sort order.
+- [ ] **Step 2: RED** — `pnpm test tools/content`. **Step 3: Implement.** **Step 4: GREEN** +
+  `pnpm verify`.
+- [ ] **Step 5: Commit** — `feat(content): MDX parser, safety check and component allowlist`.
+
+### Task 3.3a: Build-time code highlighting and the CodeBlock pattern
+
+**Spike (2026-09-25):** shiki 4.4.3, `createHighlighterCore` from `shiki/core` with the JavaScript
+regex engine (`shiki/engine/javascript`, no WASM) and `createCssVariablesTheme`: init 8 ms, 300
+Python/Java/Go snippets in 245 ms; token colours come back as CSS variables
+(`var(--shiki-token-keyword)`, `-string`, `-string-expression`, `-constant`, `-comment`,
+`-function`, `-parameter`, `-punctuation`, `-link`, `var(--shiki-foreground)`).
+
+**Files:**
+
+- Create: `lib/content/code-tokens.ts` (+ test), `tools/content/highlight.ts` (+ test),
+  `components/patterns/code-block.tsx` (+ test), `features/items/code-tokens.types.test.ts` (type
+  level: the two declarations stay identical), `app/dev/components/code-samples.ts` (hand-written
+  `HighlightedCode` fixtures — the catalog is a client module and must not import shiki)
+- Modify: `app/dev/components/registry.tsx`, `docs/design/COMPONENTS.md`,
+  `docs/design/DESIGN_SYSTEM.md` (§9 row "CodeBlock": the decision-13 colour mapping)
+
+**Interfaces:**
+
+A pattern may import only `components/ui`, `lib/utils` and `lib/i18n` (§7.2), so **CodeBlock
+declares its own token types** and `lib/content/code-tokens.ts` declares identical ones (gate
+review fix 1); `features/items/code-tokens.types.test.ts` (features may import both) keeps them
+equal with `expectTypeOf<…>().toEqualTypeOf<…>()` for `CodeTokenKind`, `CodeLine` and
+`HighlightedCode` — checked by `pnpm typecheck`.
+
+```ts
+// lib/content/code-tokens.ts — pure, client-safe
+export const CODE_TOKEN_KINDS = ['keyword', 'string', 'constant', 'comment'] as const
+export type CodeTokenKind = (typeof CODE_TOKEN_KINDS)[number]
+/** Plain runs are strings; highlighted runs are [text, kind]; adjacent runs of one kind are merged. */
+export type CodeLine = ReadonlyArray<string | readonly [text: string, kind: CodeTokenKind]>
+export type HighlightedCode = { lang: string; lines: readonly CodeLine[] }
+export type CodeBundle = {
+  solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>   // a problem's solution files;
+                                                             // 3.2b replaces the union by CodeLanguage (3.1)
+  blocks: Readonly<Record<string, HighlightedCode>>           // fenced blocks of the item's MDX, by codeBlockKey
+}
+/** Removes one trailing '\n', splits on '\n' — no highlighting ('text' blocks, fallbacks). */
+export function plainCode(lang: string, code: string): HighlightedCode
+/** `${lang}:${fnv1a32 hex of the code without one trailing '\n'}` — the MDX `pre` override gets the
+ *  text with a trailing newline (spike), content:build without; both normalise the same way. */
+export function codeBlockKey(lang: string, code: string): string
+
+// tools/content/highlight.ts
+export type Highlighter = { highlight(code: string, lang: string): HighlightedCode; dispose(): void }
+export async function createHighlighter(): Promise<Highlighter>
+// langs python, java, go ('text' → plainCode; anything else throws `unsupported language: <x>`);
+// kinds: -keyword → keyword; -string | -string-expression → string; -constant → constant;
+// -comment → comment; every other colour → plain text
+
+// components/patterns/code-block.tsx — server-compatible (no hooks, no 'use client'); imports no lib/content
+export type CodeTokenKind = 'keyword' | 'string' | 'constant' | 'comment'
+export type CodeLine = ReadonlyArray<string | readonly [text: string, kind: CodeTokenKind]>
+export type HighlightedCode = { lang: string; lines: readonly CodeLine[] }
+export type CodeBlockProps = { code: HighlightedCode; label: string /* accessible name, e.g. 'Lời giải Python' */ }
+export function CodeBlock(props: CodeBlockProps): React.JSX.Element
+export const CODE_TOKEN_CLASS: Readonly<Record<CodeTokenKind, string>>
+// keyword 'text-primary', string 'text-success', constant 'text-warning', comment 'text-muted-foreground italic'
+```
+
+CodeBlock renders `<pre tabIndex={0} role="region" aria-label={label}>` (a focusable scroll
+region: axe `scrollable-region-focusable`) with `overflow-x-auto`, `whitespace-pre` (never
+wrapped), `rounded-md`, `bg-surface-muted`, `p-4`, `font-mono text-sm` (DESIGN_SYSTEM §9 "Code
+tabs"); one `<span className="block">` per line (an empty line keeps its height with a zero-width
+space); token runs are `<span className={CODE_TOKEN_CLASS[kind]}>`.
+
+- [ ] **Step 1: Failing tests.** `code-tokens.test.ts`: `plainCode('text', 'a\nb\n')` → two lines;
+  `codeBlockKey('python', 'x = 1\n') === codeBlockKey('python', 'x = 1')`; different language →
+  different key; the key is stable (a literal expected value). `highlight.test.ts`: Python (the
+  two-sum solution of §3.5 as fixture) has keyword runs `class`, `def`, `for`, `return`, a comment
+  run starting `#`; Java `public`, `new`, `return` are keywords and `"x"` a string; Go `func`,
+  `return` keywords; no two adjacent runs share a kind; `lang: 'text'` → plain; `'rust'` throws; 300
+  highlights take < 3 s (guards against re-creating the highlighter per call).
+  `code-block.test.tsx`: the region is named by `label` and focusable; keyword runs carry
+  `text-primary`; comments `italic`; an empty line renders. `code-tokens.types.test.ts`: the three
+  type pairs are equal (fails to typecheck if either side drifts).
+- [ ] **Step 2: RED → implement → GREEN** (`pnpm test lib/content tools/content components
+  features/items`, `pnpm typecheck`).
+- [ ] **Step 3: Catalog** — CodeBlock entry in `COMPONENTS.md` (entry format) and in the registry
+  (Python, Java and Go samples from `code-samples.ts`, plus one long line to show the scroll).
+- [ ] **Step 4: Verify** `pnpm verify && pnpm test:e2e` (the catalog axe scan covers CodeBlock in
+  light and dark). **Commit** — `feat(ui): build-time code highlighting and the CodeBlock pattern`.
+
+### Task 3.5a: `content-verify` M3a, pure part — `tests.yaml` schema, verification, comparators, literals
+
+Everything here is pure TypeScript (no child processes): the `tests.yaml` contract that
+`content:build` (3.2b) validates, and the pieces of the harness that need no toolchain. The runtime
+part (runners, orchestrator, sandbox, workflow) is 3.5b.
+
+**Files:**
+
+- Create: `lib/content/schemas/tests.ts` (+ test), `lib/content/verification.ts` (+ test),
+  `tools/content-verify/comparators.ts` (+ test),
+  `tools/content-verify/validators/{index,topological-order}.ts` (+ `topological-order.test.ts`),
+  `tools/content-verify/literals.ts` (+ test)
+
+**Interfaces:**
+
+```ts
+// lib/content/schemas/tests.ts (§3.5) — imports nothing from 3.1 (same wave): patterns are local,
+// identifier = /^[A-Za-z_][A-Za-z0-9_]*$/
+export const SCALAR_TYPES = ['int', 'long', 'double', 'bool', 'string', 'char'] as const
+export type ValueType = { base: (typeof SCALAR_TYPES)[number]; dims: 0 | 1 | 2 }
+export function parseValueType(text: string): ValueType | null   // 'int[][]' → { int, 2 }; unknown → null
+export function valueMatches(value: unknown, type: ValueType): boolean
+// int / long: safe integers; double: finite numbers; bool; string; char: a one-code-unit string; arrays per dims
+export const SIGNATURE_KINDS = ['function', 'linked-list', 'tree', 'graph-node', 'random-list', 'design-class'] as const
+export type SignatureKind = (typeof SIGNATURE_KINDS)[number]
+// signature, discriminated on `kind`:
+//   function:      strict { kind; name: identifier; params: Record<identifier, ValueTypeText> (YAML order = call order);
+//                           returns: ValueTypeText | 'void' }
+//   linked-list | tree | graph-node | random-list (M3b): strict { kind; name; params: Record<identifier, string>; returns: string }
+//   design-class (M3c, decision 20): strict { kind; className: /^[A-Z][A-Za-z0-9]*$/;
+//                           constructor: Record<identifier, ValueTypeText> = {};
+//                           methods: Record<identifier, strict { params: Record<identifier, ValueTypeText> = {}; returns: ValueTypeText | 'void' }> }
+// compare (default { kind: 'exact' }): 'exact' | 'unordered' | 'unordered-nested' shorthand strings, or
+//   { kind: 'exact' | 'unordered' | 'unordered-nested' } | { kind: 'float'; tolerance: number > 0, ≤ 1 }
+//   | { kind: 'in-place'; arg: identifier; compare: 'exact' | 'unordered' | 'unordered-nested' = 'exact' }
+//   | { kind: 'validator'; name: /^[a-z][a-z0-9-]*$/ }
+// cases: function/structured { name: /^[a-z0-9][a-z0-9-]*$/; input: Record<string, unknown>; expected: unknown }
+//        design-class        { name: (same); ops: identifier[] ≥ 1; args: unknown[][]; expected: unknown[] }
+export const testsFileSchema   // strict { signature; compare; cases; timeoutMs: int 100–10000 = 2000 }
+// superRefine: unique case names; §3.5 minimum → testsMinimumIssues; function: input keys === params keys,
+//   each value matches its type, expected matches `returns` (or the in-place arg's type when returns is 'void'),
+//   in-place `arg` is a param; design-class: ops[0] === className, ops/args/expected lengths equal, each later op
+//   is a method, args lengths match params, `{ $result: n }` only as an argument with n < its index,
+//   `{ $any: true }` only in expected
+export type TestsFile = z.infer<typeof testsFileSchema>
+export type CompareSpec = TestsFile['compare']
+/** §3.5 minimum: ≥ 1 case named `example-<n>`, ≥ 2 other cases, ≥ 4 in total. Every LeetCode example is an owner check. */
+export function testsMinimumIssues(cases: readonly { name: string }[]): string[]
+
+// lib/content/verification.ts
+export type Verification = 'tested' | 'compile-only'
+export const SUPPORTED_SIGNATURE_KINDS: readonly SignatureKind[]   // ['function'] in M3a (M3b, M3c extend it)
+export function verificationFor(kind: SignatureKind): Verification
+
+// tools/content-verify/comparators.ts
+export type Comparison = { ok: true } | { ok: false; reason: string }
+export function compare(spec: CompareSpec, actual: unknown, expected: unknown, input: Readonly<Record<string, unknown>>): Comparison
+// exact: deep equality of JSON values; unordered: multiset of canonical JSON; unordered-nested: sort each inner
+// array, then multiset; float: |a − e| ≤ tolerance elementwise; in-place: the runner reports the argument, then
+// the nested compare; validator: VALIDATORS[name](input, actual, expected)
+
+// tools/content-verify/validators/index.ts — executable checks live here, outside content/** (§3.7)
+export type Validator = (input: Readonly<Record<string, unknown>>, actual: unknown, expected: unknown) => true | string
+export const VALIDATORS: Readonly<Record<string, Validator>>   // 'topological-order' (for 210 later)
+
+// tools/content-verify/literals.ts — used by 3.5b's generated Java and Go harnesses
+export function javaLiteral(value: unknown, type: ValueType): string   // new int[][]{{1,2},{3}}, 5L, 2.0, 'x', "a\"b"
+export function goLiteral(value: unknown, type: ValueType): string     // [][]int{{1,2},{3}}, int64(5), float64(2), byte(120)
+export function javaType(type: ValueType): string                      // int[][], long, double, boolean, String, char[]
+export function goType(type: ValueType): string                        // [][]int, int64, float64, bool, string, []byte
+```
+
+- [ ] **Step 1: Failing tests.** `tests.test.ts`: the §3.5 two-sum file parses (`compare:
+  unordered` → `{ kind: 'unordered' }`, `timeoutMs` 2000); issues for 3 cases; no `example-*`; one
+  edge case only; duplicate names; a missing and an extra input key; `nums: [1, '2']`; `expected:
+  'x'` for `int[]`; in-place `arg: missing`; design-class `ops[0] !== className`, unequal lengths,
+  `{ $result: 3 }` at index 2, `{ $any: true }` inside `args`; `parseValueType` table (`int`,
+  `char[][]`, `int[][][]` → null, `List<int>` → null); `valueMatches` for `char` (`'ab'` false) and
+  `long`. `verification.test.ts`: `function` → `tested`; every other kind → `compile-only`.
+  `comparators.test.ts` — **every comparator**: exact (`[0, 1]` vs `[1, 0]` fails; `1` equals
+  `1.0`); unordered (`[1, 0]` passes, `[1, 1]` vs `[1, 0]` fails); unordered-nested (the spike's
+  group-anagrams outputs in three different orders pass; a missing group fails); float (tolerance
+  boundary 1e-5 passes, 2e-5 fails); in-place with nested unordered; validator topological-order
+  (valid and invalid orders for `numCourses: 4, prerequisites: [[1,0],[2,0],[3,1],[3,2]]`); unknown
+  validator → `ok: false`. `literals.test.ts`: `javaLiteral` / `goLiteral` for `int[][]` `[[1, 2],
+  [3]]`, empty `int[]`, empty `int[][]`, `char[][]` `[['5', '.']]`, a string with `"`, `\n` and
+  "Xin chào", `long` 5, `double` 2 → `2.0` / `float64(2)`, `bool`.
+- [ ] **Step 2: RED → implement → GREEN** (`pnpm test lib/content tools/content-verify`), `pnpm
+  verify`.
+- [ ] **Step 3: Commit** — `feat(content-verify): tests.yaml schema, comparators and literal
+  rendering`.
+
+### Task 3.2b: `content:build` core — loading, IDs, `ids.lock`, the generated catalog
+
+The core of `pnpm content:build`: load and validate every file, build the items, keep `ids.lock`,
+highlight code, emit `.generated/`, and wire the script into `verify`/`build`/CI. The
+cross-references, derived decks, coverage and the full report follow in 3.2c (gate review fix 13).
+
+**Files:**
+
+- Create: `tools/content/{cli,build,load,ids-lock,nfc,emit}.ts` (+ a test each except `cli.ts`),
+  `tools/content/__fixtures__/content/<scenario>/…` (small content roots: `ok` — two tracks with a
+  noted problem, a pattern lesson, a deck, exercises, a prompt, a derived deck and 8w/10w roadmaps —
+  and one folder per failing scenario below), `lib/content/catalog-types.ts`,
+  `lib/content/catalog-access.ts` (+ test), `lib/content/catalog.ts`, `content/ids.lock` (header and
+  empty sections — PR A has no items), `docs/adr/0010-namespaced-ids-and-ids-lock.md`
+- Modify: `package.json` (scripts, decision 7), `lib/content/code-tokens.ts` (`CodeBundle.solutions`
+  keyed by `CodeLanguage` from 3.1), `eslint.config.mjs` (`globalIgnores` gains `'.generated/**'`),
+  `.prettierignore` (`.generated/` only — `**/*.mdx` came in 3.0), `.github/workflows/ci.yml` (job
+  `content-build`)
+
+**Interfaces:**
+
+```ts
+// lib/content/catalog-types.ts — types only, client-safe (`import type` from client components)
+export type ProblemNote = {
+  status: ItemStatus; mdxKey: string /* '<problem id>#note' */; verification: Verification
+  languages: CodeLanguage[]; bilingual: { vi: string; en: string }; complexity: { time: string; space: string }
+  deepDiveId: string | null   // filled by 3.2c (reverse lookup); null in 3.2b
+}
+export type ProblemContent = Problem & { slug: string; url: string /* https://leetcode.com/problems/<slug>/ */; note: ProblemNote | null }
+export type LessonContent = LessonFrontmatter & { mdxKey: string /* the lesson ID */; sections: string[] }
+export type FlashcardContent = Card & {   // every ContentByType[K] extends AuthoredByType[K]
+  deckId: string
+  lang: { front: 'en' | 'vi'; back: 'en' | 'vi'; hint: 'en' | 'vi' }; derivedFrom: string | null
+}
+export type ContentByType = { problem: ProblemContent; lesson: LessonContent; flashcard: FlashcardContent;
+  exercise: Exercise; prompt: Prompt }
+export type CatalogItem<K extends ItemType = ItemType> = { [T in K]: {
+  id: string; type: T; trackId: string; localId: string
+  topicId: string | null      // problem, lesson: own; card: its deck's; exercise: own; prompt, derived card: null
+  week: number | null         // authored week: card (its deck), exercise, prompt; otherwise null (roadmap-dependent)
+  status: ItemStatus
+  title: string               // problem title | lesson title | card front | exercise/prompt instruction.vi
+  source: string              // repo-relative path of the defining file
+  content: ContentByType[T]
+} }[K]
+export type DeckSummary = { id: string; trackId: string; kind: 'vocabulary' | 'recall' | 'derived'; week: number | null;
+  topicId: string | null; title: LocalizedText; status: ItemStatus; cardIds: string[] }
+/** Placed items only (core + recap entries without a mode); bonus counted separately (fix 21). */
+export type WeekCoverage = { week: number; topics: string[]; lessons: { topic: string; lessonId: string | null }[];
+  placedProblems: number; notedProblems: number; bonusProblems: number; notedBonus: number;
+  coreCards: number; extendedCards: number; exercises: number; prompts: number }
+export type Catalog = {
+  schemaVersion: 1
+  tracks: TrackManifest[]                                       // sorted by id
+  roadmaps: Record<string, Record<string, Roadmap>>             // trackId → variant → roadmap (existing files only)
+  missingRoadmaps: { trackId: string; variant: string }[]       // decision 4
+  decks: Record<string, DeckSummary>
+  items: Record<string, CatalogItem>                            // every item, drafts and retired included
+  coverage: Record<string, Record<string, WeekCoverage[]>>      // trackId → variant → weeks; {} until 3.2c
+}
+
+// lib/content/catalog-access.ts — pure; unit-tested with fixture catalogs
+export type MdxLoaders = Readonly<Record<string, () => Promise<{ default: MDXContent }>>>
+export type CodeLoaders = Readonly<Record<string, () => Promise<{ default: CodeBundle }>>>
+export type CatalogAccess = {
+  catalog: Catalog
+  getTrack(id: string): TrackManifest | null
+  getItem(id: string): CatalogItem | null
+  getTrackItems(trackId: string): CatalogItem[]               // sorted by id
+  getRoadmap(trackId: string, variant: string): Roadmap | null
+  getDeck(id: string): DeckSummary | null
+  loadMdx(key: string): Promise<MDXContent | null>            // unknown key → null
+  loadCode(itemId: string): Promise<CodeBundle | null>
+}
+export function createCatalogAccess(catalog: Catalog, loaders: { mdx: MdxLoaders; code: CodeLoaders }): CatalogAccess
+
+// lib/content/catalog.ts — import 'server-only'
+export const catalogAccess: CatalogAccess   // createCatalogAccess(CATALOG, { mdx: MDX_LOADERS, code: CODE_LOADERS })
+export function getCatalog(): Catalog
+export const getTrack, getItem, getTrackItems, getRoadmap, getDeck, loadMdx, loadCode   // bound from catalogAccess
+
+// tools/content/build.ts
+export type BuildOptions = { repoRoot: string; contentDir?: string /* <repoRoot>/content */;
+  outDir?: string /* <repoRoot>/.generated */; check: boolean }
+export type BuildResult = { ok: boolean; issues: ContentIssue[]; catalog: Catalog | null; lock: LockDiff; report: string }
+export async function buildContent(options: BuildOptions): Promise<BuildResult>
+/** Check mode (fix 19): `--check`, or CI set and not '', '0', 'false' — Vercel builds set CI=1. */
+export function isCheckMode(argv: readonly string[], env: NodeJS.ProcessEnv): boolean
+
+// tools/content/ids-lock.ts
+export type IdsLock = { published: string[]; retired: string[] }
+export function parseLock(text: string): { lock: IdsLock; issues: string[] }   // missing file ≡ ''
+export function formatLock(lock: IdsLock): string
+export type LockDiff = { added: string[]; removed: string[]; reused: string[]; inBoth: string[]; normalized: boolean }
+export function diffLock(lock: IdsLock, contentIds: readonly string[], fileText: string): LockDiff
+export function lockIssues(diff: LockDiff, check: boolean): ContentIssue[]
+
+// tools/content/nfc.ts — [RF-3]
+export function nfcIssues(file: string, value: unknown, path?: string): ContentIssue[]   // every string in a parsed YAML value
+export function nfcSourceIssue(file: string, source: string): ContentIssue | null        // MDX sources
+```
+
+**Generated files** (decision 5; every file rewritten each run, `code/` pruned of stale files, keys
+sorted so output is deterministic):
+
+- `.generated/catalog.json` — `JSON.stringify(catalog, null, 2)`.
+- `.generated/catalog.ts` — `import type { Catalog } from '../lib/content/catalog-types'` +
+  `export const CATALOG: Catalog = JSON.parse(<JSON.stringify(JSON.stringify(catalog))>)`.
+- `.generated/mdx.ts` — `/// <reference types="mdx" />`, `import type { MDXContent } from
+  'mdx/types'`, `export const MDX_LOADERS: Readonly<Record<string, () => Promise<{ default:
+  MDXContent }>>> = { '<key>': () => import('../content/tracks/<…>.mdx'), … }` (keys: lesson IDs and
+  `<problem ID>#note`; `{}` when empty).
+- `.generated/code/<trackId>/<localId>.ts` —
+  `import type { CodeBundle } from '../../../lib/content/code-tokens'` +
+  `const bundle: CodeBundle = JSON.parse(<string>)` + `export default bundle`, for every problem
+  with a note (solutions + the note's fenced blocks) and every lesson with fenced blocks;
+  `.generated/code.ts` —
+  `export const CODE_LOADERS = { '<item ID>': () => import('./code/<trackId>/<localId>') } satisfies Record<string, () => Promise<{ default: CodeBundle }>>`.
+
+**Pipeline** (`buildContent`; all issues collected before failing; 3.2c adds steps 6–7):
+
+1. **Layout:** `content/` holds only `LICENSE`, `ids.lock`, `tracks/`; a track folder only
+   `track.yaml`, `roadmaps/`, `lessons/`, `problems/`, `decks/`, `exercises/`, `prompts/`; a problem
+   folder only `problem.yaml` (required), `note.mdx`, `solution.py`, `Solution.java`, `solution.go`,
+   `tests.yaml`; file and folder names ASCII `[a-z0-9-.]` (`Solution.java` excepted); **any image
+   file** (`.svg`, `.png`, `.webp`, `.jpg`, `.jpeg`, `.gif`) under `content/` → "images live in the
+   content-images bucket, not in git (OD3, ADR-0011)".
+2. **YAML** (a safe parser, §3.6): `parseDocument(text, { uniqueKeys: true, prettyErrors: true })`
+   from `yaml`; parse errors, duplicate keys, aliases/anchors and non-core tags are issues; then the
+   file's schema (manifest, roadmap, problem, deck, exercises, prompts, `testsFileSchema` from
+   3.5a), issues with `path`.
+3. **[RF-3] NFC:** every YAML string and every MDX source is NFC; IDs and slugs are ASCII (3.1).
+4. **Items and IDs:** build every item; IDs unique across all tracks; the file/ID rules of the 3.1
+   table (folder track = ID track, lesson/deck file name = ID, problem folder = `leetcode` + slug);
+   reserved `user:`; card local IDs never start with a reserved prefix; an item type the manifest
+   does not list → issue.
+5. **MDX:** `parseMdx` →
+   `checkMdx(file, tree, context, { imagePathPrefix: '<trackId>/<localId>/' })` (the upload
+   convention of OD3) → `mdxFacts`; lesson frontmatter through `lessonFrontmatterSchema`, note
+   frontmatter (optional) through `noteFrontmatterSchema`; a note's verification =
+   `verificationFor(tests.signature.kind)` (3.5a) — 3.2c makes `tests.yaml` mandatory for a note.
+8. **Highlight** (3.3a): solution files and fenced blocks of every MDX; `text` → `plainCode`.
+9. **`ids.lock`** (decision 8): `formatLock` output —
+
+   ```text
+   # content/ids.lock — every published content ID (platform design §3.3, ADR-0010).
+   # IDs are append-only: events reference them forever. `pnpm content:build` adds new IDs.
+   # An ID may leave content/** only after you move it from [published] to [retired] by hand.
+
+   [published]
+   dsa:lc-0001
+   …
+
+   [retired]
+   ```
+
+   Issues: removed → "`<id>` is in content/ids.lock but no longer in content/** — restore it, set
+   `status: retired`, or move it to [retired] (IDs are append-only, ADR-0010)"; reused → "`<id>` is
+   retired in content/ids.lock and cannot be reused"; in both sections; in check mode also added →
+   "content/ids.lock is missing N IDs — run `pnpm content:build` and commit content/ids.lock" and
+   not normalised → "content/ids.lock is not normalised — run `pnpm content:build`". Locally the
+   file is rewritten (added IDs, sorted).
+10. **Emit** — generated files only when there are no issues; a one-line summary (`content:build ·
+    <n> tracks · <m> items · ids.lock +<k> · <s> s`, replaced by the full report in 3.2c), exit 0;
+    otherwise every `formatIssue` line (sorted) and `✗ <n> issues`, exit 1. Usage errors / crashes:
+    exit 2.
+
+**Check mode** (fix 19, decision 7): `--check`, or `CI` set to anything but `''`, `'0'`, `'false'`.
+Vercel sets `CI=1` during builds (its system environment variables), so a Vercel build never writes
+`ids.lock` and fails on a stale one — which CI's `content-build` job has already caught; confirm the
+value in a preview build log when the owner next opens one (the 2.2 runbook's check step).
+
+**CI** — `ci.yml` gains (decision 22):
+
+```yaml
+  content-build:
+    name: content-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm content:build --check
+```
+
+- [ ] **Step 1: Failing tests** (every `buildContent` call writes to a fresh temp `outDir` — fix 7).
+  - `ids-lock.test.ts`: missing file → empty lock; local run adds two IDs, sorted, and
+    `formatLock` round-trips; check mode with a new ID → the "missing N IDs" issue; a removed ID →
+    the removal issue in both modes; a `[retired]` ID present in content → reused; an ID in both
+    sections; an unsorted file in check mode → not normalised; derived IDs are included.
+  - `nfc.test.ts`: **[RF-3]** a deck `back` given as `'Tiếng Việt'.normalize('NFD')` → an issue
+    naming the file and `cards.0.back`; the NFC form → none; an MDX source in NFD → one issue.
+  - `load.test.ts`: an unknown folder under a track; a file `Notes.md` in a problem folder;
+    `lessons/diagram.png` (image in git); YAML duplicate key; a YAML alias; a lesson file
+    `arrays-hashing.mdx` whose ID is `dsa:lesson-arrays`; an item ID of another track; `user:` ID;
+    a card `english:ex-oops`; a lesson in a track whose `itemTypes` lacks `lesson`; a lesson image
+    under the wrong item prefix (the prefix is passed to `checkMdx`).
+  - `emit.test.ts`: the five kinds of files exist; `catalog.ts` contains no object literal (only
+    `JSON.parse`); `mdx.ts` starts with the reference line and maps each key to the right relative
+    path; a stale code bundle is removed; two runs produce byte-identical output.
+  - `build.test.ts`: the `ok` fixture builds with exact item counts; a failing fixture returns
+    `ok: false` with sorted issues and writes nothing; `isCheckMode` for `--check`, `CI=1`,
+    `CI=true`, `CI=0`, `CI=false`, `CI=''` and unset; **the real repository content builds in check
+    mode with `ok === true` and `issues` equal to `[]`** — nothing else is asserted about the real
+    content (fix 7), so later content PRs never touch this test.
+  - `catalog-access.test.ts`: `getItem`, `getTrackItems` order, `getRoadmap` `null` for a missing
+    file, `loadMdx` / `loadCode` `null` for unknown keys and the loader's default export otherwise.
+- [ ] **Step 2: RED → implement → GREEN** (`pnpm test tools/content lib/content`).
+- [ ] **Step 3: Wire it:** scripts (decision 7), the ESLint and Prettier ignores, `content/ids.lock`
+  committed with the header only, the `content-build` job.
+- [ ] **Step 4: ADR-0010** — `<track>:<localId>` IDs and the file rules; deterministic derived IDs;
+  append-only `ids.lock` with `[retired]`; check mode in CI and on Vercel; reserved `user:`.
+- [ ] **Step 5: Verify** `pnpm content:build --check && pnpm verify` (the build now starts with
+  content:build). **Commit** — `feat(content): content:build core — loading, IDs, ids.lock and the
+  generated catalog`.
+
+### Task 3.3b: MDX pipeline with `@next/mdx` and the content components
+
+**Spike (2026-09-25, `spike-findings.md` §2):** `@next/mdx` 16.3.6 with Turbopack,
+plugins as strings, MDX imported from `content/` through a generated map, frontmatter excluded,
+per-page `components` override, `pre` text with one trailing newline.
+
+**Files:**
+
+- Create: `mdx-components.tsx` (root), `features/items/mdx/{components.tsx,bind.tsx}` (+
+  `bind.test.tsx`),
+  `features/items/components/mdx/{section,callout,steps,var-table,complexity,bilingual,term,practice-card,quiz,reveal,solution-tabs,code-pre,external-link,content-image}.tsx`
+  (+ a test each), `app/dev/content/{page.tsx,sample-lesson.mdx,sample-note.mdx,fixtures.ts}`,
+  `public/dev/content-image-sample.svg` (a monochrome `currentColor` sample for the catalog entry —
+  catalog asset, not content), `tools/content/mdx/samples.test.ts`,
+  `e2e/content-components.spec.ts`, `docs/ops/content-images.md` (runbook, OD3),
+  `tools/guards/next-config.test.ts`, `docs/adr/0011-mdx-safety-and-build-time-highlighting.md`
+- Modify: `next.config.ts` (MDX + `images.remotePatterns`), `tools/guards/offline-build.test.ts` (M1
+  deferred #20: also scan `next.config.ts`, `postcss.config.mjs`, `mdx-components.tsx`),
+  `lib/i18n/vi.ts` (+ `vi.test.ts` keys), `docs/design/COMPONENTS.md`,
+  `app/dev/components/registry.tsx`
+
+**Interfaces:**
+
+```ts
+// next.config.ts
+import createMDX from '@next/mdx'
+import { contentImageRemotePatterns } from './tools/content/allowlist'
+const withMDX = createMDX({
+  extension: /\.mdx$/,
+  // Turbopack: plugins by name (functions cannot cross into Rust — Next 16 MDX guide)
+  options: { remarkPlugins: ['remark-frontmatter', 'remark-gfm'] },
+})
+const nextConfig: NextConfig = {
+  // …existing M2 config…
+  images: { remotePatterns: contentImageRemotePatterns() },   // from tools/content/allowlist.ts (OD3) — the one bucket host
+}
+export default withMDX(nextConfig)    // no pageExtensions: there are no MDX routes
+
+// mdx-components.tsx (required by @next/mdx with the App Router)
+/// <reference types="mdx" />
+export function useMDXComponents(): MDXComponents   // returns `mdxComponents` imported from
+                                                    // '@/features/items/mdx/components' (not the index: it re-exports the server-only registry from 3.4a)
+
+// features/items/mdx/components.tsx
+export const mdxComponents: MDXComponents & { [K in MdxComponentName]: React.ComponentType<never> }
+// every allow-listed component (Solution and Practice as `null`-rendering fallbacks — MDX throws on an
+// undefined component) + markdown overrides: h2, h3, h4, p, ul, ol, li, a (ExternalLink), img
+// (ContentImage), blockquote, code (inline), table/thead/tbody/tr/th/td, hr, strong, em — token classes only
+
+// features/items/mdx/bind.tsx — per page, server-safe
+export type PracticeTarget = { title: string; href: string; leetcode: number | null; difficulty: Difficulty | null }
+export type MdxBindings = { code: CodeBundle | null; codeLanguage: CodeLanguage;
+  resolvePractice: (itemId: string) => PracticeTarget | null }
+export function mdxComponentsFor(bindings: MdxBindings): MDXComponents   // { Solution, Practice, pre }
+```
+
+**Components** (`features/items/components/mdx/`; vi strings; English learning content in
+`lang="en"`; never colour alone):
+
+- `Section({ kind, children })` — `<section data-section={kind} aria-labelledby>` with an `h2` from
+  `vi.content.sections[kind] ?? kind` (decision 33): signals "Dấu hiệu nhận biết", analogy "Ví dụ
+  đời thường", visual "Minh hoạ", approach "Cách tiếp cận", code "Code", complexity "Độ phức tạp",
+  bilingual "Giải thích song ngữ", practice "Luyện tập", quiz "Kiểm tra nhanh".
+- `Callout({ tone, title?, children })` — `role="note"`, icon (`Info` / `Lightbulb` /
+  `TriangleAlert`) + visible label ("Lưu ý" / "Mẹo" / "Cẩn thận" unless `title`), `bg-primary-soft`
+  / `bg-success-soft` / `bg-warning-soft` (cva variants).
+- `Steps` / `Step({ title? })` — `<ol>` / `<li>`, numbered.
+- `VarTable({ caption?, children })` — a focusable scroll region (`role="region"`, `tabIndex={0}`,
+  `aria-label={caption ?? vi.content.varTable}`) around the GFM table, mono cells.
+- `Complexity({ time, space })` — `<dl>`: "Thời gian" / "Bộ nhớ", values `font-mono`.
+- `Bilingual({ vi, en })` — two labelled paragraphs, "Tiếng Việt" then "English" (`lang="en"`).
+- `Term({ vi?, children })` — `<span lang="en">`; when `vi` is set, a following " (vi)" gloss.
+- `PracticeCard(target: PracticeTarget)` — a link card: "Bài luyện tập", `#leetcode`, title
+  (`lang="en"`), difficulty. The bound `Practice({ problem })` resolves the target and renders it.
+- `Quiz`, `Question({ prompt, answer })`, `Choice({ id, children })` — client (`quiz.tsx`, `'use
+  client'`). Quiz provides a context; each Question registers `{ answer, selected }` and renders
+  `<fieldset><legend>{prompt}</legend>…`; each Choice reads the Question context and renders a
+  native radio in a ≥ 44 px label. "Kiểm tra" scores `correct/total`; each question then shows an
+  icon + "Chính xác" or "Chưa đúng — đáp án: {id's text}" and the total "Đúng {correct}/{total}" is
+  announced in a polite live region; "Làm lại" resets. Prop `onScore?: (score: { correct: number;
+  total: number; percent: number }) => void` (percent rounded) — 5.2 sends it as
+  `lesson.completed { quizScore }` (§3.5).
+- `Reveal({ label?, children })` — client; a button (`aria-expanded`, `aria-controls`) "Xem" /
+  `label`, content hidden until opened.
+- `SolutionTabs({ solutions, defaultLanguage, onReveal? })` — client; hidden behind "Xem lời giải"
+  (DESIGN_SYSTEM §9); then ui `Tabs` Python / Java / Go (only the languages present, in that order;
+  initial tab = `defaultLanguage` when present, else the first), each a `CodeBlock` labelled "Lời
+  giải {Python}"; `onReveal` fires once (5.2 uses it for the "Cần gợi ý" nudge).
+- `CodePre` — the bound `pre`: reads `language-<lang>` and the text from its `code` child, looks up
+  `code.blocks[codeBlockKey(lang, text)]`, falls back to `plainCode` (never crashes).
+- `ExternalLink` — `a` override: `https:` only (the check guarantees it),
+  `target="_blank" rel="noopener noreferrer"`, an `ExternalLink` icon (`aria-hidden`) and visually
+  hidden "(mở trong tab mới)".
+- `ContentImage({ src, alt, title })` — the `img` override (OD3; **rendering decision:** Markdown
+  `![alt](url "WIDTHxHEIGHT")`, the size in the title — the safety check guarantees the URL, the
+  alt text and the title): `next/image` with `width` / `height` parsed from the title, `alt`,
+  `className="h-auto max-w-full rounded-md"`, lazy by default; raster images (`png`, `webp`,
+  `jpg`) go through Next's optimiser, allowed by `images.remotePatterns` from the same base URL;
+  `svg` is `unoptimized` (Next does not optimise SVG). No `sizes` (fixed-size images need none).
+  An unparsable title (never reaches production — the check rejects it) renders nothing.
+
+**`docs/ops/content-images.md`** (runbook, OD3, no secrets or keys): 1. **the bucket already
+exists** — `content-images` in the production Supabase project, created by the owner in the
+dashboard on 2026-09-25: public read, 1 MB per file, MIME types `image/svg+xml`, `image/png`,
+`image/webp`, `image/jpeg`; no migration creates it (the local stack runs without the storage
+service) and every environment (local, previews, staging, production) reads this one bucket, so
+content URLs never change; 2. **upload via the dashboard** only (owner; the v1.1 bot never uploads
+images), naming `<track>/<item-local-id>/<name>.<ext>` (e.g. `dsa/lesson-two-pointers/walk.svg`),
+extensions `svg`, `png`, `webp`, `jpg`, lower-case names `[a-z0-9-_.]`, SVGs exported without
+scripts; 3. licence: images are content, CC BY-NC-SA 4.0 like `content/**` (say so in the PR that
+references them); 4. the base URL
+`https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/` is committed as
+`CONTENT_IMAGE_BASE_URL` in `tools/content/allowlist.ts` and also feeds `next.config.ts`
+`images.remotePatterns`; changing buckets means a PR changing that one constant (and every image
+URL); 5. reference images in MDX as
+`![alt text](<base><track>/<local-id>/<name>.<ext> "WIDTHxHEIGHT")` — upload first, then open the
+content PR (the build never fetches the image, so a missing upload only shows as a broken image on
+the preview).
+
+**`/dev/content`** (`requireDevAccess()` first, like the other `/dev` pages) renders
+`sample-lesson.mdx` and `sample-note.mdx` — imported directly, not through the catalog, so PR A
+proves the MDX build without content — with `mdxComponentsFor` bound to `fixtures.ts` (a CodeBundle
+with Python/Java/Go solutions and the lesson's fenced block, a practice resolver). The samples use
+every allow-listed component except images (e2e stays offline — no request to the bucket;
+`ContentImage` is covered by its unit test and a catalog entry using
+`public/dev/content-image-sample.svg`); `samples.test.ts`
+runs 3.2a's `checkMdx` on them (lesson and note contexts) so they stay valid.
+
+`vi.content`: the section labels above; `varTable` "Bảng biến"; `complexity { title: 'Độ phức
+tạp', time: 'Thời gian', space: 'Bộ nhớ' }`; `bilingual { vi: 'Tiếng Việt', en: 'English' }`;
+`callout { info: 'Lưu ý', tip: 'Mẹo', warning: 'Cẩn thận' }`; `quiz { check: 'Kiểm tra', retry:
+'Làm lại', correct: 'Chính xác', incorrect: 'Chưa đúng — đáp án: {answer}', score: 'Đúng
+{correct}/{total}' }`; `reveal { show: 'Xem', hide: 'Ẩn' }`; `solution { show: 'Xem lời giải', hide:
+'Ẩn lời giải', tabs: 'Ngôn ngữ lời giải', label: 'Lời giải {language}' }`; `practice { title: 'Bài
+luyện tập' }`; `newTab: '(mở trong tab mới)'`.
+
+- [ ] **Step 1: Failing tests** — `section.test.tsx` (h2 from the kind, fallback, labelled region);
+  `term.test.tsx` (**`<Term>` sets `lang="en"`**, the gloss); `quiz.test.tsx` (**quiz score**: 2 of
+  3 correct → "Đúng 2/3" in a live region and `onScore({ correct: 2, total: 3, percent: 67 })`;
+  per-question icon + text; retry resets; arrow keys move within a question; a question without a
+  selection counts as wrong); `solution-tabs.test.tsx` (no code in the DOM before "Xem lời giải";
+  the default tab is the viewer's language; only present languages; `onReveal` once);
+  `code-pre.test.tsx` (a known block → token classes; unknown → plain text; the trailing newline
+  does not change the key); `callout`, `reveal` (`aria-expanded`), `var-table` (focusable region),
+  `bilingual`, `complexity`, `practice-card`, `external-link` tests; `bind.test.tsx` (`Practice`
+  with an unknown ID renders nothing; `Solution` with `code: null` renders nothing);
+  `content-image.test.tsx` (`title "640x360"` → an image with `width` 640, `height` 360 and the alt
+  text; an `.svg` source is `unoptimized`, a `.png` is not; a bad title renders nothing);
+  `next-config.test.ts` (tools/guards — `images.remotePatterns` equals
+  `contentImageRemotePatterns()`: one pattern, host `oelgwbxukbgaqqvociwi.supabase.co`, pathname
+  `/storage/v1/object/public/content-images/**`); `samples.test.ts`;
+  `offline-build.test.ts` scans the three root files.
+- [ ] **Step 2: Failing e2e** — `e2e/content-components.spec.ts` on `/dev/content` (light and dark,
+  desktop and mobile, axe): **lesson renders sections in order** (`[data-section]` kinds equal the
+  sample's order); `[lang="en"]` on the Term; the quiz flow shows the score; "Xem lời giải" reveals
+  tabs and switching to Java shows `class Solution`; the VarTable region is keyboard-focusable.
+- [ ] **Step 3: RED → implement → GREEN**; catalog entries for every client-safe component in
+  `features/items/components/mdx/` (all of them; sample props), `COMPONENTS.md` entries.
+- [ ] **Step 4: ADR-0011** — `@next/mdx` with Turbopack (plugins as strings), MDX imported through a
+  generated import map, strict MDX safety check in `content:build` on the MDX syntax tree
+  (`@mdx-js/mdx`, OD1; allowlist in code, literal attributes, `https:` links), highlighting at build
+  time with shiki → token classes (decisions 13, 14), zero client JS for highlighting; **images
+  (owner decision OD3):** remote, in one allow-listed Supabase Storage bucket (`content-images`,
+  production project, public read, owner-only writes), not in git — one constant feeds the safety
+  check and `images.remotePatterns`; the bucket was created by the owner on 2026-09-25 (1 MB per
+  file; SVG, PNG, WebP, JPEG); consequences: images are not versioned with content PRs, reviewers
+  see only URLs, the bot cannot add images, a missing upload is not caught by the offline build, an
+  empty base URL rejects every image.
+- [ ] **Step 5: Verify** `pnpm verify && pnpm test:e2e`. **Commit** — `feat(content): MDX pipeline
+  with @next/mdx and the allow-listed content components`.
+
+### Task 3.5b: `content-verify` M3a, runtime part — runners, orchestrator, sandbox, CI workflow
+
+**Spike (2026-09-25):** a Node orchestrator ran group-anagrams (`string[] → string[][]`),
+valid-sudoku (`char[][] → bool`) and an infinite loop in all three languages: Python case 155–280
+ms; `javac --release 21` 0.5–2.2 s per problem; `java` 170–430 ms per case; `go build` 0.25–6.8 s
+(cold cache) per problem; Go run 5 ms; the 1 500 ms timeout killed all three loops at 1.50 s.
+`go vet` accepts `package main` without `func main`; `go build` needs a stub. W1–W3 (24 `function`
+problems × ~6 cases + 3 compile-only) ≈ 90 s sequential.
+
+**Files:**
+
+- Create: `tools/content-verify/{cli,discover,orchestrator,sandbox,toolchains,report}.ts` (+ a test
+  each except `cli.ts` and `toolchains.ts`), `tools/content-verify/integration.test.ts`,
+  `tools/content-verify/runners/{python,java,go}.ts` (+ `runners/harness.test.ts`),
+  `tools/content-verify/runners/python/{runner.py,check.py}`,
+  `tools/content-verify/runners/java/Json.java`, `tools/content-verify/runners/go/normalize.go`,
+  `tools/content-verify/__fixtures__/tracks/demo/problems/<seven folders>/…` and
+  `__fixtures__/expected.json`, `.github/workflows/content-verify.yml`,
+  `docs/adr/0012-sandboxed-solution-verification.md`
+- Modify: `CLAUDE.md` (Commands: `content:verify`; local toolchains), `README.md` (Development:
+  Python ≥ 3.11, JDK ≥ 21, Go ≥ 1.22). The `content:verify` script was added in 3.0.
+
+**Interfaces** (3.1 is in by now, so the runner language is the shared `CodeLanguage` — gate review
+fix 22; the pure pieces come from 3.5a):
+
+```ts
+// tools/content-verify/discover.ts
+export type ProblemUnderTest = { id: string /* 'dsa:lc-0001' */; dir: string; tests: TestsFile; languages: CodeLanguage[] }
+export function discoverProblems(tracksRoot: string, filter?: { ids?: readonly string[]; lang?: CodeLanguage }):
+  { problems: ProblemUnderTest[]; issues: string[] }   // every problems/*/tests.yaml; languages = solution files present
+
+// tools/content-verify/sandbox.ts
+export type Sandbox = { user: string } | null
+export type Command = { cmd: string; args: string[]; cwd: string; stdin?: string; env?: Record<string, string>; timeoutMs: number }
+export type Spawn = { cmd: string; args: string[]; env: Record<string, string> }
+export function wrapCommand(command: Command, sandbox: Sandbox, tools: { timeout: string; sudo: string }): Spawn
+// no sandbox → cmd/args unchanged, env = { PATH, HOME, ...command.env }
+// sandbox → EVERY toolchain command, compile included (fix 6):
+//   sudo -n -u <user> -- <timeout> --kill-after=1 <ceil(ms/1000)+1>s env -i PATH=<tool dirs> HOME=/tmp <…command.env> <abs cmd> <args>
+//   (sudo cannot relay SIGKILL, so the inner `timeout` is the second fence; the Node timer is the first)
+export function killSandboxProcesses(sandbox: Sandbox): void   // sudo -n pkill -KILL -u <user> || true — after every case
+export function assertSandboxPolicy(env: NodeJS.ProcessEnv): Sandbox
+// GITHUB_ACTIONS === 'true' and no CONTENT_VERIFY_SANDBOX_USER → throws (the CLI exits 2: fail closed, fix 6)
+
+// tools/content-verify/runners/{python,java,go}.ts
+export type Harness = {
+  lang: CodeLanguage
+  /** Writes the harness into workDir (copies the solution and the static runner files, generates code). */
+  prepare(problem: ProblemUnderTest, workDir: string): { compile: Command[]; runCase(index: number): Command; compileOnly: Command[] }
+}
+export const pythonHarness: Harness, javaHarness: Harness, goHarness: Harness
+
+// tools/content-verify/orchestrator.ts
+export type CaseResult = { name: string; status: 'pass' | 'fail' | 'timeout' | 'error'; ms: number; detail?: string }
+export type LanguageResult = { lang: CodeLanguage; status: 'tested' | 'compile-only' | 'failed'; cases: CaseResult[]; detail?: string }
+export type ProblemResult = { id: string; verification: Verification; languages: LanguageResult[]; ok: boolean }
+export type ToolPaths = { python: string; javac: string; java: string; go: string; timeout: string; sudo: string }
+export async function verifyProblems(problems: readonly ProblemUnderTest[], options: {
+  jobs: number; workRoot: string; sandbox: Sandbox; tools: ToolPaths }): Promise<ProblemResult[]>
+
+// tools/content-verify/report.ts
+export function formatReport(results: readonly ProblemResult[], toolchains: string): string
+```
+
+**Runners** (decision 19; every generated or copied file lives in the work directory):
+
+- **Python** — `runner.py` and `check.py` are **copied into the work directory** (fix 6) with the
+  solution. `runner.py` reads `{"file", "method", "args", "output": null | <arg index>}` from stdin,
+  loads the solution with `importlib.util.spec_from_file_location`, calls
+  `Solution().<method>(*args)`, prints JSON of the result (or of `args[output]` after the call, for
+  in-place). `check.py <file> <json signature>` compiles with `compile(src, path, 'exec')` (no
+  `__pycache__`) and checks with `ast` that `class Solution` has the method (function) or `class
+  <className>` has every method (design class); prints `{"ok": …, "reason": …}`.
+- **Java** — generated `Main.java`: `switch (Integer.parseInt(args[0]))`, one `case` per test with
+  literal arguments (`javaLiteral`, 3.5a), `System.out.print(Json.write(<call or arg>))`; static
+  `Json.java` serialises `null`, `String`, `Character` (as a one-char string), boxed numbers and
+  booleans, arrays (reflection) and `Iterable`, `NaN`/infinity → `null`. Compile once: `javac
+  --release 21 -proc:none -encoding UTF-8 -d out Solution.java Json.java Main.java` (60 s;
+  `-proc:none` — no annotation processors run during compilation, fix 6). Run: `java -Xss64m
+  -Xmx512m -cp out Main <i>`. Compile-only: `javac` + a regex check for `class <Name>` and each
+  `<method>(`.
+- **Go** — generated `main_harness.go` (`package main`, `switch i`, literal arguments via
+  `goLiteral`, then `json.Marshal(normalize(out))`) plus the copied static `normalize.go`:
+  `normalize(v any) any` walks the value with `reflect`, turns **nil slices at any depth into empty
+  slices** (fix 8: `json.Marshal` prints a nil slice as `null`) and `byte` / `[]byte` values from a
+  `char` return type into strings (it would base64-encode them); `go.mod` = `module
+  verify\n\ngo 1.22\n`; env `CGO_ENABLED=0` (fix 6), `GOPROXY=off`, `GOTOOLCHAIN=local`,
+  `GOFLAGS=-mod=mod`, `GOCACHE` and `GOPATH` under the work root. Build once: `go build -o bin .`
+  (120 s). Run: `./bin <i>`. Compile-only: add `main_stub.go` (`func main() {}`) unless the file
+  declares `main`, then `go vet .` + a regex check for `func <name>(` (function) or `type
+  <ClassName> struct`, `func Constructor(` and each capitalised method.
+- The work root is a `mkdtemp` under the OS temp dir, one sub-directory per problem × language;
+  in sandbox mode the orchestrator runs `sudo -n chown -R <user> <dir>` after writing the files, so
+  compilation (as the sandbox user) can write `out/`, `bin` and the Go caches. Nothing is ever
+  written into `content/`.
+
+**Orchestrator behaviour:** discover → for each problem × language: if the kind is supported →
+compile (a compile failure = `failed`, detail = the first 20 lines of stderr), run every case with
+the Node-enforced `timeoutMs` (`spawn` + timer, `SIGTERM` then `SIGKILL` after 1 s), then
+`killSandboxProcesses` (fix 6: no stray process survives a case), parse stdout as JSON (bad JSON =
+`error`), `compare` (3.5a); else → `compileOnly` commands → `compile-only` or `failed`. Jobs:
+locally `Math.max(1, Math.floor(os.availableParallelism() / 2))` units in parallel; **in sandbox
+mode one unit at a time** (the per-case `pkill -u` must never hit another running case; ~90 s for
+W1–W3 — M3b may add one sandbox user per worker when the content grows). Exit code 1 when any
+problem fails, else 0. CLI:
+`content:verify [--problem <id>]… [--lang <l>] [--jobs <n>] [--root <tracks dir>]`; the sandbox is
+`assertSandboxPolicy(process.env)` (exit 2 on GitHub Actions without a sandbox user); toolchain
+versions and absolute paths are resolved first (`command -v`, so `sudo`'s `secure_path` never
+matters); a missing toolchain is an error naming the minimum version.
+
+**Report** (the last line is what CI surfaces, §3.7):
+
+```text
+content:verify · python 3.13.7 · javac 23.0.2 · go 1.26.5 · 1 job (sandbox cvsandbox)
+  dsa:lc-0001  tested        python 6/6 · java 6/6 · go 6/6       1.9 s
+  dsa:lc-0155  compile-only  python ✓ · java ✓ · go ✓  (design-class runs in M3c)
+  dsa:lc-0049  FAILED        go: case 'anagram-groups' expected [["a"]] got [] (0.2 s)
+tested 24 · compile-only 3 · failed 1
+```
+
+**Workflow** `.github/workflows/content-verify.yml` (§3.7: a required check that always runs, the
+path check inside the job; every step after the check carries the `if:`, fix 17):
+
+```yaml
+name: content-verify
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: content-verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  content-verify:
+    name: content-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: paths
+        name: Content or harness changed? (in-job check keeps this required check reporting)
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify lib/content/schemas/tests.ts \
+                  lib/content/verification.ts .github/workflows/content-verify.yml; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "No content or harness change — nothing to verify."
+          fi
+      - if: steps.paths.outputs.run == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-python@v7
+        with: { python-version: '3.13' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: '25' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-go@v7
+        with: { go-version: '1.26', cache: false }
+      - if: steps.paths.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox user without network (OD2)
+        run: |
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin cvsandbox
+          sudo iptables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+          sudo ip6tables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox self-test (fail closed)
+        run: |
+          PY="$(command -v python3)"
+          sudo -n -u cvsandbox -- "$PY" -c 'print(1)'                     # the sandbox user can run the toolchain
+          curl -sSf -o /dev/null --max-time 10 https://example.com         # the runner itself has network
+          if sudo -n -u cvsandbox -- "$PY" -c \
+             "import urllib.request; urllib.request.urlopen('https://example.com', timeout=5)"; then
+            echo "::error::the sandbox user reached the network"; exit 1
+          fi
+      - if: steps.paths.outputs.run == 'true'
+        name: Harness self-test on fixtures
+        run: pnpm vitest run tools/content-verify/integration.test.ts
+        env: { CONTENT_VERIFY_INTEGRATION: '1', CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+      - if: steps.paths.outputs.run == 'true'
+        run: pnpm content:verify
+        env: { CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+```
+
+**Fixtures** (`__fixtures__/tracks/demo/problems/`, IDs `demo:lc-9001`… — never in `content/`):
+`lc-9001-sum-pass` (function `sumList(nums: int[]) → int`, all languages correct, compare exact),
+`lc-9002-wrong-go` (Go returns a wrong value for one case), `lc-9003-timeout` (Python loops
+forever), `lc-9004-design` (`design-class` MinStack-like, compile-only in all three),
+`lc-9005-compile-error` (Java does not compile), `lc-9006-in-place` (`reverse(nums: int[]) → void`,
+`compare: { kind: in-place, arg: nums }`), `lc-9007-empty-result` (`evens(nums: int[]) → int[]`;
+the Go solution returns a nil slice for a case expecting `[]` — fix 8); `expected.json` lists each
+problem's per-language status and failing case names.
+
+- [ ] **Step 1: Failing tests (pure, always run).** `harness.test.ts`: the generated Java `Main` and
+  Go `main_harness.go` for the two-sum signature match inline snapshots; the Python harness copies
+  `runner.py` and `check.py` into the work dir; `javac` gets `-proc:none`; the Go env has
+  `CGO_ENABLED=0`. `sandbox.test.ts`: no sandbox → unchanged; a sandbox → the exact `sudo … timeout
+  … env -i …` argv for a **run and a compile** command; `killSandboxProcesses(null)` does nothing;
+  `assertSandboxPolicy({ GITHUB_ACTIONS: 'true' })` throws, with `CONTENT_VERIFY_SANDBOX_USER` →
+  `{ user }`, locally → `null`. `report.test.ts`: fixed results → the exact text above.
+  `discover.test.ts`: the fixture root yields seven problems with the solution languages present.
+  `orchestrator.test.ts` (a fake spawn): sandbox mode runs one unit at a time and calls
+  `killSandboxProcesses` after every case.
+- [ ] **Step 2: Failing integration test** — `integration.test.ts`
+  (`describe.runIf(process.env.CONTENT_VERIFY_INTEGRATION === '1')`) runs `verifyProblems` on the
+  fixtures and matches `expected.json`: **timeout** reported for `lc-9003` python within
+  `timeoutMs` + 1.5 s; **`function` signatures pass** (`lc-9001`, `lc-9006`, `lc-9007` tested in
+  all three — the Go nil slice compares equal to `[]`); **unsupported kinds → `compile-only`**
+  (`lc-9004`, with the signature check passing); `lc-9002` go `failed` naming the case; `lc-9005`
+  java `failed` with a stderr excerpt.
+- [ ] **Step 3: RED → implement → GREEN** — `pnpm test tools/content-verify`, then
+  `CONTENT_VERIFY_INTEGRATION=1 pnpm vitest run tools/content-verify/integration.test.ts`
+  (toolchains are installed locally), then `pnpm content:verify` on the real content (no
+  `tests.yaml` yet → `tested 0 · compile-only 0 · failed 0`, exit 0).
+- [ ] **Step 4: ADR-0012** — the owner decision OD2: a sandboxed CI job (no secrets, read-only
+  token; solution **and** compile processes run as a dedicated Linux user whose network, loopback
+  included, is rejected by an iptables owner match; `CGO_ENABLED=0`, `javac -proc:none`, stray
+  processes killed after every case; a fail-closed self-test; the CLI refuses to run unsandboxed on
+  GitHub Actions) **instead of the container named in §3.7** — the deviation and why (no image
+  pulls, the same orchestrator locally and in CI; local runs on a developer's machine are
+  unsandboxed); a required check that always runs (in-job path check); phased harness (M3a
+  `function`; M3b lists, trees, graph nodes, random lists; M3c design classes, before week 4, §0);
+  compile-only + signature-check fallback; validators outside `content/**`; verification derived
+  from the supported kinds (decision 21).
+- [ ] **Step 5: Verify** `pnpm verify`; `CLAUDE.md` Commands: "`pnpm content:verify` — run every
+  solution against its `tests.yaml` (Python ≥ 3.11, JDK ≥ 21, Go ≥ 1.22)"; README Development
+  lists the toolchains. **Commit** — `feat(content-verify): runners, orchestrator and the sandboxed
+  CI job`. After the controller cherry-picks this task it pushes the pipeline branch as a **draft
+  PR** so `content-verify` (and the sandbox self-test) runs on GitHub early (fix 6).
+
+### Task 3.2c: `content:build` cross-checks — cross-references, derived decks, coverage, report
+
+**Files:**
+
+- Create: `tools/content/{crossref,derived,coverage,report}.ts` (+ a test each), more fixture
+  scenarios under `tools/content/__fixtures__/content/` (one per cross-reference row below; the `ok`
+  fixture gains a deep-dive lesson)
+- Modify: `tools/content/build.ts` (steps 6–7 and the report), `tools/content/cli.ts` (prints the
+  report), `tools/content/build.test.ts` (the `ok` fixture's derived cards, `deepDiveId` and
+  coverage), `CLAUDE.md` (Commands and a Content section), `README.md` (Development)
+
+**Interfaces:**
+
+```ts
+// tools/content/crossref.ts
+export type CrossrefInput = { tracks: readonly TrackManifest[]; roadmaps: Catalog['roadmaps'];
+  roadmapFiles: readonly { trackId: string; file: string; roadmap: Roadmap }[];
+  items: Readonly<Record<string, CatalogItem>>; decks: Readonly<Record<string, DeckSummary>>;
+  facts: ReadonlyMap<string, MdxFacts>;                         // by item ID (lessons) and '<id>#note'
+  problemFiles: ReadonlyMap<string, { solutions: CodeLanguage[]; tests: TestsFile | null }> }
+export function crossrefIssues(input: CrossrefInput): ContentIssue[]
+export function missingRoadmaps(tracks: readonly TrackManifest[], roadmaps: Catalog['roadmaps']): Catalog['missingRoadmaps']
+export function deepDiveIndex(items: Readonly<Record<string, CatalogItem>>, tracks: readonly TrackManifest[]): Map<string, string>
+// problem ID → the non-retired lesson whose format requires `about` and whose `about` is that problem
+
+// tools/content/derived.ts
+export function derivedCards(input: { tracks: readonly TrackManifest[]; items: Readonly<Record<string, CatalogItem>>;
+  lockedIds: ReadonlySet<string> }): { cards: CatalogItem<'flashcard'>[]; decks: DeckSummary[] }
+
+// tools/content/coverage.ts (fix 21)
+export function weekCoverage(track: TrackManifest, roadmap: Roadmap, items: Readonly<Record<string, CatalogItem>>,
+  decks: Readonly<Record<string, DeckSummary>>): WeekCoverage[]
+
+// tools/content/report.ts
+export function formatReport(catalog: Catalog, lock: LockDiff, ms: number): string
+```
+
+**Pipeline additions** (`buildContent`):
+
+6. **Cross-references** (`crossref.ts`):
+
+   | Check | Issue |
+   | --- | --- |
+   | roadmap file whose `id` ≠ file name, or not listed in the manifest | yes |
+   | manifest roadmap without a file | coverage (`missingRoadmaps`) — decision 4 |
+   | roadmap `core` / `bonus` / `recap` item missing, of another track, or not a problem | yes |
+   | roadmap `decks` entry missing, of another track, or not a deck | yes |
+   | week topic not in the manifest's `topics` | yes |
+   | core item's topic ∉ its week's `topics` | yes |
+   | bonus / recap item whose topic is not in this or an earlier week's topics **and** whose `requires` are not all there either (so tries bonus problems may follow the trees week) | yes |
+   | recap entry with a mode whose item is not placed in the same or an earlier week | yes |
+   | topic whose `requires` are not introduced in an earlier week or earlier in the same week's list (§3.6) | yes |
+   | lesson `format` not in `lessonFormats`; sections ≠ the format's list, in order | yes |
+   | lesson missing a `requires` field, or carrying one the format does not use | yes |
+   | anchor / practice / about not a problem of the same track | yes |
+   | rules `anchor!=practice`, `practice!=about`, `same-topic`, `one-per-topic` (non-retired, per topic), `max-1-per-about` | yes |
+   | `<Practice problem>` ≠ the lesson's `practice` | yes |
+   | lesson / problem / deck / exercise topic not in the manifest | yes |
+   | problem with `note.mdx`: a solution file per `codeLanguages` + `tests.yaml` valid with the §3.5 minimum | yes |
+   | exercise / prompt `week` beyond the longest existing roadmap of the track | yes |
+   | derived deck source track missing, or not listing `problem` in its `itemTypes` (zero problems is fine — PR A) | yes |
+
+   The **deep-dive reverse lookup** (§3.5) fills `note.deepDiveId` from `deepDiveIndex`.
+7. **Derived decks** (`derived.ts`, §3.4): for each manifest `decks[]` entry, one card per source
+   problem whose note is `active` and whose problem is not retired: `front` / `back` / `hint` from
+   the map (templates filled from the problem; `note.bilingual.*` from the note's `<Bilingual>`),
+   `tier: 'derived'`, `lang { front: en, back / hint: en for `note.bilingual.en`, vi for
+   `note.bilingual.vi` }`, `status` = the problem's (draft stays draft), `derivedFrom` = the problem
+   ID, ID `derivedCardId(...)`; one `DeckSummary` of kind `derived` per entry. An ID in the lock
+   whose source no longer qualifies → a card with `status: 'retired'` (decision 8).
+   **Coverage** (`coverage.ts`, fix 21) per track × existing roadmap × week: topic lessons (formats
+   without `about`) per week topic or `null`; `placedProblems` / `notedProblems` count only placed
+   items (core + recap entries without a mode); `bonusProblems` / `notedBonus` separately; core and
+   extended cards of the week's decks; active exercises and prompts whose `week` is the week.
+
+**Report** (`formatReport`; columns shown only for item types the track lists; numbers below are
+illustrative — the exact text is pinned by `report.test.ts` on the `ok` fixture):
+
+```text
+content:build · 2 tracks · 360 items · ids.lock +360 · 0.9 s
+
+Items            active  draft  retired
+  problem           114      0        0
+  lesson              5      0        0
+  flashcard         216      0        0
+  exercise           18      0        0
+  prompt              4      0        0
+
+Verification: tested 24 · compile-only 3 · no note 87
+
+dsa · active · Cấu trúc dữ liệu & Giải thuật
+  8w   8 weeks · week sizes 8 8 7 11 7 7 8 8
+  10w  10 weeks · week sizes 8 8 8 8 8 7 8 8 8 8
+  10w coverage  week  notes (placed)  bonus notes  lessons
+                1     9/9             0/0          arrays-hashing
+                4     0/10            0/1          — (linked-list missing)
+english · active · Tiếng Anh cho môi trường IT
+  10w  10 weeks · week sizes 12 16 14 14 12 13 16 14 11 13
+  10w coverage  week  core  extended  exercises  prompts
+                1     12    18        6          1
+Missing roadmaps: none
+Draft tracks: none
+Draft items: none
+```
+
+- [ ] **Step 1: Failing tests.** `crossref.test.ts`: one fixture per row of the table (each yields
+  exactly its issue), and the `ok` fixture → none; a tries bonus problem in the trees week passes.
+  `derived.test.ts`: a noted active problem → one card `english:explaining-code:dsa:lc-0001` with
+  front "Explain the optimal approach for Two Sum in English.", back = `note.bilingual.en`, hint =
+  `note.bilingual.vi`, `tier: derived`; a draft note → no card; a draft problem with an active note
+  → a draft card; a locked derived ID whose note became draft → a retired card.
+  `coverage.test.ts`: a week with 8 core, 1 recap-introduced and 2 bonus problems, 3 of the placed
+  ones noted and 1 bonus noted → `placedProblems 9, notedProblems 3, bonusProblems 2, notedBonus 1`;
+  a recap entry with a mode is not counted; a week topic without a lesson → `lessonId: null`.
+  `report.test.ts`: the `ok` fixture catalog → the exact report text (inline snapshot).
+  `build.test.ts`: the `ok` fixture's `deepDiveId`, derived cards and coverage.
+- [ ] **Step 2: RED → implement → GREEN** (`pnpm test tools/content`).
+- [ ] **Step 3: Docs.** `CLAUDE.md` — Commands: "`pnpm content:build` — validate `content/**`,
+  update `content/ids.lock`, write `.generated/` (runs first in `verify`, `build`, `dev`,
+  `test:e2e`)"; the "Later milestones add …" line drops `content:build` and `content:verify`; a
+  **Content** section: content is data; never copy LeetCode statements; IDs are append-only
+  (`ids.lock`); MDX may use only the components in `tools/content/allowlist.ts`; images come only
+  from the `content-images` bucket (`docs/ops/content-images.md`); generated code lives in
+  `.generated/` (never edited, never committed). `README.md` Development: `pnpm content:build`.
+- [ ] **Step 4: Verify** `pnpm content:build --check && pnpm verify`. **Commit** —
+  `feat(content): content:build cross-references, derived decks, coverage and report`.
+
+### Task 3.4a: Item-type registry, a page and a row per item type
+
+**Files:**
+
+- Create: `features/items/{types.ts,registry.ts,render.tsx,href.ts,narrow.ts,index.ts}` (+
+  `registry.test.ts`, `render.test.tsx`, `href.test.ts`, `narrow.test.ts`),
+  `features/items/{problem,lesson,flashcard,exercise,prompt}/{Page.tsx,Row.tsx}` (+ a test per
+  file),
+  `features/items/components/{difficulty-badge,verification-badge,item-status-badge,flashcard-view,fill-blank-exercise,self-graded-exercise,rubric-list}.tsx`
+  (+ tests), `components/patterns/link-row.tsx` (+ test), `app/dev/items/{page.tsx,fixtures.ts}`,
+  `tools/guards/item-type-branching.ts` (+ test), `e2e/items.spec.ts`,
+  `docs/adr/0009-tracks-are-data-item-types-are-code.md`
+- Modify: `lib/content/tracks.ts` (+ `tracks.test.ts`, `track-options.test.ts`) — manifests from
+  the catalog (decision 6); `next.config.ts` (drop the `track.yaml` tracing include — `yaml` itself
+  moved to devDependencies in 3.0, fix 10); `tools/guards/component-catalog.test.ts`;
+  `lib/i18n/vi.ts` (+ test);
+  `docs/design/COMPONENTS.md`; `app/dev/components/registry.tsx`
+
+**Interfaces:**
+
+```ts
+// features/items/types.ts
+export type ItemStateView = { status: 'weak' | 'ok' | 'strong' | 'mastered' | 'skipped'; level: number; dueOn: string | null }
+export type ItemViewer = { codeLanguage: CodeLanguage; isAdmin: boolean }
+export type ItemLink = { id: string; type: ItemType; title: string; href: string; leetcode: number | null; difficulty: Difficulty | null }
+export type ItemPageData = { Body: MDXContent | null; code: CodeBundle | null }
+export type RecordResultAction = (input: { itemId: string; result: string; mode?: Mode }) => Promise<{ ok: boolean; message: string }>
+export type ItemPageProps<K extends ItemType> = {
+  item: CatalogItem<K>
+  state: ItemStateView | null                      // null until M4/M5 (decision 25)
+  context: { planBlockId?: string; mode?: Mode }
+  viewer: ItemViewer
+  data: ItemPageData                               // preloaded by the route through `load`
+  resolveItem: (id: string) => ItemLink | null     // practice, anchor, deep-dive, recap links
+  recordResult?: RecordResultAction                // 5.2
+}
+export type ItemRowProps<K extends ItemType> = { item: CatalogItem<K>; state: ItemStateView | null; mode?: Mode; href: string; showStatus?: boolean }
+export type ItemTypeDef<K extends ItemType> = ItemTypeCore<AuthoredByType[K]> & {
+  Page: React.ComponentType<ItemPageProps<K>>
+  Row: React.ComponentType<ItemRowProps<K>>
+  load(item: CatalogItem<K>): Promise<ItemPageData>   // problem: note MDX + code; lesson: MDX + code; others: { null, null }
+}
+
+// features/items/registry.ts — server-only (load() uses lib/content/catalog)
+export const ITEM_REGISTRY: { readonly [K in ItemType]: ItemTypeDef<K> }
+export function getItemType<K extends ItemType>(type: K): ItemTypeDef<K>
+
+// features/items/render.tsx — server-only; how pages turn catalog items into registry elements (fix 5)
+export function renderItemRow(item: CatalogItem, props: { state?: ItemStateView | null; mode?: Mode;
+  showStatus?: boolean }): React.ReactNode          // <Row item state href={itemHref(item)} …/> of getItemType(item.type)
+export async function renderItemPage(item: CatalogItem, props: Omit<ItemPageProps<ItemType>, 'item' | 'data'>):
+  Promise<React.ReactNode>                          // awaits getItemType(item.type).load(item), then <Page …/>
+
+// features/items/narrow.ts — pure; the one sanctioned place to test an item's type outside the registry (fix 4)
+export function isItemOfType<K extends ItemType>(item: CatalogItem, type: K): item is CatalogItem<K>
+
+// features/items/href.ts — pure
+export function itemHref(item: { trackId: string; localId: string }): string   // /t/dsa/items/lc-0001
+export function itemIdFromRoute(trackId: string, itemParam: string): string    // decodeURIComponent → '<track>:<local>'
+
+// features/items/index.ts — for pages and features/roadmap; NOT imported by client components
+// (it re-exports the server-only registry): getItemType, ITEM_REGISTRY, renderItemRow, renderItemPage,
+// isItemOfType, itemHref, itemIdFromRoute, mdxComponents, mdxComponentsFor, types
+
+// components/patterns/link-row.tsx
+export type LinkRowProps = { href: string; title: React.ReactNode; titleLang?: 'en' | 'vi';
+  meta?: React.ReactNode[]; badges?: React.ReactNode; trailing?: React.ReactNode }
+export function LinkRow(props: LinkRowProps): React.JSX.Element   // ≥ 44 px, whole row one link, focus ring
+```
+
+**Pages and rows** (read-only in M3; recording results arrives in 5.2):
+
+- **problem** — Page: `#{leetcode}` + DifficultyBadge ("Easy"/"Medium"/"Hard" — LeetCode terms stay
+  English) + topic title + VerificationBadge ("Đã kiểm thử" with `CircleCheck` / "Chỉ biên dịch"
+  with `Info`, each with a one-line explanation) when a visible note exists; "Mở trên LeetCode"
+  (ExternalLink to `content.url`); premium: a `Lock` + "Premium" marker and "Bản miễn phí:" links to
+  every alternative; the note Body bound with `mdxComponentsFor({ code, codeLanguage:
+  viewer.codeLanguage, resolvePractice })`; no note, or a draft note for a learner → EmptyState
+  inline "Chưa có ghi chú" (§3.3) + "Bạn vẫn có thể giải bài trên LeetCode."; a draft note for an
+  admin renders with "Bản nháp"; `note.deepDiveId` → a "Bài học chuyên sâu" link. Row: title
+  (`lang="en"`), meta `#1 · Easy · Arrays & Hashing`, Premium marker, verification icon.
+- **lesson** — Page: format label (`vi.items.lessonFormat[format] ?? format`: "Pattern",
+  "Deep-dive"), topic, anchor and practice links via `resolveItem`, the Body. Row: title, "Pattern ·
+  25 phút".
+- **flashcard** — Page: `FlashcardView` (client): front (`lang` per card), "Xem nghĩa" reveals back,
+  hint, usage ("danh từ · trung tính" + note), example (`lang="en"`), pronunciation; no grade
+  buttons until 5.2. Row: front, tier label ("Cốt lõi" / "Mở rộng" / "Giải thích code").
+- **exercise** — Page: instruction (vi, and en with `lang="en"`), text (`lang="en"`, the blank as
+  a labelled input for fill-blank). fill-blank: "Kiểm tra" grades with `gradeFillBlank` → "Chính
+  xác" / "Gần đúng — bạn đã xem gợi ý" / "Chưa đúng — đáp án: …" (icon + text, polite live region),
+  "Xem gợi ý" reveals the hint. respond/rewrite: a Textarea ("Câu trả lời không được lưu."), "Xem
+  câu trả lời mẫu" reveals sample answers (`lang="en"`) and the rubric. Row: instruction, kind
+  label ("Điền từ" / "Trả lời" / "Viết lại").
+- **prompt** — Page: instruction vi/en, minutes, tag label (`vi.template.tags`), rubric list. Row:
+  instruction, tag · minutes.
+- Every Row: `LinkRow` + `StatusPill` from `state` (null → "Chưa học") when `showStatus`; "Bản nháp"
+  badge for drafts; "Đã ngừng" for retired. Every Page: draft/retired notice at the top.
+
+**`/dev/items`** (`requireDevAccess()` first): every type's Page and Row rendered from `fixtures.ts`
+(fixture `CatalogItem`s: a noted problem with Body = 3.3b's `sample-note.mdx`, a premium problem
+without note, a pattern lesson with Body = `sample-lesson.mdx`, a vocabulary card, a derived card,
+each exercise kind, a repeatable and a weekly prompt, one draft) — the page lists `file:
+'features/items/<type>/Page.tsx'` / `Row.tsx` entries like the catalog registry.
+`component-catalog.test.ts`: `features/items/*/{Page,Row}.tsx` must have `COMPONENTS.md` entries and
+appear in `/dev/items` (server components cannot render in the client catalog registry).
+
+**Architecture test** (`item-type-branching.ts`, §7.2 — "no `switch`/`case` on item types", gate
+review fix 4): `itemTypeBranches(file, source): string[]` (TypeScript compiler API) reports every
+`case` clause whose expression is a string literal in `ITEM_TYPES`. Scanned: `app/`, `components/`,
+`features/` except `features/items/**`, and the rest of `lib/` and `tools/` except `lib/content/**`
+and `tools/content/**` (the content pipeline builds items by type); test files are skipped. Equality
+checks are not flagged — code that needs to narrow an item uses `isItemOfType` (`narrow.ts`). The
+repo scan expects zero.
+
+`lib/content/tracks.ts` keeps its exports (`loadTracks()`, `activeTracks()`, `getTrack(id)`; the
+`root` parameter goes) and reads `getCatalog().tracks`; manifest-validation tests now live in 3.1's
+`manifest.test.ts` (the fixture folders go). `vi.items`: the strings named above.
+
+- [ ] **Step 1: Failing tests** — `registry.test.ts` (every `ITEM_TYPES` key registered with Page,
+  Row and `load`; `srs` from the core; an unknown type throws); `href.test.ts`
+  (`/t/dsa/items/lc-0001`; the derived card → `/t/english/items/explaining-code%3Adsa%3Alc-0001`;
+  `itemIdFromRoute` round trip); per Page/Row tests (the behaviours above, incl. the LeetCode link
+  `https://leetcode.com/problems/two-sum/` with `rel="noopener noreferrer"`; premium alternatives;
+  "Chưa có ghi chú"; the draft note for learner vs admin; `lang="en"` on the card front and example;
+  fill-blank pass/close/miss and **[RF-3]** an NFD answer passes; sample answers hidden until
+  revealed; the "Chưa học" pill); `link-row.test.tsx`; `item-type-branching.test.ts` (one violation
+  for `case 'problem':` in `features/roadmap/x.ts` and in `app/x/page.tsx`; none for
+  `case 'review':`, none inside `features/items/**`, `lib/content/**` or `tools/content/**`, none
+  for `item.type === 'lesson'`; the repo scan is clean); `narrow.test.ts` (`isItemOfType` true/false
+  and narrows the content type — a `expectTypeOf` line); `render.test.tsx` (`renderItemRow` renders
+  the registered Row with `itemHref`; `renderItemPage` awaits `load` and passes `data`);
+  `tracks.test.ts` via the catalog.
+- [ ] **Step 2: Failing e2e** — `e2e/items.spec.ts` on `/dev/items` (light and dark, desktop and
+  mobile, axe): every type's heading renders; "Xem nghĩa" reveals the back; the fill-blank flow;
+  "Xem lời giải" on the noted problem.
+- [ ] **Step 3: RED → implement → GREEN**; catalog entries for the new `features/items/components`
+  files and `LinkRow`; `COMPONENTS.md` entries for each Page and Row ("Item types" section).
+- [ ] **Step 4: ADR-0009** — tracks are data (manifest + content validated by `content:build`),
+  item types are code (a core in `lib/content/item-types`, Page/Row/load in `features/items/<type>`,
+  one registry); screens never branch on item type (architecture test); adding an item type = one
+  file, one folder, one registry line, one `COMPONENTS.md` entry.
+- [ ] **Step 5: Verify** `pnpm verify && pnpm test:e2e` (onboarding and settings e2e prove the
+  catalog-based track loader). **Commit** — `feat(items): item-type registry with a page and a row
+  per item type`.
+
+**Carry-overs from M2** (guards; tests first, same commit):
+
+- `tools/guards/server-guards.ts`: recognise `return await requireX()` and a parenthesised
+  `(await requireX())` as a first-statement guard; add a rule that feature modules other than
+  `queries.ts` / `actions.ts` must not import `lib/supabase/server` or `lib/supabase/admin`, and a
+  feature `index.ts` must not re-export them (today `features/settings/reads.ts` is safe only by
+  convention).
+
+### Task 3.4b: `/tracks`, the track roadmap page and item pages
+
+**Files:**
+
+- Create: `features/roadmap/{queries.ts,view-model.ts,slots.ts,index.ts}` (+ `queries.test.ts`,
+  `view-model.test.ts`, `slots.test.tsx`),
+  `features/roadmap/components/{track-list,track-card,track-overview,variant-links,week-section,roadmap-view,item-view}.tsx`
+  (+ tests), `app/(app)/tracks/page.tsx`, `app/(app)/t/[trackId]/page.tsx`,
+  `app/(app)/t/[trackId]/items/[itemId]/page.tsx`, `e2e/tracks.spec.ts`, `e2e/content.spec.ts`
+- Modify: `lib/i18n/vi.ts` (+ test), `docs/design/COMPONENTS.md`, `app/dev/components/registry.tsx`,
+  `e2e/support/test.ts` (the `_rsc=` comment: `/tracks` exists now)
+
+**Interfaces:**
+
+```ts
+// features/roadmap/view-model.ts — pure
+export type WeekView = {
+  week: number
+  topics: { id: string; title: string }[]
+  lessons: CatalogItem<'lesson'>[]     // topic lessons: formats that do not require `about`, topic ∈ week topics
+  core: CatalogItem<'problem'>[]
+  recap: { item: CatalogItem<'problem'>; mode: RecapMode | null }[]
+  bonus: CatalogItem<'problem'>[]
+  decks: { deck: DeckSummary; core: CatalogItem<'flashcard'>[]; extended: CatalogItem<'flashcard'>[] }[]
+  exercises: CatalogItem<'exercise'>[]  // week field = this week
+  prompts: CatalogItem<'prompt'>[]      // non-repeatable, week field = this week
+}
+export type RoadmapView = { variant: string; weeks: WeekView[];
+  anytime: { prompts: CatalogItem<'prompt'>[]; derivedDecks: { deck: DeckSummary; unlocked: number }[] } }
+export function buildRoadmapView(input: { track: TrackManifest; roadmap: Roadmap; access: CatalogAccess;
+  includeDrafts: boolean }): RoadmapView
+// drafts only when includeDrafts (admins); retired items never; order = roadmap order, then file order;
+// items are narrowed with isItemOfType (features/items/narrow.ts), never switched on
+
+// features/roadmap/slots.ts — pure; turns a view into ReactNode slots through a callback (fix 5)
+export type RowRenderer = (item: CatalogItem, extra: { mode: RecapMode | null }) => React.ReactNode
+export type WeekSlots = { week: number; topics: { id: string; title: string }[]; lessons: React.ReactNode[];
+  core: React.ReactNode[]; recap: { row: React.ReactNode; mode: RecapMode | null }[]; bonus: React.ReactNode[];
+  decks: { deck: DeckSummary; core: React.ReactNode[]; extended: React.ReactNode[] }[];
+  exercises: React.ReactNode[]; prompts: React.ReactNode[] }
+export type RoadmapSlots = { variant: string; weeks: WeekSlots[];
+  anytime: { prompts: React.ReactNode[]; derivedDecks: { deck: DeckSummary; unlocked: number }[] } }
+export function roadmapSlots(view: RoadmapView, renderRow: RowRenderer): RoadmapSlots
+
+// features/roadmap/components — presentational; NO file here imports features/items/registry, so each
+// renders in the client catalog with plain props (fix 5):
+//   RoadmapView({ slots: RoadmapSlots }), WeekSection({ week: WeekSlots }),
+//   ItemView({ backHref: string; trackTitle: string; notice: 'draft' | 'retired' | null; page: React.ReactNode })
+
+// features/roadmap/queries.ts — import 'server-only'; every loader starts with `await requireOnboarded()`
+export type TrackSummary = { id: string; title: string; titleEn: string; accent: string; status: ItemStatus }
+export type Enrollment = { status: 'active' | 'paused' | 'removed'; roadmapVariant: string; budgetMinutes: number }
+export type TracksOverview = { isAdmin: boolean;
+  mine: { track: TrackSummary; enrollment: Enrollment }[]            // active and paused enrollments
+  others: TrackSummary[] }                                           // active tracks not enrolled (or removed); drafts for admins
+export async function getTracksOverview(): Promise<TracksOverview>
+export type TrackPageData = { track: TrackSummary; enrollment: Enrollment | null; template: TemplateDay[]; throttle: string[];
+  variants: { id: string; label: string; href: string; current: boolean }[]; view: RoadmapView | null; isAdmin: boolean }
+export async function getTrackPage(trackId: string, variant: string | undefined): Promise<TrackPageData | null>
+// null → 404: unknown track; draft track for a learner; retired track the learner is not enrolled in.
+// variant: the param when it is one of the manifest's roadmaps, else the enrolled one, else
+// defaultVariant(roadmaps, defaults.budgetMinutes) (2.9); view null when that roadmap file is missing (decision 4)
+export type ItemPageModel = { item: CatalogItem; track: TrackSummary; viewer: ItemViewer; backHref: string;
+  resolveItem: (id: string) => ItemLink | null }
+export async function getItemPage(trackId: string, itemParam: string): Promise<ItemPageModel | null>
+// null → 404: unknown item, draft item or draft track for a learner; retired items stay viewable with a notice
+```
+
+`user_tracks` is read with the session client (own rows, RLS), selecting `track_id, status,
+roadmap_variant, budget_minutes`.
+
+**Pages** (no `className`; compose `features/roadmap` and patterns; `params` / `searchParams` are
+promises in Next 16):
+
+- `/tracks` — `metadata` "Lộ trình — Học Đều"; PageHeader "Lộ trình" + "Các lộ trình bạn đang học
+  và các lộ trình khác."; Section "Lộ trình của bạn" (TrackCard per enrollment: `data-accent` chip,
+  title, status "Đang học" / "Tạm dừng", variant label, link "Xem lộ trình"); Section "Lộ trình
+  khác" (TrackCard + "Thêm trong Cài đặt" → `/settings`; drafts with "Bản nháp" for admins); a
+  retired enrolled track shows "Lộ trình đã ngừng — không nhận học viên mới."; nothing at all →
+  EmptyState (RF-4).
+- `/t/[trackId]` — `generateMetadata` from the track title; `TrackOverview` (`data-accent`
+  wrapper): PageHeader (vi title, en title as description), `VariantLinks` ("Phiên bản lộ trình":
+  links with `aria-current="true"` on the current variant, `variantLabel`), the weekly template via
+  `WeeklyTemplatePreview` from `@/features/tracks`; then `RoadmapView`: one Section per week
+  ("Tuần {n}" + topic chips) listing lessons, core ("Bài chính"), recap ("Ôn lại cuối tuần" + mode
+  label "Làm lại" / "Nhớ lại" / "Giải thích thành lời"), bonus ("Bài thêm"), decks ("Bộ thẻ": title,
+  "{core} thẻ cốt lõi · {extended} thẻ mở rộng", cards in a `<details>` list), exercises ("Bài
+  tập"), prompts ("Nhiệm vụ"); a final Section "Không theo tuần" (repeatable prompts, derived
+  decks). The page builds the rows itself — `roadmapSlots(view, (item, { mode }) =>
+  renderItemRow(item, { state: null, mode: mode ?? undefined }))` with `renderItemRow` from
+  `@/features/items` — and passes the slots to `RoadmapView` (fix 5).
+  `view === null` → EmptyState "Lộ trình này chưa có nội dung." + "Nội dung đang được bổ sung." +
+  link to `/tracks` (RF-4). Progress and weak items: 5.4 (decision 25).
+- `/t/[trackId]/items/[itemId]` — `generateMetadata` "{title} — Học Đều"; the page renders
+  `ItemView` with a back link "Về lộ trình {title}" and
+  `page = await renderItemPage(model.item, { state: null, context: {}, viewer: model.viewer, resolveItem: model.resolveItem })`
+  (the registry's Page via `features/items`, fix 5); `null` model → `notFound()`. `ItemPageModel`
+  then carries no `data` (`renderItemPage` loads it).
+- Loading and errors: the `(app)` group's `loading.tsx` / `error.tsx` cover the new segments (M2
+  pattern).
+
+**e2e** (one onboarded learner per test, DSA 8w/60 + English 10w/25 via `seedLearnerSetup`, as
+2.11):
+
+- `tracks.spec.ts`: `/tracks` lists both tracks under "Lộ trình của bạn" with "8 tuần" / "10 tuần";
+  the nav item "Lộ trình" has `aria-current="page"` on `/tracks` and on `/t/dsa`; `/t/dsa` shows the
+  weekly template; if `.generated/catalog.json` has `roadmaps.dsa['8w']` the page shows "Tuần 1" and
+  its first core row, otherwise the empty state (PR A); `/t/dsa?variant=10w` marks 10w current and
+  `?variant=nope` falls back to 8w; `/t/nope` and `/t/dsa/items/lc-99999` → the Vietnamese 404; axe
+  light/dark on `/tracks` and `/t/dsa`; mobile: the bottom-nav "Lộ trình" is current on `/t/dsa`.
+- `content.spec.ts` (the **content smoke test**, decision 4): collects from
+  `.generated/catalog.json` every active lesson, every active problem with an active note, and the
+  first and last active item of each type; for each, as a learner signed in once per worker (a
+  worker-scoped fixture saving `storageState`): the item page's `h1` is the item title, a lesson's
+  `[data-section]` kinds equal its catalog `sections`, a noted problem shows its verification
+  badge and "Xem lời giải" reveals its languages; axe light on desktop for all, dark and mobile for
+  the first item per type. With no items (PR A) the spec skips with "no content items yet".
+- The existing specs' `networkidle` workarounds for `/tracks` prefetches stay valid (M2 note).
+
+- [ ] **Step 1: Failing tests** — `view-model.test.ts` (a fixture catalog: week order; topic lessons
+  by topic, deep-dives excluded; recap modes; drafts only with `includeDrafts`; retired excluded;
+  exercises and prompts by week; repeatable prompts and derived decks under "anytime"; **[RF-4]** a
+  roadmap week whose items are all drafts renders an empty week without crashing); `queries.test.ts`
+  (mocks for the DAL, the session client and a fixture `CatalogAccess`: a learner gets `null` for a
+  draft track and for a draft item, an admin gets both; unknown variant → the enrolled one → the
+  budget default; a missing roadmap file → `view: null`; `itemParam` decoding of a derived ID; each
+  loader calls `requireOnboarded` first — the existing guard test also checks it); `slots.test.tsx`
+  (the callback is called once per item with the recap mode; empty weeks stay empty); component
+  tests with plain ReactNode props (TrackCard states, VariantLinks `aria-current`, WeekSection
+  labels, ItemView notices, the empty states).
+- [ ] **Step 2: Failing e2e** — `tracks.spec.ts`, `content.spec.ts` as above.
+- [ ] **Step 3: RED → implement → GREEN**; catalog entries and `COMPONENTS.md` entries for every
+  `features/roadmap/components` file; `vi.roadmap` strings.
+- [ ] **Step 4: Verify** `pnpm verify && pnpm test:e2e`. **Commit** — `feat(tracks): tracks list,
+  track roadmap and item pages from the catalog`.
+
+**Carry-overs from M2** (pages; tests first, same commit):
+
+- `/tracks` and the onboarding wizard show an EmptyState when there are no active tracks (RF-4).
+
+### Task 3.6: DSA problem metadata, roadmaps, topic signals, mock-interview prompt [PR B]
+
+**Owner review before merge.** Branch `feat/m3-dsa-content`, created by the controller from the
+pipeline branch once 3.2c and 3.3b are in (end of wave 3), with its integration worktree
+`int-dsa` (fix 16); this task runs in its own worktree from that branch like every other task.
+
+**Files:**
+
+- Create: `content/tracks/dsa/problems/lc-NNNN-<slug>/problem.yaml` × 114 (tables below),
+  `content/tracks/dsa/roadmaps/10w.yaml`, `content/tracks/dsa/roadmaps/8w.yaml`,
+  `content/tracks/dsa/prompts/mock-interview.yaml`, `tools/content/dsa-content.test.ts`
+- Modify: `content/tracks/dsa/track.yaml` (`signals` for every topic). **Not** `content/ids.lock`:
+  on the content branches the controller owns it (decision 8) — run `pnpm content:build` locally,
+  then `git checkout content/ids.lock` before committing.
+
+**File formats:**
+
+```yaml
+# content/tracks/dsa/problems/lc-0271-encode-and-decode-strings/problem.yaml
+id: dsa:lc-0271
+leetcode: 271
+title: Encode and Decode Strings
+difficulty: M
+topic: arrays-hashing
+premium: true
+alternatives:
+  - { label: 'LintCode 659 (miễn phí)', url: 'https://www.lintcode.com/problem/659/' }
+```
+
+```yaml
+# content/tracks/dsa/roadmaps/10w.yaml
+id: 10w
+weeks:
+  - week: 1
+    topics: [arrays-hashing]
+    core: [dsa:lc-0217, dsa:lc-0242, dsa:lc-0001, dsa:lc-0049, dsa:lc-0347, dsa:lc-0238, dsa:lc-0128, dsa:lc-0036]
+    bonus: []
+    recap:
+      - { item: dsa:lc-0271 }
+      - { item: dsa:lc-0128, mode: redo }
+      - { item: dsa:lc-0049, mode: explain-aloud }
+```
+
+```yaml
+# content/tracks/dsa/prompts/mock-interview.yaml (§5.6)
+- id: dsa:prompt-mock-interview
+  tag: mock-interview
+  repeatable: true
+  minutes: 45
+  instruction:
+    vi: 'Chọn bài Medium bạn đã học mà lâu nhất chưa gặp lại. Giải trong khoảng 30 phút rồi giải thích cách làm bằng tiếng Anh, như đang phỏng vấn.'
+    en: 'Pick the Medium problem you have not seen for the longest. Solve it in about 30 minutes, then explain your approach aloud in English, as in an interview.'
+  rubric: ['…3–5 criteria in Vietnamese…']
+```
+
+**The 10w roadmap — the brief's roadmap, the input of the §5.10/§5.11 simulation** (source:
+`docs/plans/assets/2026-09-23-plan-sim.py` `W10`; recap without a mode = introduced there):
+
+| Week | Topics | Core (difficulty) | Recap |
+| --- | --- | --- | --- |
+| 1 | arrays-hashing | 217 E, 242 E, 1 E, 49 M, 347 M, 238 M, 128 M, 36 M | 271 (new), 128 redo, 49 explain-aloud |
+| 2 | two-pointers, sliding-window | 125 E, 121 E, 167 M, 15 M, 11 M, 3 M, 424 M, 42 H | 1 explain-aloud, 567 (new), 347 redo |
+| 3 | stack, binary-search | 20 E, 704 E, 155 M, 739 M, 875 M, 153 M, 981 M, 84 H | 424 redo, 150 (new), 238 redo |
+| 4 | linked-list | 206 E, 21 E, 141 E, 19 M, 143 M, 2 M, 146 M, 23 H | 74 (new), 3 redo, 138 (new) |
+| 5 | trees | 226 E, 104 E, 100 E, 543 E, 102 M, 98 M, 230 M, 124 H | 146 redo, 199 (new), 128 redo |
+| 6 | heap | 703 E, 1046 E, 973 M, 215 M, 621 M, 355 M, 295 H | 347 redo, 230 redo, 981 redo |
+| 7 | backtracking | 78 M, 39 M, 46 M, 90 M, 40 M, 79 M, 17 M, 51 H | 22 (new), 572 (new), 215 redo |
+| 8 | graphs | 200 M, 695 M, 133 M, 994 M, 417 M, 207 M, 210 M, 127 H | 79 redo, 102 redo, 739 redo |
+| 9 | dp-1d | 70 E, 198 M, 213 M, 5 M, 91 M, 322 M, 139 M, 300 M | 994 redo, 647 (new), 42 redo |
+| 10 | dp-2d, intervals, greedy | 62 M, 1143 M, 56 M, 57 M, 435 M, 253 M, 53 M, 763 M | 146 redo, 295 redo, 380 (new) |
+
+Week sizes `[8, 8, 8, 8, 8, 7, 8, 8, 8, 8]` (79 core) + 10 recap-introduced = 89 problems.
+
+**The 8w roadmap** (`W8` in the same file; §5.3 week sizes `[8, 8, 7, 11, 7, 7, 8, 8]`):
+
+| Week | Topics | Core | Recap |
+| --- | --- | --- | --- |
+| 1 | arrays-hashing | 217, 242, 1, 49, 347, 238, 128, 36 | 271 (new), 128 redo, 49 explain-aloud |
+| 2 | two-pointers, sliding-window | 125, 121, 167, 15, 11, 3, 424, 42 | 1 explain-aloud, 347 redo, 3 redo |
+| 3 | stack, binary-search | 20, 704, 155, 739, 875, 153, 981 | 424 redo, 238 redo, 739 redo |
+| 4 | linked-list, trees | 206, 21, 141, 146, 226, 104, 100, 543, 102, 98, 230 | 146 redo, 128 redo, 102 redo |
+| 5 | heap, backtracking | 703, 973, 215, 78, 39, 46, 79 | 347 redo, 230 redo, 981 redo |
+| 6 | graphs | 200, 695, 133, 994, 417, 207, 210 | 79 redo, 102 redo, 739 redo |
+| 7 | dp-1d | 70, 198, 213, 5, 91, 322, 139, 300 | 994 redo, 42 redo, 5 redo |
+| 8 | dp-2d, intervals, greedy | 62, 1143, 56, 57, 435, 253, 53, 763 | 146 redo, 215 redo, 380 (new) |
+
+**Problem metadata** (title = LeetCode's English title, never translated; slug = LeetCode's URL
+slug; topic = NeetCode 150 category mapped to the manifest topics; difficulty as the brief/sim —
+it feeds the M4 projection hash):
+
+| # | Title | Slug | Topic | Diff. |
+| --- | --- | --- | --- | --- |
+| 1 | Two Sum | two-sum | arrays-hashing | E |
+| 2 | Add Two Numbers | add-two-numbers | linked-list | M |
+| 3 | Longest Substring Without Repeating Characters | longest-substring-without-repeating-characters | sliding-window | M |
+| 5 | Longest Palindromic Substring | longest-palindromic-substring | dp-1d | M |
+| 11 | Container With Most Water | container-with-most-water | two-pointers | M |
+| 15 | 3Sum | 3sum | two-pointers | M |
+| 17 | Letter Combinations of a Phone Number | letter-combinations-of-a-phone-number | backtracking | M |
+| 19 | Remove Nth Node From End of List | remove-nth-node-from-end-of-list | linked-list | M |
+| 20 | Valid Parentheses | valid-parentheses | stack | E |
+| 21 | Merge Two Sorted Lists | merge-two-sorted-lists | linked-list | E |
+| 22 | Generate Parentheses | generate-parentheses | stack | M |
+| 23 | Merge k Sorted Lists | merge-k-sorted-lists | linked-list | H |
+| 36 | Valid Sudoku | valid-sudoku | arrays-hashing | M |
+| 39 | Combination Sum | combination-sum | backtracking | M |
+| 40 | Combination Sum II | combination-sum-ii | backtracking | M |
+| 42 | Trapping Rain Water | trapping-rain-water | two-pointers | H |
+| 46 | Permutations | permutations | backtracking | M |
+| 49 | Group Anagrams | group-anagrams | arrays-hashing | M |
+| 51 | N-Queens | n-queens | backtracking | H |
+| 53 | Maximum Subarray | maximum-subarray | greedy | M |
+| 56 | Merge Intervals | merge-intervals | intervals | M |
+| 57 | Insert Interval | insert-interval | intervals | M |
+| 62 | Unique Paths | unique-paths | dp-2d | M |
+| 70 | Climbing Stairs | climbing-stairs | dp-1d | E |
+| 74 | Search a 2D Matrix | search-a-2d-matrix | binary-search | M |
+| 78 | Subsets | subsets | backtracking | M |
+| 79 | Word Search | word-search | backtracking | M |
+| 84 | Largest Rectangle in Histogram | largest-rectangle-in-histogram | stack | H |
+| 90 | Subsets II | subsets-ii | backtracking | M |
+| 91 | Decode Ways | decode-ways | dp-1d | M |
+| 98 | Validate Binary Search Tree | validate-binary-search-tree | trees | M |
+| 100 | Same Tree | same-tree | trees | E |
+| 102 | Binary Tree Level Order Traversal | binary-tree-level-order-traversal | trees | M |
+| 104 | Maximum Depth of Binary Tree | maximum-depth-of-binary-tree | trees | E |
+| 121 | Best Time to Buy and Sell Stock | best-time-to-buy-and-sell-stock | sliding-window | E |
+| 124 | Binary Tree Maximum Path Sum | binary-tree-maximum-path-sum | trees | H |
+| 125 | Valid Palindrome | valid-palindrome | two-pointers | E |
+| 127 | Word Ladder | word-ladder | graphs | H |
+| 128 | Longest Consecutive Sequence | longest-consecutive-sequence | arrays-hashing | M |
+| 133 | Clone Graph | clone-graph | graphs | M |
+| 138 | Copy List with Random Pointer | copy-list-with-random-pointer | linked-list | M |
+| 139 | Word Break | word-break | dp-1d | M |
+| 141 | Linked List Cycle | linked-list-cycle | linked-list | E |
+| 143 | Reorder List | reorder-list | linked-list | M |
+| 146 | LRU Cache | lru-cache | linked-list | M |
+| 150 | Evaluate Reverse Polish Notation | evaluate-reverse-polish-notation | stack | M |
+| 153 | Find Minimum in Rotated Sorted Array | find-minimum-in-rotated-sorted-array | binary-search | M |
+| 155 | Min Stack | min-stack | stack | M |
+| 167 | Two Sum II - Input Array Is Sorted | two-sum-ii-input-array-is-sorted | two-pointers | M |
+| 198 | House Robber | house-robber | dp-1d | M |
+| 199 | Binary Tree Right Side View | binary-tree-right-side-view | trees | M |
+| 200 | Number of Islands | number-of-islands | graphs | M |
+| 206 | Reverse Linked List | reverse-linked-list | linked-list | E |
+| 207 | Course Schedule | course-schedule | graphs | M |
+| 210 | Course Schedule II | course-schedule-ii | graphs | M |
+| 213 | House Robber II | house-robber-ii | dp-1d | M |
+| 215 | Kth Largest Element in an Array | kth-largest-element-in-an-array | heap | M |
+| 217 | Contains Duplicate | contains-duplicate | arrays-hashing | E |
+| 226 | Invert Binary Tree | invert-binary-tree | trees | E |
+| 230 | Kth Smallest Element in a BST | kth-smallest-element-in-a-bst | trees | M |
+| 238 | Product of Array Except Self | product-of-array-except-self | arrays-hashing | M |
+| 242 | Valid Anagram | valid-anagram | arrays-hashing | E |
+| 253 | Meeting Rooms II | meeting-rooms-ii | intervals | M — **premium**, alternative LintCode 919 `https://www.lintcode.com/problem/919/` |
+| 271 | Encode and Decode Strings | encode-and-decode-strings | arrays-hashing | M — **premium**, alternative LintCode 659 `https://www.lintcode.com/problem/659/` |
+| 295 | Find Median from Data Stream | find-median-from-data-stream | heap | H |
+| 300 | Longest Increasing Subsequence | longest-increasing-subsequence | dp-1d | M |
+| 322 | Coin Change | coin-change | dp-1d | M |
+| 347 | Top K Frequent Elements | top-k-frequent-elements | arrays-hashing | M |
+| 355 | Design Twitter | design-twitter | heap | M |
+| 380 | Insert Delete GetRandom O(1) | insert-delete-getrandom-o1 | arrays-hashing | M — not in NeetCode 150; the brief's roadmap introduces it in the last recap |
+| 417 | Pacific Atlantic Water Flow | pacific-atlantic-water-flow | graphs | M |
+| 424 | Longest Repeating Character Replacement | longest-repeating-character-replacement | sliding-window | M |
+| 435 | Non-overlapping Intervals | non-overlapping-intervals | intervals | M |
+| 543 | Diameter of Binary Tree | diameter-of-binary-tree | trees | E |
+| 567 | Permutation in String | permutation-in-string | sliding-window | M |
+| 572 | Subtree of Another Tree | subtree-of-another-tree | trees | E |
+| 621 | Task Scheduler | task-scheduler | heap | M |
+| 647 | Palindromic Substrings | palindromic-substrings | dp-1d | M |
+| 695 | Max Area of Island | max-area-of-island | graphs | M |
+| 703 | Kth Largest Element in a Stream | kth-largest-element-in-a-stream | heap | E |
+| 704 | Binary Search | binary-search | binary-search | E |
+| 739 | Daily Temperatures | daily-temperatures | stack | M |
+| 763 | Partition Labels | partition-labels | greedy | M |
+| 875 | Koko Eating Bananas | koko-eating-bananas | binary-search | M |
+| 973 | K Closest Points to Origin | k-closest-points-to-origin | heap | M |
+| 981 | Time Based Key-Value Store | time-based-key-value-store | binary-search | M |
+| 994 | Rotting Oranges | rotting-oranges | graphs | M |
+| 1046 | Last Stone Weight | last-stone-weight | heap | E |
+| 1143 | Longest Common Subsequence | longest-common-subsequence | dp-2d | M |
+
+**Bonus problems — selected NeetCode 150 problems (Q2, decision 29; the owner confirms or edits the
+list in PR B).** Selection rule, as actually applied (gate review fix 14): a hand-picked set of the
+NeetCode 150 problems of the manifest's topics that the roadmap leaves out, targeting ~110 problems
+in total (Q5) — at most 4 per topic, Easy and Medium first, free problems first — plus three
+exceptions: 76 (the classic sliding-window Hard), 252 (premium, but LintCode 920 is free) and 743
+(from NeetCode's **Advanced Graphs** category, mapped to the `graphs` topic). In 10w each sits in
+the week of its topic; in 8w likewise:
+
+| # | Title | Slug | Topic | Diff. | 10w week | 8w week |
+| --- | --- | --- | --- | --- | --- | --- |
+| 76 | Minimum Window Substring | minimum-window-substring | sliding-window | H | 2 | 2 |
+| 853 | Car Fleet | car-fleet | stack | M | 3 | 3 |
+| 33 | Search in Rotated Sorted Array | search-in-rotated-sorted-array | binary-search | M | 3 | 3 |
+| 287 | Find the Duplicate Number | find-the-duplicate-number | linked-list | M | 4 | 4 |
+| 110 | Balanced Binary Tree | balanced-binary-tree | trees | E | 5 | 4 |
+| 235 | Lowest Common Ancestor of a Binary Search Tree | lowest-common-ancestor-of-a-binary-search-tree | trees | M | 5 | 4 |
+| 1448 | Count Good Nodes in Binary Tree | count-good-nodes-in-binary-tree | trees | M | 5 | 4 |
+| 105 | Construct Binary Tree from Preorder and Inorder Traversal | construct-binary-tree-from-preorder-and-inorder-traversal | trees | M | 5 | 4 |
+| 208 | Implement Trie (Prefix Tree) | implement-trie-prefix-tree | tries | M | 5 | 4 |
+| 211 | Design Add and Search Words Data Structure | design-add-and-search-words-data-structure | tries | M | 5 | 4 |
+| 131 | Palindrome Partitioning | palindrome-partitioning | backtracking | M | 7 | 5 |
+| 130 | Surrounded Regions | surrounded-regions | graphs | M | 8 | 6 |
+| 684 | Redundant Connection | redundant-connection | graphs | M | 8 | 6 |
+| 743 | Network Delay Time (NeetCode: Advanced Graphs) | network-delay-time | graphs | M | 8 | 6 |
+| 746 | Min Cost Climbing Stairs | min-cost-climbing-stairs | dp-1d | E | 9 | 7 |
+| 152 | Maximum Product Subarray | maximum-product-subarray | dp-1d | M | 9 | 7 |
+| 416 | Partition Equal Subset Sum | partition-equal-subset-sum | dp-1d | M | 9 | 7 |
+| 309 | Best Time to Buy and Sell Stock with Cooldown | best-time-to-buy-and-sell-stock-with-cooldown | dp-2d | M | 10 | 8 |
+| 518 | Coin Change II | coin-change-ii | dp-2d | M | 10 | 8 |
+| 494 | Target Sum | target-sum | dp-2d | M | 10 | 8 |
+| 72 | Edit Distance | edit-distance | dp-2d | M | 10 | 8 |
+| 252 | Meeting Rooms | meeting-rooms | intervals | E — **premium**, alternative LintCode 920 `https://www.lintcode.com/problem/920/` | 10 | 8 |
+| 55 | Jump Game | jump-game | greedy | M | 10 | 8 |
+| 45 | Jump Game II | jump-game-ii | greedy | M | 10 | 8 |
+| 134 | Gas Station | gas-station | greedy | M | 10 | 8 |
+
+**Omitted** — the 17 NeetCode 150 problems of these topics not in the roadmap and not selected:
+239, 4, 25, 297, 212, 286, 323, 261, 97, 329, 115, 312, 10, 846, 1899, 678, 1851 (Hard, premium
+without a chosen alternative, or over the per-topic cap). NeetCode's other Advanced Graphs problems
+(1584, 332, 778, 269, 787) and its Math & Geometry and Bit Manipulation categories have no topic in
+the manifest.
+
+The 8w variant also lists as **bonus**, in the week of their topic, the 10w problems it drops: W2
+567; W3 84, 150, 22, 74; W4 19, 143, 2, 23, 138, 124, 199, 572; W5 1046, 621, 355, 295, 90, 40, 17,
+51; W6 127; W7 647. (The 8w recap introduces 271 and 380 as in the table.) Bonus items stay out of
+the new-item queue while `include_bonus` is false (§5.3); they are listed on the track page.
+
+**Topic signals:** 2–4 per topic in Vietnamese with English terms (e.g. arrays-hashing: "Cần tra cứu
+nhanh một giá trị đã gặp", "Đếm tần suất phần tử", "So sánh hai tập hợp không theo thứ tự"); tries
+too (its lesson is optional).
+
+**`tools/content/dsa-content.test.ts`** (pins only the simulation input — roadmap lists and
+difficulties, fix 20 — so later content PRs that add problems, notes or bonus items never touch it;
+builds the real content with `buildContent({ check: true, outDir: <temp> })`): the 10w and 8w `core`
+and `recap` lists (items and modes) equal the two tables (encoded in the test as data), hence week
+sizes `[8, 8, 8, 8, 8, 7, 8, 8, 8, 8]` and `[8, 8, 7, 11, 7, 7, 8, 8]`; every core and recap
+problem's difficulty equals the table.
+
+- [ ] **Step 1: Failing test** — `dsa-content.test.ts`. **Step 2:** write the files (a throwaway
+  script in the scratchpad may generate the YAML from the tables; do not commit it), `pnpm format`,
+  `pnpm content:build` (locally the lock gains 115 IDs — 114 problems + the prompt; restore it
+  before committing, the controller records them). **Step 3: GREEN** + `pnpm verify`; the report
+  pastes the `content:build` output.
+- [ ] **Step 4: Commit** — `feat(content): DSA problem metadata, 8w and 10w roadmaps, topic signals
+  and the mock-interview prompt`.
+
+**Owner review checklist (PR B):** every problem's number, title, slug (the LeetCode link opens the
+right problem), difficulty and topic; the premium flags and the LintCode alternatives open the right
+problems; both roadmaps match the brief tables, recap modes included; the bonus list and placement
+(Q2); topic signals read well; the mock-interview prompt; no problem statement text anywhere.
+
+### Task 3.10: English topics, 10w roadmap, core decks W1–W10 [PR C]
+
+**Owner review before merge** (OD4). Branch `feat/m3-english-content`, created by the controller
+from the pipeline branch once 3.2c is in (end of wave 3), with its integration worktree
+`int-english` (fix 16); this task runs in its own worktree from that branch.
+
+**Files:** Modify `content/tracks/english/track.yaml` (`topics`); Create
+`content/tracks/english/roadmaps/10w.yaml`, `content/tracks/english/decks/w01-standup.yaml` …
+`w10-<topic>.yaml` (core cards only), `tools/content/english-content.test.ts`. Not
+`content/ids.lock` — the controller records the new IDs (decision 8).
+
+**Topics (Q3, decision 30)** and core cards per week — the counts are the §5.10 simulation input
+(135 core cards):
+
+| Week | Topic ID | vi / en title | Core cards |
+| --- | --- | --- | --- |
+| 1 | standup | Họp stand-up / Stand-up meetings | 12 |
+| 2 | tickets | Ticket và báo lỗi / Tickets and bug reports | 16 |
+| 3 | code-review | Code review / Code review | 14 |
+| 4 | pull-requests | Pull request và commit / Pull requests and commits | 14 |
+| 5 | meetings | Họp và thảo luận / Meetings and discussions | 12 |
+| 6 | estimates | Ước lượng và lập kế hoạch / Estimates and planning | 13 |
+| 7 | incidents | Sự cố và trực on-call / Incidents and on-call | 16 |
+| 8 | documentation | Viết tài liệu kỹ thuật / Technical writing | 14 |
+| 9 | interviews | Phỏng vấn xin việc / Job interviews | 11 |
+| 10 | demos | Demo và nhận phản hồi / Demos and feedback | 13 |
+
+**Formats:**
+
+```yaml
+# content/tracks/english/roadmaps/10w.yaml
+id: 10w
+weeks:
+  - { week: 1, topics: [standup], decks: [english:deck-w01-standup] }
+  # … weeks 2–10
+```
+
+```yaml
+# content/tracks/english/decks/w01-standup.yaml
+id: english:deck-w01-standup
+kind: vocabulary
+week: 1
+topic: standup
+title: { vi: 'Họp stand-up', en: 'Stand-up meetings' }
+cards:
+  - id: english:w01-blocker
+    tier: core
+    front: blocker
+    back: vấn đề đang chặn, khiến bạn chưa làm tiếp được
+    usage: { pos: noun, register: neutral, note: 'Hay đi với "have" hoặc "hit".' }
+    example: "I have one blocker: I'm still waiting for access to the staging database."
+    pronunciation: '/ˈblɒk.ər/ · BLOCK-er'
+```
+
+Card rules: `front` = a term or short phrase used in IT workplaces; `back` = a short, natural
+Vietnamese meaning; `usage.note` in Vietnamese; `example` = one original work-context sentence in
+English; `pronunciation` = IPA + a stress hint; no dictionary text copied; card IDs
+`english:w<NN>-<slug of the term>`; no duplicate `front` across decks (case-insensitive).
+
+**`tools/content/english-content.test.ts`** (pins only the roadmap lists and core card counts — the
+simulation input, fix 20; builds the real content into a temp `outDir`): the 10w roadmap's week →
+deck list equals the table (`english:deck-w01-standup` … `w10`), and the `tier: core` card count per
+week is `[12, 16, 14, 14, 12, 13, 16, 14, 11, 13]`. Extended cards, exercises and prompts are not
+pinned, so later content PRs never touch this test. No duplicate fronts is a review check (the
+report lists the counts).
+
+- [ ] **Step 1: Failing test. Step 2:** write the files, `pnpm format`, `pnpm content:build`,
+  `git checkout content/ids.lock`. **Step 3: GREEN** + `pnpm verify`. **Commit** —
+  `feat(content): English topics, 10w roadmap and core decks for weeks 1–10`. The report pastes the
+  `content:build` report.
+
+**Owner review checklist (PR C):** topic order and titles (Q3); meanings accurate and natural;
+examples sound like real IT-workplace English; pronunciation hints right; register labels right.
+
+### Tasks 3.7a–3.9a and 3.7b–3.9b: DSA W1, W2, W3 — tests and solutions, then notes and lessons [PR B]
+
+**Owner review before merge, including checking every `tests.yaml` example against the LeetCode
+examples.** Each week is split in two (gate review fix 11): **(a)** `tests.yaml` + the three
+solutions (wave 5), **(b)** notes + pattern lessons (wave 6, after its week's (a) — a note requires
+solutions and tests). The three (a) tasks run in parallel worktrees from `feat/m3-dsa-content`
+after 3.6, then the three (b) tasks; they touch disjoint problem folders and lessons. **Nobody but
+the controller commits `content/ids.lock`** on this branch (decision 8): (a) adds no IDs; after
+cherry-picking the (b) tasks the controller runs `pnpm content:build` in `int-dsa` and commits
+`chore(content): record new IDs in ids.lock` (lesson IDs and the derived
+`english:explaining-code:dsa:lc-…` IDs).
+
+| Week | (a) task | (b) task | Problems (the 10w W1–W3 sets, which contain 8w W1–W3) | Lessons (anchor → practice, proposed) |
+| --- | --- | --- | --- | --- |
+| 1 | 3.7a | 3.7b (writes ADR-0013) | 217, 242, 1, 49, 347, 238, 128, 36, **271** | arrays-hashing (1 → 49) |
+| 2 | 3.8a | 3.8b | 125, 121, 167, 15, 11, 3, 424, 42, 567 | two-pointers (167 → 15), sliding-window (121 → 3) |
+| 3 | 3.9a | 3.9b | 20, 704, **155**, 739, 875, 153, **981**, 84, 150 | stack (20 → 739), binary-search (704 → 875) |
+
+Bold = `design-class`, `compile-only` in M3a (§3.7). Expected `content:verify` after 3.9a:
+`tested 24 · compile-only 3 · failed 0`.
+
+**Files** — (a), per problem in its `problems/lc-NNNN-<slug>/` folder: `tests.yaml`, `solution.py`,
+`Solution.java`, `solution.go`. (b), per problem: `note.mdx`; per lesson: `lessons/<topic>.mdx`;
+3.7b also `docs/adr/0013-one-lesson-per-pattern.md` and links its row in `docs/adr/README.md`
+(fix 18).
+
+**Where the examples come from** (fix 11): the implementer may open the public LeetCode problem page
+(`https://leetcode.com/problems/<slug>/`, e.g. with WebFetch) **only to read the examples** —
+inputs and outputs; no statement text is copied anywhere (Q7). When the page cannot be fetched,
+write the examples from memory and mark each such case **unverified** in the report. Every (a)
+report contains, per problem, a table: the LeetCode URL, then each `example-N` as written in
+`tests.yaml` (input → output) with `verified` / `unverified` — the owner's checklist uses it.
+
+**Signatures** (`tests.yaml` `signature` / `compare`; names, parameter names and orders as on
+LeetCode):
+
+| # | Kind / name | Params → returns | Compare |
+| --- | --- | --- | --- |
+| 217 | function `containsDuplicate` | `nums: int[]` → `bool` | exact |
+| 242 | function `isAnagram` | `s: string, t: string` → `bool` | exact |
+| 1 | function `twoSum` | `nums: int[], target: int` → `int[]` | unordered |
+| 49 | function `groupAnagrams` | `strs: string[]` → `string[][]` | unordered-nested |
+| 347 | function `topKFrequent` | `nums: int[], k: int` → `int[]` | unordered |
+| 238 | function `productExceptSelf` | `nums: int[]` → `int[]` | exact |
+| 128 | function `longestConsecutive` | `nums: int[]` → `int` | exact |
+| 36 | function `isValidSudoku` | `board: char[][]` → `bool` | exact |
+| 271 | design-class `Codec` | `encode(strs: string[]) → string`, `decode(s: string) → string[]` | round trip via `$result` |
+| 125 | function `isPalindrome` | `s: string` → `bool` | exact |
+| 121 | function `maxProfit` | `prices: int[]` → `int` | exact |
+| 167 | function `twoSum` | `numbers: int[], target: int` → `int[]` | exact |
+| 15 | function `threeSum` | `nums: int[]` → `int[][]` | unordered-nested |
+| 11 | function `maxArea` | `height: int[]` → `int` | exact |
+| 3 | function `lengthOfLongestSubstring` | `s: string` → `int` | exact |
+| 424 | function `characterReplacement` | `s: string, k: int` → `int` | exact |
+| 42 | function `trap` | `height: int[]` → `int` | exact |
+| 567 | function `checkInclusion` | `s1: string, s2: string` → `bool` | exact |
+| 20 | function `isValid` | `s: string` → `bool` | exact |
+| 704 | function `search` | `nums: int[], target: int` → `int` | exact |
+| 155 | design-class `MinStack` | `push(val: int) → void`, `pop() → void`, `top() → int`, `getMin() → int` | exact |
+| 739 | function `dailyTemperatures` | `temperatures: int[]` → `int[]` | exact |
+| 875 | function `minEatingSpeed` | `piles: int[], h: int` → `int` | exact |
+| 153 | function `findMin` | `nums: int[]` → `int` | exact |
+| 981 | design-class `TimeMap` | `set(key: string, value: string, timestamp: int) → void`, `get(key: string, timestamp: int) → string` | exact |
+| 84 | function `largestRectangleArea` | `heights: int[]` → `int` | exact |
+| 150 | function `evalRPN` | `tokens: string[]` → `int` | exact |
+
+**`tests.yaml` rules (§3.5):** cases `example-1` … `example-n` = **every LeetCode example**, input
+and output copied exactly (the owner checks each); ≥ 2 edge cases valid under the problem's
+constraints (smallest input, single element, duplicates, negatives, a larger input where cheap)
+with names like `single-element`, `all-duplicates`; ≥ 4 cases in total; `timeoutMs` default. For a
+problem with several valid answers, pick the comparator (1, 347 `unordered`; 49, 15
+`unordered-nested`); when LeetCode states the answer is unique (1), keep `unordered` anyway (order
+free). Design classes use the ops format (decision 20):
+
+```yaml
+signature:
+  kind: design-class
+  className: MinStack
+  methods:
+    push: { params: { val: int }, returns: void }
+    pop: { returns: void }
+    top: { returns: int }
+    getMin: { returns: int }
+cases:
+  - name: example-1        # copy LeetCode's example
+    ops: [MinStack, push, push, push, getMin, pop, top, getMin]
+    args: [[], [-2], [0], [-3], [], [], [], []]
+    expected: [null, null, null, null, -3, null, 0, -2]
+  # … ≥ 2 edge cases (e.g. equal minimums pushed twice, a single element), ≥ 4 in total
+```
+
+For 271 the decode step takes the encode result: `args: [[], [["…", "…"]], [{ $result: 1 }]]`,
+`expected: [null, { $any: true }, ["…", "…"]]`.
+
+**Note template** (`note.mdx`; Vietnamese prose, English technical terms in `<Term>` the first
+time; own words, never the statement):
+
+```mdx
+---
+status: active
+---
+
+## Ý tưởng chính
+
+2–5 câu: nhận ra pattern nào và vì sao; mẹo then chốt.
+
+## Cách làm
+
+<Steps>
+
+<Step title="…">…</Step>
+
+<Step title="…">…</Step>
+
+</Steps>
+
+<Complexity time="O(n)" space="O(n)" />
+
+<Solution />
+
+<Bilingual vi="Một câu tóm tắt cách tối ưu bằng tiếng Việt." en="One sentence on the optimal approach in English." />
+```
+
+Optional: a `<VarTable caption="…">` walk-through on an own small input, a `<Callout tone="tip">`,
+a fenced code block. `<Bilingual>` becomes the derived "Explaining code" card (§3.4): `en` is a
+self-contained explanation in ≤ 300 characters.
+
+**Solution conventions** (decision 34; the same approach in the three files):
+
+```python
+# solution.py
+from typing import List
+
+
+class Solution:
+    def twoSum(self, nums: List[int], target: int) -> List[int]:
+        ...
+```
+
+```java
+// Solution.java
+import java.util.*;
+
+class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        ...
+    }
+}
+```
+
+```go
+// solution.go
+package main
+
+func twoSum(nums []int, target int) []int {
+	...
+}
+```
+
+Design classes: Python `class MinStack:` with `__init__`; Java `class MinStack {`; Go `type MinStack
+struct {…}`, `func Constructor() MinStack`, `func (this *MinStack) Push(val int)`, `Pop`, `Top`,
+`GetMin` (LeetCode's Go names; 271: `Codec` with `Encode` / `Decode`).
+
+**Pattern lesson template** (`lessons/<topic>.mdx`, sections exactly the §3.4 `pattern` format, in
+order):
+
+```mdx
+---
+id: dsa:lesson-arrays-hashing
+format: pattern
+topic: arrays-hashing
+title: 'Arrays & Hashing: tra cứu nhanh bằng hash map'
+anchor: dsa:lc-0001
+practice: dsa:lc-0049
+---
+
+<Section kind="signals">…bullets: when to reach for the pattern…</Section>
+
+<Section kind="analogy">…an everyday Vietnamese analogy…</Section>
+
+<Section kind="visual">…a `<VarTable>` or `<Steps>` walk-through of the anchor on an own small input, or an image from the content-images bucket (`![alt](url "WxH")`, once CONTENT_IMAGE_BASE_URL is set — OD3)…</Section>
+
+<Section kind="approach">…`<Steps>`: the template reasoning…</Section>
+
+<Section kind="code">…a fenced ```python block with the pattern template (the anchor's full three-language solution lives in its note)…</Section>
+
+<Section kind="complexity">
+
+<Complexity time="…" space="…" />
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="…" en="…" />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0049" />
+
+One sentence on what to try.
+
+</Section>
+
+<Section kind="quiz">
+<Quiz>
+
+<Question prompt="…" answer="b">
+
+<Choice id="a">…</Choice>
+
+<Choice id="b">…</Choice>
+
+</Question>
+
+</Quiz>
+</Section>
+```
+
+(Block content inside a `<Section>` goes on its own lines after blank lines — decision 17.) Quiz:
+≥ 3 questions, 2–4 choices each.
+
+**Steps — (a) tasks (3.7a, 3.8a, 3.9a):**
+
+- [ ] **Step 1:** write `tests.yaml` for every problem of the week first (examples as above, edge
+  cases with hand-checked expected values) and run `pnpm content:verify --problem <id>` against a
+  stub solution → RED.
+- [ ] **Step 2:** write the three solutions → `pnpm content:verify` GREEN for the week (function
+  problems `tested`, design classes `compile-only`); `pnpm content:build` clean (tests without a
+  note are allowed); `pnpm verify`.
+- [ ] **Step 3: Commit** — `feat(content): DSA week 1 tests and solutions in Python, Java and Go`
+  (3.8a: week 2, 3.9a: week 3). The report pastes the `content:verify` output and the per-problem
+  example tables.
+
+**Steps — (b) tasks (3.7b, 3.8b, 3.9b):**
+
+- [ ] **Step 1:** notes for every problem of the week and the week's pattern lessons; `pnpm
+  content:build` clean (MDX safety, sections, lesson rules, derived cards), `git checkout
+  content/ids.lock`; `pnpm verify`.
+- [ ] **Step 2 (3.7b only): ADR-0013** — one lesson per pattern (anchor ≠ practice, same topic, at
+  most one per topic), notes upgradeable to deep-dives (`format: deep-dive, about`), a missing
+  lesson is coverage, not an error; link its row in `docs/adr/README.md`.
+- [ ] **Step 3: Commit** — `feat(content): DSA week 1 notes and the Arrays & Hashing lesson` (3.8b:
+  `… week 2 notes and the Two Pointers and Sliding Window lessons`; 3.9b: `… week 3 notes and the
+  Stack and Binary Search lessons`). The report pastes the `content:build` report's coverage lines
+  for the week.
+
+**Owner review checklist (PR B, per week):** every `example-N` case equals the LeetCode example
+(input and output — the (a) reports' tables list them, `unverified` ones first); edge cases valid
+and correct; notes correct, in own words, complexity right;
+`<Bilingual>` reads well in both languages; the three solutions follow the same approach and are
+readable; the `content:verify` report (`tested 24 · compile-only 3 · failed 0` after W3); lessons:
+sections complete, analogy/visual helpful, quiz answers right; on the preview, the badges show "Đã
+kiểm thử" / "Chỉ biên dịch".
+
+### Task 3.11: English W1–W3 extended cards, exercises, weekend prompts [PR C]
+
+**Owner review before merge** (OD4). Worktree from `feat/m3-english-content` after 3.10 (wave 5).
+
+**Files:** Modify `content/tracks/english/decks/w0{1,2,3}-*.yaml` (+ `tier: extended` cards: 18, 14
+and 16, so each week has ~30 cards, Q5); Create `content/tracks/english/exercises/w01.yaml`,
+`w02.yaml`, `w03.yaml` (6 per week: 2 `fill-blank`, 2 `respond`, 2 `rewrite` — the weekday practice
+block picks one per weekday, §5.6), `content/tracks/english/prompts/weekend.yaml` (`tag:
+weekend-task`, `week` 1–3, `minutes: 15`, e.g. W1 "Record a 1-minute stand-up update" with a
+rubric). Not `content/ids.lock` (the controller records the IDs) and not the pinning test (fix 20).
+
+Formats as §3.5 (exercises, prompts) and 3.10 (cards). Exercise texts are original, workplace-real
+and use the week's vocabulary; `hint` in Vietnamese.
+
+- [ ] **Step 1:** write the files, `pnpm format`, `pnpm content:build` — the schema makes every
+  exercise carry its `week` (**exercise `week` set**, Part A) and the coverage lines must show, for
+  weeks 1–3, 28–32 cards, ≥ 5 exercises covering the three kinds and one `weekend-task` prompt
+  (checked in the report, not pinned by a test — fix 20); `git checkout content/ids.lock`. **Step
+  2:** `pnpm verify`. **Commit** —
+  `feat(content): English weeks 1–3 extended cards, exercises and weekend prompts`. The report
+  pastes the coverage lines.
+
+**Owner review checklist (PR C):** as 3.10, plus exercise answers (fill-blank `answers` accept the
+right variants), sample answers and rubrics sensible, prompts doable in 15 minutes.
+
+### M3 finish
+
+1. **PR A (wave 5, in `int-pipeline`).** The draft PR A has been on GitHub since wave 2 (fix 6), so
+   `content-verify` and its sandbox self-test have already run there. `pnpm verify:full` green;
+   `git status` clean. Fresh end-of-milestone review (most capable model) over
+   `main..feat/m3-content-pipeline` with the ledger's deferred minors; one fix pass (each fix RED →
+   GREEN); residuals ledgered. Mark the PR ready: "M3: content pipeline — schemas, content:build,
+   MDX, item registry, track pages, content-verify", with the owner decisions OD1–OD5 and the
+   rulings list; CI green (`verify`, `db`, `e2e`, `content-build`, `content-verify`, CodeQL). Once
+   `content-build` and `content-verify` have reported on the PR, add both to the `main` ruleset's
+   required checks (decision 22) and say so in the PR. **The controller merges** (OD4). Post-merge
+   owner checklist in the PR: onboarding on a Vercel preview still lists both tracks (decision 6);
+   the preview build log shows `CI=1` and a check-mode `content:build` (decision 7).
+2. **PR B and PR C (wave 7, in `int-dsa` / `int-english`).** For each content branch:
+   `git rebase --onto origin/main <pipeline commit it was created from> <branch>` (PR A was
+   squash-merged); `pnpm content:build` and commit `ids.lock` if it changed; `pnpm verify`;
+   `pnpm content:verify` (B); then `pnpm test:e2e` once per branch, sequentially (e2e lock) — the
+   content smoke spec now runs on the real items. A fresh review per branch focused on content
+   accuracy and the §3.5 / §3.6 rules (for B: the (a) reports' example tables, `unverified` cases
+   first). Push; open **PR B** "M3: DSA content — metadata, roadmaps, week 1–3 tests, solutions,
+   notes and lessons" and **PR C** "M3: English content — roadmap, core decks, week 1–3 extended
+   cards, exercises and prompts", each with its owner checklist and the pasted `content:build` (and
+   `content:verify`) reports; CI green. **Stop for the owner's review — the owner merges B and C**
+   (OD4). The second of B/C to merge is rebased first and its `ids.lock` regenerated (the controller
+   keeps either side, runs `pnpm content:build`, commits).
+3. M4 starts after PR A (content PRs run in parallel, Execution methods note); task 4.8 waits for
+   PR B.

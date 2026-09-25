@@ -1,0 +1,7 @@
+id: english:deck-w01-standup
+kind: recall
+week: 1
+topic: standup
+title: { vi: 'Họp stand-up', en: 'Stand-up meetings' }
+cards:
+  - { id: english:ex-oops, tier: core, front: blocker, back: vấn đề đang chặn }

@@ -118,3 +118,21 @@ export function variantLabel(variantId: string): string {
   const match = /^(\d+)w$/.exec(variantId)
   return match !== null ? `${match[1]} tuần` : variantId
 }
+
+/**
+ * A `vi.ts` message with `{title}` (a track's title) filled in. A replacer function inserts the
+ * title literally, so `$&` or `$1` in a title stay as written.
+ */
+export function withTitle(text: string, title: string): string {
+  return text.replace('{title}', () => title)
+}
+
+/**
+ * A `vi.ts` message with its `{name}` placeholders filled in literally (a replacer function); a
+ * placeholder without an own value stays as written.
+ */
+export function fill(text: string, values: Readonly<Record<string, string | number>>): string {
+  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+    Object.hasOwn(values, name) ? String(values[name]) : match,
+  )
+}

@@ -8,3 +8,6 @@ docs/
 content/LICENSE
 app/globals.css
 .superpowers/
+.generated/
+# MDX: Prettier's parser targets MDX 1 and re-indents JSX children (Part B-M3 fix 3).
+**/*.mdx

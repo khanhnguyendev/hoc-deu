@@ -1,0 +1,10 @@
+signature:
+  { kind: function, name: twoSum, params: { nums: 'int[]', target: int }, returns: 'int[]' }
+compare: unordered
+cases:
+  - { name: example-1, input: { nums: [2, 7, 11, 15], target: 9 }, expected: [0, 1] }
+  - { name: example-2, input: { nums: [3, 2, 4], target: 6 }, expected: [1, 2] }
+  - { name: example-3, input: { nums: [3, 3], target: 6 }, expected: [0, 1] }
+  - { name: negatives, input: { nums: [-1, -2, -3, -4, -5], target: -8 }, expected: [2, 4] }
+  - { name: zero-target, input: { nums: [0, 4, 3, 0], target: 0 }, expected: [0, 3] }
+timeoutMs: 2000

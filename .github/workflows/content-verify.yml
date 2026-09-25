@@ -1,0 +1,410 @@
+name: content-verify
+
+# Runs every solution against its tests.yaml (platform design §3.7, ADR-0012). A required check, so
+# it always runs: the path check lives inside the job (a workflow-level path filter would leave the
+# check pending), and every step after it carries the same `if:`. The path list covers everything
+# tools/content-verify imports (pinned by tools/content-verify/workflow.test.ts).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  content-verify:
+    name: content-verify
+    # Pinned: newer images swap /usr/bin tools (sudo-rs, uutils) that the sandbox relies on.
+    runs-on: ubuntu-24.04
+    # PR #5's run 2: the strip took 184 s (its walk 173 s) and the whole job about 4 minutes.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - id: paths
+        name: Content or harness changed? (in-job check keeps this required check reporting)
+        shell: bash
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify tools/content/yaml.ts \
+                  lib/content/schemas \
+                  lib/content/verification.ts lib/domain/settings.ts package.json pnpm-lock.yaml \
+                  pnpm-workspace.yaml tsconfig.json vitest.config.ts .nvmrc \
+                  .github/workflows/content-verify.yml; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "No content or harness change — nothing to verify."
+          fi
+
+      # The runner's own temp files go to RUNNER_TEMP, not the /tmp the sandbox user shares. (Job-level
+      # `env` cannot read the runner context, so this goes through GITHUB_ENV.)
+      - if: steps.paths.outputs.run == 'true'
+        name: Runner temp off the shared /tmp
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - if: steps.paths.outputs.run == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-python@v7
+        with: { python-version: '3.13' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: '25' }
+      - if: steps.paths.outputs.run == 'true'
+        uses: actions/setup-go@v7
+        with: { go-version: '1.26', cache: false }
+      - if: steps.paths.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox user without network (OD2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin cvsandbox
+          id cvsandbox
+          if [ "$(id -Gn cvsandbox)" != "$(id -gn cvsandbox)" ]; then
+            echo "::error::cvsandbox has supplementary groups: $(id -Gn cvsandbox)"; exit 1
+          fi
+          # No cron or at jobs: a scheduled process would outlive every pkill.
+          echo cvsandbox | sudo tee -a /etc/cron.deny /etc/at.deny > /dev/null
+          sudo iptables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+          sudo ip6tables -I OUTPUT -m owner --uid-owner cvsandbox -j REJECT
+          # No way around the packet filter through local sockets: systemd-resolved (varlink and
+          # D-Bus), nscd, and snapd (0666, reaches the snap store).
+          for socket_path in /run/systemd/resolve /run/dbus/system_bus_socket /run/nscd/socket \
+                             /run/snapd.socket /run/snapd-snap.socket; do
+            if sudo test -e "$socket_path"; then
+              sudo setfacl -m u:cvsandbox:--- "$socket_path"
+              sudo getfacl -p "$socket_path"
+            fi
+          done
+          # For the record.
+          sudo iptables -S OUTPUT | sed -n 1,3p
+          sudo ip6tables -S OUTPUT | sed -n 1,3p
+          sysctl fs.protected_hardlinks fs.protected_symlinks fs.protected_regular
+
+      # Every toolchain and dependency is installed by now, and no action runs after this step
+      # (pinned by workflow.test.ts). The image ships trees writable by others that a per-tree
+      # `chmod -R` never reaches — /opt itself, /usr/share, /usr/local/…, and /usr/lib/jvm, which
+      # the tool cache's Java `x64` dir only links to — so strip every local disk filesystem as root
+      # instead, and drop the tool cache's default ACLs. Only the shared temp dirs keep 1777;
+      # pseudo and tmpfs mounts are not walked (and are logged). The audit below then proves the
+      # result as the sandbox user.
+      - if: steps.paths.outputs.run == 'true'
+        name: Strip write-for-others across the runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          started=$SECONDS
+          out="$RUNNER_TEMP/strip"
+          mkdir -p "$out"
+          # Positive control: / must be a filesystem the walk covers, or the strip changes nothing.
+          disk_types='ext2,ext3,ext4,xfs,btrfs'
+          root_type="$(findmnt -no FSTYPE --target /)"
+          if [[ ",$disk_types," != *",$root_type,"* ]]; then
+            echo "::error::/ is $root_type, not one of the filesystems the strip walks ($disk_types)"
+            exit 1
+          fi
+          echo "Filesystems walked:"
+          findmnt -lno TARGET,FSTYPE,SOURCE -t "$disk_types"
+          echo "Filesystems not walked (pseudo, tmpfs, squashfs, …):"
+          findmnt -lno TARGET,FSTYPE,SOURCE -t "no$disk_types"
+          IFS=: read -r -a path_dirs <<< "$PATH"
+          existing=()
+          for dir in "${path_dirs[@]}"; do
+            if [ -d "$dir" ]; then existing+=("$dir"); fi
+          done
+          echo "Filesystems holding the audited roots:"
+          df --output=fstype,target / /opt /usr/local /home /etc /tmp /var/tmp "${existing[@]}" | sort -u
+          # Every audited root and PATH dir must sit on a walked filesystem: the strip never
+          # changes one it does not walk.
+          for dir in /opt /usr/local /home /etc "${existing[@]}"; do
+            dir_type="$(findmnt -no FSTYPE --target "$dir")"
+            if [[ ",$disk_types," != *",$dir_type,"* ]]; then
+              echo "::error::$dir is on $dir_type, which the strip does not walk ($disk_types)"
+              exit 1
+            fi
+          done
+          # Diagnostics: the tool cache's layout (symlinked version dirs), its ACLs and one Java
+          # binary, before and after.
+          java_bin="$(command -v java)"
+          java_real="$(readlink -f "$java_bin")"
+          # …/Java_Temurin-Hotspot_jdk/<version>, whose `x64` links to /usr/lib/jvm/….
+          java_version_dir="$(dirname "$(dirname "$(dirname "$java_bin")")")"
+          diagnose_java() {
+            echo "::group::Java binary $1 the strip"
+            namei -l "$java_bin"
+            stat -c '%A %U:%G %n' "$java_bin" "$java_real"
+            sudo getfacl -p "$java_real"
+            # Run 2 showed these as `drwxrwxrwx+`: an ACL, perhaps a default one.
+            sudo getfacl -p /opt/hostedtoolcache "$(dirname "$java_version_dir")" "$java_version_dir"
+            echo "::endgroup::"
+          }
+          echo "::group::Tool cache layout"
+          ls -la "$java_version_dir"
+          sudo find /opt/hostedtoolcache -maxdepth 3 -type l -printf '%p -> %l\n'
+          for tool in python3 javac go node; do namei -l "$(command -v "$tool")"; done
+          echo "::endgroup::"
+          diagnose_java before
+          # Default ACLs on the tool cache's directories would make whatever is created in them
+          # later (a __pycache__ the runner's Python writes, say) writable by others again — after
+          # the audit, which sees ACLs only as they are when it runs. Remove them.
+          sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-before"
+          echo "Tool-cache directories with a default ACL: $(awk '/^default:user::/ { n++ } END { print n + 0 }' "$out/acl-before")"
+          sudo find /opt/hostedtoolcache -type d -exec setfacl -k -- {} +
+          # One walk as root, four lists:
+          # - others-write: every non-symlink entry others can write → chmod o-w;
+          # - search-only: directories others can enter but not list → chmod o-x (the audit cannot
+          #   see inside them, so it counts each as a finding);
+          # - owned: entries that already carry cvsandbox's uid or gid (an orphaned id the new user
+          #   inherited; it could chmod them) → fail;
+          # - control: /usr/bin, which a walk of / always reaches → fail when it is missing.
+          walk_started=$SECONDS
+          sudo find / -ignore_readdir_race \
+            \( -path /tmp -o -path /var/tmp -o -path /dev/shm -o -path /proc -o -path /sys -o -path /run \) -prune -o \
+            ! \( -fstype ext2 -o -fstype ext3 -o -fstype ext4 -o -fstype xfs -o -fstype btrfs \) -prune -o \
+            \( \( ! -type l -perm -0002 -fprint0 "$out/others-write" \) , \
+               \( -type d -perm -0001 ! -perm -0004 -fprint0 "$out/search-only" \) , \
+               \( \( -user cvsandbox -o -group cvsandbox \) -fprint "$out/owned" \) , \
+               \( -path /usr/bin -fprint "$out/control" \) \)
+          echo "Walk took $((SECONDS - walk_started)) s."
+          if [ ! -s "$out/control" ]; then
+            echo "::error::the walk never reached /usr/bin, so it did not walk /"
+            exit 1
+          fi
+          if [ -s "$out/owned" ]; then
+            echo "::error::entries on disk already carry cvsandbox's uid or gid (listed below)"
+            sed -n 1,50p "$out/owned"
+            exit 1
+          fi
+          written="$(tr -cd '\0' < "$out/others-write" | wc -c)"
+          searchable="$(tr -cd '\0' < "$out/search-only" | wc -c)"
+          echo "::group::Writable by others: $written entries, by tree (before the strip)"
+          tr '\0' '\n' < "$out/others-write" \
+            | awk -F/ '{ tree = ""; for (i = 2; i <= NF && i <= 5; i++) tree = tree "/" $i; print tree }' \
+            | sort | uniq -c | sort -rn | sed -n 1,80p
+          echo "::endgroup::"
+          echo "::group::Searchable but not listable by others: $searchable directories (before the strip)"
+          sudo xargs -0 -r ls -ld -- < "$out/search-only" | sed -n 1,80p
+          echo "::endgroup::"
+          sudo xargs -0 -r chmod o-w -- < "$out/others-write"
+          sudo xargs -0 -r chmod o-x -- < "$out/search-only"
+          sudo getfacl -R -s -P -p /opt/hostedtoolcache > "$out/acl-after"
+          left="$(awk '/^default:user::/ { n++ } END { print n + 0 }' "$out/acl-after")"
+          if [ "$left" -ne 0 ]; then
+            echo "::error::$left tool-cache directories still carry a default ACL"
+            exit 1
+          fi
+          diagnose_java after
+          echo "For the record:"
+          stat -c '%A %U:%G %n' / /opt /opt/hostedtoolcache "${existing[@]}"
+          echo "Removed write-for-others from $written entries and search-for-others from $searchable directories in $((SECONDS - started)) s."
+
+      - if: steps.paths.outputs.run == 'true'
+        name: 'Sandbox audit: nothing the runner executes is writable by the sandbox user'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Every PATH dir (a missing one: its nearest existing parent), /opt, /usr/local, /home and
+          # /etc, symlink chains included; positive controls inside (user, /tmp, entry count).
+          # Production defaults only: none of the script's test-only options.
+          started=$SECONDS
+          log="$RUNNER_TEMP/sandbox-audit.log"
+          status=0
+          (cd / && sudo -n -u cvsandbox -- /usr/bin/python3 -I -B - --user cvsandbox --path "$PATH" \
+            /opt /usr/local /home /etc) < tools/content-verify/sandbox_audit.py | tee "$log" \
+            || status=$?
+          echo "Audit took $((SECONDS - started)) s."
+          # No exit status counts without the summary line: exit 0 or 1 with no summary means sudo or
+          # python never ran the audit.
+          summary="$(tail -n 1 "$log")"
+          clean='^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: 0 findings$'
+          counted='^audited [0-9]+ entries under [0-9]+ roots as cvsandbox: [0-9]+ findings$'
+          case "$status" in
+            0) if ! grep -Eq "$clean" <<< "$summary"; then
+                 echo "::error::the sandbox audit exited 0 without its clean summary line: it proved nothing"
+                 exit 1
+               fi ;;
+            1) if grep -Eq "$counted" <<< "$summary"; then
+                 echo "::error::the sandbox user can write where the runner executes from (above)"
+               else
+                 echo "::error::the sandbox audit never ran (exit 1, no summary line): sudo or python failed"
+               fi
+               exit 1 ;;
+            *) echo "::error::the sandbox audit is broken (exit $status): it proved nothing"; exit 1 ;;
+          esac
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Sandbox self-test (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY="$(command -v python3)"
+          as_sandbox() { (cd / && sudo -n -u cvsandbox -- "$@"); }
+          # The sandbox user can run every toolchain.
+          as_sandbox "$PY" -c 'print(1)'
+          as_sandbox "$(command -v javac)" -version
+          as_sandbox "$(command -v java)" -version
+          as_sandbox /usr/bin/env -i HOME=/tmp GOENV=off "$(command -v go)" version
+          # The runner itself has network, so the checks below cannot pass vacuously.
+          curl -sSf -o /dev/null --max-time 10 https://example.com
+          IP="$(getent ahostsv4 example.com | awk 'NR == 1 { print $1 }')"
+          test -n "$IP"
+          # No name resolution: not over port 53, systemd-resolved's varlink socket or D-Bus.
+          as_sandbox "$PY" -c '
+          import socket
+          try:
+              socket.getaddrinfo("example.com", 443)
+          except socket.gaierror as error:
+              print("DNS blocked:", error)
+          else:
+              raise SystemExit("::error::the sandbox user resolved example.com")'
+          # No connection by address…
+          as_sandbox "$PY" -c "
+          import errno, socket
+          try:
+              socket.create_connection(('$IP', 443), timeout=5)
+          except ConnectionRefusedError as error:
+              assert error.errno == errno.ECONNREFUSED, error
+              print('raw IP blocked:', error)
+          else:
+              raise SystemExit('::error::the sandbox user reached $IP')"
+          # …and none on loopback.
+          "$PY" -m http.server 18080 --bind 127.0.0.1 > /dev/null 2>&1 &
+          SERVER=$!
+          trap 'kill "$SERVER" 2> /dev/null || true' EXIT
+          for _ in $(seq 50); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.1; done
+          curl -sSf -o /dev/null --max-time 5 http://127.0.0.1:18080/
+          as_sandbox "$PY" -c "
+          import errno, socket
+          try:
+              socket.create_connection(('127.0.0.1', 18080), timeout=5)
+          except ConnectionRefusedError as error:
+              assert error.errno == errno.ECONNREFUSED, error
+              print('loopback blocked:', error)
+          else:
+              raise SystemExit('::error::the sandbox user reached loopback')"
+          # No local socket leads out either: name service, D-Bus, docker and snapd all refuse it.
+          sockets=()
+          for socket_path in /run/systemd/resolve/io.systemd.Resolve /run/dbus/system_bus_socket \
+                             /var/run/docker.sock /run/snapd.socket /run/snapd-snap.socket \
+                             /run/nscd/socket; do
+            if sudo test -S "$socket_path"; then sockets+=("$socket_path"); fi
+          done
+          echo "Unix sockets to check: ${sockets[*]:-none}"
+          if [ "${#sockets[@]}" -gt 0 ]; then
+            as_sandbox "$PY" -c '
+          import socket, sys
+          for path in sys.argv[1:]:
+              client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+              try:
+                  client.connect(path)
+              except PermissionError as error:
+                  print("refused:", path, error)
+              else:
+                  raise SystemExit(f"::error::the sandbox user connected to {path}")
+              finally:
+                  client.close()' "${sockets[@]}"
+          fi
+
+      - if: steps.paths.outputs.run == 'true'
+        name: CLI refuses to run unsandboxed (exit 2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # An empty root: even if the refusal ever broke, there would be no solution to run.
+          mkdir -p "$RUNNER_TEMP/cv-empty"
+          status=0
+          output="$(pnpm -s content:verify --root "$RUNNER_TEMP/cv-empty" 2>&1)" || status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 2 ] || ! grep -q 'refusing to run solutions unsandboxed' <<< "$output"; then
+            echo "::error::content:verify without a sandbox user must refuse with exit 2 (got $status)"
+            exit 1
+          fi
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Harness self-test on fixtures
+        shell: bash
+        env: { CONTENT_VERIFY_INTEGRATION: '1', CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+        run: |
+          set -euo pipefail
+          # setup-go's `go` problem matcher reads any `<name>.go: <text>` line as an error: run 2
+          # annotated a passing test (`✓ normalize.go: nil slices …`) as `##[error]`. Removed for
+          # the rest of the job; content:verify reports its own failures.
+          echo "::remove-matcher owner=go::"
+          report="$RUNNER_TEMP/integration.json"
+          pnpm vitest run tools/content-verify/integration.test.ts \
+            --reporter=default --reporter=json --outputFile.json="$report"
+          # vitest exits 0 when every test is skipped: require that they all ran and passed.
+          node -e '
+          const r = require(process.argv[1])
+          console.log(`passed ${r.numPassedTests} · failed ${r.numFailedTests} · skipped ${r.numPendingTests}`)
+          if (!r.success || r.numPassedTests === 0 || r.numFailedTests > 0 || r.numPendingTests > 0) {
+            console.log("::error::the harness self-test did not run every test")
+            process.exit(1)
+          }' "$report"
+
+      - if: steps.paths.outputs.run == 'true'
+        name: No sandbox process survived the harness self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          for flag in -u -U; do
+            status=0
+            /usr/bin/pgrep -a "$flag" cvsandbox || status=$?
+            case "$status" in
+              1) ;;
+              0) echo "::error::a cvsandbox process survived (pgrep $flag, listed above)"; exit 1 ;;
+              *) echo "::error::pgrep $flag cvsandbox failed (exit $status)"; exit 1 ;;
+            esac
+          done
+          echo "No cvsandbox process left."
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Verify content
+        run: pnpm content:verify
+        env: { CONTENT_VERIFY_SANDBOX_USER: cvsandbox }
+
+      - if: steps.paths.outputs.run == 'true'
+        name: No sandbox process survived content:verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          for flag in -u -U; do
+            status=0
+            /usr/bin/pgrep -a "$flag" cvsandbox || status=$?
+            case "$status" in
+              1) ;;
+              0) echo "::error::a cvsandbox process survived (pgrep $flag, listed above)"; exit 1 ;;
+              *) echo "::error::pgrep $flag cvsandbox failed (exit $status)"; exit 1 ;;
+            esac
+          done
+          echo "No cvsandbox process left."
+
+      - if: steps.paths.outputs.run == 'true'
+        name: Runner temp stayed off /tmp
+        shell: bash
+        run: |
+          set -euo pipefail
+          leftover="$(find /tmp -maxdepth 1 -user "$(id -u)" -name 'tsx-*' -print)"
+          if [ -n "$leftover" ]; then
+            echo "::error::tsx wrote to the shared /tmp (TMPDIR did not reach it): $leftover"; exit 1
+          fi
+          echo "No runner-owned tsx-* directory in /tmp."

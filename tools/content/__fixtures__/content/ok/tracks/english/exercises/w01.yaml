@@ -1,0 +1,17 @@
+- id: english:ex-w01-fill-1
+  kind: fill-blank
+  week: 1
+  topic: standup
+  instruction: { vi: 'Điền từ còn thiếu', en: 'Fill in the blank' }
+  text: "I'm {{blank}} on the API review — could someone help?"
+  answers: [blocked]
+  hint: "Từ này nghĩa là 'bị chặn, không làm tiếp được'."
+- id: english:ex-w01-rewrite-1
+  kind: rewrite
+  week: 1
+  topic: standup
+  instruction: { vi: 'Viết lại cho lịch sự và rõ ràng', en: 'Rewrite to sound polite and clear' }
+  text: 'Your PR is wrong. Fix it.'
+  sampleAnswers:
+    ["Thanks for the PR! I think there's an issue in the retry logic — could you take a look?"]
+  rubric: [polite opener, specific issue, clear ask]

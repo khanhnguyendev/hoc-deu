@@ -8,8 +8,10 @@ import {
   formatMonth,
   formatMonthShort,
   formatNumber,
+  fill,
   formatWeeks,
   variantLabel,
+  withTitle,
 } from './format'
 
 const originalTz = process.env.TZ
@@ -44,6 +46,24 @@ describe('formatMinutes with real-world values', () => {
       expect(formatMinutes(minutes)).toBe('0 phút')
     },
   )
+})
+
+describe('withTitle', () => {
+  it('puts a track title into {title}, literally', () => {
+    expect(withTitle('Đã tạm dừng {title}.', 'Tiếng Anh')).toBe('Đã tạm dừng Tiếng Anh.')
+    expect(withTitle('{title}', 'A $& B $1')).toBe('A $& B $1')
+    expect(withTitle('Không có tiêu đề', 'X')).toBe('Không có tiêu đề')
+  })
+})
+
+describe('fill', () => {
+  it('fills every {name} it has a value for, literally, and leaves the others', () => {
+    expect(fill('{count} thẻ · tuần {week}', { count: 3, week: 'W2' })).toBe('3 thẻ · tuần W2')
+    expect(fill('{name} và {name}', { name: 'A $& $1' })).toBe('A $& $1 và A $& $1')
+    expect(fill('{missing} giữ nguyên', { other: 1 })).toBe('{missing} giữ nguyên')
+    // Own keys only: `{toString}` is not a value.
+    expect(fill('{toString}', {})).toBe('{toString}')
+  })
 })
 
 describe('formatNumber', () => {
