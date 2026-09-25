@@ -115,7 +115,9 @@ export function pickShadowing(input: {
 
   const fromNew = todaysNew.filter((itemId) => {
     const item = catalog.items[itemId]
-    return item !== undefined && item.trackId === trackId && item.hasExample
+    return (
+      item !== undefined && item.trackId === trackId && item.status === 'active' && item.hasExample
+    )
   })
   if (fromNew.length > 0) return fromNew.slice(0, count)
 
@@ -123,7 +125,7 @@ export function pickShadowing(input: {
     .filter(([itemId, state]) => {
       if (state.trackId !== trackId) return false
       const item = catalog.items[itemId]
-      return item !== undefined && item.hasExample
+      return item !== undefined && item.status === 'active' && item.hasExample
     })
     .sort(([idA, stateA], [idB, stateB]) => {
       if (stateA.introducedOn !== stateB.introducedOn) {

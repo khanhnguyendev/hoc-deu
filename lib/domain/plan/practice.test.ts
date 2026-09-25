@@ -217,6 +217,29 @@ describe('pickShadowing (platform design §5.6)', () => {
       pickShadowing({ trackId: 'english', todaysNew: [], items: {}, catalog: CATALOG }),
     ).toEqual([])
   })
+
+  it('a retired card with an example is excluded from todaysNew', () => {
+    const retiredCatalog = withItems(CATALOG, { 'english:e1': { status: 'retired' } })
+    expect(
+      pickShadowing({
+        trackId: 'english',
+        todaysNew: ['english:e1'],
+        items: {},
+        catalog: retiredCatalog,
+      }),
+    ).toEqual([])
+  })
+
+  it('a retired card with an example is excluded from the introduced fallback', () => {
+    const retiredCatalog = withItems(CATALOG, { 'english:e1': { status: 'retired' } })
+    const items = statesOf(
+      itemState('english:e1', '2026-09-30', {}, retiredCatalog),
+      itemState('english:x1', '2026-09-29', {}, retiredCatalog),
+    )
+    expect(
+      pickShadowing({ trackId: 'english', todaysNew: [], items, catalog: retiredCatalog }),
+    ).toEqual(['english:x1'])
+  })
 })
 
 describe('mockInterviewProblem (platform design §5.6)', () => {
@@ -241,5 +264,13 @@ describe('mockInterviewProblem (platform design §5.6)', () => {
   it('a level-0 (not truly introduced) Medium problem is never picked', () => {
     const items = statesOf(itemState('dsa:p2', DAY, { level: 0, lastResultOn: '2026-09-01' }))
     expect(mockInterviewProblem({ trackId: 'dsa', items, catalog: CATALOG })).toBeNull()
+  })
+
+  it('a missing lastResultOn sorts last', () => {
+    const items = statesOf(
+      itemState('dsa:p2', DAY, { lastResultOn: null }),
+      itemState('dsa:p3', DAY, { lastResultOn: '2026-09-29' }),
+    )
+    expect(mockInterviewProblem({ trackId: 'dsa', items, catalog: CATALOG })).toBe('dsa:p3')
   })
 })
