@@ -95,8 +95,43 @@ cases:
     expect(issues).toHaveLength(4)
     expect(issues[0]).toMatch(/lc-0001-two-sum\/tests\.yaml: signature: /)
     expect(issues[1]).toMatch(/lc-0002-add-two-numbers: tests\.yaml without a solution file/)
-    expect(issues[2]).toMatch(/lc-0003-yaml\/tests\.yaml: /)
+    expect(issues[2]).toMatch(/lc-0003-yaml\/tests\.yaml:2:1: /)
     expect(issues[3]).toMatch(/two-sum: not a problem folder/)
+  })
+
+  it('parses tests.yaml like content:build: YAML 1.2 core, no directives, anchors or custom tags (M4)', () => {
+    // Under `%YAML 1.1` the key `n` reads as `false` (unpinned, the cases lost their input).
+    writeProblem('lc-0021-merge-two-sorted-lists', {
+      'tests.yaml': `%YAML 1.1\n---\n${VALID_TESTS}`,
+      'solution.py': '',
+    })
+    writeProblem('lc-0022-generate-parentheses', {
+      'tests.yaml': VALID_TESTS.replace(
+        'input: { n: 1 }, expected: 1 }',
+        'input: &one { n: 1 }, expected: 1 }',
+      ).replace('input: { n: 2 }', 'input: *one'),
+      'solution.py': '',
+    })
+    writeProblem('lc-0023-merge-k-sorted-lists', {
+      'tests.yaml': VALID_TESTS.replace('expected: 0 }', 'expected: !!int 0 }').replace(
+        'name: zero',
+        'name: !custom zero',
+      ),
+      'solution.py': '',
+    })
+    const { problems, issues } = discoverProblems(root!)
+    expect(problems).toEqual([])
+    expect(issues).toEqual([
+      expect.stringMatching(
+        /lc-0021-merge-two-sorted-lists\/tests\.yaml:1:1: YAML directives \(%YAML, %TAG\) are not allowed/,
+      ),
+      expect.stringMatching(
+        /lc-0022-generate-parentheses\/tests\.yaml:\d+:\d+: YAML anchors \(&\) and aliases \(\*\) are not allowed/,
+      ),
+      expect.stringMatching(
+        /lc-0023-merge-k-sorted-lists\/tests\.yaml:\d+:\d+: the YAML tag !custom is not allowed/,
+      ),
+    ])
   })
 
   it('never reads through a symlink: solution, tests.yaml, problem folder or problems dir', () => {

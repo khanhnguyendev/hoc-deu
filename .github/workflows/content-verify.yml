@@ -39,7 +39,8 @@ jobs:
           set -euo pipefail
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
-             || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify lib/content/schemas \
+             || ! git diff --quiet "$BASE" HEAD -- content tools/content-verify tools/content/yaml.ts \
+                  lib/content/schemas \
                   lib/content/verification.ts lib/domain/settings.ts package.json pnpm-lock.yaml \
                   pnpm-workspace.yaml tsconfig.json vitest.config.ts .nvmrc \
                   .github/workflows/content-verify.yml; then

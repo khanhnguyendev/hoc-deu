@@ -6,7 +6,6 @@
  */
 import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import path from 'node:path'
-import { isAlias, LineCounter, parseDocument, visit } from 'yaml'
 import type { z } from 'zod'
 import type {
   CatalogItem,
@@ -47,6 +46,7 @@ import { parseMdx, type MdxRoot } from './mdx/parse'
 import { checkMdx } from './mdx/safety'
 import { bomIssue, decodeUtf8, nfcIssues, nfcSourceIssue } from './nfc'
 import { byId, compareNames } from './util'
+import { parseContentYaml } from './yaml'
 
 export type LoadOptions = { repoRoot: string; contentDir: string }
 
@@ -237,86 +237,14 @@ function readText(loader: Loader, abs: string): string | null {
 // YAML (§3.6: a safe parser) and Zod
 // -----------------------------------------------------------------------------------------------
 
-/** The YAML 1.2 core schema's tags; anything else (`!!binary`, `!custom`) is rejected. */
-const CORE_TAGS: ReadonlySet<string> = new Set(
-  ['map', 'seq', 'str', 'null', 'bool', 'int', 'float'].map((name) => `tag:yaml.org,2002:${name}`),
-)
-const ANCHORS = 'YAML anchors (&) and aliases (*) are not allowed — write each value out'
-const DIRECTIVES =
-  'YAML directives (%YAML, %TAG) are not allowed — content is YAML 1.2 (core schema)'
-
-/**
- * The line of a directive (`%YAML 1.1`, `%TAG …`) in the prologue, before any content, or null.
- * Unpinned, `%YAML 1.1` switches a file to YAML 1.1 types (`yes` → true, `1:20` → 80) with no tag
- * to see; `parseYaml` pins 1.2 core and rejects directives as well.
- */
-function directiveLine(text: string): number | null {
-  const lines = text.split('\n')
-  for (const [index, line] of lines.entries()) {
-    if (line.startsWith('%')) return index + 1
-    if (line.trim() !== '' && !line.trimStart().startsWith('#')) return null
-  }
-  return null
-}
-
 type Parsed = { ok: true; value: unknown } | { ok: false }
 
-/**
- * Parse one YAML document as YAML 1.2 with the core schema: parse errors (duplicate keys
- * included), directives, anchors and aliases, and non-core tags are issues, and then the value is
- * not used. `lineOffset` places frontmatter lines in their MDX file.
- */
+/** One YAML document through the shared pinned parser (`yaml.ts`); its issues go to the loader. */
 function parseYaml(loader: Loader, file: string, text: string, lineOffset = 0): Parsed {
-  const lineCounter = new LineCounter()
-  const doc = parseDocument(text, {
-    version: '1.2',
-    schema: 'core',
-    uniqueKeys: true,
-    prettyErrors: true,
-    lineCounter,
-  })
-  const issues: ContentIssue[] = []
-  const at = (offset: number) => {
-    const { line, col } = lineCounter.linePos(offset)
-    return { line: line + lineOffset, column: col }
-  }
-
-  const directive = directiveLine(text)
-  if (directive !== null) {
-    issues.push({ file, line: directive + lineOffset, column: 1, message: DIRECTIVES })
-  }
-  for (const error of [...doc.errors, ...doc.warnings]) {
-    // An unknown directive is already the issue above.
-    if (directive !== null && error.code === 'BAD_DIRECTIVE') continue
-    const start = error.linePos?.[0]
-    // prettyErrors appends " at line L, column C:" and a source excerpt to the message.
-    const message = (error.message.split('\n')[0] ?? '').replace(/ at line \d+, column \d+:$/, '')
-    issues.push({
-      file,
-      ...(start === undefined ? {} : { line: start.line + lineOffset, column: start.col }),
-      message,
-    })
-  }
-  let anchored = false
-  visit(doc, {
-    Node(_key, node) {
-      const offset = node.range?.[0] ?? 0
-      if (!anchored && (isAlias(node) || node.anchor !== undefined)) {
-        anchored = true
-        issues.push({ file, ...at(offset), message: ANCHORS })
-      }
-      if (node.tag !== undefined && !CORE_TAGS.has(node.tag)) {
-        issues.push({
-          file,
-          ...at(offset),
-          message: `the YAML tag ${node.tag} is not allowed (core tags only)`,
-        })
-      }
-    },
-  })
-
-  loader.issues.push(...issues)
-  return issues.length === 0 ? { ok: true, value: doc.toJS() } : { ok: false }
+  const parsed = parseContentYaml(text, lineOffset)
+  if (parsed.ok) return parsed
+  loader.issues.push(...parsed.issues.map((issue) => ({ file, ...issue })))
+  return { ok: false }
 }
 
 /** Read a YAML file: a leading BOM, the YAML itself, then NFC of every string ([RF-3]). */

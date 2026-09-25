@@ -7,10 +7,10 @@
  */
 import { existsSync, lstatSync, readdirSync, readFileSync, type Stats } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { parse as parseYaml } from 'yaml'
 import { CODE_LANGUAGES, type CodeLanguage } from '@/lib/content/schemas/common'
 import { parseProblemFolder, problemLocalId } from '@/lib/content/schemas/ids'
 import { testsFileSchema, type TestsFile } from '@/lib/content/schemas/tests'
+import { parseContentYaml, type YamlIssue } from '../content/yaml'
 
 export type ProblemUnderTest = {
   /** `dsa:lc-0001` */
@@ -66,15 +66,20 @@ function fileState(path: string): FileState {
 const notRegular = (path: string): string =>
   `${label(path)}: not a regular file (a symlink?); never followed`
 
+/** `file:line:column: message`, as content:build prints a positioned issue. */
+function yamlIssue(file: string, issue: YamlIssue): string {
+  const position = issue.line === undefined ? '' : `:${issue.line}:${issue.column ?? 1}`
+  return `${label(file)}${position}: ${issue.message}`
+}
+
 function readTests(file: string): { tests: TestsFile } | { issue: string } {
-  let data: unknown
-  try {
-    data = parseYaml(readFileSync(file, 'utf8'))
-  } catch (error) {
-    const message = error instanceof Error ? error.message.split('\n')[0] : String(error)
-    return { issue: `${label(file)}: ${message}` }
+  // content:build's pinned parser (YAML 1.2 core; no directives, anchors or custom tags), so the
+  // verdict and the catalog never read one file differently (final review M4).
+  const parsed = parseContentYaml(readFileSync(file, 'utf8'))
+  if (!parsed.ok) {
+    return { issue: parsed.issues.map((issue) => yamlIssue(file, issue)).join('; ') }
   }
-  const result = testsFileSchema.safeParse(data)
+  const result = testsFileSchema.safeParse(parsed.value)
   if (result.success) return { tests: result.data }
   const messages = result.error.issues
     .slice(0, MAX_SCHEMA_ISSUES)
