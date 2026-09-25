@@ -39,19 +39,24 @@ sections for every task.
   step-level detail in [Part B-M1](#part-b-m1--component-library-step-by-step), reviewed by the
   owner together with the M1 pull request. M2 done (PR #4, merged 2026-09-25): step-level detail
   in [Part B-M2](#part-b-m2--auth-onboarding-settings-step-by-step), written at the start of M2
-  and reviewed by the owner before execution. M3: step-level detail in
+  and reviewed by the owner before execution. M3 done (PRs #5–#8, merged 2026-09-25): step-level
+  detail in
   [Part B-M3](#part-b-m3--track-manifests-content-loading-and-validation-step-by-step), written at
-  the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding.
+  the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding. M4:
+  step-level detail in [Part B-M4](#part-b-m4--plan-engine--spaced-repetition-step-by-step),
+  written at the start of M4 and gate-reviewed; the owner approved Q1 (`fast-check`) and asked
+  for its SQL parts (4.9a–c, decision 33) to wait for a separate approval (2026-09-25).
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
-## Execution methods (approved by the owner, 2026-09-24; M3 row changed 2026-09-25)
+## Execution methods (approved by the owner, 2026-09-24; M3 and M4 rows changed 2026-09-25)
 
 | Milestone | Method |
 | --- | --- |
 | M0 | **Native** (superpowers:executing-plans), then one fresh reviewer on the whole branch |
 | M1, M5 | Native, with an end-of-milestone review |
-| M2, M4, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M2, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M4 | **Subagent-driven, parallel waves in git worktrees** (owner request 2026-09-25, Part B-M4 decision 1) |
 | M3 | **Subagent-driven, parallel waves in git worktrees** — one worktree per task, one integration worktree per target branch (owner decision 2026-09-25, Part B-M3 OD5) |
 | M7 | Decided at the start of M7 |
 
@@ -234,12 +239,22 @@ need it first.
 
 Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 
+**Part B-M4 changes to this table** (decisions there): 4.4 splits into **4.4a** (roadmap position,
+new-item queue, recap source) and **4.4b** (due queue, weak topics, practice pickers); 4.9 into
+**4.9a** (tables, RLS, `mark_plan_seen`, `RULES_VERSION` 2), **4.9b** (`apply_event` with derived
+changes) and **4.9c** (`apply_system_event` for plans and the auto check-in); stale-plan resume
+moves from 4.3 to 4.6 and `stats/weakTopics.ts` from 4.7 to 4.4b (2); new rows **4.10** (content →
+domain adapter), **4.11** (the settings `pausedDays` e2e) and **4.12** (schedule-history floor)
+(27); no `due_items()` SQL function or `v_weak_topics` view — computed in TypeScript (5); the M3
+follow-ups go to the separate PR **F1**, the HTTP 404 to 5.1 (28); §5.12's override simulation
+scenario moves with overrides to 6.6 (31).
+
 ### M5 — Dashboard, check-in, review (v1.0) → v1.0 launch
 
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
-| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
-| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
+| 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). Part B-M4: the real HTTP 404 for unknown tracks and items (M3 follow-up, decision 28); no second plan on a resume day (`gateStatus().resumedToday`, decision 32); settings and track add / pause / remove / reset rebuild today's plan while it is untouched (`storePlan` mode `rebuild`, §5.4, §5.9). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
+| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** Part B-M4: one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34). | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
 | 5.4 "Học thêm" + off-plan study; "Bắt đầu lại"; track-page progress and weak items | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18); track-page progress and weak items on `/t/[trackId]` (Part B-M3 decision 25) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
@@ -249,7 +264,9 @@ Verify for every M4 task: `pnpm verify` (and `pnpm test:db` for 4.9).
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
-either W4–W5 notes/lessons written or v1.1 shipped.
+either W4–W5 notes/lessons written or v1.1 shipped. The **M3b** harness task's first step (M3
+follow-up, Part B-M4 decision 28): the Java harness bridges `List<String>` parameters and Go
+design classes are created via `Constructor()` (problems 139, 127, 271).
 
 ### M6 — Admin AI controls + bot API (v1.1)
 

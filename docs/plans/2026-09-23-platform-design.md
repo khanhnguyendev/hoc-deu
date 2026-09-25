@@ -787,6 +787,8 @@ All in the `public` schema with RLS on.
 - `roadmap_variant`; `status` active / paused / removed; `start_date`
 - `budget_minutes`; `new_per_day`, `throttle`, `weekly_template` (null = track default)
 - `include_bonus` bool (default false, §5.3)
+- `reset_on` date — the local day of the last `track.reset` (added in M4; implementation plan
+  Part B-M4 decision 6)
 
 **`events`** (append-only log)
 
@@ -810,6 +812,11 @@ All in the `public` schema with RLS on.
 - `seen_at` — set when `/today` first renders this plan in the browser (§5.2); the gate only
   considers seen plans; kept when an AI plan replaces a baseline plan
 - `updated_at` — maintained by a trigger; used by the incremental backup (§2.3)
+- **As built in M4** (implementation plan Part B-M4 decisions 6–7): each block holds `items: [{
+  itemId, mode, minutes, overBudget? }]` (the mode is per item — a review block mixes quick recall,
+  redo and a deep-dive lesson) plus `estMinutes`, `recapWeek` (recap) and `shadowing` (card IDs);
+  `roadmap_weeks` holds per track `{ variant, week, dueCount, newPerDay, throttled, reviewDebt }`;
+  `rationale` and `bot_run_id` arrive with the bot tables (task 6.2)
 
 **`item_state`** (derived)
 
@@ -824,6 +831,8 @@ All in the `public` schema with RLS on.
 
 - PK `(plan_id, block_id)`; `user_id` (copied in for RLS)
 - `status` done / partial / skipped; `minutes`; `note`; `auto` bool; `checked_in_at`
+- `track_id` and `checked_in_on` (the local day of the first check-in, which the block counts for
+  in `daily_activity`) — added in M4 (implementation plan Part B-M4 decisions 6, 8)
 
 **`event_quota`** (internal — §4.5)
 
@@ -884,8 +893,11 @@ All in the `public` schema with RLS on.
 ### 4.3 Views, functions, indexes
 
 - **Every view has `security_invoker = true`** (Supabase views bypass RLS otherwise).
-- `v_weak_topics`: topics with ≥ 2 Weak items.
-- `due_items(p_local_day)`: SQL function (today depends on the user's timezone).
+- `v_weak_topics`: topics with ≥ 2 Weak items. **Not built — computed in TypeScript**
+  (`stats/weakTopics.ts`; implementation plan Part B-M4 decision 5).
+- `due_items(p_local_day)`: SQL function (today depends on the user's timezone). **Not built —
+  computed in TypeScript** (`plan/queues.ts`): the due list excludes retired and draft items and
+  paused tracks, which only the catalog and the enrollments know (Part B-M4 decision 5).
 - Streak and roadmap week are computed in TypeScript on read (from `daily_activity`, `item_state`,
   the catalog, `user_tracks.roadmap_variant` and — for AI users — active `roadmap_overrides`).
   No extra tables.
@@ -898,7 +910,7 @@ All in the `public` schema with RLS on.
     `SECURITY DEFINER`, `EXECUTE` granted only to the secret-key role. Handles plan generation and
     AI precedence under the advisory lock, custom items, overrides, onboarding, publish-request
     updates and admin events; returns `{ outcome, versions }`.
-  - `mark_plan_seen(plan_id)`, `due_items(p_local_day)`.
+  - `mark_plan_seen(plan_id)`, `due_items(p_local_day)` (not built, see above).
   - Admin: `admin_set_status`, `admin_set_role`, `admin_set_ai_flag`, `admin_bootstrap`
     (`SECURITY DEFINER`, check `is_admin()` except bootstrap, write an audit event) and aggregate
     readers `admin_user_overview()`, `admin_content_coverage()`, `admin_activity_stats()`.
@@ -964,7 +976,7 @@ All in the `public` schema with RLS on.
 | `roadmap.override_set` / `revoked` | `{ key, kind, params? }` |
 | `roadmap.override_suspended` / `resumed` | `{ keys }` |
 | `admin.*` | `{ targetUserId?, from?, to? }` |
-| `item.snapshot` (reserved) | `{ level, weak, topSuccesses, dueOn, lapses, reps, rulesVersion }` |
+| `item.snapshot` (reserved) | `{ level, weak, topSuccesses, dueOn, lapses, reps, rulesVersion }`, plus `introducedOn`, `lastResult`, `lastResultOn` from M4 (Part B-M4 decision 19: a snapshot restores a full `item_state` row) |
 
 #### Atomicity and locking
 
