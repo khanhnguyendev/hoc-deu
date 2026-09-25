@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
-import { guardViolations } from './server-guards'
+import { guardViolations, supabaseClientViolations } from './server-guards'
 
 const ACTIONS = 'features/x/actions.ts'
 const ROUTE = 'app/api/x/route.ts'
@@ -75,6 +75,62 @@ export async function awaited() {
 }`
     const flagged = guardViolations(ACTIONS, source).map((v) => /`(\w+)`/.exec(v)?.[1])
     expect(flagged).toEqual(['bare', 'assigned', 'returned'])
+  })
+
+  it('accepts `return await requireX()` as the first statement (M2 carry-over)', () => {
+    const source = `'use server'
+import { requireAdmin } from '@/lib/auth/dal'
+export async function whoAmI() {
+  return await requireAdmin()
+}
+export async function parenthesised() {
+  return (await requireAdmin())
+}`
+    expect(guardViolations(ACTIONS, source)).toEqual([])
+  })
+
+  it('accepts a parenthesised `(await requireX())`, alone or read from', () => {
+    const source = `'use server'
+import { requireActive, requireUser } from '@/lib/auth/dal'
+export async function statement() {
+  ;(await requireUser())
+  return 1
+}
+export async function assigned() {
+  const user = (await requireActive())
+  return user
+}
+export async function readFrom() {
+  const id = (await requireActive()).id
+  return id
+}
+export async function innerParens() {
+  const user = await (requireActive())
+  return user
+}
+export const arrow = async () => (await requireUser()).email`
+    expect(guardViolations(ACTIONS, source)).toEqual([])
+  })
+
+  it('still flags an un-awaited guard, returned or parenthesised', () => {
+    const source = `'use server'
+import { requireActive } from '@/lib/auth/dal'
+export async function returned() {
+  return requireActive()
+}
+export async function parenthesised() {
+  const user = (requireActive())
+  return user
+}
+export async function readFromPromise() {
+  const id = (requireActive() as unknown as { id: string }).id
+  return id
+}
+export async function notAGuard() {
+  return await write()
+}`
+    const flagged = guardViolations(ACTIONS, source).map((v) => /`(\w+)`/.exec(v)?.[1])
+    expect(flagged).toEqual(['returned', 'parenthesised', 'readFromPromise', 'notAGuard'])
   })
 
   it("finds 'use server' anywhere in the directive prologue", () => {
@@ -330,6 +386,96 @@ export { impl as loadY, PAGE_SIZE as SIZE }`
   })
 })
 
+describe('supabaseClientViolations (M2 carry-over: only queries.ts / actions.ts create clients)', () => {
+  const IMPORT_SERVER = `import { createClient } from '@/lib/supabase/server'
+export async function read() {
+  return (await createClient()).from('x').select()
+}`
+
+  it('flags a feature module other than queries.ts / actions.ts importing a client module', () => {
+    const violations = supabaseClientViolations('features/settings/reads.ts', IMPORT_SERVER)
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toMatch(/features\/settings\/reads\.ts.*lib\/supabase\/server/)
+    expect(
+      supabaseClientViolations(
+        'features/x/components/row.tsx',
+        `import { createAdminClient } from '@/lib/supabase/admin'`,
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('resolves relative paths and dynamic imports', () => {
+    expect(
+      supabaseClientViolations(
+        'features/x/lib/load.ts',
+        `import { createAdminClient } from '../../../lib/supabase/admin'`,
+      ),
+    ).toHaveLength(1)
+    expect(
+      supabaseClientViolations(
+        'features/x/helpers.ts',
+        `export async function f() { return import('@/lib/supabase/server') }`,
+      ),
+    ).toHaveLength(1)
+    expect(
+      supabaseClientViolations('features/x/helpers.ts', `import x from '@/lib/supabase/server.ts'`),
+    ).toHaveLength(1)
+  })
+
+  it('allows queries.ts and actions.ts at the top of a feature, and type-only imports anywhere', () => {
+    expect(supabaseClientViolations('features/x/queries.ts', IMPORT_SERVER)).toEqual([])
+    expect(supabaseClientViolations('features/x/actions.ts', IMPORT_SERVER)).toEqual([])
+    const typeOnly = `import type { Client } from '@/lib/supabase/server'
+import { type Admin } from '@/lib/supabase/admin'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/database.types'`
+    expect(supabaseClientViolations('features/x/reads.ts', typeOnly)).toEqual([])
+  })
+
+  it('only top-level queries.ts / actions.ts are exempt', () => {
+    expect(supabaseClientViolations('features/x/lib/queries.ts', IMPORT_SERVER)).toHaveLength(1)
+  })
+
+  it('flags any re-export of a client module — from index.ts or even queries.ts', () => {
+    const index = supabaseClientViolations(
+      'features/x/index.ts',
+      `export { createClient } from '@/lib/supabase/server'
+export * from '@/lib/supabase/admin'`,
+    )
+    expect(index).toHaveLength(2)
+    expect(index.join('\n')).toMatch(/re-export/)
+    expect(
+      supabaseClientViolations(
+        'features/x/queries.ts',
+        `export { createClient } from '@/lib/supabase/server'`,
+      ),
+    ).toHaveLength(1)
+    expect(
+      supabaseClientViolations(
+        'features/x/index.ts',
+        `export type { Client } from '@/lib/supabase/server'`,
+      ),
+    ).toEqual([])
+  })
+
+  it('ignores modules outside features/ and test files', () => {
+    expect(supabaseClientViolations('lib/auth/dal.ts', IMPORT_SERVER)).toEqual([])
+    expect(supabaseClientViolations('app/(public)/auth/callback/route.ts', IMPORT_SERVER)).toEqual(
+      [],
+    )
+    expect(supabaseClientViolations('features/x/reads.test.ts', IMPORT_SERVER)).toEqual([])
+  })
+
+  it('ignores other lib/supabase modules', () => {
+    expect(
+      supabaseClientViolations(
+        'features/x/reads.ts',
+        `import { something } from '@/lib/supabase/proxy'`,
+      ),
+    ).toEqual([])
+  })
+})
+
 describe('GUARD_NAMES', () => {
   it('lists every guard (CLAUDE.md, decision 10)', () => {
     expect([...GUARD_NAMES].sort()).toEqual(
@@ -355,7 +501,7 @@ describe('SYNC_GUARD_NAMES', () => {
 })
 
 describe('the real source tree', () => {
-  it('has no unguarded server actions, route handlers or feature loaders', () => {
+  it('has no unguarded server actions, route handlers or loaders, nor stray client imports', () => {
     const root = process.cwd()
     const violations: string[] = []
     let scanned = 0
@@ -369,7 +515,8 @@ describe('the real source tree', () => {
       for (const entry of entries) {
         if (!/\.tsx?$/.test(entry) || entry.split(sep).includes('node_modules')) continue
         const file = `${dir}/${entry.split(sep).join('/')}`
-        violations.push(...guardViolations(file, readFileSync(join(root, file), 'utf8')))
+        const source = readFileSync(join(root, file), 'utf8')
+        violations.push(...guardViolations(file, source), ...supabaseClientViolations(file, source))
         scanned += 1
       }
     }

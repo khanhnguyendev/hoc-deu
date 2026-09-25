@@ -1,3 +1,4 @@
+import path from 'node:path'
 import ts from 'typescript'
 import { GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
 
@@ -50,28 +51,52 @@ const hasModifier = (node: ts.Node, kind: ts.SyntaxKind) =>
 
 const isAsync = (fn: FunctionNode) => hasModifier(fn, ts.SyntaxKind.AsyncKeyword)
 
+/** `expression` without the parentheses around it: `((x))` → `x`. */
+function unparenthesized(expression: ts.Expression): ts.Expression {
+  let inner = expression
+  while (ts.isParenthesizedExpression(inner)) inner = inner.expression
+  return inner
+}
+
 /**
  * `await requireX()` for any guard, or a bare `publicRoute()` for a synchronous one
  * (`SYNC_GUARD_NAMES`). An un-awaited async guard does not stop the handler: its `redirect()`
- * becomes an unhandled rejection while the rest of the function runs.
+ * becomes an unhandled rejection while the rest of the function runs. Parentheses are looked
+ * through (`(await requireX())`, `await (requireX())` — M2 carry-over), and so is reading a field
+ * of the awaited result (`(await requireX()).id`): the guard still runs, and is awaited, first.
  */
 function isGuardCall(expression: ts.Expression | undefined): boolean {
   if (expression === undefined) return false
-  const awaited = ts.isAwaitExpression(expression)
-  const call = awaited ? expression.expression : expression
+  let outer = unparenthesized(expression)
+  while (ts.isPropertyAccessExpression(outer) || ts.isElementAccessExpression(outer)) {
+    const base = unparenthesized(outer.expression)
+    // Only a field of an *awaited* guard: `requireX().then` is a promise, not a guard.
+    if (!ts.isAwaitExpression(base)) return false
+    outer = base
+  }
+  const guard: ts.Expression = outer
+  const awaited = ts.isAwaitExpression(guard)
+  const call = awaited ? unparenthesized(guard.expression) : guard
   if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) return false
   const name = call.expression.text
   return awaited ? GUARDS.has(name) : SYNC_GUARDS.has(name)
 }
 
-/** A guard call as the first statement after any directives (`const user = await …` counts). */
+/**
+ * A guard call as the first statement after any directives and empty statements (a leading `;`
+ * Prettier adds before `(await requireX())`): `await requireX()`, `const user = await …` or
+ * `return await requireX()` (M2 carry-over).
+ */
 function startsWithGuard(fn: FunctionNode): boolean {
   const body = fn.body
   if (body === undefined) return false
   if (!ts.isBlock(body)) return isGuardCall(body)
-  const first = body.statements[directives(body.statements).length]
+  const first = body.statements
+    .slice(directives(body.statements).length)
+    .find((statement) => !ts.isEmptyStatement(statement))
   if (first === undefined) return false
   if (ts.isExpressionStatement(first)) return isGuardCall(first.expression)
+  if (ts.isReturnStatement(first)) return isGuardCall(first.expression)
   if (ts.isVariableStatement(first)) {
     const declarations = first.declarationList.declarations
     return declarations.length === 1 && isGuardCall(declarations[0]?.initializer)
@@ -293,5 +318,103 @@ export function guardViolations(file: string, source: string): string[] {
   }
   visit(sourceFile)
 
+  return violations
+}
+
+// -----------------------------------------------------------------------------------------------
+// Supabase clients in features (M2 carry-over, task 3.4a)
+// -----------------------------------------------------------------------------------------------
+
+/** The modules that create Supabase clients: the session client and the secret-key client. */
+const CLIENT_MODULES: readonly string[] = ['lib/supabase/server', 'lib/supabase/admin']
+
+/** `features/<name>/queries.ts` and `features/<name>/actions.ts`: the only client-using modules. */
+const isClientModuleUser = (file: string) => /^features\/[^/]+\/(queries|actions)\.tsx?$/.test(file)
+const isTestFile = (file: string) => /\.test\.[cm]?[jt]sx?$/.test(file)
+
+/** The repo path a module specifier points at (`@/` alias or relative), without extension. */
+function resolveSpecifier(spec: string, file: string): string | null {
+  let target: string
+  if (spec.startsWith('@/')) target = path.posix.normalize(spec.slice(2))
+  else if (spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../')) {
+    target = path.posix.join(path.posix.dirname(file), spec)
+  } else return null
+  return target.replace(/\/index(?:\.[cm]?[jt]sx?)?$/, '').replace(/\.[cm]?[jt]sx?$/, '')
+}
+
+/** Whether an import clause brings in a value (not `import type`, not only `{ type X }`). */
+function importsValue(clause: ts.ImportClause | undefined): boolean {
+  if (clause === undefined) return true // `import '…'` runs the module
+  if (clause.isTypeOnly) return false
+  if (clause.name !== undefined) return true
+  const named = clause.namedBindings
+  if (named === undefined || ts.isNamespaceImport(named)) return true
+  return named.elements.some((element) => !element.isTypeOnly)
+}
+
+/** Whether an export declaration re-exports a value. */
+function exportsValue(statement: ts.ExportDeclaration): boolean {
+  if (statement.isTypeOnly) return false
+  const clause = statement.exportClause
+  if (clause === undefined || !ts.isNamedExports(clause)) return true // `export *`
+  return clause.elements.some((element) => !element.isTypeOnly)
+}
+
+/**
+ * Architecture test for the feature layer's data access (M2 deferred minor from 2.11): in
+ * `features/**`, only `features/<name>/queries.ts` (guarded loaders) and `actions.ts` (guarded
+ * server actions) may import `lib/supabase/server` or `lib/supabase/admin` — so a helper such as
+ * `features/settings/reads.ts` takes the caller's client and cannot create one on its own — and
+ * no feature module (its `index.ts` included) re-exports them. Imports, re-exports and dynamic
+ * `import()` are resolved (alias or relative); type-only imports are fine; test files are skipped.
+ */
+export function supabaseClientViolations(file: string, source: string): string[] {
+  const normalized = file.split('\\').join('/')
+  if (!normalized.startsWith('features/') || isTestFile(normalized)) return []
+  const scriptKind = normalized.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const sourceFile = ts.createSourceFile(
+    normalized,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKind,
+  )
+  const mayImport = isClientModuleUser(normalized)
+  const violations: string[] = []
+
+  const clientModule = (specifier: ts.Expression | undefined): string | null => {
+    if (specifier === undefined || !ts.isStringLiteralLike(specifier)) return null
+    const target = resolveSpecifier(specifier.text, normalized)
+    return target !== null && CLIENT_MODULES.includes(target) ? target : null
+  }
+  const line = (node: ts.Node) =>
+    sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1
+
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const target = clientModule(node.moduleSpecifier)
+      if (target !== null && !mayImport && importsValue(node.importClause)) {
+        violations.push(
+          `${normalized}:${line(node)}: imports ${target} — only queries.ts and actions.ts may create Supabase clients`,
+        )
+      }
+    } else if (ts.isExportDeclaration(node)) {
+      const target = clientModule(node.moduleSpecifier)
+      if (target !== null && exportsValue(node)) {
+        violations.push(
+          `${normalized}:${line(node)}: re-exports ${target} — a feature never hands out a Supabase client`,
+        )
+      }
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const target = clientModule(node.arguments[0])
+      if (target !== null && !mayImport) {
+        violations.push(
+          `${normalized}:${line(node)}: imports ${target} — only queries.ts and actions.ts may create Supabase clients`,
+        )
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
   return violations
 }
