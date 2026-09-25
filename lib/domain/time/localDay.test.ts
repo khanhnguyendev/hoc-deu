@@ -39,6 +39,30 @@ describe('localDay formatter reuse', () => {
     expect(created.mock.calls.length).toBeLessThanOrEqual(1)
   })
 
+  it('keeps at most 1000 formatters: the cache is cleared rather than grown (ruling R17)', () => {
+    // Intl accepts any capitalisation of a zone name, so input can mint unlimited cache keys.
+    const letters = 'asia/ho_chi_minh'
+    const spellings = Array.from({ length: 1100 }, (_, n) => {
+      let bit = 0
+      return [...letters]
+        .map((char) => {
+          if (!/[a-z]/.test(char)) return char
+          const upper = ((n >> bit) & 1) === 1
+          bit += 1
+          return upper ? char.toUpperCase() : char
+        })
+        .join('')
+    })
+    const at = new Date('2026-09-24T21:00:00Z')
+    for (const zone of spellings) {
+      expect(localDay(at, { timezone: zone, dayStartsAt: '04:00' })).toBe('2026-09-25')
+    }
+    // More than 1000 new keys after the first spelling: it was evicted, so it is built again.
+    const created = vi.spyOn(Intl, 'DateTimeFormat')
+    expect(localDay(at, { timezone: spellings[0] ?? '', dayStartsAt: '04:00' })).toBe('2026-09-25')
+    expect(created).toHaveBeenCalledTimes(1)
+  })
+
   it('shares the formatter of a legacy alias and its canonical zone, with the same results', () => {
     const at = new Date('2026-09-24T21:00:00Z')
     localDay(at, { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })

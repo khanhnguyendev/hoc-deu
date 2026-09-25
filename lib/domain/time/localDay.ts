@@ -47,13 +47,17 @@ function requirePart(parts: readonly Intl.DateTimeFormatPart[], type: string): n
  * One formatter per canonical time zone: constructing an `Intl.DateTimeFormat` costs far more than
  * formatting with it, and `nextDayStart` calls `localDay` once per 15-minute step. A cache, not a
  * clock read — a formatter's output depends only on its arguments, so `localDay` stays pure.
+ * Bounded (M2 ruling R17): `Intl` accepts any capitalisation of a zone name, so input could mint
+ * unlimited keys; the map is cleared rather than grown past `MAX_CACHED_FORMATTERS` entries.
  */
 const formatters = new Map<string, Intl.DateTimeFormat>()
+const MAX_CACHED_FORMATTERS = 1000
 
 function formatterFor(timeZone: string): Intl.DateTimeFormat {
   const zone = canonicalTimeZone(timeZone)
   let formatter = formatters.get(zone)
   if (formatter === undefined) {
+    if (formatters.size >= MAX_CACHED_FORMATTERS) formatters.clear()
     formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: zone,
       hourCycle: 'h23',

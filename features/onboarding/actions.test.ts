@@ -266,6 +266,16 @@ describe('completeOnboarding — checks against the active tracks', () => {
     })
     expect(events()).toEqual([])
   })
+
+  it('refuses a time zone Intl accepts but the picker does not offer (ruling R17)', async () => {
+    // Intl accepts any capitalisation; only timeZoneOptions() spellings are stored.
+    await expect(submit(input({ timezone: 'asia/tokyo' }))).resolves.toEqual({
+      status: 'error',
+      formError: null,
+      fieldErrors: { timezone: 'Múi giờ không hợp lệ.' },
+    })
+    expect(events()).toEqual([])
+  })
 })
 
 describe('completeOnboarding — invalid payloads', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canonicalTimeZone, isValidTimeZone, timeZoneOptions } from './timeZones'
+import { canonicalTimeZone, isTimeZoneOption, isValidTimeZone, timeZoneOptions } from './timeZones'
 
 describe('canonicalTimeZone', () => {
   it('maps CLDR legacy aliases to their IANA name', () => {
@@ -48,5 +48,19 @@ describe('timeZoneOptions', () => {
 
   it('is sorted and duplicate-free', () => {
     expect(options).toEqual([...new Set(options)].sort())
+  })
+})
+
+describe('isTimeZoneOption', () => {
+  it('accepts exactly the picker spellings', () => {
+    expect(isTimeZoneOption('Asia/Ho_Chi_Minh')).toBe(true)
+    expect(isTimeZoneOption('Asia/Tokyo')).toBe(true)
+  })
+
+  it('rejects what Intl accepts but the picker does not offer, and unknown zones', () => {
+    expect(isValidTimeZone('asia/tokyo')).toBe(true)
+    expect(isTimeZoneOption('asia/tokyo')).toBe(false)
+    expect(isTimeZoneOption('Asia/Saigon')).toBe(false)
+    expect(isTimeZoneOption('Mars/Base')).toBe(false)
   })
 })
