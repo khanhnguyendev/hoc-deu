@@ -1,4 +1,6 @@
 import { createElement, Fragment, type ReactNode } from 'react'
+import { isCodeLanguage } from '@/lib/domain/settings'
+import { vi } from '@/lib/i18n/vi'
 
 /**
  * Keyed copy for a value that comes from content (`kind`, `tone`, a language): only the record's
@@ -21,4 +23,9 @@ export function fillNode(text: string, placeholder: string, node: ReactNode): Re
   if (at === -1) return text
   // Static children (not an array), so React needs no keys.
   return createElement(Fragment, null, text.slice(0, at), node, text.slice(at + placeholder.length))
+}
+
+/** A solution language's display name — one source, `vi.onboarding.language` — else undefined. */
+export function languageName(lang: string): string | undefined {
+  return isCodeLanguage(lang) ? vi.onboarding.language[lang] : undefined
 }

@@ -2,7 +2,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { CodeBlock } from '@/components/patterns/code-block'
 import { codeBlockKey, plainCode, type CodeBundle } from '@/lib/content/code-tokens'
 import { vi } from '@/lib/i18n/vi'
-import { fill, own } from './copy'
+import { fill, languageName } from './copy'
 
 type CodeProps = { className?: string; children?: ReactNode }
 
@@ -25,7 +25,7 @@ function fence(children: ReactNode): { lang: string; text: string } {
 
 function label(lang: string): string {
   if (lang === 'text') return vi.content.codeBlock.text
-  return fill(vi.content.codeBlock.label, { language: own(vi.content.languages, lang) ?? lang })
+  return fill(vi.content.codeBlock.label, { language: languageName(lang) ?? lang })
 }
 
 /**

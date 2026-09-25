@@ -2132,13 +2132,15 @@ export const CATALOG: Entry[] = [
     file: 'features/items/components/mdx/content-image.tsx',
     demos: [
       {
-        title: 'SVG 320x180 (unoptimized); nội dung thật lấy từ bucket content-images',
+        title:
+          'SVG 320x180 (unoptimized, nền đục); nội dung thật chỉ từ bucket content-images, nguồn khác không hiển thị',
         render: () => (
           <div className={PROSE}>
             <ContentImage
               src="/dev/content-image-sample.svg"
               alt="Hai con trỏ đi từ hai đầu mảng lại gần nhau"
               title="320x180"
+              baseUrl="/dev/"
             />
           </div>
         ),

@@ -834,7 +834,10 @@ The components content MDX may use (allow-list: `tools/content/allowlist.ts`, pl
 `features/items/mdx/components.tsx` (`mdxComponents`; `Solution` and `Practice` render nothing
 there). A page binds its data with `mdxComponentsFor({ code, codeLanguage, resolvePractice })`
 (`features/items/mdx/bind.tsx`: `Solution`, `Practice`, `pre`) and renders
-`<Body components={mdxComponentsFor(…)} />`. All are client-safe, so the catalog renders them;
+`<Body components={mdxComponentsFor(…)} />`. GFM extras: a task-list checkbox renders as a
+marker (icon + visually hidden "Đã xong" / "Chưa xong", never a control) and column alignment maps
+to `text-left` / `text-center` / `text-right` (no style attribute). All are client-safe, so the
+catalog renders them;
 only Quiz, Reveal and SolutionTabs are client components. Keyed copy (`vi.content.sections[kind]`,
 callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/content`
 (`app/dev/content/sample-{lesson,note}.mdx`, e2e + axe). Authoring rules: ADR-0011.
@@ -948,9 +951,11 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 - **Usage:** `<Quiz><Question prompt="…" answer="b"><Choice id="a">…</Choice><Choice
   id="b">…</Choice></Question></Quiz>`
 - **Accessibility:** each question a `<fieldset>` with the prompt as `<legend>`; native radios
-  (one group per question, so arrow keys move within it) in ≥ 44 px labels; the checked choice
-  shows on the radio, not colour alone; the score is announced in a polite `role="status"`; the
-  check/retry button keeps focus
+  (one group per question, so arrow keys move within it) on ≥ 44 px cards. A choice may hold
+  paragraphs, which a `<label>` cannot, so each radio is named by its content (`aria-labelledby`)
+  and an empty `<label>` stretched over the card makes the whole card the target; the verdict is a
+  `<div>` (the answer may be a paragraph). The checked choice shows on the radio, not colour
+  alone; the score is announced in a polite `role="status"`; the check/retry button keeps focus
 
 ### Reveal
 
@@ -975,7 +980,8 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
   first ("Ẩn lời giải" hides it again); no solutions → nothing
 - **Usage:** rendered by the bound `<Solution />` (`mdxComponentsFor`; `code: null` → nothing)
 - **Accessibility:** the toggle has `aria-expanded` / `aria-controls`; ui Tabs named "Ngôn ngữ lời
-  giải"; each panel a CodeBlock region "Lời giải Python" / "Java" / "Go" (DESIGN_SYSTEM §9)
+  giải" (language names from `vi.onboarding.language`, the one source); each panel a CodeBlock
+  region "Lời giải Python" / "Java" / "Go" (DESIGN_SYSTEM §9)
 
 ### CodePre
 
@@ -1004,10 +1010,14 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 
 - **Layer:** feature (`features/items`, client-safe — `next/image`)
 - **File:** `features/items/components/mdx/content-image.tsx`
-- **Props:** `img` props: `src`, `alt`, `title` (`"WIDTHxHEIGHT"`, OD3)
+- **Props:** `img` props: `src`, `alt`, `title` (`"WIDTHxHEIGHT"`, OD3); `baseUrl?: string`
+  (default `CONTENT_IMAGE_BASE_URL` from `lib/content/images.ts`; code only — the catalog passes
+  `/dev/` for its local sample, Markdown cannot set it)
 - **Variants:** raster (`png`, `webp`, `jpg`) through Next's optimiser (`images.remotePatterns`
   from `CONTENT_IMAGE_BASE_URL`) · SVG `unoptimized`
-- **States:** lazy-loaded; an unparsable size title renders nothing (the check rejects it)
+- **States:** lazy-loaded; fails closed — a source outside `baseUrl`, an empty base or an
+  unparsable size title renders nothing (the check rejects them). SVGs need an opaque background
+  (runbook §2): `currentColor` in an `<img>` is black in both themes
 - **Usage:** the MDX `img` override: `![alt](<bucket URL> "640x360")` — runbook
   `docs/ops/content-images.md`
 - **Accessibility:** the alt text is required by the check; `h-auto max-w-full`, no `title`

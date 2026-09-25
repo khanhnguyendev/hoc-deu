@@ -1,8 +1,14 @@
 // The MDX allowlist (platform design §3.5, §3.6 step 3): it lives in code, outside content/**, so a
 // content PR cannot widen what content may do. `next.config.ts` imports this file too, so it keeps
-// to relative imports (no `@/` alias); its one runtime import, lib/domain/settings, needs only zod.
+// to relative imports (no `@/` alias); its runtime imports (lib/content/images, lib/domain/settings)
+// need at most zod.
+import { CONTENT_IMAGE_BASE_URL } from '../../lib/content/images'
 import type { MdxComponentName } from '../../lib/content/mdx-components'
 import { CODE_LANGUAGES } from '../../lib/domain/settings'
+
+// OD3's base URL and size title live in lib/ (the renderer needs them; the app never imports
+// tools/); re-exported here for the check, content:build and next.config.ts.
+export { CONTENT_IMAGE_BASE_URL, IMAGE_SIZE_TITLE, parseImageSize } from '../../lib/content/images'
 
 export type MdxContext = 'lesson' | 'note'
 
@@ -124,27 +130,10 @@ export const MDX_COMPONENTS: { readonly [K in MdxComponentName]: ComponentRule }
 /** Fenced code languages: the platform's code languages (CODE_LANGUAGES) and plain text. */
 export const CODE_LANGS: readonly string[] = [...CODE_LANGUAGES, 'text']
 
-/** OD3: the one allow-listed image source, committed as data (a public URL — no key). If it is ever
- *  set to '', every MDX image is rejected (tested with an injected base). */
-export const CONTENT_IMAGE_BASE_URL =
-  'https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/'
-
 export const IMAGE_EXTENSIONS: readonly string[] = ['svg', 'png', 'webp', 'jpg']
 
 /** The part of an image URL after the base URL. */
 export const IMAGE_PATH_PATTERN = /^[a-z0-9\-_/.]+$/
-
-/** The image title carries its size: `![alt](url "WIDTHxHEIGHT")`, 1–9999 each. */
-export const IMAGE_SIZE_TITLE = /^([1-9]\d{0,3})x([1-9]\d{0,3})$/
-
-/** The size in an image title, or null when it is missing or malformed. */
-export function parseImageSize(
-  title: string | null | undefined,
-): { width: number; height: number } | null {
-  const match = IMAGE_SIZE_TITLE.exec(title ?? '')
-  if (match === null) return null
-  return { width: Number(match[1]), height: Number(match[2]) }
-}
 
 /**
  * A non-empty image base URL, parsed; throws unless it is a canonical `https://` directory URL (no

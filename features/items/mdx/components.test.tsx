@@ -28,7 +28,11 @@ const MARKDOWN = [
   'hr',
   'strong',
   'em',
+  'input',
 ] as const
+
+/** The class GFM puts on a task list's `ul` (MDX output, not a Tailwind class). */
+const TASK_LIST = ['contains', 'task', 'list'].join('-')
 
 const lookup = mdxComponents as unknown as Record<string, ComponentType<Record<string, unknown>>>
 
@@ -50,6 +54,53 @@ describe('mdxComponents', () => {
   it('routes links through ExternalLink and images through ContentImage', () => {
     expect(mdxComponents.a).toBe(ExternalLink)
     expect(mdxComponents.img).toBe(ContentImage)
+  })
+
+  it.each([
+    [true, 'Đã xong'],
+    [false, 'Chưa xong'],
+  ])(
+    'renders a GFM task checkbox (checked: %s) as a labelled marker, not a control',
+    (checked, label) => {
+      const Input = lookup.input!
+      const { container } = render(<Input type="checkbox" checked={checked} disabled />)
+      expect(container.querySelector('input')).toBeNull()
+      expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+      expect(screen.getByText(label).className).toContain('sr-only')
+    },
+  )
+
+  it('renders no other input type', () => {
+    const Input = lookup.input!
+    const { container } = render(<Input type="text" />)
+    expect(container.innerHTML).toBe('')
+  })
+
+  it.each([
+    ['th', 'center', 'text-center'],
+    ['td', 'right', 'text-right'],
+    ['td', 'left', 'text-left'],
+  ])('maps GFM %s alignment %s to %s, never a style attribute', (tag, align, token) => {
+    const Cell = lookup[tag]!
+    const { container } = render(
+      <table>
+        <tbody>
+          <tr>
+            <Cell {...{ style: { textAlign: align } }}>x</Cell>
+          </tr>
+        </tbody>
+      </table>,
+    )
+    const cell = container.querySelector(tag)!
+    expect(cell.getAttribute('style')).toBeNull()
+    expect(cell.className).toContain(token)
+  })
+
+  it('drops list bullets for a GFM task list', () => {
+    const Ul = lookup.ul!
+    const { container } = render(<Ul {...{ className: TASK_LIST }}>x</Ul>)
+    expect(container.querySelector('ul')?.className).toContain('list-none')
+    expect(container.querySelector('ul')?.className).not.toContain('list-disc')
   })
 
   it('styles inline code in the mono font', () => {

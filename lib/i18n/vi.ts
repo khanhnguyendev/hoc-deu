@@ -409,7 +409,8 @@ export const vi = {
   /**
    * The MDX content components (`features/items/components/mdx`, task 3.3b). Keyed copy is read
    * with `Object.hasOwn`, so a content value such as `kind="constructor"` never reaches
-   * `Object.prototype`. `{answer}`, `{correct}`, `{total}`, `{language}` are filled in.
+   * `Object.prototype`. `{answer}`, `{correct}`, `{total}`, `{language}` are filled in; language
+   * names are `onboarding.language`'s.
    */
   content: {
     /** `<Section kind>` headings (decision 33); an unlisted kind shows its ID. */
@@ -449,9 +450,11 @@ export const vi = {
       /** Problem difficulty (`E` / `M` / `H`), always shown as text — never colour alone. */
       difficulty: { E: 'Dễ', M: 'Trung bình', H: 'Khó' },
     },
-    languages: { python: 'Python', java: 'Java', go: 'Go' },
-    /** The accessible name of a fenced code block's scroll region. */
+    /** The accessible name of a fenced code block's scroll region; language names come from
+     *  `onboarding.language` (one source). */
     codeBlock: { label: 'Đoạn code {language}', text: 'Đoạn văn bản' },
     newTab: '(mở trong tab mới)',
+    /** A GFM task-list item's marker (not a control), read by screen readers. */
+    task: { done: 'Đã xong', todo: 'Chưa xong' },
   },
 } as const

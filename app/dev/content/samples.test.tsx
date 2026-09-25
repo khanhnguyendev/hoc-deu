@@ -1,5 +1,6 @@
 import { evaluate } from '@mdx-js/mdx'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import type { MDXContent } from 'mdx/types'
 import * as runtime from 'react/jsx-runtime'
@@ -48,6 +49,17 @@ describe('/dev/content samples, rendered', () => {
     expect(within(container).getAllByRole('group')).not.toHaveLength(0)
   })
 
+  it('checks the lesson quiz: the verdicts (a paragraph-form answer included) stay valid HTML', async () => {
+    const Lesson = await sample('lesson')
+    const { container } = render(<Lesson components={components} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    expect(screen.getByRole('status').textContent).toBe('Đúng 0/2')
+    const verdicts = container.querySelectorAll('[data-slot="quiz-feedback"]')
+    expect(verdicts).toHaveLength(2)
+    expect(verdicts[1]?.querySelector('p')).not.toBeNull()
+    expect(container.querySelector('p p, span p, label p, label div')).toBeNull()
+  })
+
   it('renders the note: the solution toggle and the plain text fence', async () => {
     const Note = await sample('note')
     render(<Note components={components} />)
@@ -56,5 +68,7 @@ describe('/dev/content samples, rendered', () => {
       '[3, 2, 4] -> [2, 3, 4]',
     )
     expect(screen.getByRole('region', { name: 'Bảng' })).toBeTruthy()
+    expect(screen.getByText('Đã xong').className).toContain('sr-only')
+    expect(document.querySelector('input[type="checkbox"], [style]')).toBeNull()
   })
 })

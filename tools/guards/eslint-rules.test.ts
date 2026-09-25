@@ -384,3 +384,37 @@ describe('style props (platform design §7.3)', () => {
     expect(ids).toEqual([])
   })
 })
+
+// Task 3.3b review: tools/ is build-time code (content:build, guards, CLIs); the running app —
+// components, features and routes — reaches shared rules through lib/ (spec §7.2). Only the
+// catalog (app/dev) may import tools/ for its fixtures and tests.
+describe('app code never imports tools/', () => {
+  const MESSAGE = 'tools/ is build-time code; the app imports shared rules from lib/.'
+
+  it.each([
+    [
+      'features/items/components/mdx/x.tsx',
+      "import { parseImageSize } from '@/tools/content/allowlist'",
+    ],
+    [
+      'features/items/components/mdx/x.tsx',
+      "import { x } from '../../../../tools/content/allowlist'",
+    ],
+    ['components/patterns/x.tsx', "import { x } from '@/tools/content/highlight'"],
+    ['app/(app)/today/page.tsx', "import { x } from '@/tools/content/allowlist'"],
+    ['app/api/x/route.ts', "const m = import('@/tools/content/allowlist')"],
+  ])('%s: rejects %s', async (file, importLine) => {
+    const messages = await layerMessages(`${importLine}\nexport const y = 1\n`, file)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toContain(MESSAGE)
+  })
+
+  it.each([
+    ['app/dev/content/fixtures.test.ts', "import { x } from '@/tools/content/mdx/parse'"],
+    ['tools/content/cli.ts', "import { x } from '@/tools/content/allowlist'"],
+    ['features/items/components/mdx/x.tsx', "import { x } from '@/lib/content/images'"],
+  ])('%s: allows %s', async (file, importLine) => {
+    const ids = await ruleIds(`${importLine}\nexport const y = x\n`, file)
+    expect(ids).not.toContain(LAYERS)
+  })
+})

@@ -158,7 +158,8 @@ function Question({
         <legend className="mb-3 font-semibold">{prompt}</legend>
         <div className="space-y-2">{children}</div>
         {checked && (
-          <p
+          // A <div>, not a <p>: the answer may be a paragraph-form choice (block content).
+          <div
             data-slot="quiz-feedback"
             className={cn(
               'flex items-start gap-2 font-medium',
@@ -166,12 +167,18 @@ function Question({
             )}
           >
             <Icon aria-hidden="true" strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
-            <span>
+            <div className="min-w-0">
               {correct
                 ? copy.correct
-                : fillNode(copy.incorrect, '{answer}', labels.get(answer) ?? answer)}
-            </span>
-          </p>
+                : fillNode(
+                    copy.incorrect,
+                    '{answer}',
+                    <div className="inline-block max-w-full space-y-1">
+                      {labels.get(answer) ?? answer}
+                    </div>,
+                  )}
+            </div>
+          </div>
         )}
       </fieldset>
     </QuestionContext>
@@ -179,29 +186,42 @@ function Question({
 }
 
 /**
- * `<Choice id>` — a native radio in a ≥ 44 px label: arrow keys move within its question (one
- * radio group per question), and the checked state shows on the radio itself, not colour alone.
+ * `<Choice id>` — a native radio on a ≥ 44 px card: arrow keys move within its question (one radio
+ * group per question), and the checked state shows on the radio itself, not colour alone. The
+ * content may be paragraphs, which a `<label>` cannot hold (phrasing content only), so the radio
+ * is named by the content (`aria-labelledby`) and an empty `<label>` stretched over the card makes
+ * the whole card the click target.
  */
 function Choice({ id, children }: { id: string; children?: ReactNode }) {
   const question = use(QuestionContext)
   const registerLabel = question?.registerLabel
+  const inputId = useId()
+  const contentId = useId()
   useEffect(() => registerLabel?.(id, children), [registerLabel, id, children])
   if (question === null) return <div>{children}</div>
   return (
-    <label
+    <div
       data-slot="choice"
-      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border-strong bg-surface px-3 py-2 transition-colors duration-(--duration-fast) ease-standard has-checked:border-primary has-checked:bg-primary-soft has-disabled:cursor-default"
+      className="relative flex min-h-11 items-center gap-3 rounded-md border border-border-strong bg-surface px-3 py-2 transition-colors duration-(--duration-fast) ease-standard has-checked:border-primary has-checked:bg-primary-soft"
     >
       <input
+        id={inputId}
         type="radio"
         name={question.name}
         value={id}
         checked={question.selected === id}
         onChange={() => question.select(id)}
-        className="size-4 shrink-0 accent-primary"
+        aria-labelledby={contentId}
+        className="peer relative z-10 size-4 shrink-0 cursor-pointer accent-primary disabled:cursor-default"
       />
-      <div className="min-w-0 flex-1 space-y-2">{children}</div>
-    </label>
+      <div id={contentId} className="min-w-0 flex-1 space-y-2">
+        {children}
+      </div>
+      <label
+        htmlFor={inputId}
+        className="absolute inset-0 cursor-pointer rounded-md peer-disabled:cursor-default"
+      />
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 import { compile, evaluate } from '@mdx-js/mdx'
+import { createRequire } from 'node:module'
 import type { NextConfig } from 'next'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -13,12 +14,25 @@ import { REMARK_PLUGIN_NAMES } from '../content/mdx/remark-plugins'
  * the check is only valid if the renderer parses like the checker (3.2a security review).
  */
 
-type LoaderOptions = { remarkPlugins?: unknown[] }
+type LoaderOptions = { remarkPlugins?: unknown[] } & Record<string, unknown>
 type Loader = { loader: string; options: LoaderOptions }
 type TurbopackRule = { loaders: Loader[]; as: string }
 
 const TURBOPACK_RULE = '{*,next-mdx-rule}'
 const EXPECTED_PLUGINS = ['remark-frontmatter', 'remark-gfm']
+/**
+ * The loader that runs remark: `@next/mdx`'s mdx-js loader. `experimental.mdxRs` would swap in
+ * the Rust loader, which ignores `remarkPlugins` (plain CommonMark: no GFM, no frontmatter).
+ */
+const MDX_JS_LOADER = createRequire(import.meta.url).resolve('@next/mdx/mdx-js-loader')
+/**
+ * The whole options object: the shared remark plugins and nothing else — a rehype or recma
+ * plugin, or a `format`, would change what the renderer does after the check has run.
+ */
+const EXPECTED_OPTIONS = {
+  providerImportSource: 'next-mdx-import-source-file',
+  remarkPlugins: EXPECTED_PLUGINS,
+}
 
 /** `next.config.ts` as Next loads it, with or without Turbopack (`@next/mdx` branches on it). */
 async function loadConfig(turbopack: boolean): Promise<NextConfig> {
@@ -28,23 +42,30 @@ async function loadConfig(turbopack: boolean): Promise<NextConfig> {
   return (await import('../../next.config')).default
 }
 
-/** The MDX loader options Turbopack runs `.mdx` files through. */
-async function turbopackMdxOptions(): Promise<LoaderOptions> {
+/** The MDX loader Turbopack runs `.mdx` files through, and the config it came from. */
+async function turbopackMdx(): Promise<{ config: NextConfig; loader: Loader }> {
   const config = await loadConfig(true)
   const rules = config.turbopack?.rules?.[TURBOPACK_RULE] as TurbopackRule[] | undefined
-  const mdx = rules?.find((rule) => rule.as === '*.tsx')
-  expect(mdx, 'the @next/mdx Turbopack rule').toBeDefined()
-  return mdx!.loaders[0]!.options
+  expect(rules, 'the @next/mdx Turbopack rule').toHaveLength(1)
+  const loaders = rules![0]!.loaders
+  expect(loaders).toHaveLength(1)
+  return { config, loader: loaders[0]! }
 }
 
-/** The MDX loader options webpack runs `.mdx` files through (`next build --webpack`). */
-async function webpackMdxOptions(): Promise<LoaderOptions> {
+async function turbopackMdxOptions(): Promise<LoaderOptions> {
+  return (await turbopackMdx()).loader.options
+}
+
+/** The MDX loader webpack runs `.mdx` files through (`next build --webpack`). */
+async function webpackMdx(): Promise<{ config: NextConfig; loader: Loader }> {
   const config = await loadConfig(false)
   const base = { resolve: { alias: {} }, module: { rules: [] as { use: unknown[] }[] } }
   const webpack = config.webpack as (c: typeof base, o: unknown) => typeof base
   const result = webpack(base, { defaultLoaders: { babel: 'babel-loader' } })
-  const use = result.module.rules.at(-1)?.use ?? []
-  return (use.at(-1) as Loader).options
+  expect(result.module.rules).toHaveLength(1)
+  const use = result.module.rules[0]!.use
+  expect(use).toHaveLength(2) // Next's babel loader, then @next/mdx's
+  return { config, loader: use[1] as Loader }
 }
 
 /** Plugins resolved by name, exactly as `@next/mdx`'s loader does (`import(name)`, default export). */
@@ -118,13 +139,18 @@ describe('next.config.ts MDX: the renderer parses like the safety check', () => 
     expect([...REMARK_PLUGIN_NAMES]).toEqual(EXPECTED_PLUGINS)
   })
 
-  it('gives Turbopack the shared plugins, by name', async () => {
-    expect((await turbopackMdxOptions()).remarkPlugins).toEqual(EXPECTED_PLUGINS)
-  })
-
-  it('gives webpack the shared plugins, by name', async () => {
-    expect((await webpackMdxOptions()).remarkPlugins).toEqual(EXPECTED_PLUGINS)
-  })
+  it.each([
+    ['Turbopack', turbopackMdx],
+    ['webpack', webpackMdx],
+  ])(
+    '%s: the mdx-js loader (not mdxRs), with only the shared plugins, by name',
+    async (_bundler, load) => {
+      const { config, loader } = await load()
+      expect(config.experimental?.mdxRs).toBeUndefined()
+      expect(loader.loader).toBe(MDX_JS_LOADER)
+      expect(loader.options).toEqual(EXPECTED_OPTIONS)
+    },
+  )
 
   it('the probes would compile to expressions without the plugins (the detector works)', async () => {
     for (const probe of Object.values(PROBES)) {

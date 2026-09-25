@@ -48,7 +48,11 @@ function SolutionTabs({
   return (
     <div data-slot="solution-tabs" className="space-y-3">
       <Button variant="outline" aria-expanded={open} aria-controls={panelId} onClick={toggle}>
-        {open ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+        {open ? (
+          <EyeOff aria-hidden="true" strokeWidth={1.75} />
+        ) : (
+          <Eye aria-hidden="true" strokeWidth={1.75} />
+        )}
         {open ? copy.hide : copy.show}
       </Button>
       <div id={panelId}>
@@ -57,7 +61,7 @@ function SolutionTabs({
             <TabsList aria-label={copy.tabs}>
               {languages.map((language) => (
                 <TabsTrigger key={language} value={language}>
-                  {vi.content.languages[language]}
+                  {vi.onboarding.language[language]}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -65,7 +69,7 @@ function SolutionTabs({
               <TabsContent key={language} value={language}>
                 <CodeBlock
                   code={solutions[language]!}
-                  label={fill(copy.label, { language: vi.content.languages[language] })}
+                  label={fill(copy.label, { language: vi.onboarding.language[language] })}
                 />
               </TabsContent>
             ))}

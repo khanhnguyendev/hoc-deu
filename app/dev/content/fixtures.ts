@@ -1,7 +1,9 @@
 /**
  * What content:build and the catalog would give the /dev/content samples (task 3.3b): the code
- * bundle (hand-written highlighting — no shiki at runtime) and a practice resolver.
- * `fixtures.test.ts` keeps them in step with the samples.
+ * bundle and a practice resolver — static data, no shiki at runtime. The lesson fence's tokens
+ * are the build-time highlighter's output (pinned by `fixtures.test.ts`, which also keeps the
+ * keys in step with the samples); the solutions reuse the catalog's hand-written CodeBlock
+ * samples (`../components/code-samples.ts`).
  */
 import type { MdxBindings, PracticeTarget } from '@/features/items/mdx/bind'
 import { codeBlockKey, type HighlightedCode } from '@/lib/content/code-tokens'
@@ -20,7 +22,7 @@ const LESSON_CODE = `def pair_sum(numbers: list[int], target: int) -> list[int]:
             right -= 1
     return []`
 
-/** `LESSON_CODE` as tools/content/highlight.ts highlights it. */
+/** `LESSON_CODE` as tools/content/highlight.ts highlights it (fixtures.test.ts checks). */
 const LESSON_CODE_HIGHLIGHTED: HighlightedCode = {
   lang: 'python',
   lines: [

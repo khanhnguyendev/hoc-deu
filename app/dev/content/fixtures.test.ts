@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { codeBlockKey } from '@/lib/content/code-tokens'
+import { createHighlighter } from '@/tools/content/highlight'
 import { mdxFacts } from '@/tools/content/mdx/facts'
 import { parseMdx } from '@/tools/content/mdx/parse'
 import { SAMPLE_BINDINGS } from './fixtures'
@@ -22,6 +23,21 @@ describe('/dev/content fixtures', () => {
         expect(Object.hasOwn(blocks, key), `${file}: ${block.lang} block`).toBe(true)
         expect(blocks[key]?.lang).toBe(block.lang)
       }
+    }
+  })
+
+  it('hold exactly what the build-time highlighter produces for those fences', async () => {
+    const blocks = SAMPLE_BINDINGS.code?.blocks ?? {}
+    const highlighter = await createHighlighter()
+    try {
+      const { codeBlocks } = await facts('app/dev/content/sample-lesson.mdx')
+      for (const block of codeBlocks.filter((fence) => fence.lang !== 'text')) {
+        expect(blocks[codeBlockKey(block.lang, block.value)]).toEqual(
+          highlighter.highlight(block.value, block.lang),
+        )
+      }
+    } finally {
+      highlighter.dispose()
     }
   })
 

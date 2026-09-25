@@ -35,7 +35,17 @@ describe('Quiz', () => {
     expect(first.querySelector('legend')?.textContent).toBe('Câu 1')
     const choice = radio('Câu 1', 'Một A') as HTMLInputElement
     expect(choice.type).toBe('radio')
-    expect(choice.closest('label')?.className).toContain('min-h-11')
+    expect(choice.closest('[data-slot="choice"]')?.className).toContain('min-h-11')
+  })
+
+  it('makes the whole card the target: a stretched label for the radio selects it', async () => {
+    render(<ThreeQuestions />)
+    const choice = radio('Câu 2', 'Hai B') as HTMLInputElement
+    const card = choice.closest('[data-slot="choice"]')!
+    const label = card.querySelector(`label[for="${choice.id}"]`)!
+    expect(label.className).toContain('absolute inset-0')
+    await userEvent.setup().click(label)
+    expect(choice.checked).toBe(true)
   })
 
   it('scores 2 of 3, announces "Đúng 2/3" politely and reports the rounded percent', async () => {
@@ -63,7 +73,9 @@ describe('Quiz', () => {
     await user.click(radio('Câu 3', 'Ba B'))
     await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
 
-    const right = within(question('Câu 1')).getByText('Chính xác').closest('p')
+    const right = within(question('Câu 1'))
+      .getByText('Chính xác')
+      .closest('[data-slot="quiz-feedback"]')
     expect(right?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
     const wrong = question('Câu 3').querySelector('[data-slot="quiz-feedback"]')
     expect(wrong?.textContent).toBe('Chưa đúng — đáp án: O(n)')
@@ -111,6 +123,35 @@ describe('Quiz', () => {
     for (const input of within(question('Câu 2')).getAllByRole('radio')) {
       expect((input as HTMLInputElement).checked).toBe(false)
     }
+  })
+
+  it('keeps valid HTML for paragraph-form choices, also in the verdict (no React warning)', async () => {
+    const consoleError = vi.spyOn(console, 'error')
+    const user = userEvent.setup()
+    const { container } = render(
+      <Quiz>
+        <Question prompt="Câu p" answer="b">
+          <Choice id="a">
+            <p>Một</p>
+          </Choice>
+          <Choice id="b">
+            <p>
+              Hai <code>x</code>
+            </p>
+            <p>dòng hai</p>
+          </Choice>
+        </Question>
+      </Quiz>,
+    )
+    await user.click(radio('Câu p', 'Một'))
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+
+    const verdict = question('Câu p').querySelector('[data-slot="quiz-feedback"]')
+    expect(verdict?.textContent).toBe('Chưa đúng — đáp án: Hai xdòng hai')
+    // Phrasing-only containers never hold a paragraph; labels hold no content at all.
+    expect(container.querySelector('p p, span p, label p, label div')).toBeNull()
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 
   it('never divides by zero for an empty quiz (the check rejects one; render defensively)', async () => {

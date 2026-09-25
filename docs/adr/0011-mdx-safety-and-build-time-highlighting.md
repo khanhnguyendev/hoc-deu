@@ -25,10 +25,14 @@ neither the repo nor an arbitrary host.
   the output.
 - **One parser for check and render:** the safety check parses with `@mdx-js/mdx` (OD1) and the
   **same** remark plugins, from one shared list (`tools/content/mdx/remark-plugins.ts`) that both
-  `tools/content/mdx/parse.ts` and `next.config.ts` import. A guard test pins the list in
-  `next.config.ts` and compiles probes with the real config — `See https://x.test/{alert(1)} now`
-  and a `{…}` in frontmatter must compile to text, never to an expression. A check is only valid
-  if the renderer parses exactly like the checker.
+  `tools/content/mdx/parse.ts` and `next.config.ts` import. A check is only valid if the renderer
+  parses exactly like the checker, so `tools/guards/next-config.test.ts` pins, for Turbopack and
+  for webpack: no `experimental.mdxRs` (the Rust loader ignores remark plugins — plain CommonMark,
+  no GFM, no frontmatter); the loader is `@next/mdx`'s mdx-js loader; and its **whole** options
+  object is `{ providerImportSource, remarkPlugins: <the shared list> }` — no rehype or recma
+  plugin, no `format`, nothing else that would change the output after the check. It then
+  compiles probes with the real config: `See https://x.test/{alert(1)} now` and a `{…}` in
+  frontmatter must compile to text, never to an expression.
 - **Strict safety check in `content:build`**, on the MDX syntax tree (not regexes): no
   `import` / `export`, no `{expressions}` (braces in prose are written `` `{}` `` or `\{\}`);
   only the allow-listed components, with **literal** attribute values (no expression values, no
@@ -48,10 +52,13 @@ neither the repo nor an arbitrary host.
 - **Images (owner decision OD3):** remote, in one allow-listed Supabase Storage bucket —
   `content-images` in the production project, public read, owner-only writes, 1 MB per file, SVG /
   PNG / WebP / JPEG — **not in git**. The owner created it in the dashboard on 2026-09-25; no
-  migration creates it. One committed constant, `CONTENT_IMAGE_BASE_URL`, feeds both the safety
-  check (URL under the base, `<track>/<item-local-id>/` prefix, path characters, extension,
-  non-empty alt, `"WIDTHxHEIGHT"` title) and `next.config.ts` `images.remotePatterns`.
-  `ContentImage` renders `next/image` at the size from the title (SVG `unoptimized`). Runbook:
+  migration creates it. One committed constant, `CONTENT_IMAGE_BASE_URL` (`lib/content/images.ts`,
+  re-exported by `tools/content/allowlist.ts`), feeds the safety check (URL under the base,
+  `<track>/<item-local-id>/` prefix, path characters, extension, non-empty alt, `"WIDTHxHEIGHT"`
+  title), `next.config.ts` `images.remotePatterns` and the renderer. `ContentImage` renders
+  `next/image` at the size from the title (SVG `unoptimized`) and fails closed: a source outside
+  the base renders nothing, because an unoptimized SVG never passes `remotePatterns`. The app
+  never imports `tools/` (a layer rule): shared rules live in `lib/`. Runbook:
   `docs/ops/content-images.md`.
 
 ## Consequences
@@ -68,3 +75,4 @@ neither the repo nor an arbitrary host.
   constant and every image URL.
 - The shared plugin list must stay the single source: adding a remark plugin is a change to that
   list, checked by the guard test, never a local addition in `next.config.ts` or the checker.
+  Any other MDX option (a rehype plugin, `mdxRs`) fails the guard until this ADR is revisited.

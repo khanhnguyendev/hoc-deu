@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { CONTENT_IMAGE_BASE_URL } from '@/tools/content/allowlist'
+import { CONTENT_IMAGE_BASE_URL } from '@/lib/content/images'
 import { ContentImage } from './content-image'
 
 const url = (path: string) => `${CONTENT_IMAGE_BASE_URL}dsa/lesson-two-pointers/${path}`
@@ -38,6 +38,30 @@ describe('ContentImage (OD3)', () => {
       expect(container.innerHTML).toBe('')
     },
   )
+
+  it.each([
+    'https://evil.test/storage/v1/object/public/content-images/dsa/x/a.svg',
+    'https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images-evil/a.svg',
+    'http://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images/dsa/x/a.svg',
+    '/dev/content-image-sample.svg',
+  ])('fails closed: renders nothing for %s (outside the bucket)', (src) => {
+    const { container } = render(<ContentImage src={src} alt="a" title="10x10" />)
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('lets code (the catalog) name another base; content cannot pass props', () => {
+    render(
+      <ContentImage src="/dev/content-image-sample.svg" alt="a" title="320x180" baseUrl="/dev/" />,
+    )
+    expect(screen.getByRole('img').getAttribute('src')).toBe('/dev/content-image-sample.svg')
+  })
+
+  it('renders nothing when the base is empty (every image rejected)', () => {
+    const { container } = render(
+      <ContentImage src={url('walk.svg')} alt="a" title="10x10" baseUrl="" />,
+    )
+    expect(container.innerHTML).toBe('')
+  })
 
   it('renders nothing without a source', () => {
     const { container } = render(<ContentImage alt="a" title="10x10" />)

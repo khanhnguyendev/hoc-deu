@@ -1,7 +1,9 @@
+import { Square, SquareCheck } from 'lucide-react'
 import type { MDXComponents } from 'mdx/types'
-import type { ComponentProps, ComponentType } from 'react'
+import type { ComponentProps, ComponentType, CSSProperties } from 'react'
 import type { MdxComponentName } from '@/lib/content/mdx-components'
 import { vi } from '@/lib/i18n/vi'
+import { cn } from '@/lib/utils'
 import { Bilingual } from '../components/mdx/bilingual'
 import { Callout } from '../components/mdx/callout'
 import { CodePre } from '../components/mdx/code-pre'
@@ -35,6 +37,44 @@ function Table({ framed = true, ...props }: ComponentProps<'table'> & { framed?:
   )
 }
 
+/** GFM marks a task list's `ul` / `ol` with this class (MDX output, not a Tailwind class). */
+const TASK_LIST = 'contains-task-list'
+
+type ListProps = ComponentProps<'ul'> & ComponentProps<'ol'>
+
+/** A list's classes: bullets or numbers, none for a task list (its items carry a marker). */
+function listClass(className: string | undefined, marker: 'list-disc' | 'list-decimal'): string {
+  const task = className?.split(' ').includes(TASK_LIST) ?? false
+  return cn('space-y-1 pl-6 marker:text-muted-foreground', task ? 'list-none pl-1' : marker)
+}
+
+/**
+ * A GFM task-list checkbox (`- [x] …`): MDX renders a disabled, unlabelled `<input>`; show a
+ * marker instead — an icon plus visually hidden "Đã xong" / "Chưa xong" — never a control.
+ */
+function TaskMarker({ type, checked }: ComponentProps<'input'>) {
+  if (type !== 'checkbox') return null
+  const Icon = checked ? SquareCheck : Square
+  return (
+    <span data-slot="task-marker" className="mr-2 inline-flex align-text-bottom">
+      <Icon aria-hidden="true" strokeWidth={1.75} className="size-4" />
+      <span className="sr-only">{checked ? vi.content.task.done : vi.content.task.todo}</span>
+    </span>
+  )
+}
+
+/** GFM column alignment arrives as `style={{ textAlign }}`; map it to token classes, drop the style. */
+const ALIGN: Readonly<Record<string, string>> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+}
+
+function alignClass(style: CSSProperties | undefined): string | undefined {
+  const align = style?.textAlign
+  return typeof align === 'string' && Object.hasOwn(ALIGN, align) ? ALIGN[align] : undefined
+}
+
 /**
  * The global MDX component map (`mdx-components.tsx`): every allow-listed component (MDX throws
  * on an undefined one) and the Markdown elements content uses, styled with token classes only.
@@ -59,11 +99,11 @@ export const mdxComponents = {
   h3: (props: ComponentProps<'h3'>) => <h3 {...props} className={contentHeading({ level: 3 })} />,
   h4: (props: ComponentProps<'h4'>) => <h4 {...props} className={contentHeading({ level: 4 })} />,
   p: (props: ComponentProps<'p'>) => <p {...props} />,
-  ul: (props: ComponentProps<'ul'>) => (
-    <ul {...props} className="list-disc space-y-1 pl-6 marker:text-muted-foreground" />
+  ul: ({ className, ...props }: ListProps) => (
+    <ul {...props} className={listClass(className, 'list-disc')} />
   ),
-  ol: (props: ComponentProps<'ol'>) => (
-    <ol {...props} className="list-decimal space-y-1 pl-6 marker:text-muted-foreground" />
+  ol: ({ className, ...props }: ListProps) => (
+    <ol {...props} className={listClass(className, 'list-decimal')} />
   ),
   li: (props: ComponentProps<'li'>) => <li {...props} className="pl-1" />,
   a: ExternalLink,
@@ -84,11 +124,17 @@ export const mdxComponents = {
   tr: (props: ComponentProps<'tr'>) => (
     <tr {...props} className="border-b border-border last:border-b-0" />
   ),
-  th: (props: ComponentProps<'th'>) => (
-    <th {...props} className="px-3 py-2 text-left font-semibold whitespace-nowrap" />
+  th: ({ style, ...props }: ComponentProps<'th'>) => (
+    <th
+      {...props}
+      className={cn('px-3 py-2 text-left font-semibold whitespace-nowrap', alignClass(style))}
+    />
   ),
-  td: (props: ComponentProps<'td'>) => <td {...props} className="px-3 py-2 align-top" />,
+  td: ({ style, ...props }: ComponentProps<'td'>) => (
+    <td {...props} className={cn('px-3 py-2 align-top', alignClass(style))} />
+  ),
   hr: (props: ComponentProps<'hr'>) => <hr {...props} className="border-border" />,
   strong: (props: ComponentProps<'strong'>) => <strong {...props} className="font-semibold" />,
   em: (props: ComponentProps<'em'>) => <em {...props} className="italic" />,
+  input: TaskMarker,
 } satisfies MDXComponents & { [K in MdxComponentName]: ComponentType<never> }

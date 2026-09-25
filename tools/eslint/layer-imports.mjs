@@ -14,6 +14,7 @@ const MESSAGES = {
   componentsInApi: 'Route handlers are thin adapters: lib/* and feature index.ts, no components.',
   domain: 'lib/domain is pure: only lib/domain and zod.',
   clientSecrets: 'Client modules must not import server configuration or the secret-key client.',
+  tools: 'tools/ is build-time code; the app imports shared rules from lib/.',
 }
 
 // Owner review SF7: `lib/env` is deliberately not `server-only` (decision 11), so the lint rule is
@@ -59,6 +60,10 @@ export function violation(file, to) {
     } else if (under(to, 'components/ui')) return MESSAGES.uiInPages
   }
   if (!under(file, 'app') && under(to, 'app')) return MESSAGES.app
+  // Task 3.3b review: build-time code (content:build, guards, CLIs) never reaches the running app;
+  // shared rules live in lib/. The catalog (app/dev, returned above) may use tools for fixtures.
+  const appCode = under(file, 'app') || under(file, 'components') || under(file, 'features')
+  if (appCode && under(to, 'tools')) return MESSAGES.tools
 
   const toFeature = featureOf(to)
   if (toFeature !== null) {

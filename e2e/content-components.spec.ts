@@ -83,6 +83,16 @@ test.describe(`${PAGE} lesson`, () => {
     await expect(questions.nth(0).getByRole('radio').nth(1)).not.toBeChecked()
   })
 
+  test('the whole choice card selects its radio (stretched label)', async ({ page }) => {
+    await gotoHydrated(page, PAGE)
+    const first = page.locator('[data-slot="quiz"]').getByRole('group').nth(0)
+    const card = first.locator('[data-slot="choice"]').nth(1)
+    const box = (await card.boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    await card.click({ position: { x: box.width - 12, y: box.height / 2 } })
+    await expect(first.getByRole('radio').nth(1)).toBeChecked()
+  })
+
   test('arrow keys move the choice within one question', async ({ page }) => {
     await gotoHydrated(page, PAGE)
     const first = page.locator('[data-slot="quiz"]').getByRole('group').nth(0)

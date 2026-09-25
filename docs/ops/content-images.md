@@ -29,6 +29,11 @@ renderer) and `docs/ops/staging.md` (which Supabase project previews use).
 - Names: lower case `[a-z0-9-_.]` only — no spaces, capitals or other characters; no `..`.
 - SVGs are exported **without scripts** (no `<script>`, no event attributes, no external
   references). Prefer SVG for diagrams; keep raster images well under the 1 MB limit.
+- **Both themes:** an image is drawn on the page's background, light or dark, and `currentColor`
+  inside an `<img>` is always black (it does not inherit the text colour) — a stroke-only SVG
+  vanishes in dark mode. Give every SVG (and every transparent PNG/WebP) an **opaque
+  background** (e.g. a full-size white `<rect>` first), or check it on a preview in both themes
+  before asking for review.
 
 ## 3. Licence
 
@@ -57,7 +62,8 @@ https://oelgwbxukbgaqqvociwi.supabase.co/storage/v1/object/public/content-images
 - `![alt](<base><track>/<local-id>/<name>.<ext> "WIDTHxHEIGHT")`: non-empty Vietnamese alt text
   that says what the image shows, the full `https://` URL under the base, and the intrinsic size
   in the title (1–9999 each). The renderer uses `next/image` at that size: raster images go
-  through Next's optimiser, SVGs are served as uploaded.
+  through Next's optimiser, SVGs are served as uploaded. It fails closed: a source outside the
+  bucket, or a missing or malformed size, renders nothing.
 - **Upload first, then open the content PR.** The build never fetches images (it must work
   offline), so a missing upload is not caught by `pnpm verify` — it only shows as a broken image
   on the preview. Open the preview and check every new image before asking for review.
