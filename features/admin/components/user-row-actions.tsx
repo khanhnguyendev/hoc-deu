@@ -48,22 +48,31 @@ const slotOf = (action: Action) => (action === 'promote' || action === 'demote' 
 type RowState = { userId: string; status: AccountStatus; role: Role }
 
 /**
- * The row whose next render in a different status or role takes keyboard focus (WCAG 2.4.3). An
- * action usually moves its row to another section, which unmounts this component and mounts a new
- * one there — so the note lives outside the component. One slot: a newer action replaces it.
+ * Per row (task 5.6, the M2 2.8 minor), the state it had when an action started: its next render
+ * in a different status or role takes keyboard focus (WCAG 2.4.3). An action usually moves its
+ * row to another section, which unmounts this component and mounts a new one there — so the notes
+ * live outside the component, keyed by account: two interleaved actions on two rows keep their own
+ * focus targets.
  */
-let followed: RowState | null = null
+const followed = new Map<string, RowState>()
 
-/** Notes the row's state before an action. */
-function followRow(row: RowState): void {
-  followed = row
+/** Notes the row's state before an action; returns the note. */
+function followRow(row: RowState): RowState {
+  followed.set(row.userId, row)
+  return row
 }
 
-/** Whether `row` is the followed row, now shown in another state; clears the note if so. */
+/** Drops `note` — unless a newer action on the same row has replaced it. */
+function forgetRow(note: RowState): void {
+  if (followed.get(note.userId) === note) followed.delete(note.userId)
+}
+
+/** Whether `row` has a note and is now shown in another state; clears the note if so. */
 function takeFollowedRow(row: RowState): boolean {
-  if (followed?.userId !== row.userId) return false
-  if (followed.status === row.status && followed.role === row.role) return false
-  followed = null
+  const note = followed.get(row.userId)
+  if (note === undefined) return false
+  if (note.status === row.status && note.role === row.role) return false
+  followed.delete(row.userId)
   return true
 }
 
@@ -90,9 +99,11 @@ function UserRowActions({
   setUserRole,
 }: {
   user: { id: string; name: string; status: AccountStatus; role: Role }
+  /** `expectedFrom` is the status this row was rendered with (`p_expected_from`, task 5.6). */
   setUserStatus: (
     userId: string,
     status: 'active' | 'rejected' | 'suspended',
+    expectedFrom: AccountStatus,
   ) => Promise<AdminActionResult>
   setUserRole: (userId: string, role: Role) => Promise<AdminActionResult>
 }) {
@@ -115,11 +126,11 @@ function UserRowActions({
     switch (action) {
       case 'approve':
       case 'reactivate':
-        return setUserStatus(user.id, 'active')
+        return setUserStatus(user.id, 'active', user.status)
       case 'reject':
-        return setUserStatus(user.id, 'rejected')
+        return setUserStatus(user.id, 'rejected', user.status)
       case 'suspend':
-        return setUserStatus(user.id, 'suspended')
+        return setUserStatus(user.id, 'suspended', user.status)
       case 'promote':
         return setUserRole(user.id, 'admin')
       case 'demote':
@@ -132,7 +143,7 @@ function UserRowActions({
     setError(null)
     succeeded.current = false
     // Noted before the call: the re-rendered list may arrive before the action's result does.
-    followRow({ userId: user.id, status: user.status, role: user.role })
+    const note = followRow({ userId: user.id, status: user.status, role: user.role })
     startTransition(async () => {
       let result: AdminActionResult
       try {
@@ -142,6 +153,10 @@ function UserRowActions({
         result = { ok: false, message: vi.admin.errors.failed }
       }
       succeeded.current = result.ok
+      // A failure that changed nothing forgets the note, so a later change of this row (another
+      // admin's decision) never pulls focus. A stale failure keeps it: the list is re-rendering
+      // with the account's current state, and focus follows the row there.
+      if (!result.ok && !result.stale) forgetRow(note)
       // `running` stays set: with `pending` it marks the pressed button busy until the transition
       // ends. Clearing it here would disable that button while `pending` is still true, and the
       // dialog could not return focus to it.

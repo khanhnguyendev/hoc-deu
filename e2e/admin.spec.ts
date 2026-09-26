@@ -10,6 +10,7 @@ import {
   deleteTestUser,
   getProfile,
   seedLearnerSetup,
+  setStatus,
   type TestUser,
 } from './support/users'
 
@@ -171,6 +172,25 @@ test.describe('/admin/users', () => {
     await expect(own.getByText('Bạn', { exact: true })).toBeVisible()
     await expect(own.getByText('Quản trị viên', { exact: true })).toBeVisible()
     await expect(own.getByRole('button')).toHaveCount(0)
+  })
+
+  test('a stale "Duyệt" does not re-activate an account another admin rejected (p_expected_from)', async ({
+    page,
+  }) => {
+    const pending = await user({ status: 'pending', name: uniqueName('Đã bị từ chối') })
+    await openQueueAsAdmin(page)
+    await expect(row(page, PENDING, pending.name)).toBeVisible()
+
+    // Another admin rejects the account while this list still shows it pending.
+    await setStatus(pending.id, 'rejected')
+    await row(page, PENDING, pending.name).getByRole('button', { name: 'Duyệt' }).click()
+    await expect(
+      page.getByText('Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.').first(),
+    ).toBeVisible()
+    // The list re-renders with the account's current state; nothing changed.
+    await expect(row(page, REJECTED, pending.name)).toBeVisible()
+    await expect(row(page, PENDING, pending.name)).toHaveCount(0)
+    expect(await statusOf(pending.id)()).toBe('rejected')
   })
 })
 

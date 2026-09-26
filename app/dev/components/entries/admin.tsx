@@ -421,10 +421,10 @@ export const ADMIN_ENTRIES: Entry[] = [
     file: 'components/patterns/focus-layout.tsx',
     demos: [
       {
-        title: 'Wordmark, skip link, centred main (narrow)',
+        title: 'Wordmark, skip link, centred main (narrow); the catalog has its own Toaster',
         render: () => (
           <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
-            <FocusLayout>
+            <FocusLayout toaster={false}>
               <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
             </FocusLayout>
           </div>
@@ -434,7 +434,11 @@ export const ADMIN_ENTRIES: Entry[] = [
         title: 'Wide, with header actions',
         render: () => (
           <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
-            <FocusLayout width="wide" headerActions={<Button variant="outline">Trợ giúp</Button>}>
+            <FocusLayout
+              width="wide"
+              headerActions={<Button variant="outline">Trợ giúp</Button>}
+              toaster={false}
+            >
               <p className="text-center text-sm text-muted-foreground">Nội dung trang rộng.</p>
             </FocusLayout>
           </div>

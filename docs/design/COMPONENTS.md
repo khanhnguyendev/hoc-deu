@@ -394,13 +394,15 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/focus-layout.tsx`
 - **Props:** `children`, `width?: 'narrow' | 'wide'` (`max-w-md` / `max-w-2xl`, default `narrow`),
-  `headerActions?: ReactNode`
+  `headerActions?: ReactNode`, `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
+  the AppShell does for signed-in pages — task 5.6; `false` where the page has its own, the
+  catalog, so no toast shows twice)
 - **Variants:** narrow · wide
 - **States:** static
 - **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
   `/onboarding`)
 - **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
-  landmark
+  landmark; toasts are announced in the Toaster's polite live region
 - **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
   DESIGN_SYSTEM §5)
 
@@ -637,9 +639,10 @@ from `lib/i18n/vi.ts`.
 - **Layer:** feature (`features/admin`)
 - **File:** `features/admin/components/user-queue.tsx`
 - **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
-  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended') => Promise<AdminActionResult>`,
-  `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the server actions come in as
-  props (passed on to `UserRowActions`), so the catalog passes no-ops
+  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended', expectedFrom: AccountStatus) =>
+  Promise<AdminActionResult>` (`expectedFrom`: the status the row was rendered with —
+  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the
+  server actions come in as props (passed on to `UserRowActions`), so the catalog passes no-ops
 - **Variants:** none
 - **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
   khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
@@ -667,7 +670,9 @@ from `lib/i18n/vi.ts`.
   confirming — "Từ chối", "Tạm khoá" and the role changes open a ConfirmDialog first
   (destructive, except "Đặt làm quản trị"), pending while the action runs; failed — the message
   also stays in the row (`text-danger` + icon), because a toast is never the only feedback for a
-  failure (DESIGN_SYSTEM §9)
+  failure (DESIGN_SYSTEM §9); stale — another admin decided first: the status actions send the
+  row's rendered status (`p_expected_from`), the RPC answers `status_changed` and the row shows
+  "Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé." while the list re-renders (task 5.6)
 - **Usage:** rendered by UserQueue for every row but the admin's own
 - **Accessibility:** the buttons sit in a `group` named "Thao tác với {name}", so each "Duyệt" is
   announced with its account; the result is a toast in the polite live region (the AppShell's
@@ -676,8 +681,11 @@ from `lib/i18n/vi.ts`.
   status or role — moved to another section (a new instance mounts there) or changed in place —
   keyboard focus goes to that row's target (scrolled into view only as far as needed); a
   cancelled dialog or a failure that changes nothing returns focus to the pressed button (the
-  role button is keyed by its slot, so promote ↔ demote keeps the same element); names are
-  inserted literally (a replacer function, so `$&` in a display name stays text)
+  role button is keyed by its slot, so promote ↔ demote keeps the same element). The note of
+  which row to follow is kept **per row** (task 5.6): two interleaved actions on two rows each
+  follow their own row, and a failure that changes nothing clears its note (a stale failure keeps
+  it, so focus follows the re-rendered row); names are inserted literally (a replacer function,
+  so `$&` in a display name stays text)
 
 ### Landing
 
