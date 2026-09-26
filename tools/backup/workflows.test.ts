@@ -62,8 +62,15 @@ const indexOf = (steps: Step[], predicate: (step: Step) => boolean, label: strin
   return index
 }
 const named = (name: string) => (step: Step) => step.name === name
-/** Where a word runs as a command: line start, after an operator, a keyword or a wrapper. */
-const COMMAND_AT = String.raw`(?:^|[|;&({!]|\$\(|\b(?:sudo|do|then|else|if|elif|while|until|exec|xargs|env|command|time)\b)\s*`
+/**
+ * Where a word runs as a command: line start, after an operator, a brace, a case arm's pattern
+ * (`*) …`), a keyword or a wrapper.
+ */
+const COMMAND_AT = String.raw`(?:^|[|;&(){!]|\$\(|\b(?:sudo|do|then|else|if|elif|while|until|exec|xargs|env|command|time)\b)\s*`
+/** A command that prints a file, in command position. */
+const PRINTERS = new RegExp(
+  `${COMMAND_AT}(cat|head|tail|less|more|tee|xxd|od|hexdump|strings|zcat|zless|zmore|zgrep|bzcat|xzcat|base64|jq)\\b`,
+)
 /** A script's commands: continuation lines joined, comment lines dropped, indentation trimmed. */
 const commands = (step: Step): string[] =>
   (step.run ?? '')
@@ -104,6 +111,32 @@ const DATA_STEPS = {
   backup: [B.meta, B.dump, B.manifest, B.encrypt, B.check],
   restore: [R.find, R.download, R.decrypt, R.verify, R.load, R.compare],
 }
+
+describe('the print guard itself', () => {
+  it.each([
+    'cat "$work/public.sql"',
+    'x=1; head -c 100 "$work/public.sql"',
+    'for f in *.gz; do zcat "$f"; done',
+    'if true; then base64 "$work/auth.sql"; fi',
+    '{ tail -n 1 "$work/public.sql"; }',
+    'xargs cat < list',
+    // A case arm: the command follows the pattern's closing parenthesis.
+    '*) cat "$work/x" ;;',
+    'true) tee copy.sql < "$work/public.sql" ;;',
+  ])('catches %s', (line) => {
+    expect(line).toMatch(PRINTERS)
+  })
+
+  it.each([
+    '*) echo ok ;;',
+    '*) echo "::error::BACKUP_INCLUDE_AUTH must be true, false or unset"; exit 1 ;;',
+    'true) with_auth=true ;;',
+    'sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age',
+    'echo "the category is more or less fine"',
+  ])('lets %s through', (line) => {
+    expect(line).not.toMatch(PRINTERS)
+  })
+})
 
 describe.each([
   ['backup.yml', backup, { cron: '17 22 * * *', permissions: { contents: 'read' } }],
@@ -150,11 +183,8 @@ describe.each([
   })
 
   it('never prints a file: no cat, head, tail, pagers, tee, z-tools, encoders or hex dumpers', () => {
-    const printers = new RegExp(
-      `${COMMAND_AT}(cat|head|tail|less|more|tee|xxd|od|hexdump|strings|zcat|zless|zmore|zgrep|bzcat|xzcat|base64|jq)\\b`,
-    )
     for (const step of steps) {
-      for (const line of commands(step)) expect(line, step.name).not.toMatch(printers)
+      for (const line of commands(step)) expect(line, step.name).not.toMatch(PRINTERS)
     }
   })
 
