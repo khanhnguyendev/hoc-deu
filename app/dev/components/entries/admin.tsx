@@ -79,6 +79,26 @@ const DEMO_FIRST_RUN = buildAdminOverview({
   coverage: [],
   now: DEMO_NOW,
 })
+/**
+ * The cron has run (36+ hours ago), yet no backup or restore test ever succeeded; the DB size was
+ * last measured then too.
+ */
+const DEMO_NO_RUNS = buildAdminOverview({
+  counts: DEMO_COUNTS,
+  metrics: {
+    ...DEMO_NO_METRICS,
+    'db.size_bytes': {
+      value: 42 * MB,
+      recordedAt: new Date(DEMO_NOW.getTime() - 40 * HOUR_MS).toISOString(),
+    },
+    'cron.last_run_at': {
+      value: (DEMO_NOW.getTime() - 40 * HOUR_MS) / 1000,
+      recordedAt: new Date(DEMO_NOW.getTime() - 40 * HOUR_MS).toISOString(),
+    },
+  },
+  coverage: [],
+  now: DEMO_NOW,
+})
 /** Every warning kind and tone: the red coverage warning, a critical DB size, the rest. */
 const DEMO_ALL_WARNINGS: AdminWarning[] = [
   ...buildAdminOverview({
@@ -101,7 +121,10 @@ const DEMO_ALL_WARNINGS: AdminWarning[] = [
     coverage: [],
     now: DEMO_NOW,
   }).warnings,
-]
+  // "Chưa có lần … thành công nào": the cron has run, no success was ever read.
+  ...DEMO_NO_RUNS.warnings,
+  // Merged from three pages: each key once (a page's warning keys are unique only within it).
+].map((warning, index) => ({ ...warning, key: `${warning.key}:${index}` }))
 
 const DEMO_STATS: TrackStats = {
   trackTitle: DEMO_DSA,
@@ -194,6 +217,15 @@ const ADMIN_OVERVIEW_ENTRIES: Entry[] = [
           </div>
         ),
       },
+      {
+        title:
+          'Cron đã chạy nhưng chưa có lần sao lưu hay kiểm tra khôi phục thành công; dung lượng đo đã hơn 36 giờ',
+        render: () => (
+          <div className="flex w-full flex-col gap-6">
+            <AdminOverview page={DEMO_NO_RUNS} />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -203,7 +235,7 @@ const ADMIN_OVERVIEW_ENTRIES: Entry[] = [
     demos: [
       {
         title:
-          'Mọi loại: độ phủ nội dung (đỏ), dung lượng nghiêm trọng, sao lưu, kiểm tra khôi phục, 100 MB',
+          'Mọi loại: độ phủ nội dung (đỏ), dung lượng nghiêm trọng, sao lưu, kiểm tra khôi phục, 100 MB, chưa từng thành công',
         render: () => (
           <div className="w-full">
             <AdminWarnings warnings={DEMO_ALL_WARNINGS} />

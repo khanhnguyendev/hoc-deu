@@ -7,6 +7,7 @@
 import type { AccountStatus } from '@/lib/auth/dal'
 import { fill, formatDayTimeIn, formatNumber, variantLabel } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { REPOSITORY_URL } from '@/lib/ops/repository'
 import type { CoverageWarning } from './content'
 
 const copy = vi.adminOverview
@@ -29,12 +30,11 @@ const DAY_MS = 24 * HOUR_MS
 /** Admin times read in the platform's default zone (§5.1), as the queue's sign-up days do. */
 const ADMIN_TIME_ZONE = 'Asia/Ho_Chi_Minh'
 
-const REPOSITORY = 'https://github.com/khanhnguyendev/hoc-deu'
 const LINKS = {
-  backupsRunbook: `${REPOSITORY}/blob/main/docs/ops/backups.md`,
-  compaction: `${REPOSITORY}/blob/main/docs/adr/0031-event-compaction-deferred.md`,
-  backupRuns: `${REPOSITORY}/actions/workflows/backup.yml`,
-  restoreRuns: `${REPOSITORY}/actions/workflows/restore-test.yml`,
+  backupsRunbook: `${REPOSITORY_URL}/blob/main/docs/ops/backups.md`,
+  compaction: `${REPOSITORY_URL}/blob/main/docs/adr/0031-event-compaction-deferred.md`,
+  backupRuns: `${REPOSITORY_URL}/actions/workflows/backup.yml`,
+  restoreRuns: `${REPOSITORY_URL}/actions/workflows/restore-test.yml`,
 } as const
 
 /** The `ops_metrics` keys (20260927000200_ops.sql). */
@@ -136,36 +136,50 @@ function dbSizeWarning(reading: MetricReading | null): AdminWarning | null {
  */
 function isStale(reading: MetricReading, maxAgeMs: number, now: Date): boolean {
   const checkedAt = Date.parse(reading.recordedAt)
-  return (
-    checkedAt - reading.value * 1000 > maxAgeMs ||
-    now.getTime() - checkedAt > READING_MAX_AGE_HOURS * HOUR_MS
-  )
+  return checkedAt - reading.value * 1000 > maxAgeMs || isOldReading(reading, now)
 }
+
+/** No reading for 36 hours: the daily cron (or its read) has missed a day. */
+const isOldReading = (reading: MetricReading, now: Date) =>
+  now.getTime() - Date.parse(reading.recordedAt) > READING_MAX_AGE_HOURS * HOUR_MS
 
 function whenText(seconds: number): string {
   const { day, time } = clock(seconds)
   return fill(copy.system.when, { time, day })
 }
 
+/**
+ * The backup or restore-test warning: its last success is stale (above), or — once the cron has
+ * run at all (`cron.last_run_at`, fresh or not) — no success was ever read. Only before the first
+ * cron run does a missing reading stay silent ("chưa có dữ liệu", the first-run hint).
+ */
 function runWarning(
   kind: 'backup' | 'restore-test',
   reading: MetricReading | null,
+  cron: MetricReading | null,
   now: Date,
 ): AdminWarning | null {
   const maxAgeMs =
     kind === 'backup' ? BACKUP_MAX_AGE_HOURS * HOUR_MS : RESTORE_TEST_MAX_AGE_DAYS * DAY_MS
-  if (reading === null || !isStale(reading, maxAgeMs, now)) return null
   const backup = kind === 'backup'
-  return {
+  const base = {
     key: kind,
     kind,
-    tone: 'warning',
-    message: fill(backup ? copy.warnings.backupStale : copy.warnings.restoreStale, {
-      when: whenText(reading.value),
-    }),
+    tone: 'warning' as const,
     action: backup
       ? { label: copy.warnings.actions.backupRuns, href: LINKS.backupRuns }
       : { label: copy.warnings.actions.restoreRuns, href: LINKS.restoreRuns },
+  }
+  if (reading === null) {
+    if (cron === null) return null
+    return { ...base, message: backup ? copy.warnings.backupNever : copy.warnings.restoreNever }
+  }
+  if (!isStale(reading, maxAgeMs, now)) return null
+  return {
+    ...base,
+    message: fill(backup ? copy.warnings.backupStale : copy.warnings.restoreStale, {
+      when: whenText(reading.value),
+    }),
   }
 }
 
@@ -185,26 +199,51 @@ function coverageWarning(warning: CoverageWarning): AdminWarning {
 
 const NO_DATA = { value: copy.system.noData, hint: copy.system.noDataHint }
 
+/**
+ * A card of an instant. No reading: "chưa có dữ liệu" with the first-run hint — or, once the cron
+ * has run, the hint that it found no successful run.
+ */
 function instantCard(
   id: SystemCard['id'],
   label: string,
   reading: MetricReading | null,
+  cronHasRun: boolean,
 ): SystemCard {
-  if (reading === null) return { id, label, ...NO_DATA }
+  if (reading === null) {
+    return cronHasRun
+      ? { id, label, value: copy.system.noData, hint: copy.system.noSuccessHint }
+      : { id, label, ...NO_DATA }
+  }
   const { day, time } = clock(reading.value)
   return { id, label, value: day, hint: fill(copy.system.at, { time }) }
 }
 
-function systemCards(metrics: OpsMetrics): SystemCard[] {
-  const size = metrics['db.size_bytes']
-  const dbSize = { id: 'db-size' as const, label: copy.system.dbSize }
+/** The DB size; a size the cron has not measured for 36 hours says so, with when it was. */
+function dbSizeCard(reading: MetricReading | null, now: Date): SystemCard {
+  const base = { id: 'db-size' as const, label: copy.system.dbSize }
+  if (reading === null) return { ...base, ...NO_DATA }
+  const stale = isOldReading(reading, now)
+  return {
+    ...base,
+    value: formatSize(reading.value),
+    hint: stale
+      ? fill(copy.system.staleHint, { when: whenText(Date.parse(reading.recordedAt) / 1000) })
+      : copy.system.dbSizeHint,
+  }
+}
+
+function systemCards(metrics: OpsMetrics, now: Date): SystemCard[] {
+  const cronHasRun = metrics['cron.last_run_at'] !== null
   return [
-    size === null
-      ? { ...dbSize, ...NO_DATA }
-      : { ...dbSize, value: formatSize(size.value), hint: copy.system.dbSizeHint },
-    instantCard('backup', copy.system.backup, metrics['backup.last_success_at']),
-    instantCard('restore-test', copy.system.restoreTest, metrics['restore_test.last_success_at']),
-    instantCard('cron', copy.system.cron, metrics['cron.last_run_at']),
+    dbSizeCard(metrics['db.size_bytes'], now),
+    instantCard('backup', copy.system.backup, metrics['backup.last_success_at'], cronHasRun),
+    instantCard(
+      'restore-test',
+      copy.system.restoreTest,
+      metrics['restore_test.last_success_at'],
+      cronHasRun,
+    ),
+    instantCard('cron', copy.system.cron, metrics['cron.last_run_at'], false),
   ]
 }
 
@@ -219,8 +258,13 @@ export function buildAdminOverview(input: {
   const warnings = [
     ...input.coverage.map(coverageWarning),
     dbSizeWarning(metrics['db.size_bytes']),
-    runWarning('backup', metrics['backup.last_success_at'], now),
-    runWarning('restore-test', metrics['restore_test.last_success_at'], now),
+    runWarning('backup', metrics['backup.last_success_at'], metrics['cron.last_run_at'], now),
+    runWarning(
+      'restore-test',
+      metrics['restore_test.last_success_at'],
+      metrics['cron.last_run_at'],
+      now,
+    ),
   ].filter((warning) => warning !== null)
   return {
     // A stable sort: red and critical first, each group in the order above.
@@ -229,7 +273,7 @@ export function buildAdminOverview(input: {
       ...warnings.filter((warning) => warning.tone === 'warning'),
     ],
     counts,
-    system: systemCards(metrics),
+    system: systemCards(metrics, now),
     links: [
       {
         href: '/admin/users',

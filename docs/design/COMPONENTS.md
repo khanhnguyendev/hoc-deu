@@ -1711,8 +1711,11 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **File:** `features/admin/components/admin-overview.tsx`
 - **Props:** `page: AdminOverviewPage` (`getAdminOverview()`)
 - **Variants:** —
-- **States:** with warnings · no warning; each metric with a value or "chưa có dữ liệu" (before the
-  first cron run); loading — `app/(admin)/admin/loading.tsx`; error — the `(admin)` error boundary
+- **States:** with warnings · no warning; each metric with a value or "chưa có dữ liệu" — before the
+  first cron run with the hint "Có sau lần chạy đầu tiên của cron bảo trì.", after it (no
+  successful backup / restore test read) with "Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành
+  công nào."; a DB size not measured for 36 h says "Không có số liệu mới trong 36 giờ qua (đo lúc
+  …)"; loading — `app/(admin)/admin/loading.tsx`; error — the `(admin)` error boundary
 - **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
@@ -1728,7 +1731,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Props:** `warnings: readonly AdminWarning[]` (red and critical first)
 - **Variants:** Banner `danger` (danger-soft: the red content-coverage warning, DB ≥ 450 MB) ·
   Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
-  "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days)
+  "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days, and —
+  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào")
 - **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
 - **Usage:** rendered by AdminOverview
 - **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link

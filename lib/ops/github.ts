@@ -1,7 +1,6 @@
 import { z } from 'zod'
+import { REPOSITORY } from '@/lib/ops/repository'
 
-/** The repository whose workflow runs are read — a constant, never taken from input. */
-const REPOSITORY = 'khanhnguyendev/hoc-deu'
 const WORKFLOW_FILES = ['backup.yml', 'restore-test.yml'] as const
 export type WorkflowFile = (typeof WORKFLOW_FILES)[number]
 

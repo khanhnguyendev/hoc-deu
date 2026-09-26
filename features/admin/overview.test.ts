@@ -279,3 +279,92 @@ describe('buildAdminOverview — counts and links', () => {
     expect(build().links[1]!.meta).toBe('Không có tuần nào thiếu nội dung')
   })
 })
+
+describe('buildAdminOverview — the cron ran, but no backup or restore test ever succeeded', () => {
+  const noRuns = (cron: MetricReading) =>
+    buildAdminOverview({
+      counts: COUNTS,
+      metrics: { ...NO_METRICS, 'db.size_bytes': size(40), 'cron.last_run_at': cron },
+      coverage: [],
+      now: NOW,
+    })
+
+  it('warns "Chưa có lần sao lưu thành công" (and the restore-test equivalent), never silent', () => {
+    const page = noRuns(instant(0, 2 * HOUR))
+    expect(page.warnings.map((w) => [w.kind, w.tone, w.message, w.action.href])).toEqual([
+      [
+        'backup',
+        'warning',
+        'Chưa có lần sao lưu thành công nào, dù cron bảo trì đã chạy.',
+        'https://github.com/khanhnguyendev/hoc-deu/actions/workflows/backup.yml',
+      ],
+      [
+        'restore-test',
+        'warning',
+        'Chưa có lần kiểm tra khôi phục thành công nào, dù cron bảo trì đã chạy.',
+        'https://github.com/khanhnguyendev/hoc-deu/actions/workflows/restore-test.yml',
+      ],
+    ])
+  })
+
+  it('does not tell the admin to wait for the first cron run any more', () => {
+    const cards = noRuns(instant(0, 2 * HOUR)).system
+    expect(cards.filter((card) => card.id === 'backup' || card.id === 'restore-test')).toEqual([
+      {
+        id: 'backup',
+        label: 'Sao lưu gần nhất',
+        value: 'chưa có dữ liệu',
+        hint: 'Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành công nào.',
+      },
+      {
+        id: 'restore-test',
+        label: 'Kiểm tra khôi phục gần nhất',
+        value: 'chưa có dữ liệu',
+        hint: 'Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành công nào.',
+      },
+    ])
+  })
+
+  it('also warns when that cron run is more than 36 hours old', () => {
+    expect(noRuns(instant(0, 37 * HOUR)).warnings.map((w) => w.kind)).toEqual([
+      'backup',
+      'restore-test',
+    ])
+  })
+
+  it('a stale cron with old readings warns through the readings’ age', () => {
+    const page = build({
+      'backup.last_success_at': instant(HOUR, 37 * HOUR),
+      'restore_test.last_success_at': instant(DAY, 37 * HOUR),
+      'cron.last_run_at': instant(0, 37 * HOUR),
+    })
+    expect(page.warnings.map((w) => w.message)).toEqual([
+      expect.stringContaining('Không có bản sao lưu thành công nào được xác nhận trong 36 giờ qua'),
+      expect.stringContaining('Không có lần kiểm tra khôi phục thành công nào được xác nhận'),
+    ])
+  })
+})
+
+describe('buildAdminOverview — a DB size not measured for 36 hours', () => {
+  const sizeCard = (checkedAgo: number) =>
+    build({
+      'db.size_bytes': {
+        value: 40 * MB,
+        recordedAt: new Date(NOW.getTime() - checkedAgo).toISOString(),
+      },
+    }).system[0]!
+
+  it('says so in the card’s hint, with when it was measured', () => {
+    // 37 hours before 2026-09-27T12:00Z is 2026-09-25T23:00Z: 06:00 on 26 September in Vietnam.
+    expect(sizeCard(37 * HOUR)).toEqual({
+      id: 'db-size',
+      label: 'Dung lượng cơ sở dữ liệu',
+      value: '40 MB',
+      hint: 'Không có số liệu mới trong 36 giờ qua (đo lúc 06:00, 26 tháng 9, 2026).',
+    })
+  })
+
+  it('keeps the plan limit as the hint while the size is fresh', () => {
+    expect(sizeCard(35 * HOUR).hint).toBe('Giới hạn của gói miễn phí: 500 MB')
+  })
+})

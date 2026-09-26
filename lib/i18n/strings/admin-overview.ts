@@ -16,6 +16,9 @@ export const adminOverview = {
       'Không có bản sao lưu thành công nào được xác nhận trong 36 giờ qua (gần nhất: {when}).',
     restoreStale:
       'Không có lần kiểm tra khôi phục thành công nào được xác nhận trong 8 ngày qua (gần nhất: {when}).',
+    /** The cron has run (ADR-0034), yet no successful run was ever read. */
+    backupNever: 'Chưa có lần sao lưu thành công nào, dù cron bảo trì đã chạy.',
+    restoreNever: 'Chưa có lần kiểm tra khôi phục thành công nào, dù cron bảo trì đã chạy.',
     coverage:
       '{track} ({variant}): tuần {weeks} thiếu bài học hoặc ghi chú, mà học viên sẽ học tới trong 14 ngày.',
     actions: {
@@ -48,7 +51,12 @@ export const adminOverview = {
     /** `{when}` in a warning: `05:17, 27 tháng 9, 2026`. */
     when: '{time}, {day}',
     noData: 'chưa có dữ liệu',
+    /** Before the first cron run only. */
     noDataHint: 'Có sau lần chạy đầu tiên của cron bảo trì.',
+    /** The cron has run, but no successful backup / restore test was read. */
+    noSuccessHint: 'Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành công nào.',
+    /** A DB size the cron has not measured for 36 hours. */
+    staleHint: 'Không có số liệu mới trong 36 giờ qua (đo lúc {when}).',
   },
   links: {
     title: 'Trang quản trị',
