@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(54);
+select plan(55);
 
 select tests.create_user('events-learner@hocdeu.test') as learner \gset
 select tests.create_user('events-other@hocdeu.test') as other \gset
@@ -238,11 +238,24 @@ select throws_ok(
     values (gen_random_uuid(), auth.uid(), 'item.result', '{"result": "solved"}')$$,
   'P0001', 'quota_exceeded', 'the 501st raises quota_exceeded'
 );
+-- M2 minor #500 (task 5.0b): a same-user double submit of the 500th event is a duplicate. At the
+-- limit the quota trigger raises only for a new id; an id already stored fails on events_pkey
+-- (apply_event answers duplicate), and the counter's increment rolls back with the insert.
+select id as quota_event from public.events where user_id = auth.uid() limit 1 \gset
+select throws_ok(
+  format(
+    $$insert into public.events (id, user_id, type, payload)
+      values (%L, auth.uid(), 'item.result', '{"result": "solved"}')$$,
+    :'quota_event'
+  ),
+  '23505', 'duplicate key value violates unique constraint "events_pkey"',
+  'at the limit, an event id already stored fails on events_pkey, not quota_exceeded'
+);
 select tests.clear_authentication();
 select results_eq(
   format($$select local_day, count from public.event_quota where user_id = %L$$, :'quota'),
   $$values (public.local_day(now(), 'Asia/Ho_Chi_Minh', '04:00'), 500)$$,
-  'the counter for that local day is 500'
+  'the counter for that local day is 500 (the failed inserts rolled their increments back)'
 );
 select lives_ok(
   format(

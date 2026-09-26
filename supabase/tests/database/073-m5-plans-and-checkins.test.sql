@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(67);
+select plan(71);
 
 -- Task 5.0b: SQL for plans and check-ins (platform design §2.3, §4.3–§4.5, §5.5, §5.9;
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2,
@@ -958,6 +958,48 @@ select results_eq(
     where t.tgrelid = 'public.plan_block_state'::regclass and t.tgname = 'check_in_day'$$,
   $$values (true, true, true, array['checked_in_on'])$$,
   '... which fires before update of checked_in_on, for each row'
+);
+
+-- ---------------------------------------------------------------------------------------------
+-- 4. Quota #500 (M2 minor): a same-user double submit of the 500th event is a duplicate, not a
+--    quota error. At the limit, the quota trigger raises only for an id no event has yet; for
+--    one that exists, the insert fails on events_pkey (apply_event answers duplicate, or
+--    id_conflict for another user's id), and the counter's increment rolls back with it.
+-- ---------------------------------------------------------------------------------------------
+select tests.create_user('m5-quota@hocdeu.test') as quota \gset
+select tests.create_user('m5-quota-other@hocdeu.test') as quota_other \gset
+select tests.authenticate_as(:'quota_other');
+insert into public.events (id, user_id, type)
+values ('73000000-0000-4000-8000-000000000402', auth.uid(), 'item.skipped');
+select tests.authenticate_as(:'quota');
+insert into public.events (id, user_id, type)
+values ('73000000-0000-4000-8000-000000000401', auth.uid(), 'item.skipped');
+select tests.clear_authentication();
+update public.event_quota set count = 500 where user_id = :'quota';
+select tests.authenticate_as(:'quota');
+select throws_ok(
+  $$insert into public.events (id, user_id, type)
+    values ('73000000-0000-4000-8000-000000000401', auth.uid(), 'item.skipped')$$,
+  '23505', 'duplicate key value violates unique constraint "events_pkey"',
+  'with the counter at 500, inserting an event id already stored fails on events_pkey, not the '
+  'quota'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type)
+    values ('73000000-0000-4000-8000-000000000402', auth.uid(), 'item.skipped')$$,
+  '23505', 'duplicate key value violates unique constraint "events_pkey"',
+  '... and so does another user''s event id (apply_event answers id_conflict)'
+);
+select throws_ok(
+  $$insert into public.events (id, user_id, type)
+    values (gen_random_uuid(), auth.uid(), 'item.skipped')$$,
+  'P0001', 'quota_exceeded', 'a new id at the limit still raises quota_exceeded'
+);
+select tests.clear_authentication();
+select is(
+  (select count from public.event_quota where user_id = :'quota'),
+  500,
+  '... and the counter stays 500 (each failed insert rolled its increment back)'
 );
 
 select * from finish();

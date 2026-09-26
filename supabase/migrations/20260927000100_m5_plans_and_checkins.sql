@@ -5,6 +5,7 @@
 -- 2. Owner ruling M-6 (a), RULES_VERSION 3: a block checked in skipped and corrected to done /
 --    partial on a later local day counts for that later day (apply_derived_changes, a column
 --    grant and the check_in_day trigger that bounds it).
+-- 3. M2 minor "quota #500": a same-user double submit of the 500th event is a duplicate.
 -- Merged migrations are never edited: the functions are replaced here (`create or replace` keeps
 -- their owner, privileges and triggers; the grants are restated below). Every function revokes
 -- EXECUTE from PUBLIC explicitly and grants exactly its callers (see 20260925000100);
@@ -708,3 +709,34 @@ grant execute on function public.apply_derived_changes(uuid, jsonb, date, jsonb,
 to authenticated, service_role;
 
 grant update (checked_in_on) on public.plan_block_state to authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- 3. Quota #500 (M2 minor; ADR-0030): two same-user submits of one event at the limit — both pass
+--    apply_event's duplicate check, the second waits on the quota row lock — made the second
+--    raise quota_exceeded instead of duplicate. Once the counter passes 500, the trigger now
+--    raises only when no event has new.id yet; otherwise the insert goes on and fails on
+--    events_pkey, which apply_event answers with duplicate (or id_conflict for another user's
+--    id), and the failed insert rolls the counter's increment back. SECURITY DEFINER sees every
+--    event, and the lookup's fresh snapshot sees the winner once the row lock is granted.
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function public.events_enforce_quota() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  if new.source = 'learner' then
+    insert into public.event_quota (user_id, local_day, count)
+    values (new.user_id, new.local_day, 1)
+    on conflict (user_id, local_day) do update set count = event_quota.count + 1
+    returning count into v_count;
+    if v_count > 500 and not exists (select 1 from public.events e where e.id = new.id) then
+      raise exception 'quota_exceeded' using errcode = 'P0001';
+    end if;
+  end if;
+  return new;
+end $$;
+
+-- A trigger function: no caller needs EXECUTE (the 20260925000200 revoke, restated).
+revoke execute on function public.events_enforce_quota()
+from public, anon, authenticated, service_role;
