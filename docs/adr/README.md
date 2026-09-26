@@ -4,7 +4,8 @@ Each decision listed in platform design §9.2 gets a file `NNNN-<slug>.md` (from
 `0000-template.md`), written by the task that implements it (implementation plan, **Writes
 ADR-NNNN**). Until then the decision is recorded in the platform design only. Rows 0009–0012 are
 linked ahead of their files (implementation plan Part B-M3, decision 27), so the parallel M3 tasks
-that write them never edit this index; rows 0008, 0014, 0016 and 0037 likewise for M4 (task 4.0).
+that write them never edit this index; rows 0008, 0014, 0016 and 0037 likewise for M4 (task 4.0),
+and rows 0005, 0029, 0031, 0034, 0036, 0038 and 0039 for M5 (task 5.0).
 
 | ADR | Decision | Written in task |
 | --- | --- | --- |
@@ -12,7 +13,7 @@ that write them never edit this index; rows 0008, 0014, 0016 and 0037 likewise f
 | [0002](0002-supabase-keys-and-getclaims.md) | Supabase with publishable/secret keys; `getClaims()` on the server | 2.6 |
 | [0003](0003-oauth-and-test-login.md) | Google + GitHub OAuth only; env-gated test login for local/CI | 2.7a |
 | [0004](0004-sign-up-with-approval.md) | Open sign-up with admin approval | 2.8 |
-| 0005 | Public repository; encrypted backups; security features on | 5.7 |
+| [0005](0005-public-repo-encrypted-backups.md) | Public repository; encrypted backups; security features on | 5.7b |
 | [0006](0006-proxy-and-dal.md) | `proxy.ts` only refreshes the session; access checks in layouts + DAL | 2.6 |
 | [0007](0007-event-log-and-apply-event.md) | Event log + derived state; pure TypeScript domain + `apply_event` RPC (`SECURITY INVOKER`) | 2.5b |
 | [0008](0008-rules-version.md) | `rules_version` on events and derived rows | 4.2 |
@@ -36,15 +37,15 @@ that write them never edit this index; rows 0008, 0014, 0016 and 0037 likewise f
 | 0026 | Bot token hash in the database, rotated from admin | 6.3 |
 | 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | 6.4 |
 | 0028 | Far-west time-zone limitation accepted for v1 | 7.4 |
-| 0029 | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | 5.7 |
+| [0029](0029-backups.md) | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | 5.7b |
 | [0030](0030-learner-write-quota.md) | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | 2.5 |
-| 0031 | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | 5.6 |
+| [0031](0031-event-compaction-deferred.md) | Event compaction after 180 days — deferred; **trigger: the 350 MB DB-size warning** | 5.6 |
 | [0032](0032-tooling-pins.md) | Tooling pins: TypeScript 6.0.x, ESLint 9.39.x, Node 22.12+ | 1.0 |
 | [0033](0033-license-split.md) | License split: code MIT, `content/**` CC BY-NC-SA 4.0 | 1.0 |
-| 0034 | Daily maintenance cron (idempotent, `CRON_SECRET`) | 5.7 |
+| [0034](0034-maintenance-cron.md) | Daily maintenance cron (idempotent, `CRON_SECRET`) | 5.7a |
 | 0035 | One content PR per plan run; stale bot PRs closed after 7 days | 7.3 |
-| 0036 | No offline queue in v1; a future queue needs a clamped client timestamp | 5.2 |
+| [0036](0036-no-offline-queue.md) | No offline queue in v1; a future queue needs a clamped client timestamp | 5.2c |
 | [0037](0037-projection-inputs-hash.md) | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | 4.8 |
-| 0038 | Release boundary v1.0 / v1.1 / later, week-4 content + harness constraint, dogfooding rollout | 5.8 |
-| 0039 | `seen_at` set only by a browser-side effect on `/today` (never by `ensurePlan` or prefetch) | 5.1 |
+| [0038](0038-release-boundary.md) | Release boundary v1.0 / v1.1 / later, week-4 content + harness constraint, dogfooding rollout | 5.8a |
+| [0039](0039-seen-at-browser-effect.md) | `seen_at` set only by a browser-side effect on `/today` (never by `ensurePlan` or prefetch) | 5.1b |
 | 0040 | Bot-written notes show "tested (bot tests)" until an admin publishes them via the checklist | 6.7 |

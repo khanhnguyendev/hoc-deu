@@ -45,19 +45,24 @@ sections for every task.
   the start of M3 and gate-reviewed; its owner decisions OD1–OD5 (2026-09-25) are binding. M4:
   step-level detail in [Part B-M4](#part-b-m4--plan-engine--spaced-repetition-step-by-step),
   written at the start of M4 and gate-reviewed; the owner approved Q1 (`fast-check`) and asked
-  for its SQL parts (4.9a–c, decision 33) to wait for a separate approval (2026-09-25).
+  for its SQL parts (4.9a–c, decision 33) to wait for a separate approval (2026-09-25). M4 done
+  (PR #10, merged 2026-09-26). M5: step-level detail in
+  [Part B-M5](#part-b-m5--dashboard-check-in-review--v10-launch-step-by-step), written at the start
+  of M5 and gate-reviewed; executed subagent-driven in parallel waves (owner answer 2026-09-26); the
+  owner ruled M-5 (A) and M-6 (a) (2026-09-26).
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
-## Execution methods (approved by the owner, 2026-09-24; M3 and M4 rows changed 2026-09-25)
+## Execution methods (approved by the owner, 2026-09-24; M3 and M4 rows changed 2026-09-25, M5 row 2026-09-26)
 
 | Milestone | Method |
 | --- | --- |
 | M0 | **Native** (superpowers:executing-plans), then one fresh reviewer on the whole branch |
-| M1, M5 | Native, with an end-of-milestone review |
+| M1 | Native, with an end-of-milestone review |
 | M2, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
 | M4 | **Subagent-driven, parallel waves in git worktrees** (owner request 2026-09-25, Part B-M4 decision 1) |
 | M3 | **Subagent-driven, parallel waves in git worktrees** — one worktree per task, one integration worktree per target branch (owner decision 2026-09-25, Part B-M3 OD5) |
+| M5 | **Subagent-driven, parallel waves in git worktrees** (owner answer 2026-09-26, Part B-M5 decision 1) |
 | M7 | Decided at the start of M7 |
 
 Content tasks 3.6–3.11 have no plan-engine dependency and may run in parallel with M4–M5. M3 ships
@@ -262,6 +267,22 @@ scenario moves with overrides to 6.6 (31).
 | 5.7 Ops | migration `ops_metrics`; `.github/workflows/{backup,restore-test}.yml` (v1.0 simple daily full dump, `age`, weekly restore test), `app/api/cron/maintenance/route.ts`, `vercel.json` cron, `app/api/health/route.ts` **Writes ADR-0005, ADR-0029, ADR-0034.** | cron idempotent + `CRON_SECRET`; health ok/fail only; **backup and restore-test workflows run against staging** | `pnpm verify` + workflow runs on staging |
 | 5.8 Launch **[owner]** | Supabase **prod** project, prod env vars (Vercel production), Vercel Production Branch back to `main` (a placeholder since 2.2, `docs/ops/staging.md` §5), prod OAuth redirect URLs, first production deploy; dogfooding checklist **Writes ADR-0038.** M1 deferred #17: `global-error.tsx` follows the saved theme. Part B-M4 decision 37: after the owner's first two weeks of dogfooding, compare the real pace with the onboarding projection (ADR-0014's skip-day model decides 11.4 vs 13.3 weeks for 8w @ 60); more than 15 % slower → revisit the model and the defaults before inviting learners. | full e2e against staging; smoke on prod | `pnpm verify:full` + checklist |
 
+**Part B-M5 changes to this table** (decisions there): 5.1 splits into **5.1a** (the server plan
+service, `lib/plans`), **5.1b** (the `/today` screen) and **5.1c** (the real HTTP 404); 5.2 into
+**5.2a** (write path), **5.2b** (check-in UI) and **5.2c** (item results UI); 5.7 into **5.7a**
+(`ops_metrics`, cron, health) and **5.7b** (backups); 5.8 into **5.8a** (runbook and code) and
+**5.8b** (the launch, after the merge); new **5.0a–d** (simulation runtime and engine clean-up,
+M5 SQL, sandbox tests as root and the `sim` job, M2 carry-overs) (2); no mode badge in v1.0 (12);
+"full e2e against staging" becomes the owner's staging smoke checklist plus a rolled-back DB smoke
+(28); the `sim` check becomes required right after the merge (29).
+
+**Later (after v1.1) — backlog with owners, so nothing is postponed without a task:**
+
+| Row | Deliverable | Source |
+| --- | --- | --- |
+| L1 | Drift check (§4.7, release "later"), including the replay vs live ordering under a concurrent reset / resume (M-7: set `occurred_at := clock_timestamp()` after the quota upsert and raise `day_changed` if the local day moved) and the ms-vs-µs replay sort | M4 final review M-7; Part B-M5 decision 30 |
+| L2 | Could-have: email sign-in enabled on the **staging** project only, with one synthetic user, so the e2e suite can run against preview deployments automatically (production keeps email off, ADR-0003) | owner, 2026-09-26 |
+
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
 either W4–W5 notes/lessons written or v1.1 shipped. The **M3b** harness task's first step (M3
@@ -276,7 +297,7 @@ design classes are created via `Constructor()` (problems 139, 127, 271).
 | 6.2 | Migrations: `bot_settings`, `bot_runs`, `bot_run_users`, `user_items`, `roadmap_overrides`, `content_publish_requests` + RLS + pgTAP |
 | 6.3 | Bot token (hash in DB, rotation UI in `/admin/bot`), `requireBotToken`, kill switch, dry-run | **Writes ADR-0026.**
 | 6.4 | `POST /runs` (plan + publish kinds, cap + `deferredUsers`, lazy timeout, resume mode rule), context endpoint (pseudonyms, sanitisation), `PATCH /runs/{runId}` | **Writes ADR-0027.**
-| 6.5 | `PUT …/plan` (validation + untouched-plan precedence), AI plan rendering, mode badge, AI flag toggle in `/admin/users` | **Writes ADR-0018.**
+| 6.5 | `PUT …/plan` (validation + untouched-plan precedence), AI plan rendering, mode badge, AI flag toggle in `/admin/users`; widen `apply_system_event`'s `plan_id` rule to `plan.ai_*` (5.0b widened it to `plan.extra_added`) | **Writes ADR-0018.**
 | 6.6 | `PUT …/custom-items` + "Mục riêng" tab; `PUT …/overrides` + `effectiveRoadmap` + revoke UI |
 | 6.7 | `GET …/content-signals`, publish requests (admin "Xuất bản", public endpoint), `share_notes_with_ai` | **Writes ADR-0024, ADR-0025, ADR-0040.**
 | 6.8 | Contract test suite (§6.10) |

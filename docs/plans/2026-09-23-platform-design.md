@@ -303,6 +303,9 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   - The DB URL and restore key live in the GitHub environment `backup`, restricted to `main`, so PR
     branches (including `claude/*`) cannot read them.
   - `/admin` shows the latest backup and restore-test status, read from the public GitHub API.
+    **As built in M5** (implementation plan Part B-M5 decision 26): the daily maintenance cron reads
+    the API once into `ops_metrics`, and `/admin` reads the database only (the unauthenticated API
+    allows 60 requests an hour per address, shared on Vercel).
   - Anyone signed in to GitHub can download artifacts of a public repo — that is why every
     artifact is encrypted before upload.
   - Egress at 100 daily learners by month 12: ~1.3 GB/month, dominated by the weekly fulls (full
@@ -334,7 +337,7 @@ Every row is v1.0 unless marked **(v1.1)**.
 | `/sign-in`, `/auth/callback` | public | Google/GitHub OAuth; test-only email login when `AUTH_TEST_LOGIN=true` |
 | `/pending` | signed in | Pending / rejected / suspended status screen; moves on automatically when approved |
 | `/onboarding` | active | Tracks → minutes per track → DSA variant (defaulted from the minutes, with the simulated finish, §5.11) → start date, timezone, day start → code language → weekly template preview |
-| `/today` | active | Dashboard: plan blocks, one-tap check-in, streak, per-track progress, due reviews, weak areas, mode badge, paused banner |
+| `/today` | active | Dashboard: plan blocks, one-tap check-in, streak, per-track progress, due reviews, weak areas, mode badge, paused banner. **No mode badge in v1.0** — the "AI-personalized" badge is v1.1 (release table; implementation plan Part B-M5 decision 12) |
 | `/today?block=<id>` | active | Opens the check-in sheet for a block (deep-linkable, back button works) |
 | `/review` (`?track=`) | active | Cross-track review queue, Weak items first |
 | `/tracks` | active | My tracks and available tracks |
@@ -836,7 +839,10 @@ All in the `public` schema with RLS on.
 - PK `(plan_id, block_id)`; `user_id` (copied in for RLS)
 - `status` done / partial / skipped; `minutes`; `note`; `auto` bool; `checked_in_at`
 - `track_id` and `checked_in_on` (the local day of the first check-in, which the block counts for
-  in `daily_activity`) — added in M4 (implementation plan Part B-M4 decisions 6, 8)
+  in `daily_activity`) — added in M4 (implementation plan Part B-M4 decisions 6, 8). **Owner
+  ruling M-6 (2026-09-26):** a block checked in `skipped` and later corrected to `done` / `partial`
+  on a later local day counts for that later day — `checked_in_on` moves forward to it, and the
+  earlier day stays incomplete (implementation plan Part B-M5; `RULES_VERSION` 3)
 
 **`event_quota`** (internal — §4.5)
 
@@ -1105,6 +1111,11 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
   never opened.
 - **Gate is open** when there is no previous seen plan, or when at least one block of the last
   seen plan has been checked in as `done` or `partial` — at any time, including a later day.
+  **Owner ruling M-5 (2026-09-26):** blocks of tracks that are no longer `active` (paused or
+  removed since) never hold the gate closed — a last seen plan with no block of an active track
+  counts as empty, and the paused view lists only active tracks' blocks (implementation plan
+  Part B-M5). **Owner ruling M-6:** correcting a skip after the day start counts for the new day
+  (§4.1), so resuming through a skipped block is "resumed today" — no second plan that day.
 - **Gate is closed** otherwise (nothing done, or everything skipped). Then:
   - no new plan is created and the roadmap does not advance;
   - `/today` shows the last seen plan's unfinished blocks with the banner
@@ -1154,7 +1165,9 @@ Same inputs → same output (tie-breaks use a hash of `userId + localDay`, not r
 
 `ensurePlan(user, localDay)`:
 
-1. If a plan exists for `localDay` → return it (idempotent).
+1. If a plan exists for `localDay` → return it (idempotent). (As built in M5, Part B-M5 decision 9:
+   `apply_system_event` raises `day_changed` before it can answer "plan exists" for a request that
+   crossed the day start, and `ensureToday` checks the stored plan's date and retries.)
 2. If `localDay < start_date` for every track → return "Bắt đầu vào {date}".
 3. If the gate is closed → return the paused state (§5.2), with the "Học tiếp hôm nay" offer when
    the last seen plan is more than 2 local days old.
@@ -1249,7 +1262,9 @@ from the next plan.
 - **Auto check-in:** when the last item of a block gets a result and the block has no check-in
   yet, the server also records `block.checked_in {status: done, minutes: sum(est), auto: true}`.
   The user can edit it. This keeps the strict "completed = a block done/partial" rule (§4.1) from
-  punishing someone who studied but forgot to tap.
+  punishing someone who studied but forgot to tap. A block already checked in `skipped` is never
+  re-checked automatically; the learner corrects it with "Sửa", which then counts for that day
+  (owner ruling M-6, §4.1).
 - **Throttle:** `dueCount` = the track's items due on `localDay` at plan time.
   `effectiveNewPerDay` = `newPerDay` of the matching rule with the highest `dueAbove` that
   `dueCount` exceeds; otherwise `newPerDay`. English defaults: > 40 due → 4 new; > 60 due → 0 new.
@@ -2501,7 +2516,11 @@ template; each ADR is written in the milestone that implements it.
     free for public repos on standard runners but states no storage exemption, so we assume the
     Free plan's **500 MB** artifact-storage allowance applies. **Action for task 5.7:** size the
     backup retention against 500 MB (compressed dumps; e.g. keep 7 daily + 4 weekly, or move
-    archives to a private store) before enabling the backup workflow.
+    archives to a private store) before enabling the backup workflow. **Re-checked 2026-09-26**
+    (implementation plan Part B-M5 decision 27): the same page says "GitHub Actions usage is free …
+    for public repositories that use standard GitHub-hosted runners" and describes the
+    artifact-storage quota "for private repositories", so the limit most likely does not apply;
+    the owner keeps 14-day daily and 90-day Sunday artifacts either way.
 
 ---
 
