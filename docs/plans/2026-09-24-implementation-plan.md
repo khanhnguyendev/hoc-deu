@@ -11419,7 +11419,9 @@ export type OutcomeInput = {
   readonly outcome: Outcome
 }
 export const outcomeInputSchema: z.ZodType<OutcomeInput>
-/** decision 16: `<type>:<ids>:<sha-256 of the canonical payload JSON, 16 hex>`. */
+// features/checkin/event-keys.ts (server-side; ruling M5-R22 — keys built on `digest()` from
+// lib/events/ids.ts, like features/onboarding/event-keys.ts; schema.ts stays browser-safe)
+/** decision 16: `<type>:<ids>:<digest of the canonical payload JSON>`. */
 export function outcomeKey(input: OutcomeInput): string
 export function checkInKey(input: CheckInInput & { readonly minutes: number }): string
 
