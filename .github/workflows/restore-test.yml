@@ -1,0 +1,222 @@
+name: restore-test
+
+# The weekly restore test (platform design §2.3, ADR-0029; docs/ops/backups.md; guarded by
+# tools/backup/workflows.test.ts): the newest backup is decrypted with the restore-test key,
+# checked against its manifest, loaded into the local Supabase stack built from the migrations of
+# the backup's own commit, and every table's row count is compared with the manifest. The
+# repository is public, so the job never prints a row: psql's output is discarded and its errors
+# are shown as SQLSTATE codes only.
+
+on:
+  schedule:
+    # Saturday 03:00 UTC.
+    - cron: '0 3 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: restore-test
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    name: restore-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Limited to main (docs/ops/backups.md): no other branch can read the restore key.
+    environment: backup
+    env:
+      PG_BIN: /usr/lib/postgresql/17/bin
+      LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # The manifest's commit must be reachable (and is checked to be on main).
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # pg_dump 17.6+ writes \restrict lines that older psql releases reject; use the same client.
+      - name: Install postgresql-client-17 (PGDG) and age
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rqs 'apt.postgresql.org' /etc/apt/sources.list /etc/apt/sources.list.d; then
+            echo "The runner image already lists the PGDG repository."
+          else
+            curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/pgdg.asc" \
+              https://www.postgresql.org/media/keys/ACCC4CF8.asc
+            fingerprint="$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
+            if [ "$fingerprint" != B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 ]; then
+              echo "::error::the PGDG signing key has an unexpected fingerprint"
+              exit 1
+            fi
+            sudo install -m 0644 "$RUNNER_TEMP/pgdg.asc" /usr/share/keyrings/pgdg-backup.asc
+            codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+            printf 'deb [signed-by=/usr/share/keyrings/pgdg-backup.asc] https://apt.postgresql.org/pub/repos/apt %s-pgdg main\n' \
+              "$codename" > "$RUNNER_TEMP/pgdg.list"
+            sudo install -m 0644 "$RUNNER_TEMP/pgdg.list" /etc/apt/sources.list.d/pgdg-backup.list
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age
+          "$PG_BIN/psql" --version
+          age --version
+
+      # Any pull request can upload an artifact named db-backup-…: only a successful backup.yml
+      # run on main, started by its schedule or by hand, is trusted.
+      - id: find
+        name: Find the newest backup (a successful scheduled or dispatched backup.yml run on main)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          umask 077
+          run_id="$(gh api "repos/$REPOSITORY/actions/workflows/backup.yml/runs?branch=main&status=success&per_page=50" \
+            --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch") | select(.head_branch == "main") | select(.head_repository.full_name == env.REPOSITORY)][0].id // empty')"
+          if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::no successful backup.yml run on main yet"
+            exit 1
+          fi
+          names="$(gh api "repos/$REPOSITORY/actions/runs/$run_id/artifacts" \
+            --jq '[.artifacts[] | select(.expired == false) | select(.name | test("^db-backup-(daily|weekly)-[0-9]{4}-[0-9]{2}-[0-9]{2}$")) | .name] | join(" ")')"
+          read -r -a artifacts <<< "$names"
+          if [ "${#artifacts[@]}" -ne 1 ]; then
+            echo "::error::backup run $run_id has ${#artifacts[@]} unexpired backup artifacts, not 1"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "artifact=${artifacts[0]}" >> "$GITHUB_OUTPUT"
+          echo "Restoring ${artifacts[0]} (backup run $run_id)."
+
+      - name: Download it and check its files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ steps.find.outputs.run_id }}
+          ARTIFACT: ${{ steps.find.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          umask 077
+          gh run download "$RUN_ID" --repo "$REPOSITORY" --name "$ARTIFACT" \
+            --dir "$RUNNER_TEMP/restore/encrypted"
+          pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/restore/encrypted" --auth optional
+
+      - name: Decrypt with the restore-test key, then decompress
+        shell: bash
+        env:
+          BACKUP_RESTORE_KEY: ${{ secrets.BACKUP_RESTORE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          shopt -s nullglob
+          encrypted="$RUNNER_TEMP/restore/encrypted"
+          plain="$RUNNER_TEMP/restore/plain"
+          key="$RUNNER_TEMP/restore-key.txt"
+          mkdir -p "$plain"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "${BACKUP_RESTORE_KEY:-}" > "$key"
+          if ! grep -Eq '^AGE-SECRET-KEY-1[0-9A-Z]{58}$' "$key"; then
+            echo "::error::BACKUP_RESTORE_KEY holds no age identity (a line AGE-SECRET-KEY-1…)"
+            exit 1
+          fi
+          for file in "$encrypted"/*.age; do
+            age --decrypt --identity "$key" --output "$plain/$(basename "$file" .age)" "$file"
+          done
+          rm -f "$key"
+          for file in "$plain"/*.gz; do gunzip "$file"; done
+          echo "Decrypted and decompressed."
+
+      - id: verify
+        name: Check the manifest and every file’s SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          pnpm exec tsx tools/backup/cli.ts verify --dir "$RUNNER_TEMP/restore/plain" > "$RUNNER_TEMP/restore/verify.out"
+          # Four key=value lines, nothing else, before they become step outputs.
+          if grep -Evq '^(commit=[0-9a-f]{40}|includes_auth=(true|false)|kind=(daily|weekly)|taken_at=[0-9T:Z-]+)$' \
+            "$RUNNER_TEMP/restore/verify.out"; then
+            echo "::error::tools/backup/cli.ts verify printed something unexpected"
+            exit 1
+          fi
+          while IFS= read -r line; do echo "$line" >> "$GITHUB_OUTPUT"; done < "$RUNNER_TEMP/restore/verify.out"
+
+      # The migrations of the backup's commit are the schema its data was dumped from.
+      - name: Check out the backup’s commit (its migrations are the backup’s schema)
+        shell: bash
+        env:
+          COMMIT: ${{ steps.verify.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the manifest names no commit"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$COMMIT" refs/remotes/origin/main; then
+            echo "::error::the backup's commit $COMMIT is not on main"
+            exit 1
+          fi
+          git checkout --quiet --detach "$COMMIT"
+          echo "Restoring into the schema of $COMMIT."
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:start
+      # seed.sql's synthetic users would collide with the backup's auth.users rows.
+      - name: Apply that commit’s migrations without seed.sql
+        run: pnpm exec supabase db reset --no-seed
+
+      - name: Load the data, auth first, with triggers and foreign keys off
+        shell: bash
+        env:
+          INCLUDES_AUTH: ${{ steps.verify.outputs.includes_auth }}
+        run: |
+          set -euo pipefail
+          umask 077
+          plain="$RUNNER_TEMP/restore/plain"
+          files=()
+          case "$INCLUDES_AUTH" in
+            true) files+=(-f "$plain/auth.sql") ;;
+            false) echo "::warning::this backup holds public only (BACKUP_INCLUDE_AUTH=false, ADR-0029)" ;;
+            *) echo "::error::includes_auth must be true or false"; exit 1 ;;
+          esac
+          files+=(-f "$plain/public.sql")
+          # One transaction; errors as SQLSTATE codes only (a server message can quote a row).
+          status=0
+          "$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate \
+            -v SHOW_CONTEXT=never --single-transaction -c 'set session_replication_role = replica' \
+            "${files[@]}" > /dev/null 2> "$RUNNER_TEMP/restore/load.err" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::loading the backup failed (psql exit $status); its SQLSTATE lines follow, nothing else is shown"
+            grep -E '^(psql:[^ ]+:[0-9]+: )?(ERROR|FATAL): +[0-9A-Z]{5}$' "$RUNNER_TEMP/restore/load.err" || true
+            exit 1
+          fi
+          echo "Loaded."
+
+      - name: Compare every table’s row count with the manifest
+        shell: bash
+        env:
+          INCLUDES_AUTH: ${{ steps.verify.outputs.includes_auth }}
+        run: |
+          set -euo pipefail
+          umask 077
+          restore="$RUNNER_TEMP/restore"
+          "$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
+            -v with_auth="$INCLUDES_AUTH" -f tools/backup/counts.sql > "$restore/restored-counts.tsv"
+          pnpm exec tsx tools/backup/cli.ts compare --manifest "$restore/plain/manifest.json" --counts "$restore/restored-counts.tsv"
+
+      - name: Remove the plaintext
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/restore" "$RUNNER_TEMP/restore-key.txt"

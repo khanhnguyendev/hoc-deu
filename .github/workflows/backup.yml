@@ -1,0 +1,316 @@
+name: backup
+
+# The daily encrypted data dump (platform design §2.3, ADR-0005, ADR-0029; setup, rotation and
+# restoring by hand: docs/ops/backups.md; guarded by tools/backup/workflows.test.ts). The repository
+# is public — anyone can read this log and download the artifact — so every file is age-encrypted
+# before the upload and nothing read from the database is ever printed. The database URL reaches
+# the dump step only, which runs no Node code.
+
+on:
+  schedule:
+    # 22:00 UTC = 05:00 in Viet Nam, an hour after the maintenance cron (ADR-0034).
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: backup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Limited to main (docs/ops/backups.md): no other branch can read its secrets.
+    environment: backup
+    env:
+      PG_BIN: /usr/lib/postgresql/17/bin
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Ubuntu 24.04's archive ships PostgreSQL 16; pg_dump must be at least the server's major (17).
+      - name: Install postgresql-client-17 (PGDG) and age
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rqs 'apt.postgresql.org' /etc/apt/sources.list /etc/apt/sources.list.d; then
+            echo "The runner image already lists the PGDG repository."
+          else
+            curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/pgdg.asc" \
+              https://www.postgresql.org/media/keys/ACCC4CF8.asc
+            fingerprint="$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
+            if [ "$fingerprint" != B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 ]; then
+              echo "::error::the PGDG signing key has an unexpected fingerprint"
+              exit 1
+            fi
+            sudo install -m 0644 "$RUNNER_TEMP/pgdg.asc" /usr/share/keyrings/pgdg-backup.asc
+            codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+            printf 'deb [signed-by=/usr/share/keyrings/pgdg-backup.asc] https://apt.postgresql.org/pub/repos/apt %s-pgdg main\n' \
+              "$codename" > "$RUNNER_TEMP/pgdg.list"
+            sudo install -m 0644 "$RUNNER_TEMP/pgdg.list" /etc/apt/sources.list.d/pgdg-backup.list
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age
+          "$PG_BIN/pg_dump" --version
+          age --version
+
+      - id: meta
+        name: Backup kind and date (UTC; Sunday’s backup is the weekly one)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          # One reading of the clock, so a run at midnight cannot mix two days.
+          read -r day weekday <<< "$(date -u '+%F %u')"
+          if [ "$weekday" = 7 ]; then kind=weekly; else kind=daily; fi
+          echo "date=$day" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "This is the $kind backup."
+
+      - id: dump
+        name: Dump the database as backup_reader, in one snapshot
+        shell: bash
+        env:
+          SUPABASE_BACKUP_DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          BACKUP_INCLUDE_AUTH: ${{ vars.BACKUP_INCLUDE_AUTH }}
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/backup"
+          mkdir -p "$work"
+          db="${SUPABASE_BACKUP_DB_URL:-}"
+          if [ -z "$db" ]; then
+            echo "::error::SUPABASE_BACKUP_DB_URL is empty: set it in the backup environment (docs/ops/backups.md)"
+            exit 1
+          fi
+          # The session-mode pooler only: pg_dump does not work through transaction mode (6543).
+          case "$db" in
+            *:6543/*)
+              echo "::error::SUPABASE_BACKUP_DB_URL uses the transaction-mode pooler (port 6543); pg_dump needs session mode (5432)"
+              exit 1
+              ;;
+          esac
+          # TLS everywhere but loopback (the local dry run).
+          case "$db" in
+            *@127.0.0.1:* | *@localhost:*) ;;
+            *[?\&]sslmode=require* | *[?\&]sslmode=verify-ca* | *[?\&]sslmode=verify-full*) ;;
+            *)
+              echo "::error::SUPABASE_BACKUP_DB_URL must set sslmode=require (or verify-ca, verify-full)"
+              exit 1
+              ;;
+          esac
+          psql_backup() { "$PG_BIN/psql" --dbname="$db" -X -q -A -t -v ON_ERROR_STOP=1 "$@"; }
+
+          # Read-only and bypassing RLS by design (supabase/migrations/20260927000200_ops.sql).
+          role="$(psql_backup -c 'select current_user')"
+          if [ "$role" != backup_reader ]; then
+            echo "::error::the dump must run as backup_reader, but SUPABASE_BACKUP_DB_URL signs in as $role"
+            exit 1
+          fi
+
+          # auth.users and auth.identities are in the backup unless the owner has chosen a
+          # public-only backup (ADR-0029). Never a silent partial backup.
+          case "${BACKUP_INCLUDE_AUTH:-true}" in
+            true) with_auth=true ;;
+            false)
+              with_auth=false
+              echo "::warning::BACKUP_INCLUDE_AUTH=false: this backup holds public only; a restore from it needs every learner to sign in again, and nothing links a new sign-in to the learner's old profile (ADR-0029)"
+              ;;
+            *) echo "::error::BACKUP_INCLUDE_AUTH must be true, false or unset"; exit 1 ;;
+          esac
+          if [ "$with_auth" = true ]; then
+            readable="$(psql_backup -c "select has_schema_privilege('auth', 'usage') and count(*) = 2 and bool_and(has_table_privilege(c.oid, 'select')) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'auth' and c.relname in ('users', 'identities')")"
+            if [ "$readable" != t ]; then
+              echo "::error::backup_reader cannot read auth.users and auth.identities. Grant them (docs/ops/backups.md, step 4), or, once the owner has chosen a public-only backup, set BACKUP_INCLUDE_AUTH=false in the backup environment (ADR-0029). No backup was made."
+              exit 1
+            fi
+          fi
+          pg_dump_version="$("$PG_BIN/pg_dump" --version)"
+          server_version="$(psql_backup -c 'show server_version')"
+
+          # One snapshot for both dumps and the counts, so a learner writing during the backup
+          # cannot make them disagree: this psql session opens a repeatable-read transaction,
+          # exports its snapshot and stays open (reading its SQL from a FIFO) while both pg_dump
+          # runs import it; then it counts every dumped table in the same snapshot.
+          # This shell holds the FIFO open read-write (so opening it never blocks); psql must not
+          # inherit that descriptor (3>&-), or it would never see the end of its input.
+          mkfifo "$work/holder.sql"
+          exec 3<> "$work/holder.sql"
+          "$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
+            -v with_auth="$with_auth" -f "$work/holder.sql" 3>&- &
+          holder=$!
+          trap 'kill "$holder" 2> /dev/null || true' EXIT
+          printf '%s\n' \
+            "set idle_in_transaction_session_timeout = '25min';" \
+            "set statement_timeout = '10min';" \
+            'begin isolation level repeatable read, read only;' \
+            "select pg_export_snapshot() as snapshot, to_char(now() at time zone 'UTC', 'YYYY-MM-DD') || 'T' || to_char(now() at time zone 'UTC', 'HH24:MI:SS') || 'Z' as taken_at \\gset" \
+            "\\o '$work/snapshot.txt'" \
+            '\qecho :snapshot :taken_at' \
+            '\o' >&3
+          snapshot=''
+          taken_at=''
+          for _ in $(seq 120); do
+            if [ -s "$work/snapshot.txt" ]; then
+              read -r snapshot taken_at < "$work/snapshot.txt"
+              break
+            fi
+            if ! kill -0 "$holder" 2> /dev/null; then
+              echo "::error::the snapshot session ended before exporting a snapshot"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          if [[ ! "$snapshot" =~ ^[0-9A-F]+-[0-9A-F]+-[0-9]+$ ]] \
+            || [[ ! "$taken_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+            echo "::error::no snapshot was exported within 60 s"
+            exit 1
+          fi
+
+          # event_quota is never backed up (platform design §4.5), and backup_reader cannot read it.
+          "$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges \
+            --schema=public --exclude-table=public.event_quota --file="$work/public.sql"
+          if [ "$with_auth" = true ]; then
+            "$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges \
+              --table=auth.users --table=auth.identities --file="$work/auth.sql"
+          fi
+
+          printf '%s\n' \
+            "\\o '$work/counts.tsv'" \
+            "\\i '$GITHUB_WORKSPACE/tools/backup/counts.sql'" \
+            '\o' \
+            'commit;' >&3
+          exec 3>&-
+          status=0
+          wait "$holder" || status=$?
+          trap - EXIT
+          if [ "$status" -ne 0 ]; then
+            echo "::error::counting the rows in the dumps' snapshot failed (psql exit $status)"
+            exit 1
+          fi
+          {
+            echo "with_auth=$with_auth"
+            echo "taken_at=$taken_at"
+            echo "pg_dump_version=$pg_dump_version"
+            echo "server_version=$server_version"
+          } >> "$GITHUB_OUTPUT"
+          echo "Dumped with $pg_dump_version from server $server_version (snapshot at $taken_at)."
+
+      - name: Write the manifest
+        shell: bash
+        env:
+          KIND: ${{ steps.meta.outputs.kind }}
+          WITH_AUTH: ${{ steps.dump.outputs.with_auth }}
+          TAKEN_AT: ${{ steps.dump.outputs.taken_at }}
+          PG_DUMP_VERSION: ${{ steps.dump.outputs.pg_dump_version }}
+          SERVER_VERSION: ${{ steps.dump.outputs.server_version }}
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/backup"
+          pnpm exec tsx tools/backup/cli.ts manifest --work "$work" --counts "$work/counts.tsv" \
+            --commit "$GITHUB_SHA" --kind "$KIND" --taken-at "$TAKEN_AT" \
+            --pg-dump "$PG_DUMP_VERSION" --server "$SERVER_VERSION" --with-auth "$WITH_AUTH"
+
+      - name: Compress and encrypt for every recipient
+        shell: bash
+        env:
+          BACKUP_AGE_RECIPIENTS: ${{ vars.BACKUP_AGE_RECIPIENTS }}
+          WITH_AUTH: ${{ steps.dump.outputs.with_auth }}
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/backup"
+          upload="$RUNNER_TEMP/backup-upload"
+          mkdir -p "$upload"
+          # The owner's offline key and the restore-test key (docs/ops/backups.md): whitespace-,
+          # comma- or newline-separated native age X25519 public keys.
+          read -r -a keys <<< "$(printf '%s' "${BACKUP_AGE_RECIPIENTS:-}" | tr ',\r\n\t' '    ')"
+          recipients=()
+          declare -A seen=()
+          for key in "${keys[@]}"; do
+            if [[ ! "$key" =~ ^age1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{58}$ ]]; then
+              echo "::error::BACKUP_AGE_RECIPIENTS holds an entry that is not an age public key (age1…)"
+              exit 1
+            fi
+            if [ -z "${seen[$key]:-}" ]; then
+              seen[$key]=1
+              recipients+=(-r "$key")
+            fi
+          done
+          if [ "${#seen[@]}" -lt 2 ]; then
+            echo "::error::BACKUP_AGE_RECIPIENTS needs two distinct age public keys: the owner's offline key and the restore-test key"
+            exit 1
+          fi
+          names=(public.sql)
+          if [ "$WITH_AUTH" = true ]; then names+=(auth.sql); fi
+          for name in "${names[@]}"; do
+            gzip -n "$work/$name"
+            age --encrypt "${recipients[@]}" --output "$upload/$name.gz.age" "$work/$name.gz"
+          done
+          age --encrypt "${recipients[@]}" --output "$upload/manifest.json.age" "$work/manifest.json"
+          echo "Encrypted ${#names[@]} dumps and the manifest for ${#seen[@]} recipients."
+
+      - name: Every expected file is present, encrypted and not empty
+        shell: bash
+        env:
+          WITH_AUTH: ${{ steps.dump.outputs.with_auth }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ "$WITH_AUTH" = true ]; then auth=required; else auth=absent; fi
+          pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/backup-upload" --auth "$auth"
+
+      - id: upload-weekly
+        name: Upload the weekly backup (kept 90 days)
+        if: steps.meta.outputs.kind == 'weekly'
+        uses: actions/upload-artifact@v7
+        with:
+          name: db-backup-weekly-${{ steps.meta.outputs.date }}
+          path: ${{ runner.temp }}/backup-upload
+          retention-days: 90
+          if-no-files-found: error
+          # Encrypted data does not compress.
+          compression-level: 0
+
+      - id: upload-daily
+        name: Upload the daily backup (kept 14 days)
+        if: steps.meta.outputs.kind == 'daily'
+        uses: actions/upload-artifact@v7
+        with:
+          name: db-backup-daily-${{ steps.meta.outputs.date }}
+          path: ${{ runner.temp }}/backup-upload
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: The backup artifact was uploaded
+        shell: bash
+        env:
+          WEEKLY_ID: ${{ steps.upload-weekly.outputs.artifact-id }}
+          DAILY_ID: ${{ steps.upload-daily.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WEEKLY_ID$DAILY_ID" ]; then
+            echo "::error::no backup artifact was uploaded"
+            exit 1
+          fi
+          echo "Uploaded artifact $WEEKLY_ID$DAILY_ID."
+
+      - name: Remove the plaintext
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/backup" "$RUNNER_TEMP/backup-upload"
