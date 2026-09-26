@@ -1493,19 +1493,22 @@ Copy: `vi.today`.
 
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/today-view.tsx`
-- **Props:** `page: TodayPage` (`getToday()`), `slots: TodaySlots` (`todaySlots(page)`),
-  `markPlanSeen: (planId) => Promise<void>`, `resumeToday: () => Promise<ResumeResult>` (the
-  server actions, unbound)
+- **Props:** `page: TodayPage` (`getToday(block)`), `slots: TodaySlots` (`todaySlots(page)`),
+  `markPlanSeen: (planId) => Promise<void>`, `resumeToday: () => Promise<ResumeResult>`,
+  `checkIn: (input: CheckInInput) => Promise<CheckInResult>` (the server actions, unbound)
 - **Variants:** by `page.data.state.kind` — `plan` (throttle notices, "Kế hoạch hôm nay" with "{n}
   khối · {minutes}", PlanBlockCards, TodayStats + WeakAreas; marks the plan seen) · `resumed` (an
   info Banner "Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.", "Kế hoạch ngày
   {date}" with its check-ins) · `paused` (PausedBanner above "Phần còn dang dở": the active
-  tracks' unfinished blocks) · `notStarted` / `noTracks` (TodayEmpty) · `unreadable` (ErrorState
-  "Không đọc được kế hoạch hôm nay"). No mode badge in v1.0 (decision 12)
+  tracks' unfinished blocks) · `notStarted` / `noTracks` (TodayEmpty) · `unreadable`
+  (UnreadablePlan). Each block without a check-in gets a CheckInButton in its `actions` slot
+  (check-ins go to the plan shown — the paused plan while the gate is closed, decision 13);
+  `page.openBlockId` (`/today?block=<id>`, a block the dashboard shows) opens its CheckInSheet.
+  No mode badge in v1.0 (decision 12)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
   error (`unreadable`; `error.tsx`) · ready
 - **Usage:** `<TodayView page={page} slots={todaySlots(page)} markPlanSeen={markPlanSeen}
-  resumeToday={resumeTodayAction} />` (`app/(app)/today/page.tsx`)
+  resumeToday={resumeTodayAction} checkIn={checkInBlock} />` (`app/(app)/today/page.tsx`)
 - **Accessibility:** PageHeader `h1` "Hôm nay" with the long date; each column part is a Section
   (a region named by its `h2`); blocks are a `role="list"`; DESIGN_SYSTEM §5 order — banners →
   blocks (2/3 column from 1024 px) → stats and weak areas (1/3 column)
@@ -1515,14 +1518,18 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/plan-block-card.tsx`
 - **Props:** `view: BlockView`, `slots?: BlockSlots` (`{ items: BlockItemSlot[], sentences:
-  ShadowingSentence[] }`), `actions?: ReactNode` (task 5.2b puts the one-tap check-in here)
+  ShadowingSentence[] }`), `actions?: ReactNode` (the one-tap CheckInButton while the block has
+  no check-in), `paused?: boolean` (the paused view: a skipped block's M-6 lines)
 - **Variants:** item rows (BlockItemList) · shadowing block (`block.shadowing` set:
   ShadowingSentences instead) · over budget (a warning Badge "Dài hơn thời gian dự kiến": a new
-  item flagged `overBudget`, or a practice block longer than the track budget, M4-R10) · checked
-  in (a plain status row "Đã check-in" + StatusPill `block-done|partial|skipped` + minutes +
-  "tự động" for an auto check-in — 5.2b replaces it with CheckInStatus and "Sửa")
+  item flagged `overBudget`, or a practice block longer than the track budget, M4-R10) · not
+  checked in (the `actions` slot: CheckInButton) · checked in (collapses into CheckInStatus —
+  "Đã check-in", StatusPill `block-done|partial|skipped`, minutes, "tự động" for an auto
+  check-in, "Sửa" → `view.editHref`; paused + skipped adds "Đã bỏ qua — bấm Sửa khi bạn làm
+  xong" and the owner's line)
 - **States:** with rows · empty ("Khối này chưa có bài nào.")
-- **Usage:** `<PlanBlockCard view={view} slots={slots[view.block.id]} />`
+- **Usage:** `<PlanBlockCard view={view} slots={slots[view.block.id]} actions={<CheckInButton
+  … />} paused={state.kind === 'paused'} />`
 - **Accessibility:** an `article` named by its `h3` (the kind label) and the track chip (Badge
   `tone="track"` in `data-accent`, the Vietnamese track title — the track is never colour alone);
   the 4 px `bg-track` stripe is decorative; minutes with a decorative clock icon
@@ -1596,8 +1603,9 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/today-stats.tsx`
 - **Props:** `streak: number`, `tracks: TrackProgressView[]`
-- **Variants:** a ProgressRing card per active track ("Tuần {w}/{weeks} · {n} mục cần ôn"; the
-  week left out without a roadmap)
+- **Variants:** DESIGN_SYSTEM §5 order — the StreakBadge, a ProgressRing card per active track
+  ("Tuần {w}/{weeks} · {n} mục cần ôn"; the week left out without a roadmap), then the due
+  reviews StatCard
 - **States:** ready · a new learner (0 streak, 0 due, 0 % rings — never NaN) · no active track
   (streak and due only)
 - **Usage:** `<TodayStats streak={page.streak} tracks={page.tracks} />`
@@ -1609,8 +1617,8 @@ Copy: `vi.today`.
 
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/weak-areas.tsx`
-- **Props:** `topics: WeakTopicView[]` (`{ trackId, title, trackTitle, count }`, §5.7: ≥ 2 Weak
-  items, active tracks only, most first)
+- **Props:** `topics: WeakTopicView[]` (`{ trackId, topicId, title, trackTitle, count }`, §5.7:
+  ≥ 2 Weak items, active tracks only, most first; keyed by track and topic ID)
 - **Variants:** —
 - **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
 - **Usage:** `<WeakAreas topics={page.weakTopics} />`
@@ -1643,9 +1651,83 @@ Copy: `vi.today`.
 - **Usage:** `<TodayEmpty kind="notStarted" startDate={state.startDate} />`
 - **Accessibility:** EmptyState — decorative icon, a heading, one action link
 
+### UnreadablePlan
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/unreadable-plan.tsx`
+- **Props:** —
+- **Variants:** —
+- **States:** error (today's stored plan cannot be read and is in use, so it was not rebuilt —
+  M-4, decision 10): ErrorState "Không đọc được kế hoạch hôm nay", what to do when it keeps
+  failing (never a promise that it repairs itself, M5-R26), and "Thử lại" (`router.refresh()`:
+  `ensureToday` runs again)
+- **Usage:** `{state.kind === 'unreadable' && <UnreadablePlan />}` (TodayView)
+- **Accessibility:** ErrorState — `role="alert"`, a heading, a 44 px "Thử lại" button
+
 ### Check-in components (`features/checkin/components`)
 
 Task 5.2b adds these entries below this line (Part B-M5 decision 3).
+
+The check-in UI (§5.5; DESIGN_SYSTEM §3.3, §9, §10). The page passes `checkInBlock` unbound; the
+client components build its `CheckInInput` (`{ requestId, planId, blockId, status, minutes?,
+note? }`) with the page's per-render request ID (decision 16: the same tap twice is one event).
+Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `vi.checkIn`.
+
+### CheckInButton
+
+- **Layer:** feature (`features/checkin`, **client**)
+- **File:** `features/checkin/components/check-in-button.tsx`
+- **Props:** `action: CheckInAction` (`checkInBlock`, unbound), `requestId: string`, `planId:
+  string`, `blockId: string`, `blockLabel: string` ("{kind} · {track}")
+- **Variants:** —
+- **States:** idle · pending (Button `loading`: spinner, `aria-busy`; a second tap sends nothing,
+  RF-2) · success (the message + a toast — the action revalidates `/today`, whose re-render
+  collapses the card into CheckInStatus) · refused / failed request (the message beside the
+  button, no toast; tap again)
+- **Usage:** `<CheckInButton action={checkIn} requestId={page.requestId} planId={plan.id}
+  blockId={view.block.id} blockLabel={blockLabel(view)} />` (PlanBlockCard's `actions`)
+- **Accessibility:** a full-width 48 px `primary` Button "Check-in" (the biggest target, one
+  primary per card) named "Check-in: {kind} · {track}" (`aria-label` starting with the visible
+  label, WCAG 2.5.3, so several stay distinct); the answer in a polite `role="status"` live
+  region
+
+### CheckInStatus
+
+- **Layer:** feature (`features/checkin`, server-compatible)
+- **File:** `features/checkin/components/check-in-status.tsx`
+- **Props:** `checkIn: { status, minutes, auto }`, `editHref: string` (`/today?block=<id>`),
+  `blockLabel: string`, `paused?: boolean`
+- **Variants:** done / partial / skipped (StatusPill `block-*`: Xong `Check` · Một phần `Clock` ·
+  Bỏ qua `SkipForward`) · auto ("· tự động") · paused + skipped ("Đã bỏ qua — bấm Sửa khi bạn làm
+  xong" and "Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành.",
+  ruling M-6 a)
+- **States:** static
+- **Usage:** `<CheckInStatus checkIn={view.checkIn} editHref={view.editHref}
+  blockLabel={label} paused />` (PlanBlockCard)
+- **Accessibility:** status by icon + label, never colour alone; "Sửa" is a 44 px outline link
+  named "Sửa {kind} · {track}" (`sr-only`), `scroll={false}` so the page keeps its place
+
+### CheckInSheet
+
+- **Layer:** feature (`features/checkin`, **client**)
+- **File:** `features/checkin/components/check-in-sheet.tsx`
+- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `block:
+  CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
+  status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
+- **Variants:** a bottom Sheet below `md`, a Dialog from `md` · new check-in (Xong, the block's
+  `checkInMinutes`) · edit (pre-filled with the block's check-in)
+- **States:** idle · saving (submit `loading`) · error (a danger Banner with the message —
+  "stale", "Không lưu được thay đổi. Bạn thử lại nhé." for a failed request — and "Thử lại",
+  the sheet kept open) · invalid (minutes outside 0–600, or a note over 280 graphemes / the
+  payload bound: the error under the field, submit disabled) · success (toast, back to `/today`)
+- **Usage:** `{open && <CheckInSheet key={open.block.id} action={checkIn} requestId={…}
+  planId={plan.id} block={…} />}` (TodayView, from `page.openBlockId`)
+- **Accessibility:** a modal dialog named by its title "Check-in: {kind}"; focus moves to the
+  title on open, is trapped, and `Esc` / "Đóng" / "Huỷ" close it (`router.replace`, so the back
+  button never reopens it, §2.4); the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
+  labels); the minutes stepper's −/+ are 44 px icon buttons "Bớt 5 phút" / "Thêm 5 phút"; the
+  note's live "n/280" counter and error are in its `aria-describedby`; the save result is in a
+  polite `role="status"` live region (a success is a toast)
 
 ### Item outcome components (`features/items/components/outcome`)
 

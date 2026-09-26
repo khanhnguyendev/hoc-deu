@@ -203,6 +203,32 @@ describe('buildTodayPage — blocks', () => {
     expect(views.slice(1).every((view) => view.checkIn === null)).toBe(true)
   })
 
+  it('gives each block its "Sửa" link, /today?block=<id>, and its check-in minutes (5.2b)', () => {
+    expect(page.blocks.map((view) => view.editHref)).toEqual(
+      blocks.map((b) => `/today?block=${encodeURIComponent(b.id)}`),
+    )
+    expect(new URL(page.blocks[0]!.editHref, 'http://localhost').searchParams.get('block')).toBe(
+      `${TODAY}:dsa:review:1`,
+    )
+    // checkInMinutes: Math.ceil(estMinutes) — an English block of 3 × 1.5 minutes pre-fills 3,
+    // a 19.5-minute block 20 (decision 34 of M4).
+    expect(page.blocks.map((view) => view.defaultMinutes)).toEqual([10, 50, 3, 10, 10, 5, 3, 10])
+    const half = buildTodayPage(
+      todayData(
+        planState(
+          storedPlan({
+            blocks: [
+              block(`${TODAY}:dsa:new:1`, { kind: 'new', trackId: 'dsa', estMinutes: 19.5 }),
+            ],
+          }),
+        ),
+      ),
+      NO_ACTIVITY,
+      REQUEST_ID,
+    )
+    expect(half.blocks[0]!.defaultMinutes).toBe(20)
+  })
+
   it('shows the resumed plan with its check-ins, and the paused plan’s unfinished blocks only', () => {
     const yesterday = '2026-09-27'
     const oldBlocks = [
@@ -421,9 +447,79 @@ describe('buildTodayPage — weak topics', () => {
       REQUEST_ID,
     )
     expect(page.weakTopics).toEqual([
-      { trackId: 'dsa', title: 'Arrays & Hashing', trackTitle: DSA_TITLE, count: 3 },
-      { trackId: 'dsa', title: 'Two Pointers', trackTitle: DSA_TITLE, count: 2 },
+      {
+        trackId: 'dsa',
+        topicId: 'arrays',
+        title: 'Arrays & Hashing',
+        trackTitle: DSA_TITLE,
+        count: 3,
+      },
+      {
+        trackId: 'dsa',
+        topicId: 'two-pointers',
+        title: 'Two Pointers',
+        trackTitle: DSA_TITLE,
+        count: 2,
+      },
     ])
+  })
+})
+
+describe('buildTodayPage — ?block= (5.2b, §2.4)', () => {
+  const yesterday = '2026-09-27'
+  const oldBlocks = [
+    block(`${yesterday}:dsa:review:1`, { kind: 'review', trackId: 'dsa' }),
+    block(`${yesterday}:dsa:new:1`, { kind: 'new', trackId: 'dsa' }),
+  ]
+  const old = storedPlan({ id: OLD_PLAN_ID, planDate: yesterday, blocks: oldBlocks })
+
+  it('opens the sheet for a block the dashboard shows', () => {
+    const blocks = [block(`${TODAY}:dsa:new:1`, { kind: 'new', trackId: 'dsa' })]
+    const page = buildTodayPage(
+      todayData(planState(storedPlan({ blocks }))),
+      NO_ACTIVITY,
+      REQUEST_ID,
+      `${TODAY}:dsa:new:1`,
+    )
+    expect(page.openBlockId).toBe(`${TODAY}:dsa:new:1`)
+    const resumed = buildTodayPage(
+      todayData({ kind: 'resumed', plan: old, blocks: {} }),
+      NO_ACTIVITY,
+      REQUEST_ID,
+      `${yesterday}:dsa:review:1`,
+    )
+    expect(resumed.openBlockId).toBe(`${yesterday}:dsa:review:1`)
+  })
+
+  it('opens nothing for an unknown id, no id, or a block the dashboard does not show', () => {
+    const plan = planState(storedPlan({ blocks: [oldBlocks[0]!] }))
+    expect(buildTodayPage(todayData(plan), NO_ACTIVITY, REQUEST_ID, 'nope').openBlockId).toBeNull()
+    expect(buildTodayPage(todayData(plan), NO_ACTIVITY, REQUEST_ID).openBlockId).toBeNull()
+    expect(buildTodayPage(todayData(plan), NO_ACTIVITY, REQUEST_ID, '').openBlockId).toBeNull()
+    // The paused view lists only unfinished blocks: a finished one is not opened.
+    const paused = buildTodayPage(
+      todayData({
+        kind: 'paused',
+        plan: old,
+        unfinished: [oldBlocks[1]!],
+        blocks: {},
+        daysSince: 1,
+        offerResume: false,
+      }),
+      NO_ACTIVITY,
+      REQUEST_ID,
+      `${yesterday}:dsa:review:1`,
+    )
+    expect(paused.openBlockId).toBeNull()
+    for (const state of [
+      { kind: 'notStarted', startDate: '2026-10-03' },
+      { kind: 'noTracks' },
+      { kind: 'unreadable' },
+    ] satisfies TodayState[]) {
+      expect(
+        buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID, `${TODAY}:dsa:new:1`).openBlockId,
+      ).toBeNull()
+    }
   })
 })
 

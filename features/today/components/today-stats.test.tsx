@@ -37,6 +37,18 @@ describe('TodayStats', () => {
     expect(region.textContent).toContain('Tuần 1/10 · 9 mục cần ôn')
   })
 
+  it('follows the DESIGN_SYSTEM §5 order: streak + per-track progress, then due reviews', () => {
+    render(<TodayStats streak={2} tracks={[trackView(), trackView({ trackId: 'english' })]} />)
+    const region = screen.getByRole('region', { name: 'Tiến độ' })
+    const [streak] = within(region).getAllByText(/ngày liên tiếp/)
+    const rings = within(region).getAllByRole('progressbar')
+    const due = within(region).getByRole('link', { name: /Cần ôn hôm nay/ })
+    const before = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(before(streak!, rings[0]!)).toBe(true)
+    expect(before(rings[1]!, due)).toBe(true)
+  })
+
   it('a new learner (empty): streak 0, nothing due, rings at 0 %', () => {
     render(<TodayStats streak={0} tracks={[trackView({ dueCount: 0, progress: 0, week: 1 })]} />)
     const region = screen.getByRole('region', { name: 'Tiến độ' })

@@ -35,9 +35,9 @@ function TrackProgress({ track }: { track: TrackProgressView }) {
 }
 
 /**
- * The dashboard's numbers (DESIGN_SYSTEM §5 order: streak + per-track progress → due reviews):
- * the StreakBadge, the due reviews as a StatCard linking to `/review`, and a ProgressRing card
- * per active track (week of weeks, due count). A new learner reads 0 everywhere, never NaN.
+ * The dashboard's numbers in the DESIGN_SYSTEM §5 order — streak + per-track progress → due
+ * reviews: the StreakBadge, a ProgressRing card per active track (week of weeks, due count), then
+ * the due reviews as a StatCard linking to `/review`. A new learner reads 0 everywhere, never NaN.
  */
 function TodayStats({ streak, tracks }: { streak: number; tracks: readonly TrackProgressView[] }) {
   const due = tracks.reduce((sum, track) => sum + track.dueCount, 0)
@@ -46,12 +46,6 @@ function TodayStats({ streak, tracks }: { streak: number; tracks: readonly Track
       <Card>
         <StreakBadge days={streak} />
       </Card>
-      <Link
-        href="/review"
-        className="block rounded-lg transition-shadow duration-(--duration-fast) ease-standard hover:shadow-sm"
-      >
-        <StatCard label={copy.due} value={due} icon={RotateCcw} hint={copy.dueHint} />
-      </Link>
       {tracks.length > 0 && (
         <ul role="list" className="flex flex-col gap-3">
           {tracks.map((track) => (
@@ -61,6 +55,12 @@ function TodayStats({ streak, tracks }: { streak: number; tracks: readonly Track
           ))}
         </ul>
       )}
+      <Link
+        href="/review"
+        className="block rounded-lg transition-shadow duration-(--duration-fast) ease-standard hover:shadow-sm"
+      >
+        <StatCard label={copy.due} value={due} icon={RotateCcw} hint={copy.dueHint} />
+      </Link>
     </Section>
   )
 }

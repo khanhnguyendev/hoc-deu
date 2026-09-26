@@ -12,12 +12,13 @@ const ACTIVITY_DAYS = 400
 /**
  * `/today`'s loader (§2.4, §5.4; decisions 6, 7, 16): requireOnboarded → ensureToday (which may
  * build and store today's plan — never marks it seen, ADR-0039) → 400 days of `daily_activity`
- * through the session client (RLS) → buildTodayPage with a fresh per-render request id.
+ * through the session client (RLS) → buildTodayPage with a fresh per-render request id. `block`
+ * is `?block=` (task 5.2b): the check-in sheet opens for it when the dashboard shows that block.
  */
-export async function getToday(): Promise<TodayPage> {
+export async function getToday(block?: string): Promise<TodayPage> {
   const user = await requireOnboarded()
   const data = await ensureToday(user.id)
   const supabase = await createClient()
   const activity = await readDailyActivity(supabase, user.id, addDays(data.today, -ACTIVITY_DAYS))
-  return buildTodayPage(data, activity, crypto.randomUUID())
+  return buildTodayPage(data, activity, crypto.randomUUID(), block)
 }

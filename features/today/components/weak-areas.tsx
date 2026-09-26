@@ -23,7 +23,7 @@ function WeakAreas({ topics }: { topics: readonly WeakTopicView[] }) {
           className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-2"
         >
           {topics.map((topic) => (
-            <li key={`${topic.trackId}/${topic.title}`}>
+            <li key={`${topic.trackId}/${topic.topicId}`}>
               <LinkRow
                 href={`/t/${topic.trackId}`}
                 title={topic.title}

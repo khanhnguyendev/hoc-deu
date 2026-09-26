@@ -8,6 +8,7 @@
 import { itemHref } from '@/features/items/href'
 import { getTrack } from '@/lib/content/catalog'
 import { isActiveItem, type ItemMode, type PlanCatalog } from '@/lib/domain/catalog'
+import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
 import { dueQueue } from '@/lib/domain/plan/queues'
 import { coreItemsOfWeek, roadmapWeek, weekSizes } from '@/lib/domain/plan/roadmap'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
@@ -38,6 +39,10 @@ export type BlockView = {
     readonly mode: ItemMode
     readonly href: string
   }[]
+  /** "Sửa": `/today?block=<blockId>` opens the check-in sheet (§2.4, task 5.2b). */
+  readonly editHref: string
+  /** `checkInMinutes(block)`: the minutes a new check-in pre-fills (decision 34 of M4). */
+  readonly defaultMinutes: number
 }
 
 export type TrackProgressView = {
@@ -56,6 +61,8 @@ export type TrackProgressView = {
 export type WeakTopicView = {
   /** The topic's track: WeakAreas links to `/t/<trackId>`. */
   readonly trackId: string
+  /** With `trackId`, the list key (two topics may share a title). */
+  readonly topicId: string
   readonly title: string
   readonly trackTitle: string
   readonly count: number
@@ -71,6 +78,8 @@ export type TodayPage = {
   readonly markSeenPlanId: string | null
   /** Per render (decision 16): the check-in and "Học thêm" forms derive event ids from it. */
   readonly requestId: string
+  /** `?block=<id>` when the dashboard shows that block: its check-in sheet is open (§2.4). */
+  readonly openBlockId: string | null
 }
 
 /** A track the catalog no longer lists still renders: its ID as title, the first accent. */
@@ -123,6 +132,11 @@ function blockItemHref(itemId: string, blockId: string, mode: ItemMode): string 
   return `${path}?${new URLSearchParams({ block: blockId, mode }).toString()}`
 }
 
+/** `/today?block=<blockId>`: the block's check-in sheet (§2.4). */
+function editHref(blockId: string): string {
+  return `/today?${new URLSearchParams({ block: blockId }).toString()}`
+}
+
 /** M4-R10: practice items never carry the flag — the block's own minutes decide. */
 function isOverBudget(block: PlanBlock, budget: number | null): boolean {
   if (block.items.some((item) => item.overBudget === true)) return true
@@ -151,6 +165,8 @@ function blockViews(
         mode,
         href: blockItemHref(itemId, block.id, mode),
       })),
+      editHref: editHref(block.id),
+      defaultMinutes: checkInMinutes(block),
     }
   })
 }
@@ -225,6 +241,7 @@ function weakTopicViews(data: TodayData): WeakTopicView[] {
   )
   return weakTopics(data.items, data.catalog, active).map((topic) => ({
     trackId: topic.trackId,
+    topicId: topic.topicId,
     title: topicTitle(topic.trackId, topic.topicId),
     trackTitle: trackInfo(topic.trackId).title,
     count: topic.itemIds.length,
@@ -248,19 +265,26 @@ function streakOf(
   })
 }
 
-/** `/today`'s view (task 5.1b): pure over its inputs and the track manifests. */
+/**
+ * `/today`'s view (tasks 5.1b, 5.2b): pure over its inputs and the track manifests. `block` is
+ * `?block=`: its sheet opens only for a block the dashboard shows — an unknown ID, or a finished
+ * block of the paused plan, opens nothing.
+ */
 export function buildTodayPage(
   data: TodayData,
   dailyActivity: Readonly<Record<LocalDay, DailyActivity>>,
   requestId: string,
+  block?: string,
 ): TodayPage {
+  const blocks = stateBlocks(data)
   return {
     data,
-    blocks: stateBlocks(data),
+    blocks,
     tracks: trackViews(data),
     streak: streakOf(data, dailyActivity),
     weakTopics: weakTopicViews(data),
     markSeenPlanId: data.state.kind === 'plan' ? data.state.plan.id : null,
     requestId,
+    openBlockId: blocks.find((view) => view.block.id === block)?.block.id ?? null,
   }
 }

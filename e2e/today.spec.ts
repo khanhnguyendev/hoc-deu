@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
@@ -28,6 +29,40 @@ const created: string[] = []
 test.afterEach(async () => {
   await Promise.all(created.splice(0).map((id) => deleteTestUser(id)))
 })
+
+type CatalogItemJson = {
+  id: string
+  type: string
+  trackId: string
+  localId: string
+  status: string
+  title: string
+  content: { note?: { status: string } | null }
+}
+
+/**
+ * The first active DSA problem a learner sees without a note (none yet, or a draft — §5.9, RF-4),
+ * read from `.generated/catalog.json` (`pnpm test:e2e` runs content:build first), so the RF-4 case
+ * never depends on one problem staying note-less (M5-R26).
+ */
+function noteLessProblem(): CatalogItemJson {
+  const catalog = JSON.parse(readFileSync('.generated/catalog.json', 'utf8')) as {
+    items: Record<string, CatalogItemJson>
+  }
+  const problem = Object.values(catalog.items).find(
+    (item) =>
+      item.type === 'problem' &&
+      item.trackId === 'dsa' &&
+      item.status === 'active' &&
+      (item.content.note === null ||
+        item.content.note === undefined ||
+        item.content.note.status === 'draft'),
+  )
+  if (problem === undefined) {
+    throw new Error('The RF-4 case needs an active DSA problem without a visible note.')
+  }
+  return problem
+}
 
 const DSA = 'Cấu trúc dữ liệu & Giải thuật'
 const ENGLISH = 'Tiếng Anh cho môi trường IT'
@@ -109,7 +144,8 @@ test('[RF-4] a seeded plan: a problem without a note says so; rows link with ?bl
   page,
 }) => {
   const { user, today } = await learner(['dsa'], (day) => addDays(day, -10))
-  const block = newBlock(today, 'dsa', [{ itemId: 'dsa:lc-0002', minutes: 35 }])
+  const noteLess = noteLessProblem()
+  const block = newBlock(today, 'dsa', [{ itemId: noteLess.id, minutes: 35 }])
   await seedPlan(user.id, { planDate: today, blocks: [block], tracks: { dsa: snapshot('8w') } })
   // Two Weak problems of one topic: a weak area (§5.7).
   await seedItemStates(
@@ -126,10 +162,10 @@ test('[RF-4] a seeded plan: a problem without a note says so; rows link with ?bl
   await openToday(page, user)
   const card = page.getByRole('article', { name: `Bài mới ${DSA}` })
   await expect(card).toBeVisible()
-  const row = card.getByRole('link', { name: /Add Two Numbers/ })
+  const row = card.getByRole('link', { name: noteLess.title })
   await expect(row).toBeVisible()
   const href = new URL((await row.getAttribute('href'))!, 'http://localhost')
-  expect(href.pathname).toBe('/t/dsa/items/lc-0002')
+  expect(href.pathname).toBe(`/t/dsa/items/${noteLess.localId}`)
   expect(href.searchParams.get('block')).toBe(block.id)
   expect(href.searchParams.get('mode')).toBe('new')
   await expect(card.getByText('Chưa có ghi chú')).toBeVisible()

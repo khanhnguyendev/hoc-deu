@@ -2,7 +2,8 @@ import type * as React from 'react'
 import { LinkRow } from '@/components/patterns/link-row'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { StatusPill } from '@/components/patterns/status-pill'
-import { Button } from '@/components/ui/button'
+import type { CheckInResult } from '@/features/checkin/actions'
+import { CheckInButton } from '@/features/checkin/components/check-in-button'
 import type { ResumeResult } from '@/features/today/actions'
 import { BlockItemList } from '@/features/today/components/block-item-list'
 import { MarkPlanSeen } from '@/features/today/components/mark-plan-seen'
@@ -14,6 +15,7 @@ import { ThrottleNotice } from '@/features/today/components/throttle-notice'
 import { TodayEmpty } from '@/features/today/components/today-empty'
 import { TodayStats } from '@/features/today/components/today-stats'
 import { TodayView } from '@/features/today/components/today-view'
+import { UnreadablePlan } from '@/features/today/components/unreadable-plan'
 import { WeakAreas } from '@/features/today/components/weak-areas'
 import type { BlockItemSlot, TodaySlots } from '@/features/today/slots'
 import type {
@@ -28,9 +30,9 @@ import { vi } from '@/lib/i18n/vi'
 import type { Entry } from '../types'
 
 /**
- * `/dev/components` entries of features/today (task 5.1b; 5.2b and 5.4 later) — Part B-M5
+ * `/dev/components` entries of features/today (tasks 5.1b, 5.2b; 5.4 later) — Part B-M5
  * decision 3: only that task edits this file. The rows are plain LinkRows standing in for the
- * registry's (the page builds the real ones, `todaySlots`); the actions are no-ops.
+ * registry's (the page builds the real ones, `todaySlots`); the actions are no-ops or demos.
  */
 
 const TODAY = '2026-09-28'
@@ -47,6 +49,11 @@ const demoResume = async (): Promise<ResumeResult> => ({
 const demoResumeFailure = async (): Promise<ResumeResult> => ({
   ok: false,
   message: vi.today.resumeResult.notOffered,
+})
+/** The one-tap and the sheet answer as `checkInBlock` would; nothing is saved. */
+const demoCheckIn = async (): Promise<CheckInResult> => ({
+  ok: true,
+  message: vi.checkIn.checkedIn.done,
 })
 
 const row = (itemId: string, title: string, meta: string[], noNote = false): BlockItemSlot => ({
@@ -82,6 +89,9 @@ const view = (change: Partial<BlockView> & Pick<BlockView, 'block'>): BlockView 
   overBudget: false,
   checkIn: null,
   items: [],
+  // `#`: the catalog never navigates to /today (the page builds `/today?block=<id>`).
+  editHref: `#${change.block.id}`,
+  defaultMinutes: Math.ceil(change.block.estMinutes),
   ...change,
 })
 
@@ -167,8 +177,14 @@ const ENGLISH_TRACK: TrackProgressView = {
 const NEW_TRACK: TrackProgressView = { ...DSA_TRACK, week: 1, progress: 0, dueCount: 0 }
 
 const WEAK_TOPICS: WeakTopicView[] = [
-  { trackId: 'dsa', title: 'Arrays & Hashing', trackTitle: DSA, count: 3 },
-  { trackId: 'dsa', title: 'Two Pointers', trackTitle: DSA, count: 2 },
+  {
+    trackId: 'dsa',
+    topicId: 'arrays-hashing',
+    title: 'Arrays & Hashing',
+    trackTitle: DSA,
+    count: 3,
+  },
+  { trackId: 'dsa', topicId: 'two-pointers', title: 'Two Pointers', trackTitle: DSA, count: 2 },
 ]
 
 const plan = (change: Partial<StoredPlan> = {}): StoredPlan => ({
@@ -199,6 +215,7 @@ const page = (state: TodayState, change: Partial<Omit<TodayPage, 'data'>> = {}):
   weakTopics: [],
   markSeenPlanId: null,
   requestId: 'demo',
+  openBlockId: null,
   ...change,
 })
 
@@ -264,6 +281,38 @@ const DEMO_PAGES: { title: string; page: TodayPage }[] = [
     ),
   },
   {
+    title: 'Tạm dừng: một khối đã bỏ qua (bấm "Sửa" khi làm xong, M-6 a)',
+    page: page(
+      {
+        kind: 'paused',
+        plan: plan({ id: OLD_PLAN_ID, planDate: '2026-09-27' }),
+        unfinished: [NEW_BLOCK.block],
+        blocks: {},
+        daysSince: 1,
+        offerResume: false,
+      },
+      {
+        blocks: [
+          {
+            ...NEW_BLOCK,
+            checkIn: {
+              planId: OLD_PLAN_ID,
+              blockId: NEW_BLOCK.block.id,
+              trackId: 'dsa',
+              status: 'skipped',
+              minutes: 0,
+              note: null,
+              auto: false,
+              checkedInOn: '2026-09-27',
+            },
+          },
+          REVIEW_BLOCK,
+        ],
+        tracks: [DSA_TRACK],
+      },
+    ),
+  },
+  {
     title: 'Tạm dừng, trong 2 ngày: không có "Học tiếp hôm nay"',
     page: page(
       {
@@ -305,6 +354,7 @@ export const TODAY_ENTRIES: Entry[] = [
               slots={DEMO_SLOTS}
               markPlanSeen={noopMarkSeen}
               resumeToday={demoResume}
+              checkIn={demoCheckIn}
             />,
           ),
       })),
@@ -354,17 +404,44 @@ export const TODAY_ENTRIES: Entry[] = [
           ),
       },
       {
-        title: 'Vùng actions (task 5.2b đặt nút check-in ở đây)',
+        title: 'Chưa check-in: nút check-in một chạm trong vùng actions',
         render: () =>
           narrow(
             <PlanBlockCard
               view={REVIEW_BLOCK}
               slots={DEMO_SLOTS[REVIEW_BLOCK.block.id]}
               actions={
-                <Button size="lg" className="w-full">
-                  Check-in
-                </Button>
+                <CheckInButton
+                  action={demoCheckIn}
+                  requestId="demo"
+                  planId={PLAN_ID}
+                  blockId={REVIEW_BLOCK.block.id}
+                  blockLabel={`${REVIEW_BLOCK.kindLabel} · ${DSA}`}
+                />
               }
+            />,
+          ),
+      },
+      {
+        title: 'Tạm dừng: khối đã bỏ qua, "Sửa" khi làm xong (M-6 a)',
+        render: () =>
+          narrow(
+            <PlanBlockCard
+              view={{
+                ...NEW_BLOCK,
+                checkIn: {
+                  planId: OLD_PLAN_ID,
+                  blockId: NEW_BLOCK.block.id,
+                  trackId: 'dsa',
+                  status: 'skipped',
+                  minutes: 0,
+                  note: null,
+                  auto: false,
+                  checkedInOn: '2026-09-27',
+                },
+              }}
+              slots={DEMO_SLOTS[NEW_BLOCK.block.id]}
+              paused
             />,
           ),
       },
@@ -478,6 +555,17 @@ export const TODAY_ENTRIES: Entry[] = [
       {
         title: 'Đang giảm thẻ mới (không giảm: không hiển thị gì)',
         render: () => narrow(<ThrottleNotice track={ENGLISH_TRACK} />),
+      },
+    ],
+  },
+  {
+    name: 'UnreadablePlan',
+    layer: 'features',
+    file: 'features/today/components/unreadable-plan.tsx',
+    demos: [
+      {
+        title: 'Lỗi: kế hoạch hôm nay không đọc được, "Thử lại"',
+        render: () => narrow(<UnreadablePlan />),
       },
     ],
   },

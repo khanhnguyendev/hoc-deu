@@ -45,9 +45,6 @@ export const today = {
     /** §5.4: a new item over the budget, or a practice block longer than the track budget. */
     overBudget: 'Dài hơn thời gian dự kiến',
     noItems: 'Khối này chưa có bài nào.',
-    /** The plain checked-in status row (5.2b replaces it with CheckInStatus). */
-    checkedIn: 'Đã check-in',
-    auto: 'tự động',
   },
   /** The `shadowing` block (§5.6): example sentences read aloud. */
   shadowing: {
@@ -92,10 +89,12 @@ export const today = {
       description: 'Bạn có thể ôn lại bài đã học hoặc xem lộ trình.',
       action: 'Xem lộ trình',
     },
+    /** M-4: in use, so not rebuilt. "Thử lại" renders the page again (M5-R26: no promise that
+     *  it repairs itself). */
     unreadable: {
       title: 'Không đọc được kế hoạch hôm nay',
       description:
-        'Kế hoạch hôm nay đã được dùng nhưng không đọc được. Bạn tải lại trang sau ít phút nhé.',
+        'Kế hoạch hôm nay đã có tiến độ nhưng không đọc được. Bạn bấm Thử lại; nếu vẫn lỗi, hãy báo cho quản trị viên.',
     },
   },
   /** `app/(app)/today/error.tsx`. */

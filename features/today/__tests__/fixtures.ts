@@ -131,6 +131,8 @@ export function blockView(change: Partial<BlockView> = {}): BlockView {
     overBudget: false,
     checkIn: null,
     items: [],
+    editHref: `/today?${new URLSearchParams({ block: planBlock.id }).toString()}`,
+    defaultMinutes: Math.ceil(planBlock.estMinutes),
     ...change,
   }
 }
@@ -161,6 +163,7 @@ export function todayPage(
     weakTopics: [],
     markSeenPlanId: null,
     requestId: REQUEST_ID,
+    openBlockId: null,
     ...change,
   }
 }

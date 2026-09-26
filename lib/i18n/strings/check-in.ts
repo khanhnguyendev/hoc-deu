@@ -1,4 +1,8 @@
-/** Check-in: the write path's messages and the sheet (tasks 5.2a, 5.2b; Part B-M5 decision 3). */
+/**
+ * Check-in: the write path's messages and the check-in UI (tasks 5.2a, 5.2b; Part B-M5 decision
+ * 3). `{kind}` is a block's kind label ("Bài mới"), `{track}` a track title, `{minutes}` a
+ * formatted duration, `{n}` / `{max}` formatted numbers.
+ */
 export const checkIn = {
   /** `checkInBlock`'s answer, per status (5.2a). */
   checkedIn: {
@@ -21,5 +25,34 @@ export const checkIn = {
     stale: 'Kế hoạch đã thay đổi — tải lại trang.',
     invalid: 'Dữ liệu gửi lên không hợp lệ. Bạn tải lại trang nhé.',
     unknownItem: 'Không tìm thấy mục học này.',
+  },
+  /** Which block a button or link acts on, for screen readers (5.2b): "Bài mới · {track}". */
+  blockLabel: '{kind} · {track}',
+  /** The one-tap button (DESIGN_SYSTEM §9, §11: buttons are verbs). */
+  oneTap: 'Check-in',
+  /** CheckInStatus: the checked-in row (5.2b, DESIGN_SYSTEM §9). */
+  status: {
+    checkedIn: 'Đã check-in',
+    auto: 'tự động',
+    edit: 'Sửa',
+    /** M-6: the paused view, next to a skipped block — its results never re-check it (§5.5). */
+    skippedHint: 'Đã bỏ qua — bấm Sửa khi bạn làm xong',
+    /** The owner's line (ruling M-6 a, ADR-0016). */
+    skippedRule: 'Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành.',
+  },
+  /** CheckInSheet (5.2b, DESIGN_SYSTEM §9): `/today?block=<id>`. */
+  sheet: {
+    title: 'Check-in: {kind}',
+    description: '{track} · dự kiến {minutes}',
+    status: 'Trạng thái',
+    minutes: 'Số phút đã học',
+    minutesHelper: 'Từ 0 đến 600 phút.',
+    minutesInvalid: 'Nhập số phút từ 0 đến 600.',
+    fewer: 'Bớt 5 phút',
+    more: 'Thêm 5 phút',
+    note: 'Ghi chú (không bắt buộc)',
+    /** The live grapheme counter (RF-3). */
+    noteCount: '{n}/{max}',
+    submit: 'Lưu check-in',
   },
 } as const

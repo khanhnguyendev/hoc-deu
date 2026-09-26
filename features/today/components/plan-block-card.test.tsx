@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { block, blockState, blockView, PLAN_ID, TODAY } from '../__tests__/fixtures'
+import { block, blockState, blockView, DSA_TITLE, PLAN_ID, TODAY } from '../__tests__/fixtures'
 import { PlanBlockCard } from './plan-block-card'
 
 const row = (title: string) => <a href={`/t/dsa/items/${title}`}>{title}</a>
@@ -40,24 +40,41 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
     expect(screen.queryByText('Dài hơn thời gian dự kiến')).toBeNull()
   })
 
-  it('renders its actions slot (empty until 5.2b) and the plain checked-in status row', () => {
-    const { rerender } = render(
-      <PlanBlockCard view={blockView()} actions={<button type="button">Check-in</button>} />,
-    )
+  it('renders its actions slot (the one-tap check-in, 5.2b) while the block is not checked in', () => {
+    render(<PlanBlockCard view={blockView()} actions={<button type="button">Check-in</button>} />)
     expect(screen.getByRole('button', { name: 'Check-in' })).toBeTruthy()
     expect(screen.queryByText('Đã check-in')).toBeNull()
+  })
 
+  it('collapses a checked-in block into CheckInStatus: pill, minutes, "tự động" and "Sửa"', () => {
     const done = blockState(PLAN_ID, `${TODAY}:dsa:new:1`, {
       status: 'partial',
       minutes: 25,
       auto: true,
     })
-    rerender(<PlanBlockCard view={blockView({ checkIn: done })} />)
-    const status = screen.getByText('Đã check-in').parentElement!
+    render(<PlanBlockCard view={blockView({ checkIn: done })} />)
+    const status = screen.getByText('Đã check-in').closest('[data-slot="check-in-status"]')!
     expect(status.textContent).toContain('Một phần')
     expect(status.textContent).toContain('25 phút')
     expect(status.textContent).toContain('tự động')
     expect(status.querySelector('[data-status="block-partial"]')).not.toBeNull()
+    const edit = screen.getByRole('link', { name: `Sửa Bài mới · ${DSA_TITLE}` })
+    expect(new URL(edit.getAttribute('href')!, 'http://localhost').searchParams.get('block')).toBe(
+      `${TODAY}:dsa:new:1`,
+    )
+  })
+
+  it('in the paused view, a skipped block says to tap "Sửa" when done, and the owner’s line', () => {
+    const skipped = blockState(PLAN_ID, `${TODAY}:dsa:new:1`, { status: 'skipped', minutes: 0 })
+    const { rerender } = render(<PlanBlockCard view={blockView({ checkIn: skipped })} paused />)
+    expect(screen.getByText('Đã bỏ qua — bấm Sửa khi bạn làm xong')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành.',
+      ),
+    ).toBeTruthy()
+    rerender(<PlanBlockCard view={blockView({ checkIn: skipped })} />)
+    expect(screen.queryByText('Đã bỏ qua — bấm Sửa khi bạn làm xong')).toBeNull()
   })
 
   it('shows a shadowing block’s sentences instead of rows', () => {

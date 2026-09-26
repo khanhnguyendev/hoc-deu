@@ -78,6 +78,20 @@ describe('getToday (task 5.1b)', () => {
     expect(second.requestId).not.toBe(first.requestId)
   })
 
+  it('opens the sheet for ?block= when the dashboard shows that block (5.2b)', async () => {
+    const blockId = '2026-09-28:dsa:new:1'
+    state.data = todayData({
+      kind: 'plan',
+      plan: storedPlan({
+        blocks: [{ id: blockId, kind: 'new', trackId: 'dsa', estMinutes: 20, items: [] }],
+      }),
+      blocks: {},
+    })
+    expect((await getToday(blockId)).openBlockId).toBe(blockId)
+    expect((await getToday('2026-09-28:dsa:new:9')).openBlockId).toBeNull()
+    expect((await getToday()).openBlockId).toBeNull()
+  })
+
   it('reads nothing when the guard redirects', async () => {
     state.denied = new Error('REDIRECT:/sign-in')
     await expect(getToday()).rejects.toThrow('REDIRECT:/sign-in')
