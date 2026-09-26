@@ -15,6 +15,8 @@ import {
   CHECK_IN_STATUSES,
   EMPTY_DERIVED_STATE,
   type BlockState,
+  type CheckInStatus,
+  type DailyActivity,
   type DerivedState,
   type ItemState,
 } from '../state'
@@ -669,6 +671,137 @@ describe('block.checked_in', () => {
       'invalid_payload',
     ],
   ])('ignores %s', (...ignoredCase) => expectIgnored(ignoredCase))
+})
+
+/**
+ * M-6 (a), owner ruling 2026-09-26: a `skipped` block edited to `done` / `partial` on a later day
+ * counts for that later day; every other edit keeps the day of its first check-in (M4 decision 6).
+ * The table is the fixture 5.0b's pgTAP runs through `apply_event` too. Its "`{}`" for day D1 after
+ * step 1 means "no minutes": the engine records the skipped block's 0 (`{ dsa: 0 }`, M4 decision 8
+ * — see "leaves a day with only skipped blocks not completed" above).
+ */
+describe('block.checked_in: a skipped block resumed on a later day (M-6 a)', () => {
+  const D1 = MONDAY
+  const D2 = TUESDAY
+  const D3 = WEDNESDAY
+
+  const checkIn = (
+    event: EventBuilder,
+    status: CheckInStatus,
+    minutes: number,
+    localDay: LocalDay,
+  ): DomainEvent =>
+    event('block.checked_in', {
+      localDay,
+      planId: 'plan-1',
+      blockId: 'b1',
+      trackId: 'dsa',
+      payload: { status, minutes },
+    })
+
+  const b1 = (status: CheckInStatus, minutes: number, checkedInOn: LocalDay): BlockState => ({
+    planId: 'plan-1',
+    blockId: 'b1',
+    trackId: 'dsa',
+    status,
+    minutes,
+    note: null,
+    auto: false,
+    checkedInOn,
+  })
+
+  const day = (
+    localDay: LocalDay,
+    minutesByTrack: Record<string, number>,
+    completed: boolean,
+  ): DailyActivity => ({ localDay, minutesByTrack, itemsDone: 0, completed })
+
+  it('step 1: b1 skipped, 0 min on D1 → skipped on D1; D1 has no minutes, not completed', () => {
+    const state = project(EMPTY_DERIVED_STATE, checkIn(eventBuilder(), 'skipped', 0, D1), CATALOG)
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('skipped', 0, D1) })
+    expect(state.days).toEqual({ [D1]: day(D1, { dsa: 0 }, false) })
+  })
+
+  it('step 2: b1 done, 20 min on D2 → moves to D2; D1 recomputed without it, D2 completed', () => {
+    const event = eventBuilder()
+    const step1 = deepFreeze(
+      project(EMPTY_DERIVED_STATE, checkIn(event, 'skipped', 0, D1), CATALOG),
+    )
+    const step2 = checkIn(event, 'done', 20, D2)
+
+    const { changes, ignored } = projectChanges(step1, step2, CATALOG)
+    expect(ignored).toBeNull()
+    expect(changes.blocks).toEqual([b1('done', 20, D2)])
+    expect(changes.days).toEqual([day(D1, {}, false), day(D2, { dsa: 20 }, true)])
+
+    const state = project(step1, step2, CATALOG)
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('done', 20, D2) })
+    expect(state.days).toEqual({ [D1]: day(D1, {}, false), [D2]: day(D2, { dsa: 20 }, true) })
+  })
+
+  it('step 3: b1 partial, 15 min on D3 → stays on D2 (not from skipped); D1 unchanged', () => {
+    const event = eventBuilder()
+    const step2 = deepFreeze(
+      projectAll([checkIn(event, 'skipped', 0, D1), checkIn(event, 'done', 20, D2)]),
+    )
+    const step3 = checkIn(event, 'partial', 15, D3)
+
+    const { changes } = projectChanges(step2, step3, CATALOG)
+    expect(changes.blocks).toEqual([b1('partial', 15, D2)])
+    expect(changes.days).toEqual([day(D2, { dsa: 15 }, true)])
+
+    const state = project(step2, step3, CATALOG)
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('partial', 15, D2) })
+    expect(state.days[D1]).toBe(step2.days[D1])
+    expect(state.days).toEqual({ [D1]: day(D1, {}, false), [D2]: day(D2, { dsa: 15 }, true) })
+  })
+
+  it('done on D1, then skipped on D2 → stays on D1 (D1 recomputed: not completed)', () => {
+    const event = eventBuilder()
+    const state = projectAll([checkIn(event, 'done', 20, D1), checkIn(event, 'skipped', 0, D2)])
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('skipped', 0, D1) })
+    expect(state.days).toEqual({ [D1]: day(D1, { dsa: 0 }, false) })
+  })
+
+  it('skipped on D1, then done on D1 → stays on D1 (D1 completed)', () => {
+    const event = eventBuilder()
+    const state = projectAll([checkIn(event, 'skipped', 0, D1), checkIn(event, 'done', 20, D1)])
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('done', 20, D1) })
+    expect(state.days).toEqual({ [D1]: day(D1, { dsa: 20 }, true) })
+  })
+
+  it('skipped on D1, then skipped with new minutes on D2 → stays on D1', () => {
+    const event = eventBuilder()
+    const state = projectAll([checkIn(event, 'skipped', 0, D1), checkIn(event, 'skipped', 5, D2)])
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('skipped', 5, D1) })
+    expect(state.days).toEqual({ [D1]: day(D1, { dsa: 5 }, false) })
+  })
+
+  it('only forward: skipped on D2, then done with an earlier local day (D1) → stays on D2', () => {
+    const event = eventBuilder()
+    const state = projectAll([checkIn(event, 'skipped', 0, D2), checkIn(event, 'done', 20, D1)])
+    expect(state.blocks).toEqual({ 'plan-1/b1': b1('done', 20, D2) })
+    expect(state.days).toEqual({ [D2]: day(D2, { dsa: 20 }, true) })
+  })
+
+  it("moves one block only: the old day keeps its other blocks' minutes and completion", () => {
+    const event = eventBuilder()
+    const state = projectAll([
+      checkIn(event, 'skipped', 0, D1),
+      event('block.checked_in', {
+        localDay: D1,
+        planId: 'plan-1',
+        blockId: 'english:review:1',
+        trackId: 'english',
+        payload: { status: 'done', minutes: 10 },
+      }),
+      checkIn(event, 'done', 20, D2),
+    ])
+    expect(state.days).toEqual({
+      [D1]: day(D1, { english: 10 }, true),
+      [D2]: day(D2, { dsa: 20 }, true),
+    })
+  })
 })
 
 describe('track.reset and track.resumed', () => {

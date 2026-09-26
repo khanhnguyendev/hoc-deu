@@ -15,7 +15,9 @@
  *   the day the block counts for — its existing `checked_in_on`, else the event's local day — of
  *   every plan, not just the block's (yesterday's paused plan and a "Học tiếp" plan share a day);
  *   and that day's `daily_activity` row. An edited old check-in counts for its first day, so it
- *   loads and updates that older day's row (`plan_block_state_user_day_idx` serves the query).
+ *   loads and updates that older day's row (`plan_block_state_user_day_idx` serves the query) —
+ *   except a stored `skipped` check-in edited to `done` / `partial` on a later local day, which
+ *   moves to the event's day (M-6 a): then both days' blocks and rows are loaded and written.
  * A missing row the database has fails loudly: it is sent as new (expected 0) and raises
  * `version_conflict`. A missing block of the day does not: `project` recomputes the day's minutes
  * and `completed` from the blocks it was given, and the day row's version still matches, so a
@@ -94,7 +96,8 @@ function itemStateToRow(state: ItemState): { [column: string]: Json } {
   }
 }
 
-/** `checked_in_on` is sent for completeness; the database sets it on insert and keeps it. */
+/** `checked_in_on` is sent for completeness; the database decides it (the event's day on insert;
+ *  on update the M-6 rule, which only moves a `skipped` block forward). */
 function blockStateToRow(state: BlockState): { [column: string]: Json } {
   return {
     plan_id: state.planId,
@@ -158,7 +161,8 @@ function tableWrite<T>(
  *   `prompt.completed`): the item's row and the event day's `daily_activity` row;
  * - `item.skipped`, `item.readded`: the item's row;
  * - `block.checked_in`: the block's row, every `plan_block_state` row of the user counted for the
- *   block's day (its `checked_in_on`, else the event's local day), and that day's row.
+ *   block's day (its `checked_in_on`, else the event's local day), and that day's row — for a
+ *   `skipped` block checked in `done` / `partial` on a later day, those of both days (M-6 a).
  * Leaving out a block of that day is not caught here or in the database: the day's `completed`
  * is recomputed from a partial set (see `derived.test.ts`, the loader contract).
  */

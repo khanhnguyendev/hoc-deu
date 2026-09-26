@@ -57,11 +57,12 @@ function holdsGate(block: PlanBlock, activeTrackIds: ReadonlySet<string> | undef
 /**
  * Open when there is no last seen plan; when any of its blocks is checked in `done` or `partial`
  * (at any time, whatever its track) — `resumedToday` when the earliest `checkedInOn` of those blocks
- * is `today`; or when none of its blocks can hold the gate closed — an empty plan (nothing could be
- * done, RF-4), or, with `activeTrackIds` (the learner's `active` enrollments), a plan with no block
- * of an active track: blocks of paused or removed tracks never hold the gate closed (M-5 A, owner
- * ruling 2026-09-26). Without `activeTrackIds` every track counts (M4). Closed otherwise, with
- * `offerResume` when `daysSince > RESUME_AFTER_DAYS`.
+ * is `today` (a skipped block resumed on a later day counts for that day, M-6 a); or when none of
+ * its blocks can hold the gate closed — an empty plan (nothing could be done, RF-4), or, with
+ * `activeTrackIds` (the learner's `active` enrollments), a plan with no block of an active track:
+ * blocks of paused or removed tracks never hold the gate closed (M-5 A, owner ruling 2026-09-26).
+ * Without `activeTrackIds` every track counts (M4). Closed otherwise, with `offerResume` when
+ * `daysSince > RESUME_AFTER_DAYS`.
  */
 export function gateStatus(
   plans: readonly StoredPlan[],

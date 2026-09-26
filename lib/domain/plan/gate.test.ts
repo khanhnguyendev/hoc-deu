@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { eventBuilder } from '../projection/__tests__/events'
+import { project } from '../projection/project'
 import type { CheckInStatus } from '../state'
-import { blockKey, type BlockState } from '../state'
+import { blockKey, type BlockState, EMPTY_DERIVED_STATE } from '../state'
 import type { LocalDay } from '../time/localDay'
+import { CATALOG } from './__tests__/fixtures'
 import { gateStatus, lastSeenPlan, RESUME_AFTER_DAYS, unfinishedBlocks } from './gate'
 import type { PlanBlock, StoredPlan } from './types'
 
@@ -301,5 +304,32 @@ describe('M-5 (A): blocks of tracks no longer active never hold the gate closed'
     const last = mixedPlan(YESTERDAY, [['dsa:new:1', 'dsa']])
     expect(gateStatus([last], {}, TODAY).open).toBe(false)
     expect(gateStatus([last], {}, TODAY, new Set(['dsa'])).open).toBe(false)
+  })
+})
+
+describe('M-6 (a): a skipped block resumed on a later day', () => {
+  it('skipped on D1, done on D2 → counts for D2, so gateStatus on D2 is open with resumedToday', () => {
+    const last = plan(YESTERDAY, ['dsa:new:1'])
+    const event = eventBuilder()
+    const keys = { planId: last.id, blockId: 'dsa:new:1', trackId: 'dsa' }
+    const derived = [
+      event('block.checked_in', {
+        ...keys,
+        localDay: YESTERDAY,
+        payload: { status: 'skipped', minutes: 0 },
+      }),
+      event('block.checked_in', {
+        ...keys,
+        localDay: TODAY,
+        payload: { status: 'done', minutes: 20 },
+      }),
+    ].reduce((state, each) => project(state, each, CATALOG), EMPTY_DERIVED_STATE)
+
+    expect(derived.blocks[blockKey(last.id, 'dsa:new:1')]?.checkedInOn).toBe(TODAY)
+    expect(gateStatus([last], derived.blocks, TODAY)).toEqual({
+      open: true,
+      lastSeen: last,
+      resumedToday: true,
+    })
   })
 })

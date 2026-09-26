@@ -1,7 +1,7 @@
 # ADR-0016: Gate rule on the last **seen** plan; stale-plan resume
 
 - **Status:** accepted
-- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5, owner ruling)
+- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5 and M-6, owner rulings)
 - **Spec:** platform design §5.2, §5.6, §5.8, §5.9
 
 ## Context
@@ -52,6 +52,17 @@ Two further constraints shape the rule:
   on introduced items, so the next plan holds the same unfinished items plus the due reviews, as
   "Học tiếp hôm nay" would. Without `activeTrackIds` every track counts (the M4 rule). Not a
   `RULES_VERSION` change: the gate reads history and derives no rows.
+- **A skipped block resumed on a later day counts for that day (M-6 a, owner ruling
+  2026-09-26).** A block counts for the local day of its first check-in (`checked_in_on`, Part B-M4
+  decision 6) — except a `skipped` check-in edited to `done` / `partial` on a later local day,
+  whose `checked_in_on` moves to that day (only forward, only from `skipped`; the projection and
+  `apply_derived_changes` apply the same rule, `RULES_VERSION` 3). The earlier day is recomputed
+  without the block, the later day with it, so the earliest qualifying check-in is today's and
+  resuming through a skipped block is `resumedToday` — exactly like resuming through a block that
+  was never checked in: one plan per day holds, and no day is completed after the fact. Correcting
+  a skip after the day start counts for the new day; the earlier day stays incomplete. Doing every
+  item of a skipped block never checks it in again by itself (the auto check-in fills only a block
+  with no check-in, §5.5): the learner taps "Sửa" on it.
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
   plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
   old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers

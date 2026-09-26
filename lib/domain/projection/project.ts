@@ -236,7 +236,10 @@ function projectSnapshot(
 
 /**
  * `block.checked_in` (§5.5, decisions 6 and 8): the block's latest check-in, counted for the day of
- * its first one, whose minutes and `completed` are recomputed from its blocks.
+ * its first one, whose minutes and `completed` are recomputed from its blocks. One exception (M-6
+ * a, owner ruling 2026-09-26): a `skipped` block checked in `done` / `partial` on a later local day
+ * moves to that day — the earlier day is recomputed without it (it stays incomplete), the later day
+ * with it, so resuming through a skipped block is that day's work (`gateStatus().resumedToday`).
  */
 function projectCheckIn(
   state: DerivedState,
@@ -258,8 +261,16 @@ function projectCheckIn(
     return changed({ blocks: [block], days: [dayWith(state, block, event.localDay)] })
   }
 
-  const block: BlockState = { ...row, ...checkIn }
-  return changed({ blocks: [block], days: [dayWith(state, block, row.checkedInOn)] })
+  // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
+  const resumed =
+    row.status === 'skipped' && isDoneOrPartial(payload.status) && event.localDay > row.checkedInOn
+  const block: BlockState = {
+    ...row,
+    ...checkIn,
+    checkedInOn: resumed ? event.localDay : row.checkedInOn,
+  }
+  const days = resumed ? [row.checkedInOn, event.localDay] : [row.checkedInOn]
+  return changed({ blocks: [block], days: days.map((day) => dayWith(state, block, day)) })
 }
 
 /** `localDay`'s `daily_activity` with `block` in place of its stored row (decision 8): minutes per
