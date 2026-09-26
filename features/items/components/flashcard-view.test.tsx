@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { cardItem, derivedCardItem } from '../fixtures'
 import { FlashcardView } from './flashcard-view'
 
@@ -63,8 +63,27 @@ describe('FlashcardView', () => {
     expect(screen.queryByText('Phát âm')).toBeNull()
   })
 
-  it('has no grade buttons yet (task 5.2)', () => {
+  it('has only its toggle without children (no grading of its own)', () => {
     render(<FlashcardView card={cardItem().content} />)
     expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('task 5.2c: shows its children (the grades) in the card once revealed, and keeps them', async () => {
+    const user = userEvent.setup()
+    const onReveal = vi.fn()
+    render(
+      <FlashcardView card={cardItem().content} onReveal={onReveal}>
+        <button type="button">Biết</button>
+      </FlashcardView>,
+    )
+    expect(screen.queryByRole('button', { name: 'Biết' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    const grade = screen.getByRole('button', { name: 'Biết' })
+    expect(grade.closest('[data-slot="flashcard-view"]')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Ẩn nghĩa' }))
+    expect(screen.queryByText(/vấn đề đang chặn/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Biết' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    expect(onReveal).toHaveBeenCalledOnce()
   })
 })

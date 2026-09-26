@@ -1,8 +1,9 @@
 import { act, render, screen } from '@testing-library/react'
 import type * as React from 'react'
 import { use } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ItemPageFrame } from '@/features/items/components/item-page-frame'
+import { outcomeBinding } from '@/features/items/fixtures'
 import { vi as strings } from '@/lib/i18n/vi'
 import { TRACKS_HREF } from '../view-model'
 import { ItemView } from './item-view'
@@ -82,5 +83,25 @@ describe('ItemView', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Two Sum' })).toBeTruthy()
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('task 5.2c: the page’s outcome controls render inside it (the binding reaches the Page)', () => {
+    render(
+      <ItemView
+        backHref="/t/dsa"
+        trackTitle="DSA"
+        page={
+          <ItemPageFrame
+            status="active"
+            title="Two Sum"
+            outcome={outcomeBinding(vi.fn(), {
+              plan: { blockId: 'b', label: 'Trong kế hoạch hôm nay' },
+            })}
+          />
+        }
+      />,
+    )
+    expect(screen.getByText('Trong kế hoạch hôm nay')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bỏ qua mục này' })).toBeTruthy()
   })
 })

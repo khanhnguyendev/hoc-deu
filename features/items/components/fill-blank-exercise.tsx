@@ -11,7 +11,9 @@ import { fillNode } from './mdx/copy'
 
 const copy = vi.items.exercise
 
-type Grade = ReturnType<typeof gradeFillBlank>
+/** The checker's grade (`exercise.submitted`'s `grade`, §4.4). */
+export type FillBlankGrade = ReturnType<typeof gradeFillBlank>
+type Grade = FillBlankGrade
 
 const VERDICT = {
   pass: { icon: CircleCheck, className: 'text-success' },
@@ -23,16 +25,19 @@ const VERDICT = {
  * A fill-blank exercise (§3.5): the English text with its blank as a labelled input. "Kiểm tra"
  * grades it with `gradeFillBlank` — "Chính xác", "Gần đúng — bạn đã xem gợi ý" after the hint, or
  * "Chưa đúng — đáp án: …" — as icon + text in a polite live region; editing the answer clears the
- * verdict. "Xem gợi ý" reveals the hint. Nothing is recorded until task 5.2.
+ * verdict. "Xem gợi ý" reveals the hint. Every check's grade goes to `onGrade` (task 5.2c:
+ * ExerciseOutcome submits it as `exercise.submitted`); the answer text itself is never sent.
  */
 function FillBlankExercise({
   text,
   answers,
   hint,
+  onGrade,
 }: {
   text: string
   answers: readonly string[]
   hint?: string
+  onGrade?: (grade: FillBlankGrade) => void
 }) {
   const [value, setValue] = useState('')
   const [hintOpen, setHintOpen] = useState(false)
@@ -46,7 +51,9 @@ function FillBlankExercise({
 
   const check = (event: FormEvent) => {
     event.preventDefault()
-    setGrade(gradeFillBlank(value, answers, hintSeen))
+    const next = gradeFillBlank(value, answers, hintSeen)
+    setGrade(next)
+    onGrade?.(next)
   }
   const toggleHint = () => {
     setHintSeen(true)

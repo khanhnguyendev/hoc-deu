@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
+import { OutcomeSignalsContext } from '../../outcome-signals'
 import { fillNode } from './copy'
 
 const copy = vi.content.quiz
@@ -44,7 +45,8 @@ const QuestionContext = createContext<QuestionContextValue | null>(null)
  * `<Quiz>` — a lesson's quick check (platform design §3.5), scored in the browser: "Kiểm tra"
  * counts correct / total (an unanswered question is wrong), shows a verdict under each question,
  * announces "Đúng {correct}/{total}" in a polite live region and reports the score (`onScore`,
- * percent rounded — task 5.2 sends it with `lesson.completed`). "Làm lại" clears everything.
+ * percent rounded; and the page's outcome signals when a lesson's LessonComplete wraps it — task
+ * 5.2c sends the percent with `lesson.completed`). "Làm lại" clears everything.
  * Questions register their answer here; the check never inspects children (decision 17).
  */
 function Quiz({
@@ -55,6 +57,7 @@ function Quiz({
   onScore?: (score: QuizScore) => void
 }) {
   const answers = useRef(new Map<string, string>())
+  const signals = use(OutcomeSignalsContext)
   const [selections, setSelections] = useState<Readonly<Record<string, string>>>({})
   const [score, setScore] = useState<QuizScore | null>(null)
 
@@ -80,6 +83,7 @@ function Quiz({
     }
     setScore(result)
     onScore?.(result)
+    signals?.quizScored(result.percent)
   }
   const retry = () => {
     setSelections({})

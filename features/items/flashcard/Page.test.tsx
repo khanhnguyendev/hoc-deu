@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
-import { ADMIN, cardItem, derivedCardItem, pagePropsFor } from '../fixtures'
+import { describe, expect, it, vi } from 'vitest'
+import { ADMIN, cardItem, derivedCardItem, outcomeBinding, pagePropsFor, SAVED } from '../fixtures'
+import type { RecordOutcome } from '../outcome'
 import { FlashcardPage } from './Page'
 
 describe('FlashcardPage', () => {
@@ -12,7 +13,7 @@ describe('FlashcardPage', () => {
     expect(screen.getByText('Cốt lõi')).toBeTruthy()
   })
 
-  it('"Xem nghĩa" reveals the back (no grade buttons until 5.2)', async () => {
+  it('"Xem nghĩa" reveals the back (no grade buttons without a binding)', async () => {
     const user = userEvent.setup()
     render(<FlashcardPage {...pagePropsFor(cardItem())} />)
     await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
@@ -32,5 +33,26 @@ describe('FlashcardPage', () => {
     )
     const main = container.firstElementChild as HTMLElement
     expect(main.firstElementChild?.getAttribute('data-slot')).toBe('banner')
+  })
+})
+
+describe('FlashcardPage — results (task 5.2c)', () => {
+  it('with a binding: after "Xem nghĩa", Biết / Chưa chắc / Không biết grade the card', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    const item = cardItem()
+    render(
+      <FlashcardPage
+        {...pagePropsFor(item, { outcome: outcomeBinding(record, { itemId: item.id }) })}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /^Biết/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    await user.click(screen.getByRole('button', { name: /^Không biết/ }))
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      itemId: item.id,
+      outcome: { type: 'item.result', result: 'dont_know' },
+    })
+    expect(screen.getByText('Chưa học')).toBeTruthy()
   })
 })

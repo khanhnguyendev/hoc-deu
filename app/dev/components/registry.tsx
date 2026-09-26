@@ -106,13 +106,16 @@ import { RelatedItems } from '@/features/items/components/related-items'
 import { RubricList } from '@/features/items/components/rubric-list'
 import { SelfGradedExercise } from '@/features/items/components/self-graded-exercise'
 import { VerificationBadge } from '@/features/items/components/verification-badge'
+import { FlashcardGrades } from '@/features/items/components/outcome/flashcard-grades'
 import {
   cardItem,
   derivedCardItem,
   FIXTURE_LINKS,
   fillBlankItem,
+  outcomeBinding,
   rewriteItem,
 } from '@/features/items/fixtures'
+import type { RecordOutcome } from '@/features/items/outcome'
 import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
 import { ItemView } from '@/features/roadmap/components/item-view'
@@ -573,6 +576,13 @@ const DEMO_CODE: CodeBundle = {
   },
 }
 const PROSE = 'w-full max-w-prose space-y-4'
+
+/** A stand-in `recordOutcome` for the item components' demos (task 5.2c): saves at once. */
+const recordNothing: RecordOutcome = async () => ({
+  ok: true,
+  message: vi.checkIn.outcome.saved,
+  autoCheckedIn: [],
+})
 /** MDX marks a fence's language on its `code` element (not a Tailwind class). */
 const fenceClass = (lang: string) => `language-${lang}`
 
@@ -2567,6 +2577,25 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title:
+          'Có binding kết quả (5.2c): trạng thái học, "Trong kế hoạch hôm nay", "Bỏ qua mục này"',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <ItemPageFrame
+              status="active"
+              title={<span lang="en">Two Sum</span>}
+              meta={['#1', <DifficultyBadge key="difficulty" difficulty="E" />]}
+              outcome={outcomeBinding(recordNothing, {
+                plan: { blockId: 'b-new', label: vi.outcomes.plan.today },
+                blockId: 'b-new',
+              })}
+            >
+              <Md.p>Nội dung của mục.</Md.p>
+            </ItemPageFrame>
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -2628,6 +2657,16 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Kèm nút chấm (5.2c): hiện trong thẻ sau lần "Xem nghĩa" đầu tiên',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={cardItem().content} headingLevel={3}>
+              <FlashcardGrades onGrade={() => {}} />
+            </FlashcardView>
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -2636,7 +2675,8 @@ export const CATALOG: Entry[] = [
     file: 'features/items/components/fill-blank-exercise.tsx',
     demos: [
       {
-        title: 'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng"',
+        title:
+          'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng" (mỗi lần kiểm tra báo onGrade)',
         render: () => {
           const { content } = fillBlankItem()
           return content.kind === 'fill-blank' ? (
@@ -2645,6 +2685,7 @@ export const CATALOG: Entry[] = [
                 text={content.text}
                 answers={content.answers}
                 hint={content.hint}
+                onGrade={() => {}}
               />
             </div>
           ) : null
@@ -2668,6 +2709,25 @@ export const CATALOG: Entry[] = [
                 sampleAnswers={content.sampleAnswers}
                 rubric={content.rubric}
                 rubricLang={content.lang.rubric}
+              />
+            </div>
+          )
+        },
+      },
+      {
+        title:
+          'Tự chấm (5.2c): sau "Xem câu trả lời mẫu" — Đạt / Gần đạt / Chưa đạt; đã lưu "Gần đạt"',
+        render: () => {
+          const { content } = rewriteItem()
+          return content.kind === 'fill-blank' ? null : (
+            <div className="w-full max-w-prose">
+              <SelfGradedExercise
+                text={content.text}
+                sampleAnswers={content.sampleAnswers}
+                rubric={content.rubric}
+                rubricLang={content.lang.rubric}
+                onGrade={() => {}}
+                selectedGrade="close"
               />
             </div>
           )

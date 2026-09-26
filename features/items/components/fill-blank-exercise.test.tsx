@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FillBlankExercise } from './fill-blank-exercise'
 
 const TEXT = "I'm {{blank}} on the API review — could someone help?"
@@ -73,5 +73,18 @@ describe('FillBlankExercise', () => {
   it('offers no hint button without a hint', () => {
     setup({ hint: undefined })
     expect(screen.queryByRole('button', { name: 'Xem gợi ý' })).toBeNull()
+  })
+
+  it('task 5.2c: reports every check’s grade (onGrade) — miss, pass, then close after the hint', async () => {
+    const onGrade = vi.fn()
+    const { user } = setup({ onGrade })
+    const blank = screen.getByRole('textbox')
+    await user.type(blank, 'stuck')
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    await user.clear(blank)
+    await user.type(blank, 'blocked{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Xem gợi ý' }))
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    expect(onGrade.mock.calls).toEqual([['miss'], ['pass'], ['close']])
   })
 })

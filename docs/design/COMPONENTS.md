@@ -1005,8 +1005,10 @@ not under `components/`), described under ItemView below, the one place it rende
   route validates its params and calls `notFound()` before `page` is built, so only this part ever
   suspends — never the 404 check itself) · ready — `page`
 - **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={<ItemBody
-  item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} />} />`
-  (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`)
+  item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} state={model.state}
+  outcome={…} mockInterviewProblem={model.mockInterviewProblem} />} />`
+  (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`; task 5.2c: `outcome` is `{ ...model.outcome,
+  record: recordOutcome }` — the server action unbound — or `undefined` on a read-only page)
 - **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first
   — "Về danh sách lộ trình" when `backHref` is `TRACKS_HREF` (`/tracks`: the loader's choice for
   a retired track the learner does not follow, whose page is a 404); the page brings its own
@@ -1014,9 +1016,10 @@ not under `components/`), described under ItemView below, the one place it rende
 - **`ItemBody`** (`features/roadmap/item-body.tsx`, task 5.1c, ruling M5-R6): the `page` prop
   above, not a catalog component — a render helper beside `queries.ts` (like `renderItemPage`
   beside `features/items`'s own loaders), so it is out of scope for `/dev/components` and has no
-  entry of its own. An async server component: `await renderItemPage(item, { state: null, context:
-  {}, viewer, resolveItem })` and renders the result; results (a non-null `state`) arrive with task
-  5.2. It renders only as `ItemView`'s `page`, inside its `<Suspense>` boundary.
+  entry of its own. An async server component: `await renderItemPage(item, { state, viewer,
+  resolveItem, outcome, mockInterviewProblem })` and renders the result (task 5.2c: the learner's
+  state, the route's outcome binding and the mock-interview pick reach the Page through it). It
+  renders only as `ItemView`'s `page`, inside its `<Suspense>` boundary.
 
 ### MDX content components (`features/items/components/mdx`)
 
@@ -1133,9 +1136,10 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 
 - **Layer:** feature (`features/items`, client; `Quiz`, `Question`, `Choice`)
 - **File:** `features/items/components/mdx/quiz.tsx`
-- **Props:** `Quiz`: `onScore?: ({ correct, total, percent }) => void` (percent rounded; 5.2 sends
-  it as `lesson.completed { quizScore }`) · `Question`: `prompt: string`, `answer: string` (a
-  Choice id) · `Choice`: `id: string`, `children`
+- **Props:** `Quiz`: `onScore?: ({ correct, total, percent }) => void` (percent rounded) — each
+  check also reports the percent to the page's `OutcomeSignalsContext` when a LessonComplete wraps
+  the lesson (task 5.2c sends it as `lesson.completed { quizScore }`) · `Question`: `prompt:
+  string`, `answer: string` (a Choice id) · `Choice`: `id: string`, `children`
 - **Variants:** —
 - **States:** answering; checked ("Kiểm tra": choices locked, a verdict under each question —
   icon + "Chính xác" or "Chưa đúng — đáp án: …" — an unanswered question counts as wrong, the
@@ -1165,8 +1169,9 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/mdx/solution-tabs.tsx`
 - **Props:** `solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>`,
-  `defaultLanguage: CodeLanguage`, `onReveal?: () => void` (fires on the first reveal only; 5.2
-  preselects "Cần gợi ý")
+  `defaultLanguage: CodeLanguage`, `onReveal?: () => void` (fires on the first reveal only). The
+  first reveal also tells the page's `OutcomeSignalsContext` (`features/items/outcome-signals.ts`)
+  when a ProblemOutcome wraps the note: task 5.2c preselects "Cần gợi ý" (decision 18)
 - **Variants:** Python / Java / Go tabs — only the languages present, in that order
 - **States:** hidden ("Xem lời giải"; no code in the DOM); open on the viewer's language, else the
   first ("Ẩn lời giải" hides it again); no solutions → nothing
@@ -1268,8 +1273,12 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **File:** `features/items/components/item-page-frame.tsx`
 - **Props:** `status: ItemStatus`, `title?: ReactNode` (the page `h1`; omitted when the body renders
   it — a flashcard's front), `description?`, `actions?`, `meta?: ReactNode[]` (facts; empty ones
-  dropped), `children`
-- **Variants:** with / without title, facts
+  dropped), `outcome?: OutcomeBinding` (task 5.2c), `children`
+- **Variants:** with / without title, facts · with an `outcome` binding: the facts end with the
+  learner's StatusPill ("Chưa học" before any result) and, when the item is in the current plan, a
+  primary Badge with its label ("Trong kế hoạch hôm nay" / "Trong kế hoạch đang dở"); ItemActions
+  follows the body. Without one (a draft an admin previews, a retired item): read-only, none of
+  them
 - **States:** draft / retired notice at the top; active: none. **It owns the notice (M3-R4):** the
   Page passes `item.status`, so the item route (3.4b's `ItemView`) renders no banner of its own —
   it wraps the Page and adds only its back link
@@ -1307,12 +1316,16 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/flashcard-view.tsx`
 - **Props:** `card: FlashcardSides` (`front`, `back`, `hint?`, `usage?`, `example?`,
-  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3` (1 on the item page)
+  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3` (1 on the item page), `onReveal?: () =>
+  void` (the first reveal only), `children?` (task 5.2c: the grade buttons — FlashcardOutcome on
+  the card's page, FlashcardGrades in a CardSession)
 - **Variants:** vocabulary card (usage, example, pronunciation) · recall / derived card (back and
   hint only, each side in its own language)
 - **States:** front only ("Xem nghĩa", primary); revealed (back, hint, "danh từ · trung tính" +
-  note, example, pronunciation; "Ẩn nghĩa", outline). No grade buttons until task 5.2
-- **Usage:** `<FlashcardView card={item.content} headingLevel={1} />` (FlashcardPage)
+  note, example, pronunciation; "Ẩn nghĩa", outline); `children` at the bottom of the card from the
+  first reveal on, kept when the back is hidden again
+- **Usage:** `<FlashcardView card={item.content} headingLevel={1}>{outcome && <FlashcardOutcome
+  binding={outcome} />}</FlashcardView>` (FlashcardPage)
 - **Accessibility:** the front is a heading in the card's front language; the toggle has
   `aria-expanded` / `aria-controls`; nothing of the back is in the DOM until revealed; the example
   and pronunciation are `lang="en"`; fields are a `<dl>`
@@ -1321,7 +1334,9 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/fill-blank-exercise.tsx`
-- **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`
+- **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`,
+  `onGrade?: (grade: 'pass' | 'close' | 'miss') => void` (every check's grade; task 5.2c:
+  ExerciseOutcome submits it — the answer text is never sent)
 - **Variants:** with / without a hint
 - **States:** answering; checked — pass ("Chính xác", `CircleCheck`, success), close ("Gần đúng —
   bạn đã xem gợi ý", `CircleDot`, warning), miss ("Chưa đúng — đáp án: …", `CircleX`, danger);
@@ -1337,10 +1352,13 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/self-graded-exercise.tsx`
 - **Props:** `text: string`, `sampleAnswers: readonly string[]`, `rubric: readonly string[]`,
-  `rubricLang?: 'en' | 'vi'` (`lang.rubric`, default `vi`)
-- **Variants:** respond · rewrite (same component)
+  `rubricLang?: 'en' | 'vi'` (`lang.rubric`, default `vi`); task 5.2c: `onGrade?: (grade: 'pass'
+  | 'close' | 'miss') => void`, `selectedGrade?` (the saved grade), `pendingGrade?` (the saving one)
+- **Variants:** respond · rewrite (same component) · with `onGrade`: self-grading
 - **States:** answering; samples hidden / shown ("Xem câu trả lời mẫu" / "Ẩn câu trả lời mẫu");
-  what the learner typed stays. Self-grading ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2
+  what the learner typed stays. With `onGrade`, the samples' first reveal adds GradeButtons "Tự
+  chấm theo tiêu chí": "Đạt / Gần đạt / Chưa đạt" — kept when the samples close; only the grade is
+  sent, so "Câu trả lời không được lưu." stays true
 - **Usage:** `<SelfGradedExercise text={ex.text} sampleAnswers={ex.sampleAnswers}
   rubric={ex.rubric} />` (ExercisePage)
 - **Accessibility:** the text is a `lang="en"` blockquote; the Textarea is labelled "Câu trả lời của
@@ -1354,8 +1372,10 @@ One Page and one Row per item type (platform design §3.2, §7.6), joined with t
 components** — they read topic titles and estimates from the generated catalog — so they render in
 the `/dev/items` gallery (`app/dev/items/page.tsx`, fixture items, e2e + axe) instead of the client
 catalog. Screens never import them or branch on item type: rows come from `renderItemRow(item, {
-state, mode, showStatus })` and pages from `await renderItemPage(item, { state, context, viewer,
-resolveItem })` (`@/features/items`), which runs the type's `load` (problem: note MDX + code;
+state, mode, showStatus, href?, showNoteHint? })` (`href` defaults to the item's page; ruling
+M5-R26) and pages from `await renderItemPage(item, { state, viewer, resolveItem, outcome?,
+mockInterviewProblem? })` (`@/features/items`; `outcome` — the route's binding, task 5.2c —
+replaces M3's never-used `recordResult` and `context`), which runs the type's `load` (problem: note MDX + code;
 lesson: MDX + code; others: nothing) — `tools/guards/item-type-branching.ts` fails any `case` on an
 item type outside the registry (ADR-0009). Every Page starts with ItemPageFrame's draft / retired
 notice; every Row is a LinkRow with the "Bản nháp" / "Đã ngừng" badge and, with `showStatus`, a
@@ -1373,7 +1393,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
   every alternative) · with a deep-dive (`note.deepDiveId` → RelatedItems "Bài học chuyên sâu")
 - **States:** a draft note is hidden from learners ("Chưa có ghi chú") and shown to admins with
   "Bản nháp"; a retired note shows with "Đã ngừng"; an unloaded body reads as no note
-- **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b)
+- **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b); with `outcome`
+  (task 5.2c) the note goes through ProblemOutcome (new / redo grades, or a quick recall with the
+  note behind "Xem ghi chú"; the solution-reveal nudge) and ItemPageFrame adds the learner's status
+  and ItemActions
 - **Accessibility:** the `h1` is the English title in `lang="en"`; "Mở trên LeetCode" and the
   alternatives are ExternalLinks styled as 44 px buttons (https only, new tab,
   `rel="noopener noreferrer"`, "(mở trong tab mới)"); `#1`, difficulty and topic are text
@@ -1382,8 +1405,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 
 - **Layer:** feature (`features/items`, server)
 - **File:** `features/items/problem/Row.tsx`
-- **Props:** `ItemRowProps<'problem'>`
-- **Variants:** Premium marker · verification icon when the note is published
+- **Props:** `ItemRowProps<'problem'>` — `showNoteHint?` (ruling M5-R26)
+- **Variants:** Premium marker · verification icon when the note is published · with
+  `showNoteHint`, a problem whose note a learner cannot see (none, or a draft) says "Chưa có ghi
+  chú" (`NotebookPen` + text, in the row's details — part of the link's name; §5.9, RF-4)
 - **States:** status pill with `showStatus`; draft / retired badge
 - **Usage:** via `renderItemRow`
 - **Accessibility:** LinkRow: title `lang="en"`, meta "#1 · Easy · Arrays & Hashing"
@@ -1396,7 +1421,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Variants:** format badge (`vi.items.lessonFormat`: "Pattern", "Deep-dive"; another format
   shows its ID) · topic · RelatedItems for `anchor` ("Bài mẫu"), `about` ("Bài được phân tích")
   and `practice` ("Bài luyện tập") that `resolveItem` knows
-- **States:** an unloaded body → EmptyState "Bài học chưa có nội dung"
+- **States:** an unloaded body → EmptyState "Bài học chưa có nội dung" · with `outcome` (task 5.2c)
+  LessonComplete follows the body ("Hoàn thành bài học", with the Quiz's score)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the lesson title is the `h1`; `<Section>`s bring their `h2`s
 
@@ -1417,7 +1443,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Props:** `ItemPageProps<'flashcard'>` (no `data`)
 - **Variants:** tier badge ("Cốt lõi" primary · "Mở rộng" · "Giải thích code") · vocabulary,
   recall and derived cards
-- **States:** see FlashcardView
+- **States:** see FlashcardView · with `outcome` (task 5.2c) FlashcardOutcome grades the card once
+  revealed ("Biết" / "Chưa chắc" / "Không biết", keys 1 / 2 / 3)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the card front is the page `h1`, in the card's front language
 
@@ -1436,9 +1463,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Layer:** feature (`features/items`, server; renders client exercises)
 - **File:** `features/items/exercise/Page.tsx`
 - **Props:** `ItemPageProps<'exercise'>` (no `data`)
-- **Variants:** fill-blank → FillBlankExercise · respond / rewrite → SelfGradedExercise (the rubric
-  in `lang.rubric`); kind badge ("Điền từ" / "Trả lời" / "Viết lại")
-- **States:** see the two exercise components
+- **Variants:** through ExerciseOutcome: fill-blank → FillBlankExercise · respond / rewrite →
+  SelfGradedExercise (the rubric in `lang.rubric`); kind badge ("Điền từ" / "Trả lời" / "Viết lại")
+- **States:** see the two exercise components · with `outcome` (task 5.2c) every check's grade —
+  or the learner's own grade against the rubric — is submitted (`exercise.submitted`)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one below in `lang="en"`
 
@@ -1458,9 +1486,12 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **File:** `features/items/prompt/Page.tsx`
 - **Props:** `ItemPageProps<'prompt'>` (no `data`)
 - **Variants:** tag badge (`vi.template.tags`; an unknown tag shows its ID) · minutes (its own, else
-  `estimates.prompt`, for `context.mode` — the same as its Row for that mode) · RubricList in
-  `lang.rubric` when the rubric is not empty
-- **States:** static (completion is recorded from task 5.2)
+  `estimates.prompt`, for the binding's `mode` — the same as its Row for that mode) · RubricList in
+  `lang.rubric` when the rubric is not empty · the mock-interview prompt (`mockInterviewProblem`
+  set, §5.6): RelatedItems "Bài cho buổi phỏng vấn thử" with the picked problem, or EmptyState "Chưa
+  có bài Medium nào đã học"
+- **States:** read-only without `outcome`; with it (task 5.2c) PromptOutcome — "Đã làm xong" with
+  an optional 1–3 self-rating
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one in `lang="en"`
 
@@ -1737,6 +1768,154 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 ### Item outcome components (`features/items/components/outcome`)
 
 Task 5.2c adds these entries below this line (Part B-M5 decision 3).
+
+The result controls of the item pages (platform design §4.4, §5.5–§5.7; Part B-M5 decisions 14,
+16–19; ADR-0036). Client components. A Page gets an `outcome?: OutcomeBinding`
+(`features/items/outcome.ts`) from the item route — the resolved `mode`, the plan context, the
+learner's `state`, `due`, the render's `requestId`, the item and block ids and `record`, the
+`recordOutcome` server action passed **unbound** — and builds each `OutcomeInput` itself
+(`outcomeInput`); no binding = read-only (a draft an admin previews, a retired item). Every send
+goes through `useOutcome` (`use-outcome.ts`): one at a time, in a transition, the server's answer
+(or "Chưa lưu được kết quả. Bạn thử lại nhé.") in a polite live region; a retry in the same render
+resends the same request id, so the event is recorded once. Results stay self-reported; there is no
+offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). The note's
+`<Solution />` and a lesson's `<Quiz>` report to the controls through `OutcomeSignalsContext`
+(`features/items/outcome-signals.ts`), which ProblemOutcome and LessonComplete provide.
+
+### GradeButtons
+
+- **Layer:** feature (`features/items`, client; also exports `OutcomeMessage`)
+- **File:** `features/items/components/outcome/grade-buttons.tsx`
+- **Props:** `label: string` (the group's name), `grades: { value, label, shortcut? }[]`,
+  `onGrade(value)`, `selected?` (pressed: the saved grade or a preselected one), `pending?` (the
+  saving one), `disabled?`, `description?` (a nudge, key hints) · `OutcomeMessage`: `result: { ok,
+  message } | null`
+- **Variants:** the selected grade `primary` + `aria-pressed="true"`, the others `outline` — at
+  most one primary · a key cap per grade with a `shortcut` (from `md`) · OutcomeMessage tones idle /
+  saved (`CircleCheck`, success) / failed (`CircleAlert`, danger)
+- **States:** none chosen · chosen (preselected or saved) · saving (that button busy, the others
+  disabled) · disabled · OutcomeMessage empty until an answer
+- **Usage:** `<GradeButtons label="Bạn giải bài này thế nào?" grades={…} selected={saved ??
+  suggested} pending={pending} onGrade={grade} />` · `<OutcomeMessage result={sent} />`
+- **Accessibility:** a `role="group"` named by its visible label and described by `description`;
+  44 px Buttons; a press sends at once (pressing the preselected grade records it); shortcuts in
+  `aria-keyshortcuts`, key caps `aria-hidden`; OutcomeMessage is an always-present polite
+  `role="status"` — icon + text, never colour alone
+
+### ProblemOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/problem-outcome.tsx`
+- **Props:** `binding: OutcomeBinding`, `hasNote: boolean` (a visible note to hide in a recall),
+  `children` (the page's note section, or its "Chưa có ghi chú")
+- **Variants:** new — the note, then "Tự giải được" / "Cần gợi ý" / "Chưa giải được" (`solved` /
+  `hint` / `failed`, no mode) · redo — the same with `mode: 'redo'` · recall / explain-aloud
+  (decision 17) — first "Nêu pattern, cách làm và độ phức tạp" with the note behind "Xem ghi chú",
+  then "Nhớ rõ" / "Nhớ một phần" / "Không nhớ" with `mode: 'recall'` (no visible note: the grades
+  at once); "Làm lại từ đầu" switches a recall to a redo in place (§5.5)
+- **States:** the nudge (decision 18): opening the note's "Xem lời giải" before a grade is saved
+  preselects the `hint` grade, with "Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bạn vẫn có
+  thể chọn mức khác." — any grade can still be chosen · saving · saved (pressed; the server's
+  message, e.g. "… tự động check-in") · failed (the message; every grade available)
+- **Usage:** ProblemPage: `<ProblemOutcome binding={outcome} hasNote={…}>{noteSection}</ProblemOutcome>`
+- **Accessibility:** the recall prompt is an `h2` section; "Xem ghi chú" has `aria-expanded` /
+  `aria-controls`; "Làm lại từ đầu" is a link-styled button (an in-page switch, not a navigation);
+  see GradeButtons
+
+### FlashcardGrades
+
+- **Layer:** feature (`features/items`, client; also exports `FlashcardOutcome`)
+- **File:** `features/items/components/outcome/flashcard-grades.tsx`
+- **Props:** `onGrade(grade: 'know' | 'unsure' | 'dont_know')`, `selected?`, `pending?`,
+  `disabled?`
+- **Variants:** —
+- **States:** ready (keys 1 / 2 / 3 listened to) · saving or disabled (keys ignored) · a grade
+  pressed
+- **Usage:** `<FlashcardView card={sides}><FlashcardGrades onGrade={grade} /></FlashcardView>`
+  (CardSession); presentational — the caller records
+- **Accessibility:** GradeButtons "Bạn nhớ thẻ này không?" — "Biết" / "Chưa chắc" / "Không biết"
+  (DESIGN_SYSTEM §9) with `aria-keyshortcuts` 1 / 2 / 3 and the key hint as its description; the
+  keys work without a modifier, never while typing in a field, and only for keys pressed on the
+  page itself or inside this card, so two cards on one screen never both take a key
+
+### FlashcardOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/flashcard-grades.tsx`
+- **Props:** `binding: OutcomeBinding`
+- **Variants:** —
+- **States:** FlashcardGrades + OutcomeMessage: saving, saved (the grade pressed), failed
+- **Usage:** FlashcardPage: `<FlashcardView card={…} headingLevel={1}>{outcome && <FlashcardOutcome
+  binding={outcome} />}</FlashcardView>` — shown in the card from the first "Xem nghĩa"
+- **Accessibility:** see FlashcardGrades and GradeButtons
+
+### CardSession
+
+- **Layer:** feature (`features/items`, client; exported from `@/features/items` for /review (5.3)
+  and card blocks on /today (5.4))
+- **File:** `features/items/components/outcome/card-session.tsx`
+- **Props:** `CardSessionProps` — `cards: { itemId, sides: FlashcardSides, blockId? }[]`,
+  `requestId: string`, `record: RecordOutcome` (the unbound `recordOutcome`)
+- **Variants:** —
+- **States:** empty (no cards: EmptyState "Không có thẻ nào để ôn") · grading ("Còn {n} thẻ",
+  FlashcardView then FlashcardGrades once revealed) · saving (the grade busy) · error (the card
+  stays; ErrorState "Chưa lưu được kết quả" + the reason + "Thử lại", which resends the same input)
+  · end ("Đã ôn xong", "Bạn đã chấm {n} thẻ.")
+- **Usage:** `<CardSession cards={due} requestId={page.requestId} record={recordOutcome} />`
+- **Accessibility:** decision 19 — the cards are kept in state from mount (a revalidation that
+  drops a graded card never shifts the session) and the mount's request id is used throughout;
+  after a grade focus moves to the next card's "Xem nghĩa" (or the end state), and a polite
+  `role="status"` says "Đã lưu: {grade}."; keys 1 / 2 / 3
+
+### LessonComplete
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/lesson-complete.tsx`
+- **Props:** `binding: OutcomeBinding`, `children` (the lesson body)
+- **Variants:** without / with a checked Quiz ("Kèm điểm kiểm tra nhanh: 50%": `quizScore` 0–100,
+  the latest check, is sent)
+- **States:** ready · saving · saved (a check icon on the button; the server's message) · failed
+- **Usage:** LessonPage: `<LessonComplete binding={outcome}>{body}</LessonComplete>`
+- **Accessibility:** "Hoàn thành bài học" is the view's one primary Button (`lg`); the answer in
+  the OutcomeMessage live region
+
+### ExerciseOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/exercise-outcome.tsx`
+- **Props:** `exercise: Exercise` (catalog content), `binding?: OutcomeBinding`
+- **Variants:** fill-blank (every "Kiểm tra" submits its grade `pass` / `close` / `miss`) ·
+  respond / rewrite (the self-grade after the samples) · read-only (no binding: the exercise alone)
+- **States:** saving · saved (the self-grade pressed; the message) · failed
+- **Usage:** ExercisePage: `<ExerciseOutcome exercise={item.content} binding={outcome} />`
+- **Accessibility:** sends `exercise.submitted { kind, grade }` only — the answer text never
+  leaves the page ("Câu trả lời không được lưu." stays true); see the two exercise components
+
+### PromptOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/prompt-outcome.tsx`
+- **Props:** `binding: OutcomeBinding`
+- **Variants:** without / with a self-rating ("1 — Chưa tốt", "2 — Tạm được", "3 — Tốt"; choosing
+  the chosen one again clears it)
+- **States:** ready · saving · saved (a check icon on the button; the message) · failed
+- **Usage:** PromptPage: `{outcome && <PromptOutcome binding={outcome} />}`
+- **Accessibility:** the rating is a single-choice ToggleGroup (a `radiogroup` named "Tự đánh giá
+  (không bắt buộc)", arrow keys); "Đã làm xong" is the view's one primary Button (`lg`)
+
+### ItemActions
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/item-actions.tsx`
+- **Props:** `binding: OutcomeBinding` (`itemActionsFor(binding)` decides)
+- **Variants:** "Bỏ qua mục này" (ghost, `SkipForward`) while the item is not introduced or is due
+  → ConfirmDialog "Bỏ qua mục này?" → `item.skipped` · "Ôn lại" (outline, `RotateCcw`) on a mastered
+  item → `item.readded` (§5.7)
+- **States:** nothing when neither applies · confirming · saving · the answer, kept after the page
+  re-renders without the action
+- **Usage:** rendered by ItemPageFrame under the body when the page has a binding
+- **Accessibility:** the skip is confirmed in an alert dialog (focus returns to the opener); the
+  answer in the OutcomeMessage live region
 
 ### Review components (`features/review/components`)
 

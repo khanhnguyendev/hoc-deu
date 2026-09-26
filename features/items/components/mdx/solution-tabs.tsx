@@ -1,7 +1,7 @@
 'use client'
 
 import { Eye, EyeOff } from 'lucide-react'
-import { useId, useRef, useState } from 'react'
+import { use, useId, useRef, useState } from 'react'
 import { CodeBlock } from '@/components/patterns/code-block'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,6 +9,7 @@ import type { HighlightedCode } from '@/lib/content/code-tokens'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
 import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { OutcomeSignalsContext } from '../../outcome-signals'
 
 const copy = vi.content.solution
 
@@ -18,8 +19,9 @@ const ORDER: readonly CodeLanguage[] = ['python', 'java', 'go']
 /**
  * A problem's solutions (`<Solution />` in a note): hidden behind "Xem lời giải" (DESIGN_SYSTEM
  * §9) — no code in the DOM until then — then Python / Java / Go tabs of build-time highlighted
- * `CodeBlock`s, opening on the viewer's language when present. `onReveal` fires on the first
- * reveal only (task 5.2 preselects "Cần gợi ý" with it).
+ * `CodeBlock`s, opening on the viewer's language when present. The first reveal only fires
+ * `onReveal` and tells the page's outcome signals (`OutcomeSignalsContext`, when a problem's result
+ * controls wrap the note): task 5.2c preselects "Cần gợi ý" with it (decision 18).
  */
 function SolutionTabs({
   solutions,
@@ -32,6 +34,7 @@ function SolutionTabs({
 }) {
   const [open, setOpen] = useState(false)
   const revealed = useRef(false)
+  const signals = use(OutcomeSignalsContext)
   const panelId = useId()
   const languages = ORDER.filter((language) => solutions[language] !== undefined)
   if (languages.length === 0) return null
@@ -41,6 +44,7 @@ function SolutionTabs({
     if (!open && !revealed.current) {
       revealed.current = true
       onReveal?.()
+      signals?.solutionRevealed()
     }
     setOpen(!open)
   }

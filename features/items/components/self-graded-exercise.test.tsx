@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SelfGradedExercise } from './self-graded-exercise'
 
 const SAMPLE =
@@ -63,5 +63,43 @@ describe('SelfGradedExercise (respond / rewrite)', () => {
     await user.type(answer, 'Could you check the retry logic?')
     await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
     expect((answer as HTMLTextAreaElement).value).toBe('Could you check the retry logic?')
+  })
+
+  it('offers no self-grading without onGrade (a read-only page)', async () => {
+    const { user } = setup()
+    await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
+    expect(screen.queryByRole('group', { name: 'Tự chấm theo tiêu chí' })).toBeNull()
+  })
+
+  it('task 5.2c: self-grades against the rubric after the samples — Đạt / Gần đạt / Chưa đạt', async () => {
+    const user = userEvent.setup()
+    const onGrade = vi.fn()
+    const { rerender } = render(
+      <SelfGradedExercise
+        text="Your PR is wrong. Fix it."
+        sampleAnswers={[SAMPLE]}
+        rubric={['polite opener']}
+        onGrade={onGrade}
+      />,
+    )
+    expect(screen.queryByRole('group', { name: 'Tự chấm theo tiêu chí' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
+    const group = screen.getByRole('group', { name: 'Tự chấm theo tiêu chí' })
+    await user.click(within(group).getByRole('button', { name: 'Chưa đạt' }))
+    expect(onGrade).toHaveBeenCalledExactlyOnceWith('miss')
+    // The grades stay once the samples were seen, and show the saved (or saving) grade.
+    await user.click(screen.getByRole('button', { name: 'Ẩn câu trả lời mẫu' }))
+    rerender(
+      <SelfGradedExercise
+        text="Your PR is wrong. Fix it."
+        sampleAnswers={[SAMPLE]}
+        rubric={['polite opener']}
+        onGrade={onGrade}
+        selectedGrade="pass"
+        pendingGrade="close"
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Đạt' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Gần đạt' }).getAttribute('aria-busy')).toBe('true')
   })
 })

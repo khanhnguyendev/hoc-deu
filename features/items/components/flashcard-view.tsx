@@ -36,19 +36,33 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
  * A flashcard (DESIGN_SYSTEM §9 FlashcardViewer): the front as a heading in its language, then
  * "Xem nghĩa" reveals the back, hint, usage ("danh từ · trung tính" + note), a work example
  * (`lang="en"`) and the pronunciation. The card stays in place; nothing of the back is in the DOM
- * until revealed. Grade buttons arrive with task 5.2.
+ * until revealed. `children` — the three grade buttons (task 5.2c: FlashcardOutcome on the card's
+ * page, FlashcardGrades in a CardSession) — show at the bottom of the card from the first reveal
+ * on and stay when the back is hidden again; `onReveal` fires on the first reveal only.
  */
 function FlashcardView({
   card,
   headingLevel = 2,
+  onReveal,
+  children,
 }: {
   card: FlashcardSides
   /** 1 on the item page (the front is the page title); 2 inside other screens. */
   headingLevel?: 1 | 2 | 3
+  onReveal?: () => void
+  children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const [seen, setSeen] = useState(false)
   const backId = useId()
   const Heading = `h${headingLevel}` as const
+  const toggle = () => {
+    if (!open && !seen) {
+      setSeen(true)
+      onReveal?.()
+    }
+    setOpen(!open)
+  }
   return (
     <Card data-slot="flashcard-view" className="gap-5 md:gap-5">
       <Heading lang={card.lang.front} className="text-2xl font-semibold md:text-3xl">
@@ -58,7 +72,7 @@ function FlashcardView({
         variant={open ? 'outline' : 'primary'}
         aria-expanded={open}
         aria-controls={backId}
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className="self-start"
       >
         {open ? (
@@ -106,6 +120,11 @@ function FlashcardView({
           </div>
         )}
       </div>
+      {seen && children !== undefined && children !== null && (
+        <div data-slot="flashcard-actions" className="border-t border-border pt-4">
+          {children}
+        </div>
+      )}
     </Card>
   )
 }

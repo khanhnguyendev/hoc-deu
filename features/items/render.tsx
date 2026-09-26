@@ -19,18 +19,29 @@ function definitionOf(item: CatalogItem): Pick<ItemTypeDef<ItemType>, 'Page' | '
   return getItemType(item.type) as unknown as Pick<ItemTypeDef<ItemType>, 'Page' | 'Row' | 'load'>
 }
 
-/** `<Row item state href={itemHref(item)} …/>` of the item's type, keyed by the item ID. */
+/**
+ * `<Row item state href …/>` of the item's type, keyed by the item ID. `href` defaults to the item's
+ * page (`itemHref`); a plan block passes its own (`?block=&mode=`). `showNoteHint` lets a problem
+ * without a visible note say so in its row (ruling M5-R26).
+ */
 export function renderItemRow(
   item: CatalogItem,
-  props: { state?: ItemStateView | null; mode?: Mode; showStatus?: boolean },
+  props: {
+    state?: ItemStateView | null
+    mode?: Mode
+    showStatus?: boolean
+    href?: string
+    showNoteHint?: boolean
+  },
 ): React.ReactNode {
   const { Row } = definitionOf(item)
   const rowProps: ItemRowProps<ItemType> = {
     item,
     state: props.state ?? null,
     mode: props.mode,
-    href: itemHref(item),
+    href: props.href ?? itemHref(item),
     showStatus: props.showStatus,
+    showNoteHint: props.showNoteHint,
   }
   return <Row key={item.id} {...rowProps} />
 }

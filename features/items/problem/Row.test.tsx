@@ -73,4 +73,33 @@ describe('ProblemRow', () => {
     rerender(<ProblemRow item={problemItem({ status: 'retired' })} state={null} href={HREF} />)
     expect(within(screen.getByRole('link')).getByText('Đã ngừng')).toBeTruthy()
   })
+
+  it('ruling M5-R26: with showNoteHint, a problem without a visible note says "Chưa có ghi chú"', () => {
+    const { rerender } = render(
+      <ProblemRow item={premiumProblemItem()} state={null} href={HREF} showNoteHint />,
+    )
+    const row = screen.getByRole('link')
+    expect(within(row).getByText('Chưa có ghi chú')).toBeTruthy()
+    expect(row.querySelector('[data-slot="note-hint"] svg')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+    expect(
+      screen.getByRole('link', {
+        name: 'Encode and Decode Strings #271 Medium Arrays & Hashing Premium Chưa có ghi chú',
+      }),
+    ).toBeTruthy()
+    // A draft note is not visible to learners: the hint shows too.
+    const draftNote = problemItem({ content: { note: { ...NOTE, status: 'draft' } } })
+    rerender(<ProblemRow item={draftNote} state={null} href={HREF} showNoteHint />)
+    expect(screen.getByText('Chưa có ghi chú')).toBeTruthy()
+  })
+
+  it('ruling M5-R26: no hint for a problem with a note, nor without showNoteHint', () => {
+    const { rerender } = render(
+      <ProblemRow item={problemItem()} state={null} href={HREF} showNoteHint />,
+    )
+    expect(screen.queryByText('Chưa có ghi chú')).toBeNull()
+    rerender(<ProblemRow item={premiumProblemItem()} state={null} href={HREF} />)
+    expect(screen.queryByText('Chưa có ghi chú')).toBeNull()
+  })
 })

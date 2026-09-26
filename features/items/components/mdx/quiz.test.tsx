@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { OutcomeSignalsContext } from '../../outcome-signals'
 import { Choice, Question, Quiz } from './quiz'
 
 function ThreeQuestions({ onScore }: { onScore?: Parameters<typeof Quiz>[0]['onScore'] }) {
@@ -161,5 +162,25 @@ describe('Quiz', () => {
     await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
     expect(onScore).toHaveBeenCalledWith({ correct: 0, total: 0, percent: 0 })
     expect(screen.getByRole('status').textContent).toBe('Đúng 0/0')
+  })
+
+  it('task 5.2c: reports each checked score to the page’s outcome signals (lesson.completed)', async () => {
+    const signals = { solutionRevealed: vi.fn(), quizScored: vi.fn() }
+    const user = userEvent.setup()
+    render(
+      <OutcomeSignalsContext value={signals}>
+        <ThreeQuestions />
+      </OutcomeSignalsContext>,
+    )
+    await user.click(radio('Câu 1', 'Một A'))
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    expect(signals.quizScored).toHaveBeenCalledExactlyOnceWith(33)
+    await user.click(screen.getByRole('button', { name: 'Làm lại' }))
+    await user.click(radio('Câu 1', 'Một A'))
+    await user.click(radio('Câu 2', 'Hai B'))
+    await user.click(radio('Câu 3', 'O(n)'))
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    expect(signals.quizScored).toHaveBeenLastCalledWith(100)
+    expect(signals.solutionRevealed).not.toHaveBeenCalled()
   })
 })

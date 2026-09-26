@@ -60,6 +60,61 @@ vi.mock('@/lib/content/catalog', async () => {
   return { catalogAccess: FIXTURE_ACCESS }
 })
 
+/** The learner's rows the item page reads through lib/plans and lib/events (task 5.2c). */
+const learner = vi.hoisted(() => ({
+  today: '2026-10-05',
+  enrollments: [] as { trackId: string; status: string }[],
+  items: {} as Record<string, unknown>,
+  current: null as unknown,
+}))
+
+vi.mock('@/lib/plans/catalog', async () => {
+  const { FIXTURE_CATALOG } = await import('./fixtures')
+  const { toPlanCatalog } = await import('@/lib/content/plan-catalog')
+  const catalog = toPlanCatalog(FIXTURE_CATALOG)
+  // Two Sum II as a Medium problem, so the mock interview has one to pick.
+  const medium = { ...catalog.items['dsa:lc-0167']!, difficulty: 'M' as const }
+  const planCatalog = { ...catalog, items: { ...catalog.items, 'dsa:lc-0167': medium } }
+  return { planCatalog: () => planCatalog }
+})
+
+vi.mock('@/lib/plans/reads', () => ({
+  readScheduleVersions: async (_supabase: unknown, userId: string) => {
+    fake.calls.push(['readScheduleVersions', userId])
+    return []
+  },
+  readEnrollments: async (_supabase: unknown, userId: string) => {
+    fake.calls.push(['readPlanEnrollments', userId])
+    return learner.enrollments
+  },
+  readItemStates: async (_supabase: unknown, userId: string) => {
+    fake.calls.push(['readItemStates', userId])
+    return learner.items
+  },
+  todayOf: () => learner.today,
+}))
+
+vi.mock('@/lib/events/load-derived', () => ({
+  loadItemStates: async (_supabase: unknown, userId: string, itemIds: readonly string[]) => {
+    fake.calls.push(['loadItemStates', userId, [...itemIds]])
+    return Object.fromEntries(
+      itemIds.flatMap((id) => (id in learner.items ? [[id, learner.items[id]]] : [])),
+    )
+  },
+}))
+
+vi.mock('@/lib/plans/current', () => ({
+  currentPlan: async (
+    _supabase: unknown,
+    userId: string,
+    today: string,
+    active: ReadonlySet<string>,
+  ) => {
+    fake.calls.push(['currentPlan', userId, today, [...active].sort()])
+    return learner.current
+  },
+}))
+
 const { getItemPage, getTrackPage, getTracksOverview } = await import('./queries')
 
 const row = (
@@ -108,7 +163,60 @@ beforeEach(() => {
   fake.rows = []
   fake.error = null
   fake.calls = []
+  learner.today = '2026-10-05'
+  learner.enrollments = [
+    { trackId: 'dsa', status: 'active' },
+    { trackId: 'english', status: 'paused' },
+  ]
+  learner.items = {}
+  learner.current = null
 })
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+/** An `item_state` row as the engine reads it (lib/domain/state). */
+function stateOf(itemId: string, patch: Record<string, unknown> = {}) {
+  return {
+    itemId,
+    trackId: itemId.split(':')[0],
+    topicId: null,
+    itemType: 'problem',
+    level: 1,
+    weak: false,
+    topSuccesses: 0,
+    status: 'ok',
+    dueOn: '2026-10-05',
+    lastResult: 'solved',
+    lastResultOn: '2026-09-28',
+    introducedOn: '2026-09-28',
+    lapses: 0,
+    reps: 1,
+    ...patch,
+  }
+}
+
+/** A stored plan of `kind` whose blocks list the given `[blockId, itemId, mode]` entries. */
+function currentWith(kind: string, blocks: [string, string, string][]) {
+  return {
+    kind,
+    blocks: {},
+    plan: {
+      id: 'plan-1',
+      planDate: '2026-10-05',
+      version: 1,
+      source: 'baseline',
+      seenAt: null,
+      tracks: {},
+      blocks: blocks.map(([id, itemId, mode]) => ({
+        id,
+        trackId: 'dsa',
+        kind: 'review',
+        estMinutes: 5,
+        items: [{ itemId, mode, minutes: 5 }],
+      })),
+    },
+  }
+}
 
 describe('getTracksOverview', () => {
   it('guards first, then reads the learner’s own user_tracks rows with the session client', async () => {
@@ -273,8 +381,8 @@ describe('getTrackPage', () => {
 })
 
 describe('getItemPage', () => {
-  it('guards first and never reads the database', async () => {
-    await getItemPage('dsa', 'lc-0001')
+  it('guards first; an unknown item reads nothing', async () => {
+    await getItemPage('dsa', 'lc-99999')
     expect(fake.calls).toEqual([['requireOnboarded']])
   })
 
@@ -356,5 +464,113 @@ describe('getItemPage', () => {
     const admin = await getItemPage('dsa', 'lc-0001')
     expect(admin?.resolveItem('dsa:lc-0217')?.id).toBe('dsa:lc-0217')
     expect(admin?.resolveItem('sysdesign:prompt-intro')?.id).toBe('sysdesign:prompt-intro')
+  })
+})
+
+describe('getItemPage — the learner’s results context (task 5.2c)', () => {
+  it('reads the schedule, the enrollments, the item’s own state and the current plan', async () => {
+    await getItemPage('dsa', 'lc-0001')
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(fake.calls).toContainEqual(['loadItemStates', 'me', ['dsa:lc-0001']])
+    expect(fake.calls).toContainEqual(['readScheduleVersions', 'me'])
+    expect(fake.calls).toContainEqual(['readPlanEnrollments', 'me'])
+    // Only active tracks: the current plan is the one /today shows (decision 13, M-5 A).
+    expect(fake.calls).toContainEqual(['currentPlan', 'me', '2026-10-05', ['dsa']])
+    // Never every item state, except for the mock interview.
+    expect(fake.calls.some((call) => call[0] === 'readItemStates')).toBe(false)
+  })
+
+  it('returns the state, the resolved mode, the plan context and a per-render request id', async () => {
+    learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001') }
+    learner.current = currentWith('today', [['2026-10-05:dsa:review:1', 'dsa:lc-0001', 'recall']])
+    const model = await getItemPage('dsa', 'lc-0001')
+    const view = { status: 'ok', level: 1, dueOn: '2026-10-05' }
+    expect(model?.state).toEqual(view)
+    expect(model?.outcome).toEqual({
+      mode: 'recall',
+      plan: { blockId: '2026-10-05:dsa:review:1', label: 'Trong kế hoạch hôm nay' },
+      state: view,
+      due: true,
+      requestId: expect.stringMatching(UUID),
+      itemId: 'dsa:lc-0001',
+      blockId: '2026-10-05:dsa:review:1',
+    })
+    expect(model).not.toHaveProperty('mockInterviewProblem')
+    const again = await getItemPage('dsa', 'lc-0001')
+    expect(again?.outcome?.requestId).not.toBe(model?.outcome?.requestId)
+  })
+
+  it('?block= chooses among the blocks listing the item; an unknown one falls back to the first', async () => {
+    learner.current = currentWith('today', [
+      ['b-new', 'dsa:lc-0001', 'new'],
+      ['b-recap', 'dsa:lc-0001', 'redo'],
+    ])
+    const recap = await getItemPage('dsa', 'lc-0001', 'b-recap')
+    expect(recap?.outcome).toMatchObject({ blockId: 'b-recap', mode: 'redo' })
+    const unknown = await getItemPage('dsa', 'lc-0001', 'b-gone')
+    expect(unknown?.outcome).toMatchObject({ blockId: 'b-new', mode: 'new' })
+  })
+
+  it('a valid ?mode= wins; an invalid one is ignored', async () => {
+    learner.current = currentWith('today', [['b-new', 'dsa:lc-0001', 'new']])
+    expect((await getItemPage('dsa', 'lc-0001', undefined, 'redo'))?.outcome?.mode).toBe('redo')
+    expect((await getItemPage('dsa', 'lc-0001', undefined, 'review'))?.outcome?.mode).toBe('new')
+  })
+
+  it('off the plan: no plan context and no block; not studied yet: no state, mode new, not due', async () => {
+    learner.current = currentWith('today', [['b-other', 'dsa:lc-0167', 'new']])
+    const model = await getItemPage('dsa', 'lc-0001')
+    expect(model?.state).toBeNull()
+    expect(model?.outcome).toMatchObject({ plan: null, state: null, mode: 'new', due: false })
+    expect(model?.outcome).not.toHaveProperty('blockId')
+  })
+
+  it('the paused (or resumed) plan reads "Trong kế hoạch đang dở"', async () => {
+    learner.current = currentWith('paused', [['b-new', 'dsa:lc-0001', 'new']])
+    expect((await getItemPage('dsa', 'lc-0001'))?.outcome?.plan?.label).toBe(
+      'Trong kế hoạch đang dở',
+    )
+    learner.current = currentWith('resumed', [['b-new', 'dsa:lc-0001', 'new']])
+    expect((await getItemPage('dsa', 'lc-0001'))?.outcome?.plan?.label).toBe(
+      'Trong kế hoạch đang dở',
+    )
+  })
+
+  it('read-only — no outcome, no state, no learner reads — for drafts, retired items and tracks', async () => {
+    fake.user = { ...fake.user, isAdmin: true }
+    for (const [track, item] of [
+      ['dsa', 'lc-0217'], // a draft item (admin preview)
+      ['dsa', 'lc-0015'], // a retired item
+      ['sysdesign', 'prompt-intro'], // an active item of a draft track (admin preview)
+      ['legacy', 'prompt-legacy-drill'], // an active item of a retired track
+    ]) {
+      fake.calls = []
+      const model = await getItemPage(track!, item!)
+      expect(model?.outcome, item).toBeNull()
+      expect(model?.state, item).toBeNull()
+      expect(
+        fake.calls.filter((call) => call[0] === 'currentPlan' || call[0] === 'loadItemStates'),
+      ).toEqual([])
+    }
+  })
+
+  it('the mock-interview prompt: every item state, and the Medium problem mockInterviewProblem picks', async () => {
+    learner.items = {
+      'dsa:lc-0167': stateOf('dsa:lc-0167', { lastResultOn: '2026-09-20' }),
+      'dsa:lc-0001': stateOf('dsa:lc-0001'),
+    }
+    const model = await getItemPage('dsa', 'prompt-mock-interview')
+    expect(fake.calls).toContainEqual(['readItemStates', 'me'])
+    expect(fake.calls.some((call) => call[0] === 'loadItemStates')).toBe(false)
+    expect(model?.mockInterviewProblem).toMatchObject({
+      id: 'dsa:lc-0167',
+      href: '/t/dsa/items/lc-0167',
+    })
+    expect(model?.outcome).toMatchObject({ itemId: 'dsa:prompt-mock-interview', mode: 'new' })
+  })
+
+  it('…null when no Medium problem is learned yet', async () => {
+    learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001') }
+    expect((await getItemPage('dsa', 'prompt-mock-interview'))?.mockInterviewProblem).toBeNull()
   })
 })

@@ -1,9 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
 import type { MDXContent } from 'mdx/types'
 import type { ComponentType, ReactNode } from 'react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { CodeBundle } from '@/lib/content/code-tokens'
-import { ADMIN, lessonItem, pagePropsFor } from '../fixtures'
+import { ADMIN, lessonItem, outcomeBinding, pagePropsFor, SAVED } from '../fixtures'
+import type { RecordOutcome } from '../outcome'
 import { LessonPage } from './Page'
 
 /** MDX marks a fence's language on its `code` element (not a Tailwind class). */
@@ -85,5 +87,32 @@ describe('LessonPage', () => {
     )
     const main = container.firstElementChild as HTMLElement
     expect(main.firstElementChild?.getAttribute('data-slot')).toBe('banner')
+  })
+})
+
+describe('LessonPage — results (task 5.2c)', () => {
+  it('no "Hoàn thành bài học" without a binding', () => {
+    render(<LessonPage {...pagePropsFor(lessonItem(), { data: { Body, code: CODE } })} />)
+    expect(screen.queryByRole('button', { name: 'Hoàn thành bài học' })).toBeNull()
+  })
+
+  it('with a binding: the body, then "Hoàn thành bài học" sends lesson.completed', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    const item = lessonItem()
+    render(
+      <LessonPage
+        {...pagePropsFor(item, {
+          data: { Body, code: CODE },
+          outcome: outcomeBinding(record, { itemId: item.id }),
+        })}
+      />,
+    )
+    expect(screen.getByTestId('lesson-body')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Hoàn thành bài học' }))
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      itemId: item.id,
+      outcome: { type: 'lesson.completed' },
+    })
   })
 })
