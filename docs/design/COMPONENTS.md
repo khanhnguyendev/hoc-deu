@@ -1517,7 +1517,8 @@ Task 5.5 adds these entries below this line (Part B-M5 decision 3).
 - **States:** default · "Tuần sau" disabled (not hidden) at the current week
 - **Usage:** `<WeekNav previousWeek={page.previousWeek} nextWeek={page.nextWeek} />`
 - **Accessibility:** a labelled `nav`; the disabled next-week control stays in the tab order as a
-  real (disabled) button, never a removed link
+  real (disabled) button, never a removed link; all three controls are Button `size="md"`
+  (44 px) — never `sm` (36 px, desktop-only), because this row renders on mobile too
 
 ### Extra study components (`features/today`, `features/roadmap`)
 

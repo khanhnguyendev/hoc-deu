@@ -19,20 +19,20 @@ function WeekNav({
     <nav aria-label={copy.weekNavLabel} className="flex items-center justify-between gap-2">
       <Link
         href={`/progress?week=${previousWeek}`}
-        className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1')}
+        className={cn(buttonVariants({ variant: 'outline', size: 'md' }), 'gap-1')}
       >
         <ChevronLeft aria-hidden="true" strokeWidth={1.75} />
         {copy.previousWeek}
       </Link>
       {nextWeek === null ? (
-        <Button variant="outline" size="sm" disabled className="gap-1">
+        <Button variant="outline" size="md" disabled className="gap-1">
           {copy.nextWeek}
           <ChevronRight aria-hidden="true" strokeWidth={1.75} />
         </Button>
       ) : (
         <Link
           href={`/progress?week=${nextWeek}`}
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1')}
+          className={cn(buttonVariants({ variant: 'outline', size: 'md' }), 'gap-1')}
         >
           {copy.nextWeek}
           <ChevronRight aria-hidden="true" strokeWidth={1.75} />
