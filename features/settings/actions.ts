@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
 import { MAX_PAUSED_DAYS } from '@/lib/domain/events'
@@ -62,7 +63,7 @@ const stale = (message: string = vi.errors.invalidTransition): SettingsResult =>
  * Records one event, then re-renders `/settings` — which also brings a fresh `requestId`, so the
  * next change is a new event (decision 9). An `EventError` becomes its Vietnamese message; any
  * other error goes to the route's error boundary. With `rebuildFor` (a track change: budget,
- * variant, add, pause, resume, remove), a recorded event is followed by
+ * variant, add, pause, resume, remove, reset), a recorded event is followed by
  * `rebuildTodayIfUntouched` (Part B-M5 decision 11): today's plan follows the change while it is
  * untouched, otherwise the change applies from tomorrow — its outcome never changes the message.
  */
@@ -340,6 +341,46 @@ export async function setTrackStatus(
     withTitle(copy.tracks.resumed, title),
     user.id,
   )
+}
+
+const resetInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  /** The database's rule for track ids (`user_tracks.track_id`). */
+  trackId: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+})
+
+/**
+ * "Bắt đầu lại" (§5.9 "Removing a track", Part B-M2 decision 18; task 5.4) — from the track
+ * page's ResetTrackButton, which passes the page's per-render `requestId`: `track.reset`, which
+ * clears the track's item states and records the day (events, plans, check-ins and daily activity
+ * stay; an active or paused track only — the database answers `invalid_transition` for a removed
+ * one and `track_not_enrolled` for one never enrolled, both shown as stale). A recorded reset is
+ * followed by `rebuildTodayIfUntouched` (decision 11): an untouched plan of today starts the track
+ * over too. The track page and `/today` re-render whatever the outcome.
+ */
+export async function resetTrack(input: {
+  requestId: string
+  trackId: string
+}): Promise<SettingsResult> {
+  const user = await requireOnboarded()
+  const parsed = resetInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, trackId } = parsed.data
+  const supabase = await createClient()
+  const result = await record(
+    () =>
+      applyLearnerEvent(supabase, {
+        id: deriveEventId(requestId, `track.reset:${trackId}`),
+        type: 'track.reset',
+        trackId,
+        payload: {},
+      }),
+    withTitle(vi.extra.reset.done, titleOf(trackId)),
+    user.id,
+  )
+  revalidatePath(`/t/${trackId}`)
+  revalidatePath('/today')
+  return result
 }
 
 /**

@@ -66,4 +66,15 @@ describe('TrackOverview', () => {
     expect(screen.getByText('Bản nháp: chỉ quản trị viên thấy lộ trình này.')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Thêm trong Cài đặt' })).toBeNull()
   })
+
+  it('shows the learner’s part (task 5.4) after the notices and before the variants', () => {
+    const { container } = renderOverview({
+      learner: <section aria-label="Tiến độ của bạn">Tuần 2/8</section>,
+    })
+    const learner = screen.getByRole('region', { name: 'Tiến độ của bạn' })
+    const variants = screen.getByRole('navigation', { name: 'Phiên bản lộ trình' })
+    const wrapper = container.querySelector('[data-slot="track-overview"]')!
+    const order = [...wrapper.querySelectorAll('section, nav')]
+    expect(order.indexOf(learner)).toBeLessThan(order.indexOf(variants))
+  })
 })

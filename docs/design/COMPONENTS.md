@@ -902,8 +902,11 @@ from `lib/i18n/vi.ts`.
 `/tracks`, the track page `/t/[trackId]` and the item route (task 3.4b). They take plain props —
 `TrackSummary`, `Enrollment` and `VariantLink` from `features/roadmap/queries.ts` (types only) —
 and ReactNode slots, and **never import the item registry** (fix 5): the track page builds each
-row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: null, mode: mode ??
-undefined }))`, so every component here renders in the client catalog with plain nodes.
+row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: data.states[item.id]
+?? null, mode: mode ?? undefined, showStatus: enrolled }))` — the learner's state on every row,
+the status pill for an enrolled learner (task 5.4) — so every component here renders in the
+client catalog with plain nodes. TrackProgress, WeakItems and ResetTrackButton (task 5.4) are
+listed under "Extra study components".
 Server-compatible (no `'use client'`). Copy: `vi.roadmap`. `ItemBody` (task 5.1c, ruling M5-R6) is
 not one of these components — a render helper beside `queries.ts` (`features/roadmap/item-body.tsx`,
 not under `components/`), described under ItemView below, the one place it renders.
@@ -945,18 +948,22 @@ not under `components/`), described under ItemView below, the one place it rende
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/track-overview.tsx`
 - **Props:** `track: TrackSummary`, `enrollment: Enrollment | null`, `variants: VariantLink[]`,
-  `template: TemplateDay[]`, `throttle: string[]` (from `getTrackPage()`), `children` (RoadmapView
-  or its empty state)
+  `template: TemplateDay[]`, `throttle: string[]` (from `getTrackPage()`), `learner?: ReactNode`
+  (task 5.4: an enrolled learner's TrackProgress — with ResetTrackButton — and WeakItems),
+  `children` (RoadmapView or its empty state)
 - **Variants:** header action — the status Badge when enrolled, "Thêm trong Cài đặt" for an active
   track the learner does not follow, nothing otherwise · notice — draft (info Banner "Bản nháp:
-  chỉ quản trị viên thấy lộ trình này.") or retired (warning Banner)
+  chỉ quản trị viên thấy lộ trình này.") or retired (warning Banner) · with / without the
+  learner's part (after the notices, before the variants; catalog entry "TrackOverviewLearner" in
+  `entries/extra.tsx`)
 - **States:** static
-- **Usage:** `<TrackOverview track={…} enrollment={…} variants={…} template={…}
-  throttle={…}>{slots ? <RoadmapView slots={slots} /> : <EmptyState … />}</TrackOverview>`
-  (`app/(app)/t/[trackId]/page.tsx`)
-- **Accessibility:** a `contents` wrapper with `data-accent` (keeps the page's section spacing);
-  PageHeader `h1` = the Vietnamese title, its description the English title in `lang="en"`; then
-  VariantLinks and a Section "Mẫu tuần" holding WeeklyTemplatePreview
+- **Usage:** `<TrackOverview track={…} enrollment={…} variants={…} template={…} throttle={…}
+  learner={data.progress && <><TrackProgress … /><WeakItems … /></>}>{slots ? <RoadmapView
+  slots={slots} /> : <EmptyState … />}</TrackOverview>` (`app/(app)/t/[trackId]/page.tsx`)
+- **Accessibility:** a `contents` wrapper with `data-accent` (keeps the page's section spacing;
+  the progress ring's `ring-track` reads it); PageHeader `h1` = the Vietnamese title, its
+  description the English title in `lang="en"`; then the learner's Sections, VariantLinks and a
+  Section "Mẫu tuần" holding WeeklyTemplatePreview
 
 ### VariantLinks
 
@@ -974,7 +981,8 @@ not under `components/`), described under ItemView below, the one place it rende
 ### WeekSection
 
 - **Layer:** feature (`features/roadmap`, server-compatible; also exports the `RoadmapGroup`,
-  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses)
+  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses, and `RowList`, which WeakItems
+  reuses)
 - **File:** `features/roadmap/components/week-section.tsx`
 - **Props:** `week: WeekSlots` (`roadmapSlots`: `{ week, topics, lessons, core, recap: { row, mode
   }[], bonus, decks: { deck, core, extended }[], exercises, prompts }`, rows as ReactNodes)
@@ -996,7 +1004,8 @@ not under `components/`), described under ItemView below, the one place it rende
 - **Props:** `slots: RoadmapSlots` (`{ variant, weeks: WeekSlots[], anytime: { prompts:
   ReactNode[], derivedDecks: { deck, unlocked }[] } }`)
 - **Variants:** with / without the final Section "Không theo tuần" (repeatable prompts under
-  "Nhiệm vụ"; derived decks under "Bộ thẻ" with "{n} thẻ" and "Mỗi thẻ mở sau khi bạn làm bài
+  "Nhiệm vụ"; derived decks under "Bộ thẻ" with "{n} thẻ" — the cards this learner has unlocked,
+  a result on the source item (task 5.4, the M3 residual) — and "Mỗi thẻ mở sau khi bạn làm bài
   gốc.") — left out when empty
 - **States:** static
 - **Usage:** `<RoadmapView slots={roadmapSlots(view, renderRow)} />` (`/t/[trackId]`)
@@ -2128,6 +2137,50 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **Accessibility:** CardSession's (focus to the next card's "Xem nghĩa", the polite "Đã lưu thẻ
   …" region); keys 1 / 2 / 3 grade only the card focus is in — two card blocks on one page never
   both take a key
+
+### TrackProgress
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/track-progress.tsx`
+- **Props:** `title: string` (the track title), `progress: TrackProgressData` (`{ week, weeks,
+  introduced, total }`, `trackProgressOf` on the enrolled variant), `actions?: ReactNode`
+  (ResetTrackButton)
+- **Variants:** with a roadmap ("Tuần {x}/{N}", "{introduced}/{total} bài chính đã học") ·
+  without one (the enrolled variant's roadmap file is missing: only the ring, at 0 %)
+- **States:** new learner (0 %) · in progress
+- **Usage:** `<TrackProgress title={track.title} progress={data.progress} actions={<ResetTrackButton
+  … />} />` (TrackOverview's `learner` slot)
+- **Accessibility:** a Section (region "Tiến độ của bạn"); ProgressRing `tone="track"`,
+  `size="lg"`, a `progressbar` named "Tiến độ {title}" with the percentage printed (never colour
+  alone); needs TrackOverview's `data-accent`
+
+### WeakItems
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/weak-items.tsx`
+- **Props:** `rows: ReactNode[]` (the track's Weak items' registry rows with the learner's state
+  and status pill, built by the page)
+- **Variants:** —
+- **States:** with rows · empty ("Chưa có bài yếu nào trong lộ trình này.")
+- **Usage:** `<WeakItems rows={data.weakItems.map((item) => row(item))} />` (TrackOverview's
+  `learner` slot)
+- **Accessibility:** a Section (region "Bài yếu"); the rows in WeekSection's bordered
+  `role="list"` (`RowList`), each one link (44 px); the status pill carries icon and label
+
+### ResetTrackButton
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/reset-track-button.tsx`
+- **Props:** `action: ResetTrackAction` (`resetTrack` of `features/settings`, unbound),
+  `requestId: string` (the page's), `trackId: string`
+- **Variants:** —
+- **States:** default · asking (a destructive ConfirmDialog "Xoá tiến độ của lộ trình này?" /
+  "Lịch sử học và chuỗi ngày vẫn được giữ." / "Bắt đầu lại") · pending (the dialog busy, it cannot
+  close) · answered (the dialog closes; the message in its live region, a success also a toast)
+- **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
+  trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
+- **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps
+  focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
 
 ### Admin overview components (`features/admin/components`)
 

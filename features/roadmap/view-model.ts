@@ -1,9 +1,11 @@
 /**
  * The track page's roadmap, as data (platform design §3.4, §3.6; task 3.4b): per roadmap week its
  * topics, topic lessons, core / recap / bonus problems, decks with their cards by tier, and the
- * week's exercises and prompts; then what belongs to no week (repeatable prompts, derived decks).
- * Pure: the catalog comes in as a `CatalogAccess`, so tests pass a fixture catalog. Items are
- * narrowed with `isItemOfType`, never switched on (§7.2).
+ * week's exercises and prompts; then what belongs to no week (repeatable prompts, derived decks
+ * with the cards this learner unlocked). Task 5.4 adds the learner's side (Part B-M3 decision 25):
+ * the progress on the enrolled variant (`trackProgressOf`) and the Weak items (`weakItemsOf`).
+ * Pure: the catalog comes in as a `CatalogAccess` (and a `PlanCatalog`), so tests pass a fixture
+ * catalog. Items are narrowed with `isItemOfType`, never switched on (§7.2).
  */
 import { itemHref } from '@/features/items/href'
 import { isItemOfType } from '@/features/items/narrow'
@@ -13,6 +15,10 @@ import type { CatalogItem, DeckSummary } from '@/lib/content/catalog-types'
 import type { ItemStatus } from '@/lib/content/schemas/common'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
 import type { RecapMode, Roadmap } from '@/lib/content/schemas/roadmap'
+import { isActiveItem, type PlanCatalog } from '@/lib/domain/catalog'
+import { own } from '@/lib/domain/compare'
+import { coreItemsOfWeek, roadmapWeek } from '@/lib/domain/plan/roadmap'
+import type { ItemState } from '@/lib/domain/state'
 
 /** The track list: where an item's back link goes when its track's page would be a 404. */
 export const TRACKS_HREF = '/tracks'
@@ -43,9 +49,8 @@ export type RoadmapView = {
   anytime: {
     prompts: CatalogItem<'prompt'>[]
     /**
-     * `unlocked`: the deck's cards a learner can unlock now — those whose source still qualifies
-     * (not retired). Which of them this learner has unlocked (a result on the source problem)
-     * needs item state and arrives with the track progress (task 5.4, decision 25).
+     * `unlocked`: the deck's listed cards this learner has unlocked — a result on the card's
+     * source (`lastResultOn` set, §5.3; task 5.4, the M3 residual). Retired cards never count.
      */
     derivedDecks: { deck: DeckSummary; unlocked: number }[]
   }
@@ -63,19 +68,29 @@ function topicTitle(track: TrackManifest, id: string): string {
   return track.topics.find((topic) => topic.id === id)?.title.vi ?? id
 }
 
+/** The learner's states the roadmap reads: whether an item has a result. */
+type ResultStates = Readonly<Record<string, Pick<ItemState, 'lastResultOn'>>>
+
 /**
  * The roadmap of `track` as weeks and "anytime" content. Order: the roadmap's order (weeks, topics,
  * core, recap, bonus, decks), then catalog order (items sorted by ID; a deck's cards in file
  * order). Drafts only with `includeDrafts` (admins); retired items never. A deck none of whose
- * cards is listed is left out; a week with nothing listed stays, empty (RF-4).
+ * cards is listed is left out; a week with nothing listed stays, empty (RF-4). A derived deck
+ * counts the listed cards whose source has a result in `items` (the learner's item states; none
+ * without them).
  */
 export function buildRoadmapView(input: {
   track: TrackManifest
   roadmap: Roadmap
   access: CatalogAccess
   includeDrafts: boolean
+  items?: ResultStates
 }): RoadmapView {
-  const { track, roadmap, access, includeDrafts } = input
+  const { track, roadmap, access, includeDrafts, items = {} } = input
+  const unlocked = (card: CatalogItem<'flashcard'>): boolean => {
+    const source = card.content.derivedFrom
+    return source !== null && (own(items, source)?.lastResultOn ?? null) !== null
+  }
   const listed = (item: CatalogItem | null): item is CatalogItem =>
     item !== null && item.trackId === track.id && isListed(item.status, includeDrafts)
   const trackItems = access.getTrackItems(track.id).filter(listed)
@@ -146,9 +161,56 @@ export function buildRoadmapView(input: {
       derivedDecks: track.decks
         .map((deck) => deckOf(`${track.id}:${deck.id}`))
         .filter(notNull)
-        .map((deck) => ({ deck, unlocked: cards(deck).length })),
+        .map((deck) => ({ deck, unlocked: cards(deck).filter(unlocked).length })),
     },
   }
+}
+
+/** The learner's progress on a track's variant (the track page's TrackProgress, task 5.4). */
+export type TrackProgressData = {
+  /** The roadmap week (`roadmapWeek`, §5.3); 1 without a roadmap. */
+  readonly week: number
+  /** The variant's roadmap weeks; 0 without a roadmap. */
+  readonly weeks: number
+  /** Introduced active core items of the variant. */
+  readonly introduced: number
+  /** Active core items of the variant (drafts, retired and missing ones never count). */
+  readonly total: number
+}
+
+/**
+ * The learner's progress on `variant` of `trackId` (Part B-M3 decision 25): week x of N as the
+ * plan engine counts it (`roadmapWeek`: active core items only, decision 16 of M4), and the
+ * introduced active core items out of all of them.
+ */
+export function trackProgressOf(
+  catalog: PlanCatalog,
+  trackId: string,
+  variant: string,
+  items: Readonly<Record<string, ItemState>>,
+): TrackProgressData {
+  const track = own(catalog.tracks, trackId)
+  const roadmap = track === undefined ? undefined : own(track.roadmaps, variant)
+  if (roadmap === undefined) return { week: 1, weeks: 0, introduced: 0, total: 0 }
+  const core = new Set(
+    roadmap.weeks
+      .flatMap((week) => coreItemsOfWeek(week, catalog))
+      .filter((id) => isActiveItem(catalog, id)),
+  )
+  return {
+    week: roadmapWeek(roadmap, catalog, items),
+    weeks: roadmap.weeks.length,
+    introduced: [...core].filter((id) => own(items, id) !== undefined).length,
+    total: core.size,
+  }
+}
+
+/** The items of `items` whose learner state is Weak (§5.7), in order. */
+export function weakItemsOf(
+  items: readonly CatalogItem[],
+  states: Readonly<Record<string, Pick<ItemState, 'status'>>>,
+): CatalogItem[] {
+  return items.filter((item) => own(states, item.id)?.status === 'weak')
 }
 
 /** Another item as a link (`resolveItem`, §3.2): problems carry `#leetcode` and difficulty. */

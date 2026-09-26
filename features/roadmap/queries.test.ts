@@ -364,6 +364,68 @@ describe('getTrackPage', () => {
     expect(await coreOf()).toEqual(['dsa:lc-0001', 'dsa:lc-0217', 'dsa:lc-0167'])
   })
 
+  it('task 5.4: reads the learner’s item states, then their progress, Weak items and row states', async () => {
+    fake.rows = [row('dsa', 'active', '8w', 60)]
+    learner.items = {
+      'dsa:lc-0001': stateOf('dsa:lc-0001', { status: 'weak', weak: true }),
+      'dsa:lc-0167': stateOf('dsa:lc-0167', { status: 'strong' }),
+      'english:w01-blocker': stateOf('english:w01-blocker', { trackId: 'english' }),
+    }
+    const page = await getTrackPage('dsa', undefined)
+    expect(fake.calls).toContainEqual(['readItemStates', 'me'])
+    expect(page?.progress).toEqual({ week: 2, weeks: 3, introduced: 2, total: 3 })
+    expect(page?.weakItems.map((item) => item.id)).toEqual(['dsa:lc-0001'])
+    // The rows' states: this track's items only, as ItemStateView.
+    expect(page?.states).toEqual({
+      'dsa:lc-0001': { status: 'weak', level: 1, dueOn: '2026-10-05' },
+      'dsa:lc-0167': { status: 'strong', level: 1, dueOn: '2026-10-05' },
+    })
+    expect(page?.requestId).toMatch(UUID)
+  })
+
+  it('task 5.4: progress on the enrolled variant, whichever variant the page shows', async () => {
+    fake.rows = [row('dsa', 'paused', '8w', 60)]
+    learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001') }
+    const page = await getTrackPage('dsa', '10w')
+    expect(page?.view).toBeNull()
+    expect(page?.progress).toEqual({ week: 1, weeks: 3, introduced: 1, total: 3 })
+  })
+
+  it('task 5.4: no progress or Weak items without an active or paused enrollment', async () => {
+    learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001', { status: 'weak', weak: true }) }
+    for (const rows of [[], [row('dsa', 'removed', '8w', 60)]]) {
+      fake.rows = rows
+      const page = await getTrackPage('dsa', undefined)
+      expect(page?.progress).toBeNull()
+      expect(page?.weakItems).toEqual([])
+      // The rows still show what the learner did (history is kept, §5.9).
+      expect(page?.states['dsa:lc-0001']?.status).toBe('weak')
+    }
+  })
+
+  it('task 5.4: a Weak draft item is listed for an admin only (as the roadmap)', async () => {
+    fake.rows = [row('dsa', 'active', '8w', 60)]
+    learner.items = {
+      'dsa:lc-0217': stateOf('dsa:lc-0217', { status: 'weak', weak: true }),
+      'dsa:lc-0015': stateOf('dsa:lc-0015', { status: 'weak', weak: true }),
+    }
+    expect((await getTrackPage('dsa', undefined))?.weakItems).toEqual([])
+    fake.user = { ...fake.user, isAdmin: true }
+    expect((await getTrackPage('dsa', undefined))?.weakItems.map((item) => item.id)).toEqual([
+      'dsa:lc-0217',
+    ])
+  })
+
+  it('task 5.4 (M3 residual): the derived deck counts the cards this learner unlocked', async () => {
+    const unlocked = async () =>
+      (await getTrackPage('english', undefined))?.view?.anytime.derivedDecks.map(
+        (deck) => deck.unlocked,
+      )
+    expect(await unlocked()).toEqual([0])
+    learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001') }
+    expect(await unlocked()).toEqual([1])
+  })
+
   it('describes the weekly template and throttle as Vietnamese text', async () => {
     const dsa = await getTrackPage('dsa', undefined)
     expect(dsa?.template).toEqual([

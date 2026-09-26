@@ -27,7 +27,8 @@ function RoadmapGroup({
   )
 }
 
-/** Item rows (registry Rows, each one link) as a bordered list; `role="list"` survives Safari. */
+/** Item rows (registry Rows, each one link) as a bordered list; `role="list"` survives Safari.
+ *  WeakItems (task 5.4) lists the Weak items the same way. */
 function RowList({ rows, labelledBy }: { rows: React.ReactNode[]; labelledBy?: string }) {
   return (
     <ul
@@ -150,4 +151,4 @@ function WeekSection({ week }: { week: WeekSlots }) {
   )
 }
 
-export { DeckCard, DeckList, RoadmapGroup, RowGroup, WeekSection }
+export { DeckCard, DeckList, RoadmapGroup, RowGroup, RowList, WeekSection }

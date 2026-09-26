@@ -21,6 +21,8 @@ type TrackOverviewProps = {
   /** `describeWeeklyTemplate` / `describeThrottle` of the manifest. */
   template: TemplateDay[]
   throttle: string[]
+  /** An enrolled learner's part (task 5.4): TrackProgress (with "Bắt đầu lại") and WeakItems. */
+  learner?: React.ReactNode
   /** The roadmap (RoadmapView) or its empty state. */
   children: React.ReactNode
 }
@@ -47,9 +49,10 @@ function headerAction({
 
 /**
  * The top of a track page (platform design §2.4): the title (the page `h1`) with the English
- * title, a draft or retired notice, the roadmap variants and the weekly template; then the
- * roadmap. Everything sits in the track's `data-accent` context; the wrapper is `contents`, so the
- * parts keep the page's section spacing.
+ * title, a draft or retired notice, an enrolled learner's progress and Weak items (`learner`,
+ * task 5.4), the roadmap variants and the weekly template; then the roadmap. Everything sits in
+ * the track's `data-accent` context (the progress ring's `ring-track` reads it); the wrapper is
+ * `contents`, so the parts keep the page's section spacing.
  */
 function TrackOverview({
   track,
@@ -57,6 +60,7 @@ function TrackOverview({
   variants,
   template,
   throttle,
+  learner,
   children,
 }: TrackOverviewProps) {
   return (
@@ -68,6 +72,7 @@ function TrackOverview({
       />
       {track.status === 'draft' && <Banner tone="info">{copy.draft}</Banner>}
       {track.status === 'retired' && <Banner tone="warning">{copy.retired}</Banner>}
+      {learner}
       <VariantLinks variants={variants} />
       <Section title={copy.template}>
         <WeeklyTemplatePreview

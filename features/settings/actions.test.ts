@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { deriveEventId, digest } from '@/lib/events/ids'
+import { vi as copy } from '@/lib/i18n/vi'
 import type { SettingsAction } from './schema'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
@@ -124,6 +125,7 @@ const { EventError } = await import('@/lib/events/apply')
 const {
   deleteAccount,
   enrollTrack,
+  resetTrack,
   setTrackStatus,
   updateCodeLanguage,
   updateSchedule,
@@ -763,6 +765,90 @@ describe("today's plan after a track change (decision 11)", () => {
     await updateCodeLanguage(null, form({ requestId: REQUEST_ID, codeLanguage: 'go' }))
     expect(events()).toHaveLength(2)
     expect(rebuilds()).toEqual([])
+  })
+})
+
+describe('resetTrack — "Bắt đầu lại" (§5.9, Part B-M2 decision 18, task 5.4)', () => {
+  const input = { requestId: REQUEST_ID, trackId: 'dsa' }
+  const rebuilds = () => fake.calls.filter(([name]) => name === 'rebuildTodayIfUntouched')
+
+  it('guards first, records track.reset, rebuilds an untouched plan of today, then re-renders', async () => {
+    expect(await resetTrack(input)).toEqual({
+      ok: true,
+      message: `Đã bắt đầu lại lộ trình ${DSA}.`,
+    })
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(sent()).toEqual([
+      {
+        id: id('track.reset:dsa'),
+        type: 'track.reset',
+        trackId: 'dsa',
+        payload: {},
+      },
+    ])
+    expect(events()[0]?.[1]).toBe('user')
+    expect(rebuilds()).toEqual([['rebuildTodayIfUntouched', USER_ID]])
+    const order = fake.calls.map(([name]) => name)
+    expect(order.indexOf('applyLearnerEvent')).toBeLessThan(
+      order.indexOf('rebuildTodayIfUntouched'),
+    )
+    expect(order.indexOf('rebuildTodayIfUntouched')).toBeLessThan(order.indexOf('revalidatePath'))
+    expect(revalidated()).toEqual([
+      ['revalidatePath', '/settings'],
+      ['revalidatePath', '/t/dsa'],
+      ['revalidatePath', '/today'],
+    ])
+  })
+
+  it('[RF-2] the same tap twice sends the same event id (the database records it once)', async () => {
+    await resetTrack(input)
+    await resetTrack(input)
+    const [first, second] = sent() as { id: string }[]
+    expect(second?.id).toBe(first?.id)
+  })
+
+  it('a removed (or never enrolled) track is stale: the message, no rebuild, the pages re-render', async () => {
+    for (const code of ['invalid_transition', 'track_not_enrolled'] as const) {
+      fake.calls = []
+      fake.failOn = { type: 'track.reset', error: new EventError(code) }
+      expect(await resetTrack(input)).toEqual({
+        ok: false,
+        message: new EventError(code).userMessage,
+      })
+      expect(rebuilds()).toEqual([])
+      expect(revalidated()).toEqual([
+        ['revalidatePath', '/settings'],
+        ['revalidatePath', '/t/dsa'],
+        ['revalidatePath', '/today'],
+      ])
+    }
+  })
+
+  it('still answers success when the rebuild throws (the reset is saved)', async () => {
+    fake.rebuildFails = new Error('Could not read the day plan')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect(await resetTrack(input)).toMatchObject({ ok: true })
+      expect(logged).toHaveBeenCalledWith(
+        '[settings] rebuild failed:',
+        'Error: Could not read the day plan',
+      )
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it.each([
+    { requestId: 'nope', trackId: 'dsa' },
+    { requestId: REQUEST_ID, trackId: 'DSA' },
+    { requestId: REQUEST_ID, trackId: 'dsa', extra: 1 },
+    null,
+  ])('refuses an invalid input %j, sending nothing', async (bad) => {
+    expect(await resetTrack(bad as unknown as typeof input)).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(fake.calls).toEqual([['requireOnboarded']])
   })
 })
 

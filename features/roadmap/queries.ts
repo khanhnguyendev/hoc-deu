@@ -37,7 +37,16 @@ import {
 import { defaultVariant } from '@/lib/domain/plan/variant'
 import { variantLabel } from '@/lib/i18n/format'
 import { createClient } from '@/lib/supabase/server'
-import { buildRoadmapView, resolveItemLink, TRACKS_HREF, type RoadmapView } from './view-model'
+import {
+  buildRoadmapView,
+  isListed,
+  resolveItemLink,
+  trackProgressOf,
+  TRACKS_HREF,
+  weakItemsOf,
+  type RoadmapView,
+  type TrackProgressData,
+} from './view-model'
 
 export type TrackSummary = {
   id: string
@@ -76,6 +85,15 @@ export type TrackPageData = {
   /** Null when the variant's roadmap file does not exist yet (decision 4). */
   view: RoadmapView | null
   isAdmin: boolean
+  /** The learner's state of this track's items (task 5.4): every row of the page shows it. */
+  states: Readonly<Record<string, ItemStateView>>
+  /** The learner's progress on the enrolled variant; null without an active or paused
+   *  enrollment (task 5.4, Part B-M3 decision 25). */
+  progress: TrackProgressData | null
+  /** The track's Weak items (§5.7) the viewer may see, for an enrolled learner; [] otherwise. */
+  weakItems: CatalogItem[]
+  /** Per render (decision 16): "Bắt đầu lại" derives its event id from it. */
+  requestId: string
 }
 
 export type ItemPageModel = {
@@ -140,6 +158,12 @@ async function readEnrollments(
   )
 }
 
+const stateView = (state: ItemState): ItemStateView => ({
+  status: state.status,
+  level: state.level,
+  dueOn: state.dueOn,
+})
+
 /** An active or paused enrollment; a removed one is no enrollment. */
 const followed = (enrollment: Enrollment | undefined): enrollment is Enrollment =>
   enrollment !== undefined && enrollment.status !== 'removed'
@@ -168,7 +192,11 @@ export async function getTracksOverview(): Promise<TracksOverview> {
  * variants and the chosen variant's roadmap. Null (→ 404) for an unknown track, a draft track for
  * a learner, and a retired track the learner does not follow. The variant is the parameter when
  * the manifest lists it, else the enrolled one, else `defaultVariant` at the track's default
- * budget (2.9). Wrapped in `cache()`: `generateMetadata` and the page share one read.
+ * budget (2.9). Task 5.4 (Part B-M3 decision 25): every `item_state` row of the learner (paged,
+ * `readItemStates` — a derived card unlocks from another track's item), so the rows show their
+ * state, a derived deck counts the cards this learner unlocked, and an enrolled learner gets the
+ * progress on the enrolled variant and the track's Weak items; plus a per-render request id for
+ * "Bắt đầu lại". Wrapped in `cache()`: `generateMetadata` and the page share one read.
  */
 export const getTrackPage = cache(
   async (trackId: string, variant: string | undefined): Promise<TrackPageData | null> => {
@@ -190,6 +218,10 @@ export const getTrackPage = cache(
         ? enrolled
         : defaultVariant(track.roadmaps, track.defaults.budgetMinutes)
     const roadmap = catalogAccess.getRoadmap(track.id, current)
+    const items = await readItemStates(supabase, user.id)
+    const trackItems = catalogAccess
+      .getTrackItems(track.id)
+      .filter((item) => isListed(item.status, user.isAdmin))
 
     return {
       track: summaryOf(track),
@@ -210,20 +242,26 @@ export const getTrackPage = cache(
               roadmap,
               access: catalogAccess,
               includeDrafts: user.isAdmin,
+              items,
             }),
       isAdmin: user.isAdmin,
+      states: Object.fromEntries(
+        Object.values(items)
+          .filter((state) => state.trackId === track.id)
+          .map((state) => [state.itemId, stateView(state)]),
+      ),
+      progress:
+        enrollment === null
+          ? null
+          : trackProgressOf(planCatalog(), track.id, enrollment.roadmapVariant, items),
+      weakItems: enrollment === null ? [] : weakItemsOf(trackItems, items),
+      requestId: crypto.randomUUID(),
     }
   },
 )
 
 type ReadOnly = Pick<ItemPageModel, 'state' | 'outcome'>
 const READ_ONLY: ReadOnly = { state: null, outcome: null }
-
-const stateView = (state: ItemState): ItemStateView => ({
-  status: state.status,
-  level: state.level,
-  dueOn: state.dueOn,
-})
 
 /**
  * The learner's side of an item page (task 5.2c; decisions 13, 14, 16): today from the schedule,
