@@ -11,13 +11,21 @@ See also: `docs/adr/0003-oauth-and-test-login.md` (OAuth and test-login design),
 bootstrap only touches a never-processed profile, and only while no active admin exists) and
 platform design §2.5 (environment variables and admin bootstrap).
 
-## Current state (2026-09-25, M2 ruling R18)
+## Current state (2026-09-26, task 5.8)
 
-- **No separate staging project yet.** Previews — `main` included — use the **production**
-  Supabase project `hoc-deu` (owner decision 2026-09-25) until a staging project exists (the Free
-  plan allows two active projects); read "the staging project" below as `hoc-deu` until then.
-- The placeholder production branch `production` **exists** on GitHub, pinned at M1 (`c2a9583`),
-  and `hoc-deu.vercel.app` serves that M1 deployment until task 5.8 (§5 steps 2 and 6).
+- **`hoc-deu` stays the staging project — permanently, not as a stand-in.** From 2026-09-25 to
+  task 5.8, previews (`main` included) used the Supabase project `hoc-deu` as a temporary stand-in
+  for production, because no separate staging project existed yet (owner decision 2026-09-25, M2
+  ruling R18). Task 5.8 (`docs/ops/production.md`) ends that: production gets its **own**, new
+  Supabase project, and `hoc-deu` simply keeps its existing role — every preview, `main` included,
+  keeps pointing at it. **§2 below ("Create the Supabase staging project") is superseded and kept
+  only for reference** — `hoc-deu` already exists, already carries this file's OAuth apps, redirect
+  allow-list and admin bootstrap, and is never recreated under the name `hoc-deu-staging`.
+- The placeholder production branch `production` existed on GitHub from M1 (`c2a9583`) until task
+  5.8 set the Vercel project's Production Branch back to `main` (§5 step 2); every push to `main`
+  before that built as a Preview, using this file's staging variables, exactly like every other
+  branch. `docs/ops/production.md` has the production project, its own Vercel Production variables
+  and the first production deploy.
 - Preview URLs sit behind Vercel's standard deployment protection: sign in to Vercel to open them.
 - The image bucket `content-images` exists in `hoc-deu` (public read, owner-only writes; created
   by the owner in the dashboard — implementation plan Part B-M3, OD3). Its runbook,
@@ -28,10 +36,16 @@ platform design §2.5 (environment variables and admin bootstrap).
 | Environment | Where | Auth |
 | --- | --- | --- |
 | Local | Docker (`pnpm db:start`), `next dev` | Test login on (`AUTH_TEST_LOGIN=true`) |
-| Staging | Vercel **Preview** deployments — every branch, `main` included — + Supabase project `hoc-deu-staging` | Google/GitHub OAuth only — hosted e-mail provider disabled |
-| Production | Vercel **Production** deployment + a separate Supabase project — none until task 5.8 (§5 step 2) | Google/GitHub OAuth only (task 5.8) |
+| Staging | Vercel **Preview** deployments — every branch, `main` included — + Supabase project `hoc-deu` | Google/GitHub OAuth only — hosted e-mail provider disabled |
+| Production | Vercel **Production** deployment + its own, separate Supabase project — `docs/ops/production.md` | Google/GitHub OAuth only |
 
 ## 2. Create the Supabase staging project
+
+**Superseded (task 5.8) — kept for reference only.** `hoc-deu` already exists and stays the
+staging project permanently ("Current state" above); this section's `hoc-deu-staging` project is
+never created. Skip to §3 if `hoc-deu` is already set up as this section describes (it is, as of
+task 2.2) — or use this section's steps if a *production* project needs the same clicks, since
+they are the same either way, just under a different project name (`docs/ops/production.md`).
 
 1. Create a project named `hoc-deu-staging` in region `ap-southeast-1` (Singapore), on
    Postgres **16 or later** (Supabase's default, 17, is right; local runs 17 —
@@ -181,9 +195,9 @@ over-long provider avatar — then push:
 update public.profiles set avatar_url = null where char_length(avatar_url) > 2048;
 ```
 
-Run both against the linked staging project (§2; today the production project `hoc-deu` — see
-"Current state") and confirm `migration list` shows local and remote at the same version before
-the next PR is opened against staging.
+Run both against the linked staging project (`hoc-deu` — see "Current state") and confirm
+`migration list` shows local and remote at the same version before the next PR is opened against
+staging.
 
 ## 8. Break glass — no active admin left (decision 23, ADR-0004)
 
