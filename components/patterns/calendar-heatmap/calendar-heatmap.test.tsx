@@ -53,6 +53,31 @@ describe('CalendarHeatmap — year view', () => {
     const { year } = setup()
     expect(year.querySelectorAll('[data-dot]')).toHaveLength(3)
   })
+
+  it('never overlaps two month labels, for any start weekday (M1 #9)', () => {
+    // One `today` per weekday (Monday .. Sunday): the display window can open on any weekday.
+    const todays = [
+      '2026-01-12',
+      '2026-01-13',
+      '2026-01-14',
+      '2026-01-15',
+      '2026-01-16',
+      '2026-01-17',
+      '2026-01-18',
+    ]
+    for (const today of todays) {
+      const { container, unmount } = render(
+        <CalendarHeatmap days={[]} today={today} label="Lịch học" />,
+      )
+      const labelled = [...container.querySelectorAll('[data-col]')]
+        .filter((el) => el.textContent !== '')
+        .map((el) => Number(el.getAttribute('data-col')))
+      for (let i = 1; i < labelled.length; i += 1) {
+        expect(labelled[i]! - labelled[i - 1]!, `today=${today}`).toBeGreaterThanOrEqual(3)
+      }
+      unmount()
+    }
+  })
 })
 
 describe('CalendarHeatmap — month view', () => {
@@ -62,6 +87,27 @@ describe('CalendarHeatmap — month view', () => {
     const day = within(month).getByRole('button', { name: /^4 tháng 2, 2026/ })
     expect(day.className).toContain('size-11')
     expect(day.textContent).toContain('4')
+  })
+
+  it('gives the selected day a visible state besides colour (M1 #8)', async () => {
+    const { user, month } = setup()
+    const selected = within(month).getByRole('button', { name: /^1 tháng 2, 2026/ })
+    const other = within(month).getByRole('button', { name: /^2 tháng 2, 2026/ })
+    expect(selected.className).not.toContain('ring-primary')
+    await user.click(selected)
+    expect(selected.getAttribute('aria-pressed')).toBe('true')
+    expect(selected.className).toContain('ring-primary')
+    expect(other.className).not.toContain('ring-primary')
+  })
+
+  it('still marks today distinctly when today itself is tapped (selected === today)', async () => {
+    const { user, month } = setup()
+    const today = within(month).getByRole('button', { name: /^4 tháng 2, 2026/ })
+    await user.click(today)
+    expect(today.getAttribute('aria-pressed')).toBe('true')
+    expect(today.className).toContain('ring-ring')
+    // Today never doubles up on the selected ring colour (a real Tailwind class conflict risk).
+    expect(today.className).not.toContain('ring-primary')
   })
 
   it('pages months with the buttons, never past the current month', async () => {
@@ -109,5 +155,14 @@ describe('CalendarHeatmap — legend and table', () => {
     expect(screen.getByRole('button', { name: 'Ẩn bảng' }).getAttribute('aria-expanded')).toBe(
       'true',
     )
+  })
+
+  it('renders with no activity at all (M1 #22: the catalog’s empty demo)', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<CalendarHeatmap days={[]} today={TODAY} label="Lịch học" />)
+    const month = container.querySelector<HTMLElement>('[data-view="month"]')!
+    expect(within(month).getByRole('button', { name: /^4 tháng 2, 2026/ })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Xem dạng bảng' }))
+    expect(screen.getByText('Chưa có ngày học nào.')).toBeTruthy()
   })
 })

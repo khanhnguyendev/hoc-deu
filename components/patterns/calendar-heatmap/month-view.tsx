@@ -117,6 +117,10 @@ export function MonthView({
                 'relative flex size-11 flex-col items-center justify-center gap-0.5 rounded-md text-sm font-medium tabular-nums',
                 CELL[level],
                 ON_CELL[level].text,
+                // M1 #8: the selected day gets a visible state besides colour — `aria-pressed`
+                // alone was not enough. A ring distinct from today's own ring, so tapping today
+                // still shows a change.
+                day === selected && day !== today && 'ring-2 ring-primary',
                 day === today && 'ring-2 ring-ring',
               )}
             >

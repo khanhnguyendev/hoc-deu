@@ -1199,6 +1199,10 @@ export const CATALOG: Entry[] = [
         title: 'Year view (≥ 1024 px, mouse) and month view (below, or touch)',
         render: () => <CalendarHeatmap days={DEMO_DAYS} today={DEMO_TODAY} label="Lịch học mẫu" />,
       },
+      {
+        title: 'Trống (M1 #22): chưa có ngày học nào',
+        render: () => <CalendarHeatmap days={[]} today={DEMO_TODAY} label="Lịch học mẫu (trống)" />,
+      },
     ],
   },
   {
