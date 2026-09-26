@@ -225,6 +225,9 @@ async function readRecapBlockStates(
   )
 }
 
+/** `blocks @> '[{"kind":"recap"}]'` (jsonb containment), as the JSON PostgREST expects. */
+const RECAP_BLOCK = JSON.stringify([{ kind: 'recap' }])
+
 /**
  * Plans with a recap block (jsonb containment, about one a week) and the user's recap check-ins —
  * the input of `recapWeeksDone` (§5.6). A plan that cannot be read is left out; without a recap
@@ -238,7 +241,8 @@ export async function readRecapHistory(
     .from('day_plans')
     .select('*')
     .eq('user_id', userId)
-    .contains('blocks', [{ kind: 'recap' }])
+    // As JSON text: postgrest-js would send an array as a Postgres array literal (22P02).
+    .contains('blocks', RECAP_BLOCK)
     .order('plan_date')
   if (error) throw failed('the recap history', error)
   const plans = data.flatMap((row) => {

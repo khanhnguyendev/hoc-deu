@@ -160,7 +160,12 @@ function matches(row: Row, filter: FakeFilter): boolean {
     case 'like':
       return typeof value === 'string' && likePattern(String(filter.value)).test(value)
     case 'contains':
-      return jsonContains(value, filter.value)
+      // postgrest-js sends a string as it is (`cs.<value>`): PostgREST reads it as the column's
+      // type, JSON for a jsonb column.
+      return jsonContains(
+        value,
+        typeof filter.value === 'string' ? JSON.parse(filter.value) : filter.value,
+      )
   }
 }
 
@@ -273,7 +278,20 @@ export function createFakeSupabase(rows: FakeRows = {}): FakeSupabase {
         in: filter('in'),
         is: filter('is'),
         like: filter('like'),
-        contains: filter('contains'),
+        contains(column: string, value: unknown) {
+          // postgrest-js sends an array as a Postgres array literal (`cs.{a,b}`), so objects in it
+          // arrive as `[object Object]` — PostgREST answers 22P02 on a jsonb column. JSON goes as
+          // a string.
+          if (
+            Array.isArray(value) &&
+            value.some((item) => item !== null && typeof item === 'object')
+          ) {
+            throw new Error(
+              `contains(${column}, [objects]) sends "{[object Object]}": pass JSON.stringify(value)`,
+            )
+          }
+          return filter('contains')(column, value)
+        },
         not(column: string, operator: string, value: unknown) {
           if (operator !== 'is' || value !== null) {
             throw new Error(`not(${column}, '${operator}', …) is not supported by the fake`)

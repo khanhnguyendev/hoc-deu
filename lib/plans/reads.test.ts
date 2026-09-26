@@ -273,7 +273,7 @@ describe('readRecapHistory', () => {
     const [select] = fake.selects('day_plans')
     expect(select?.filters).toEqual([
       { op: 'eq', column: 'user_id', value: USER_ID },
-      { op: 'contains', column: 'blocks', value: [{ kind: 'recap' }] },
+      { op: 'contains', column: 'blocks', value: '[{"kind":"recap"}]' },
     ])
     // Only recap check-ins, by the user, not a growing list of plan ids.
     const [states] = fake.selects('plan_block_state')

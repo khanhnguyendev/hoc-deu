@@ -134,8 +134,20 @@ describe('createFakeSupabase', () => {
       .client()
       .from('day_plans')
       .select('id')
-      .contains('blocks', [{ kind: 'recap' }])
+      .contains('blocks', JSON.stringify([{ kind: 'recap' }]))
     expect(data).toEqual([{ id: 'recap' }])
+  })
+
+  it('rejects an array of objects for contains, as PostgREST does (22P02 on a jsonb column)', () => {
+    // postgrest-js sends an array as a Postgres array literal: `cs.{[object Object]}`.
+    const fake = createFakeSupabase({ day_plans: [] })
+    expect(() =>
+      fake
+        .client()
+        .from('day_plans')
+        .select('id')
+        .contains('blocks', [{ kind: 'recap' }]),
+    ).toThrow(/JSON\.stringify/)
   })
 
   it('caps a request without range at MAX_ROWS rows and pages with range', async () => {
