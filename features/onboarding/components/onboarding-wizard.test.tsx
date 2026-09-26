@@ -371,6 +371,48 @@ describe('OnboardingWizard — step 6, preview and submit', () => {
     expect(currentHeading().textContent).toBe('Xem trước tuần học')
   })
 
+  it('a summary link to a field on another step opens that step and focuses it (M2 minor, onNavigate)', async () => {
+    const action = vi.fn<Action>(async () => ({
+      status: 'error',
+      formError: null,
+      fieldErrors: {
+        'tracks.dsa.budgetMinutes': 'Nhập số phút từ 10 đến 240, bước 5 phút.',
+        timezone: 'Múi giờ không hợp lệ.',
+      },
+    }))
+    const { user } = setup({ action })
+    await toPreview(user)
+    await user.click(screen.getByRole('button', { name: 'Bắt đầu học' }))
+    await waitFor(() => expect(currentHeading().textContent).toBe('Thời gian mỗi ngày'))
+    await user.click(
+      within(screen.getByRole('alert')).getByRole('link', { name: 'Múi giờ không hợp lệ.' }),
+    )
+    expect(currentHeading().textContent).toBe('Lịch học')
+    expect(document.activeElement).toBe(screen.getByLabelText('Múi giờ'))
+  })
+
+  it('re-focuses the summary on an identical repeated server error (M2 minor, submitCount)', async () => {
+    const action = vi.fn<Action>(async () => ({
+      status: 'error',
+      formError: null,
+      fieldErrors: { timezone: 'Múi giờ không hợp lệ.' },
+    }))
+    const { user } = setup({ action })
+    await toPreview(user)
+    await user.click(screen.getByRole('button', { name: 'Bắt đầu học' }))
+    await waitFor(() => expect(currentHeading().textContent).toBe('Lịch học'))
+    const summary = screen.getByRole('alert')
+    expect(document.activeElement).toBe(summary)
+
+    screen.getByLabelText('Múi giờ').focus()
+    expect(document.activeElement).not.toBe(summary)
+    await next(user) // language
+    await next(user) // preview
+    await user.click(screen.getByRole('button', { name: 'Bắt đầu học' }))
+    await waitFor(() => expect(currentHeading().textContent).toBe('Lịch học'))
+    expect(document.activeElement).toBe(screen.getByRole('alert'))
+  })
+
   it('renders an initial error state on the step of its first field (catalog)', () => {
     setup({
       initialState: {

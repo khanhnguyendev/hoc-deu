@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import { FormErrorSummary } from './form-error-summary'
 
 describe('FormErrorSummary', () => {
@@ -71,5 +72,61 @@ describe('FormErrorSummary', () => {
       </>,
     )
     expect(document.activeElement).toBe(screen.getByRole('alert'))
+  })
+
+  it('re-focuses and re-announces on a repeated identical error when submitCount changes (M2 minor)', () => {
+    const errors = [{ fieldId: 'email', message: 'Email chưa đúng định dạng.' }]
+    const { rerender } = render(
+      <>
+        <FormErrorSummary
+          title="Vui lòng kiểm tra lại các mục sau"
+          errors={errors}
+          submitCount={1}
+        />
+        <input aria-label="Khác" />
+      </>,
+    )
+    screen.getByLabelText('Khác').focus()
+    expect(document.activeElement).toBe(screen.getByLabelText('Khác'))
+
+    // The exact same error content, but a new submission (submitCount): refocus anyway.
+    rerender(
+      <>
+        <FormErrorSummary
+          title="Vui lòng kiểm tra lại các mục sau"
+          errors={errors}
+          submitCount={2}
+        />
+        <input aria-label="Khác" />
+      </>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('alert'))
+  })
+
+  it('calls onNavigate with the field id instead of following the link (M2 minor)', async () => {
+    const onNavigate = vi.fn()
+    render(
+      <FormErrorSummary
+        title="Vui lòng kiểm tra lại các mục sau"
+        errors={[{ fieldId: 'tracks.dsa.roadmapVariant', message: 'Chọn một phiên bản.' }]}
+        onNavigate={onNavigate}
+      />,
+    )
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Chọn một phiên bản.' }))
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('tracks.dsa.roadmapVariant')
+  })
+
+  it('focuses the field itself without onNavigate (single-section forms)', async () => {
+    render(
+      <>
+        <FormErrorSummary
+          title="Vui lòng kiểm tra lại các mục sau"
+          errors={[{ fieldId: 'minutes-field', message: 'Chọn số phút hợp lệ.' }]}
+        />
+        <input id="minutes-field" aria-label="Số phút" />
+      </>,
+    )
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Chọn số phút hợp lệ.' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Số phút'))
   })
 })

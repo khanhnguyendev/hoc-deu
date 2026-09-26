@@ -182,4 +182,25 @@ describe('AddTrackForm — the fields', () => {
     expect(startDate().getAttribute('aria-invalid')).toBe('true')
     expect(screen.getByText('Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.')).toBeTruthy()
   })
+
+  it('clears the server errors and pending state when the candidate track changes (M2 minor)', async () => {
+    const { user } = setup(
+      {},
+      {
+        ok: false,
+        message: 'Kiểm tra lại các mục được đánh dấu.',
+        fieldErrors: { startDate: 'Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.' },
+      },
+    )
+    await user.click(submit())
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Kiểm tra lại các mục được đánh dấu.',
+      ),
+    )
+    await user.click(trackChoice(SD_TITLE))
+    expect(screen.getByRole('alert').textContent).toBe('')
+    expect(screen.queryByText('Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.')).toBeNull()
+    expect(startDate().getAttribute('aria-invalid')).toBeNull()
+  })
 })

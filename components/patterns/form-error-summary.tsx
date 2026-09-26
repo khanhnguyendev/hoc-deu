@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
 type FormErrorSummaryError = { fieldId: string; message: string }
@@ -12,22 +13,48 @@ type FormErrorSummaryError = { fieldId: string; message: string }
 function FormErrorSummary({
   title,
   errors,
+  /**
+   * Increments once per submission attempt (not per render or keystroke): a second, identical
+   * server error — the exact same field messages as the last one — still re-focuses and
+   * re-announces the summary (M2 minor), because the key below then differs even though the
+   * error content does not.
+   */
+  submitCount = 0,
+  /**
+   * Moves to a field the summary links to (M2 minor): called with the field's id instead of
+   * following the link natively, so a multi-step form can switch to the field's step first, and a
+   * single-section form focuses it directly — jsdom and some browsers do not reliably focus a
+   * fragment target on their own. Omit it only when every field is always on screen and a plain
+   * anchor jump is enough.
+   */
+  onNavigate,
   className,
 }: {
   title: string
   errors: FormErrorSummaryError[]
+  submitCount?: number
+  onNavigate?: (fieldId: string) => void
   className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // A content key, not the array reference: a consumer that recomputes `errors` each render
   // (e.g. from validation run on every keystroke) must not steal focus back unless the actual
-  // errors changed.
-  const errorsKey = errors.map((error) => `${error.fieldId}:${error.message}`).join('|')
+  // errors changed — unless a new submission repeated them exactly (submitCount).
+  const errorsKey = `${submitCount}|${errors.map((error) => `${error.fieldId}:${error.message}`).join('|')}`
 
   useEffect(() => {
     if (errors.length > 0) ref.current?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- focus only on content change (errorsKey), not identity.
   }, [errorsKey])
+
+  function onClick(event: React.MouseEvent<HTMLUListElement>) {
+    const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null
+    const fieldId = link?.getAttribute('href')?.slice(1)
+    if (fieldId === undefined) return
+    event.preventDefault()
+    if (onNavigate) onNavigate(fieldId)
+    else document.getElementById(fieldId)?.focus()
+  }
 
   if (errors.length === 0) return null
 
@@ -43,7 +70,7 @@ function FormErrorSummary({
       )}
     >
       <p className="font-medium">{title}</p>
-      <ul className="flex flex-col gap-1 text-sm">
+      <ul onClick={onClick} className="flex flex-col gap-1 text-sm">
         {errors.map((error) => (
           <li key={error.fieldId}>
             <a href={`#${error.fieldId}`} className="underline underline-offset-2">

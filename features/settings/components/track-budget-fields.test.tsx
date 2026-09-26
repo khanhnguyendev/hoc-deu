@@ -73,5 +73,11 @@ describe('TrackBudgetFields', () => {
     expect(minutes().getAttribute('aria-invalid')).toBe('true')
     const variantError = screen.getByText('Chọn một phiên bản có trong lộ trình.').closest('p')!
     expect(screen.getByRole('radiogroup').getAttribute('aria-describedby')).toBe(variantError.id)
+    expect(screen.getByRole('radiogroup').getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('carries no aria-invalid on the variant group without a field error', () => {
+    setup()
+    expect(screen.getByRole('radiogroup').getAttribute('aria-invalid')).toBeNull()
   })
 })

@@ -417,13 +417,19 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern (client)
 - **File:** `components/patterns/form-error-summary.tsx`
-- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`
+- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`,
+  `submitCount?: number` (default `0`), `onNavigate?: (fieldId: string) => void`
 - **Variants:** —
 - **States:** empty (renders nothing), has errors
 - **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
-  forms, e.g. onboarding)
-- **Accessibility:** `role="alert"`, focused when the error set changes; each message links to
-  `#fieldId`
+  forms, e.g. onboarding) — `submitCount` (incremented once per submission, not per render) makes a
+  repeated identical server error re-focus and re-announce the summary (M2 minor); `onNavigate` lets
+  a multi-step form switch to a field's step before focusing it (the onboarding wizard); without it,
+  a link focuses its field directly instead of a native anchor jump, which some browsers (and jsdom)
+  do not reliably focus
+- **Accessibility:** `role="alert"`, focused when the error set or `submitCount` changes; each
+  message links to `#fieldId` and always moves focus there itself (`onNavigate`, or the field
+  directly), never a bare native anchor jump
 
 ### FormField
 
@@ -590,7 +596,8 @@ from `lib/i18n/vi.ts`.
 - **Props:** `trackId: string`, `name: string`, `roadmaps: TrackOption['roadmaps']`,
   `budgetMinutes: number`, `value: string`, `onValueChange: (id) => void`, `aria-labelledby?` /
   `aria-label?` (the group's name — one is needed), `aria-describedby?` (an error line under the
-  group, settings)
+  group, settings), `aria-invalid?: boolean` (a field error — the group carries it, not each radio,
+  ruling R9; settings, M2 minor)
 - **Variants:** with the simulated finish (a track with a projection table, DSA) · without (English)
 - **States:** each roadmap unselected / selected (ChoiceCard)
 - **Usage:** `<VariantPicker trackId="dsa" name="variant-dsa" roadmaps={track.roadmaps}
@@ -782,7 +789,10 @@ from `lib/i18n/vi.ts`.
   status buttons sit in a group "Thao tác với {title}". "Tạm dừng" and "Tiếp tục" are one button
   (keyed by its slot), so it keeps focus when the status flips; after a removal the list itself
   (`tabIndex={-1}`) takes focus, since the removed track's buttons are gone (WCAG 2.4.3); results
-  are toasts, failures also stay in the track
+  are toasts, failures also stay in the track. A status-change failure is kept by the list itself,
+  keyed by track id — not by the row (M2 minor): a stale re-render can drop the track from the
+  list before the learner has read why, so the failure (with the track's last known title) still
+  shows as its own line even once the row is gone
 
 ### TrackBudgetFields
 
@@ -819,7 +829,11 @@ from `lib/i18n/vi.ts`.
   requestId={data.requestId} enrollTrack={enrollTrack} />`
 - **Accessibility:** a `form` named "Thêm lộ trình"; the tracks are ChoiceCard radios in a group
   "Lộ trình"; the start date is a labelled date field (today to 60 days ahead, decision 22); when
-  the last candidate is added and the form goes away, its container takes focus
+  the last candidate is added and the form goes away, its container takes focus. Its server errors
+  and pending state are shown only while they belong to the currently picked candidate (M2 minor):
+  switching the radio to a different track before the result arrives (or after a failure) hides
+  them at once, so a previous candidate's failure never shows against the next one's fields — the
+  typed minutes and picked variant stay, kept per track id
 
 ### CodeLanguageForm
 

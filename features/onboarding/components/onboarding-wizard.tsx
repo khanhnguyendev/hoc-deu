@@ -116,6 +116,10 @@ function OnboardingSteps({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [handledState, setHandledState] = useState<OnboardingState>(IDLE)
+  // A repeated identical server error must still re-focus and re-announce the summary (M2 minor):
+  // counts real submissions, not renders, so FormErrorSummary's key changes even when the errors
+  // read the same as last time.
+  const [submitCount, setSubmitCount] = useState(0)
 
   const headingRef = useRef<HTMLHeadingElement>(null)
   /** Set by the navigation handlers: the element to focus once the new step has rendered. */
@@ -155,6 +159,7 @@ function OnboardingSteps({
   // state while rendering (not in an effect) keeps the summary and the step in one render.
   if (state !== handledState) {
     setHandledState(state)
+    setSubmitCount((count) => count + 1)
     if (state.status === 'error') {
       setErrors(state.fieldErrors)
       setFormError(state.formError)
@@ -273,16 +278,21 @@ function OnboardingSteps({
     goNext()
   }
 
-  /** A summary link to a field on another step opens that step, then focuses the field. */
-  function onSummaryClick(event: React.MouseEvent<HTMLDivElement>) {
-    const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null
-    const target = link?.getAttribute('href')?.slice(1)
-    if (target === undefined) return
+  /**
+   * A summary link's target (§2.10's `onNavigate`): a field on another step opens that step, then
+   * focuses the field; a field on the current step is focused directly — never a native anchor
+   * jump, which some browsers (and jsdom) do not reliably focus (M2 minor).
+   */
+  function onNavigate(target: string) {
     const key = [...Object.keys(errors), 'form'].find((candidate) => fieldId(candidate) === target)
     const targetStep = key === undefined ? null : stepOfField(key)
-    if (targetStep === null || targetStep === step || !steps.includes(targetStep)) return
-    event.preventDefault()
-    goTo(targetStep, target)
+    if (targetStep === null || !steps.includes(targetStep)) return
+    if (targetStep === step) {
+      document.getElementById(target)?.focus()
+      return
+    }
+    focusAfterStep.current = target
+    setStep(targetStep)
   }
 
   const summary = [
@@ -327,9 +337,12 @@ function OnboardingSteps({
       className="flex flex-col gap-6"
     >
       {summary.length > 0 && (
-        <div onClick={onSummaryClick}>
-          <FormErrorSummary title={vi.forms.errorSummaryTitle} errors={summary} />
-        </div>
+        <FormErrorSummary
+          title={vi.forms.errorSummaryTitle}
+          errors={summary}
+          submitCount={submitCount}
+          onNavigate={onNavigate}
+        />
       )}
 
       <div className="flex flex-col gap-4">

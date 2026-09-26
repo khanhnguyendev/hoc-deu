@@ -52,8 +52,10 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
   const [pickedVariants, setPickedVariants] = useState<Record<string, string>>({})
   const [pickedStartDate, setPickedStartDate] = useState<string | null>(null)
   const { result, pending, onSubmit } = useSettingsAction(enrollTrack)
-  const errors = fieldErrorsOf(result)
-  const failure = failureOf(result)
+  // The last result belongs to the track it was submitted for — never the candidate now picked,
+  // if that has since changed (M2 minor): switching the radio clears the previous candidate's
+  // server errors and pending state instead of showing them against the new one's fields.
+  const [submittedTrackId, setSubmittedTrackId] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   /** The track being added: when it leaves the list and focus went with the form, focus moves here. */
@@ -68,6 +70,10 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
 
   const selected =
     candidates.find((track) => track.option.id === pickedTrack) ?? candidates[0] ?? null
+  const forCurrentTrack = selected !== null && submittedTrackId === selected.option.id
+  const errors = forCurrentTrack ? fieldErrorsOf(result) : {}
+  const failure = forCurrentTrack ? failureOf(result) : null
+  const isPending = forCurrentTrack && pending
 
   /** A track's fields: as typed or picked, else its last (removed) or default values. */
   function fieldsOf({ option, enrollment }: SettingsTrack) {
@@ -90,6 +96,7 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
           aria-label={copy.title}
           onSubmit={(event) => {
             adding.current = selected.option.id
+            setSubmittedTrackId(selected.option.id)
             onSubmit(event)
           }}
           noValidate
@@ -162,7 +169,7 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
             )}
           </FormField>
           <FormActions error={failure}>
-            <Button type="submit" loading={pending}>
+            <Button type="submit" loading={isPending}>
               {copy.submit}
             </Button>
           </FormActions>
