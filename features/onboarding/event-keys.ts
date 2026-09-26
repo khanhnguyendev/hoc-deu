@@ -22,10 +22,14 @@ export const settingsKey = (codeLanguage: string): string =>
 
 /**
  * `currentStatus` is the track's `user_tracks` row status as read *before* this event (`null`
- * when never enrolled) — not a chosen field, but it must still be part of the digest: a track
+ * when never enrolled). Only a `removed` status changes the digest (a `reenrol` marker): a track
  * removed by the orphan cleanup (below) earlier in the same render, then re-selected with the
  * exact same fields, would otherwise key identically to its first enrollment and read back as a
  * no-op `duplicate`, leaving the row `removed` (M2 minor, an A→B→A selection within one render).
+ * `null` and `active` must digest the *same* way (never distinguish them): a track this same
+ * submission already enrolled turns `active` before its own retry is read back — an identical
+ * retry after a partial failure elsewhere must still send that track's original id, not a new one
+ * (RF-2; decision 16 in `lib/events/ids.ts`).
  */
 export const trackEnrolledKey = (
   trackId: string,
@@ -35,7 +39,13 @@ export const trackEnrolledKey = (
     startDate: string
     currentStatus: 'active' | 'paused' | 'removed' | null
   },
-): string => `track.enrolled:${trackId}:${digest(fields)}`
+): string => {
+  const { currentStatus, ...chosen } = fields
+  return `track.enrolled:${trackId}:${digest({
+    ...chosen,
+    ...(currentStatus === 'removed' ? { reenrol: true } : {}),
+  })}`
+}
 
 /** An orphan enrollment the final selection dropped (no chosen fields to digest). */
 export const trackRemovedKey = (trackId: string): string => `track.removed:${trackId}`

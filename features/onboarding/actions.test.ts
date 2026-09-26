@@ -11,8 +11,11 @@ const SCHEDULE_FROM = '2026-09-24T02:59:00.000Z'
 
 const fake = vi.hoisted(() => ({
   user: { id: '', onboardedAt: null as string | null },
-  /** Throw this from the apply call with this event type (a partial failure). */
-  failOn: null as { type: string; error: Error } | null,
+  /**
+   * Throw this from the apply call with this event type (a partial failure) — matched by
+   * `trackId` too when given, so one track's `track.enrolled` can fail while another's succeeds.
+   */
+  failOn: null as { type: string; trackId?: string; error: Error } | null,
   calls: [] as unknown[][],
   /** Every `user_tracks` row the user has (any status) — the fixture both queries read from. */
   enrollments: [] as { trackId: string; status: 'active' | 'paused' | 'removed' }[],
@@ -64,14 +67,29 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ client: 'admin' }) }))
 vi.mock('@/lib/events/apply', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/events/apply')>()
-  const fail = (type: string) => {
-    if (fake.failOn?.type === type) throw fake.failOn.error
+  const fail = (type: string, trackId?: string) => {
+    if (
+      fake.failOn?.type === type &&
+      (fake.failOn.trackId === undefined || fake.failOn.trackId === trackId)
+    ) {
+      throw fake.failOn.error
+    }
   }
   return {
     ...actual,
-    applyLearnerEvent: async (client: { client: string }, event: { type: string }) => {
+    applyLearnerEvent: async (
+      client: { client: string },
+      event: { type: string; trackId?: string },
+    ) => {
       fake.calls.push(['applyLearnerEvent', client.client, event])
-      fail(event.type)
+      fail(event.type, event.trackId)
+      // A successful track.enrolled really does flip the row to active (RF-2's own retry test
+      // relies on this): the row this attempt just enrolled must read back that way on a retry.
+      if (event.type === 'track.enrolled' && event.trackId !== undefined) {
+        const row = fake.enrollments.find((candidate) => candidate.trackId === event.trackId)
+        if (row) row.status = 'active'
+        else fake.enrollments.push({ trackId: event.trackId, status: 'active' })
+      }
       return 'applied'
     },
     applySystemEvent: async (
@@ -245,6 +263,19 @@ describe('completeOnboarding — the events, in order', () => {
     await expect(submit(input())).rejects.toThrow('REDIRECT:/today')
     const retryIds = events().map((call) => (call.at(-1) as { id: string }).id)
     expect(retryIds.slice(0, firstIds.length)).toEqual(firstIds)
+  })
+
+  it("sends the same dsa id on an identical retry even though dsa's own enrollment already succeeded (now active) and english's failed (RF-2 — the A→B→A re-enrol fix must not regress this)", async () => {
+    fake.failOn = { type: 'track.enrolled', trackId: 'english', error: new EventError('unknown') }
+    await submit(input())
+    const firstDsaId = learnerEvents('track.enrolled').find((event) => event.trackId === 'dsa')?.id
+    expect(fake.enrollments).toContainEqual({ trackId: 'dsa', status: 'active' })
+
+    fake.calls = []
+    fake.failOn = null
+    await expect(submit(input())).rejects.toThrow('REDIRECT:/today')
+    const retryDsaId = learnerEvents('track.enrolled').find((event) => event.trackId === 'dsa')?.id
+    expect(retryDsaId).toBe(firstDsaId)
   })
 
   it("sends a new track.enrolled id — with the new budget — on an edited resubmit after a partial failure (M2 RF-2 'digest keys')", async () => {

@@ -24,9 +24,19 @@ describe('onboarding event keys (M2 RF-2 "digest keys" minor)', () => {
   it('gives a different key when the track was removed since the first enrollment, even with the exact same chosen fields (M2 minor, A→B→A within one render)', () => {
     const neverEnrolled = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: null })
     const reenrolledAfterRemoval = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: 'removed' })
-    const alreadyActive = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: 'active' })
+    expect(reenrolledAfterRemoval).not.toBe(neverEnrolled)
+  })
+
+  it('keys null and active exactly alike — never distinguishes them — so an identical retry after a partial failure elsewhere still sends the track it already enrolled its original id (RF-2; the fix for the A→B→A case must not break this)', () => {
+    const neverEnrolled = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: null })
+    const nowActive = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: 'active' })
+    expect(nowActive).toBe(neverEnrolled)
+  })
+
+  it('also gives a track paused since the first enrollment the same key as null/active (only removed differs)', () => {
+    const neverEnrolled = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: null })
     const paused = trackEnrolledKey('dsa', { ...FIELDS, currentStatus: 'paused' })
-    expect(new Set([neverEnrolled, reenrolledAfterRemoval, alreadyActive, paused]).size).toBe(4)
+    expect(paused).toBe(neverEnrolled)
   })
 
   it('keys a track by its id, not only its fields', () => {
