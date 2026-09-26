@@ -118,7 +118,8 @@ test('a new learner picks DSA and English, sets the schedule and lands on /today
   expect(profile.code_language).toBe('python')
   expect(profile.onboarded_at).not.toBeNull()
   // Onboarding writes five events; landing on /today then builds today's plan (task 5.1b), which
-  // adds one `plan.generated`.
+  // adds one `plan.generated`. /today streams behind its loading skeleton, so the plan may be
+  // stored a moment after the URL changes: poll.
+  await expect.poll(() => countEvents(learner.id, { type: 'plan.generated' })).toBe(1)
   expect(await countEvents(learner.id)).toBe(6)
-  expect(await countEvents(learner.id, { type: 'plan.generated' })).toBe(1)
 })
