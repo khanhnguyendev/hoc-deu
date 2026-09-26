@@ -49,21 +49,22 @@ export const PUBLIC_DUMP = [
 /** The row counts of PUBLIC_DUMP. */
 export const PUBLIC_ROWS = { 'public.ops_metrics': 0, 'public.profiles': 4 }
 
-/** auth: users (2 rows) and identities (2 rows). */
+/**
+ * auth: users (2 rows) and identities (2 rows), as the backup's snapshot session writes them with
+ * auth-dump.sql (task 5.7c): the allow-listed columns only, copied out of the backup functions.
+ */
 export const AUTH_DUMP = [
-  '\\restrict Zz9',
-  'SET statement_timeout = 0;',
-  'COPY auth.users (instance_id, id, email) FROM stdin;',
-  '00000000-0000-0000-0000-000000000000\t11111111-1111-4111-8111-111111111111\ta@example.test',
-  '00000000-0000-0000-0000-000000000000\t22222222-2222-4222-8222-222222222222\tb@example.test',
+  '\\restrict 0f9e8d7c6b5a49382716a5b4c3d2e1f00f9e8d7c6b5a49382716a5b4c3d2e1f0',
+  "SET client_encoding = 'UTF8';",
+  'COPY auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, last_sign_in_at, is_anonymous, instance_id) FROM stdin;',
+  '11111111-1111-4111-8111-111111111111\tauthenticated\tauthenticated\ta@example.test\t2026-09-20 10:00:00+00\t{"provider": "google", "providers": ["google"]}\t{"full_name": "Học viên A"}\t2026-09-20 10:00:00+00\t2026-09-26 08:00:00+00\t2026-09-26 08:00:00+00\tf\t00000000-0000-0000-0000-000000000000',
+  '22222222-2222-4222-8222-222222222222\tauthenticated\tauthenticated\tb@example.test\t2026-09-21 10:00:00+00\t{"provider": "github", "providers": ["github"]}\t{}\t2026-09-21 10:00:00+00\t2026-09-21 10:00:00+00\t\\N\tf\t00000000-0000-0000-0000-000000000000',
   '\\.',
-  '',
-  'COPY auth.identities (provider_id, user_id, provider) FROM stdin;',
-  '11111111-1111-4111-8111-111111111111\t11111111-1111-4111-8111-111111111111\tgoogle',
-  '22222222-2222-4222-8222-222222222222\t22222222-2222-4222-8222-222222222222\tgithub',
+  'COPY auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at, last_sign_in_at) FROM stdin;',
+  'aaaaaaaa-1111-4111-8111-111111111111\t11111111-1111-4111-8111-111111111111\tgoogle\t1098765432\t{"sub": "1098765432", "email": "a@example.test"}\t2026-09-20 10:00:00+00\t2026-09-26 08:00:00+00\t2026-09-26 08:00:00+00',
+  'bbbbbbbb-2222-4222-8222-222222222222\t22222222-2222-4222-8222-222222222222\tgithub\t4242\t{"sub": "4242", "email": "b@example.test"}\t2026-09-21 10:00:00+00\t2026-09-21 10:00:00+00\t2026-09-21 10:00:00+00',
   '\\.',
-  '',
-  '\\unrestrict Zz9',
+  '\\unrestrict 0f9e8d7c6b5a49382716a5b4c3d2e1f00f9e8d7c6b5a49382716a5b4c3d2e1f0',
   '',
 ].join('\n')
 

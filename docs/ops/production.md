@@ -24,7 +24,8 @@ is not a step of this runbook, and production keeps email sign-in off regardless
 
 1. **Staging:** push M5's migrations to the staging project and run the staging smoke checklist.
 2. **Backups on staging** — right after the merge, before any other step below: create the backup
-   environment, dispatch both backup workflows once each, and confirm both green.
+   environment, dispatch both backup workflows once each, confirm both green, then the owner's
+   re-link drill.
 3. **Required check:** add `sim` to the `main` branch ruleset's required checks.
 4. **Production:** create the project, push migrations, set the environment, deploy, smoke-test.
 5. **Dogfooding:** the owner uses production for two weeks, then the pace check decides on
@@ -34,8 +35,9 @@ is not a step of this runbook, and production keeps email sign-in off regardless
 
 ## 1. Staging: push M5's migrations **[controller, owner confirms]**
 
-M5 adds three migrations (`supabase/migrations/20260927000100_*`, `…000200_*`, `…000300_*`, one
-per DB task of the milestone). Push them to the staging project (today, `hoc-deu` — see
+M5 adds four migrations (`supabase/migrations/20260927000100_*`, `…000200_*`, `…000300_*`,
+`…000400_*` — the last one is 5.7c's `backup` schema with the two auth functions the backup reads
+the accounts through). Push them to the staging project (today, `hoc-deu` — see
 `docs/ops/staging.md` "Current state"; once a dedicated `hoc-deu-staging` project exists, push
 there instead):
 
@@ -58,23 +60,29 @@ synthetic rows behind.
 Finally, the **owner's staging smoke checklist** (decision 28) on the staging preview: OAuth
 sign-in, onboarding, `/today`, a check-in, an item result, `/review`, `/progress`, `/admin`.
 
-## 2. Backups on staging **[owner creates the environment; controller sets the grants; both dispatch]**
+## 2. Backups on staging **[owner creates the environment; controller sets the password and checks; both dispatch; owner drills]**
 
 Right after the merge, before any other step in this runbook, including production: backups must
-work before there is anything in production worth losing.
+work before there is anything in production worth losing. The steps live in
+`docs/ops/backups.md`; this file does not repeat them.
 
 1. **[owner]** Creates the GitHub environment `backup` and its variables/secrets
-   (`SUPABASE_BACKUP_DB_URL`, `BACKUP_RESTORE_KEY`, `BACKUP_AGE_RECIPIENTS`) — see
-   `docs/ops/backups.md` for the exact steps; this file does not repeat them.
-2. **[controller]** Sets the `backup_reader` role's password and its grants on the staging
-   project, following `docs/ops/backups.md`. **Known limit (controller finding):** on hosted
-   Supabase, the `postgres` role can create `backup_reader` with `bypassrls` and has `SELECT WITH
-   GRANT OPTION` on `auth.users` and `auth.identities`, but **not** a grantable `USAGE` on the
-   `auth` schema itself — so the `auth` half of the backup grant may not go through as written.
-   Try it as documented; **if the `auth` grant fails, stop here and ask the owner** rather than
-   working around it (`docs/ops/backups.md` has the full grant script and its limits).
+   (`SUPABASE_BACKUP_DB_URL`, `BACKUP_RESTORE_KEY`, `BACKUP_AGE_RECIPIENTS`) — `docs/ops/backups.md`
+   §2 steps 1–2.
+2. **[controller]** Sets `backup_reader`'s password (§2 step 3 — its block also signs in as
+   `backup_reader` through the session pooler and calls both auth functions), then §2 step 4's
+   checks: the function counts equal the auth tables' and the project's exposed schemas
+   (`GET /v1/projects/{ref}/postgrest`, read-only) do not list `backup`. **No `auth` grants:** the
+   accounts are read through the functions migration `20260927000400_backup_auth.sql` created
+   (step 1 above pushed it; ADR-0029). If a function check fails, the migration is missing —
+   push it; never grant anything on `auth` by hand.
 3. **[owner or controller]** Dispatch `backup.yml`, then `restore-test.yml`, once each via
    `workflow_dispatch` on `main`. **Both must go green before step 4 (production) starts.**
+4. **[owner] Once: the re-link drill** (`docs/ops/backups.md` §8): restore that backup into an
+   emptied staging (or a throwaway project), sign in with Google and with GitHub, and confirm the
+   same `profiles.id` and the same history (events, plans, streak) — before and after written
+   down. The weekly restore test proves every account loads in GoTrue, not an OAuth sign-in. Any
+   difference stops the launch until the owner decides.
 
 ## 3. Required check: `sim` **[controller]**
 

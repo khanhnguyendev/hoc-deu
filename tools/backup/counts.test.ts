@@ -124,8 +124,21 @@ describe('counts.sql', () => {
   })
 
   it('adds auth.users and auth.identities only when psql’s with_auth variable is true', () => {
-    expect(statements).toContain(
-      "(:'with_auth' = 'true' and n.nspname = 'auth' and c.relname in ('users', 'identities'))",
+    const auth = statements.match(/:'with_auth' = 'true'/g) ?? []
+    expect(auth).toHaveLength(2)
+  })
+
+  it('counts the auth tables themselves when auth_from is tables (the restored database)', () => {
+    expect(statements.replace(/\s+/g, ' ')).toContain(
+      "(:'with_auth' = 'true' and :'auth_from' = 'tables' and n.nspname = 'auth' and c.relname in ('users', 'identities'))",
+    )
+  })
+
+  it('counts them through backup_reader’s functions when auth_from is functions (the backup), labelled like the tables', () => {
+    expect(statements.replace(/\s+/g, ' ')).toContain(
+      "select format('select %L, count(*) from backup.%I()', 'auth.' || t.name, 'auth_' || t.name) " +
+        "from (values ('identities'), ('users')) as t (name) " +
+        "where :'with_auth' = 'true' and :'auth_from' = 'functions'",
     )
   })
 

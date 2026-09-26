@@ -213,3 +213,88 @@ describe('main usage', () => {
     expect((await run(['restore'])).code).toBe(2)
   })
 })
+
+describe('main check-gotrue (the restore test, after the counts)', () => {
+  const A = '11111111-1111-4111-8111-111111111111'
+  const B = '22222222-2222-4222-8222-222222222222'
+  const api = { url: 'http://127.0.0.1:54321', key: 'sb_secret_local-test-only' }
+
+  /** A manifest with two auth.users rows (AUTH_ROWS) and the restored ids file. */
+  async function inputs(ids: string): Promise<{ manifest: string; ids: string }> {
+    const work = backupWork(true)
+    await run(manifestArgs(work, 'true'))
+    const path = dir({ 'user-ids.txt': ids })
+    return { manifest: join(work, 'manifest.json'), ids: join(path, 'user-ids.txt') }
+  }
+
+  async function check(
+    files: { manifest: string; ids: string },
+    answer: (id: string) => Response,
+  ): Promise<{ code: number; out: string; err: string; asked: string[] }> {
+    const asked: string[] = []
+    const out: string[] = []
+    const err: string[] = []
+    const code = await main(
+      ['check-gotrue', '--manifest', files.manifest, '--ids', files.ids],
+      { out: (line) => out.push(line), err: (line) => err.push(line) },
+      {
+        localAuthApi: () => api,
+        fetch: (async (input: RequestInfo | URL) => {
+          const url = String(input)
+          asked.push(url)
+          return answer(url.slice(url.lastIndexOf('/') + 1))
+        }) as typeof fetch,
+      },
+    )
+    return { code, out: out.join('\n'), err: err.join('\n'), asked }
+  }
+
+  const loads = (id: string) => Response.json({ id, email: 'someone@example.test' })
+
+  it('passes when GoTrue returns every restored user under its own id', async () => {
+    const result = await check(await inputs(`${A}\n${B}\n`), loads)
+    expect(result).toMatchObject({
+      code: 0,
+      out: '2 of 2 restored users load in GoTrue, each under its own id',
+      err: '',
+    })
+    expect(result.asked).toHaveLength(2)
+  })
+
+  it('fails naming counts and kinds only — never an id or anything GoTrue returned', async () => {
+    const result = await check(await inputs(`${A}\n${B}\n`), (id) =>
+      id === A ? Response.json({ msg: 'Database error finding user' }, { status: 500 }) : loads(id),
+    )
+    expect(result.code).toBe(1)
+    expect(result.err).toBe(
+      '1 of 2 restored users do not load in GoTrue under their own id (HTTP 500: 1)',
+    )
+    expect(`${result.out}${result.err}`).not.toMatch(/1111|someone|Database error/)
+  })
+
+  it('fails when the restored database lists another number of users than the manifest', async () => {
+    const result = await check(await inputs(`${A}\n`), loads)
+    expect(result.code).toBe(1)
+    expect(result.err).toContain('auth.users')
+    expect(result.asked).toEqual([])
+  })
+
+  it('fails on a backup without auth accounts', async () => {
+    const work = backupWork(false)
+    await run(manifestArgs(work, 'false'))
+    const ids = join(dir({ 'user-ids.txt': '' }), 'user-ids.txt')
+    const result = await check({ manifest: join(work, 'manifest.json'), ids }, loads)
+    expect(result.code).toBe(1)
+    expect(result.err).toMatch(/no auth accounts/)
+  })
+
+  it('exits 2 without --ids', async () => {
+    const files = await inputs(`${A}\n${B}\n`)
+    const code = await main(
+      ['check-gotrue', '--manifest', files.manifest],
+      { out: () => {}, err: () => {} },
+      { localAuthApi: () => api, fetch: (async () => loads(A)) as typeof fetch },
+    )
+    expect(code).toBe(2)
+  })
+})

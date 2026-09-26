@@ -1,7 +1,8 @@
 /**
  * The auth allow-list (task 5.7c, ADR-0029) is written once, in auth-columns.ts; the SQL that has
- * to repeat it — the migration's two functions and the pgTAP test — is static, so this file fails
- * whenever one of them differs from it.
+ * to repeat it — the migration's two functions, the backup's auth-dump.sql, the restore's
+ * normalise-auth.sql and the pgTAP test — is static (the dump step runs no Node code), so this file
+ * fails whenever one of them differs from it.
  */
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -30,6 +31,12 @@ const squash = (sql: string): string =>
     .trim()
 
 /** The lines of a psql script that are not blank and not `--` comments, trimmed. */
+const statements = (sql: string): string[] =>
+  sql
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('--'))
+
 /** The table alias each function's body reads its auth table through. */
 const ALIAS = { 'auth.users': 'u', 'auth.identities': 'i' } as const
 
@@ -168,6 +175,42 @@ describe(`the migration (${MIGRATION})`, () => {
       )
       expect(sql).toContain(`grant execute on function ${fn}() to backup_reader;`)
     })
+  })
+})
+
+describe('auth-dump.sql (the backup’s snapshot session writes auth.sql with it)', () => {
+  const lines = statements(read('tools/backup/auth-dump.sql'))
+
+  it('writes one COPY block per auth table from the functions: the allow-list, ordered by id', () => {
+    // Users first, as pg_dump would; the restore loads with foreign keys off either way.
+    const blocks = (['auth.users', 'auth.identities'] as const).flatMap((table) => [
+      `\\qecho 'COPY ${table} (${columnNames(table).join(', ')}) FROM stdin;'`,
+      `copy (select ${columnNames(table).join(', ')} from ${AUTH_FUNCTIONS[table]}() order by id) to stdout;`,
+      "\\qecho '\\\\.'",
+    ])
+    expect(lines).toEqual([
+      "select replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') as auth_restrict_key \\gset",
+      "set client_encoding = 'UTF8';",
+      "\\qecho '\\\\restrict' :auth_restrict_key",
+      "\\qecho 'SET client_encoding = ''UTF8'';'",
+      ...blocks,
+      "\\qecho '\\\\unrestrict' :auth_restrict_key",
+    ])
+  })
+
+  it('never reads an auth table itself: only the COPY headers it echoes name them', () => {
+    const sql = lines.filter((line) => !line.startsWith('\\qecho ')).join('\n')
+    expect(sql).not.toMatch(/\bauth\.(users|identities)\b/)
+  })
+})
+
+describe('normalise-auth.sql (the restore runs it right after auth.sql)', () => {
+  const sql = squash(read('tools/backup/normalise-auth.sql'))
+
+  it(`sets ${NORMALISED_COLUMNS.join(', ')} to '' wherever the load left them null`, () => {
+    const set = NORMALISED_COLUMNS.map((name) => `${name} = coalesce(${name}, '')`).join(', ')
+    const where = NORMALISED_COLUMNS.map((name) => `${name} is null`).join(' or ')
+    expect(sql).toBe(`update auth.users set ${set} where ${where};`)
   })
 })
 

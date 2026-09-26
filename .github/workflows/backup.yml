@@ -4,7 +4,9 @@ name: backup
 # restoring by hand: docs/ops/backups.md; guarded by tools/backup/workflows.test.ts). The repository
 # is public — anyone can read this log and download the artifact — so every file is age-encrypted
 # before the upload and nothing read from the database is ever printed. The database URL reaches
-# the dump step only, which runs no Node code.
+# the dump step only, which runs no Node code. The auth accounts are read through backup_reader's
+# two allow-listed functions (supabase/migrations/20260927000400_backup_auth.sql), never the auth
+# tables themselves.
 
 on:
   schedule:
@@ -120,8 +122,8 @@ jobs:
             exit 1
           fi
 
-          # auth.users and auth.identities are in the backup unless the owner has chosen a
-          # public-only backup (ADR-0029). Never a silent partial backup.
+          # The auth accounts are in the backup unless the owner has chosen a public-only backup
+          # (ADR-0029). Never a silent partial backup.
           case "${BACKUP_INCLUDE_AUTH:-true}" in
             true) with_auth=true ;;
             false)
@@ -130,10 +132,12 @@ jobs:
               ;;
             *) echo "::error::BACKUP_INCLUDE_AUTH must be true, false or unset"; exit 1 ;;
           esac
+          # backup_reader reads them only through backup.auth_users() and backup.auth_identities():
+          # it must be able to call both (schema USAGE and EXECUTE, from the migration).
           if [ "$with_auth" = true ]; then
-            readable="$(psql_backup -c "select has_schema_privilege('auth', 'usage') and count(*) = 2 and bool_and(has_table_privilege(c.oid, 'select')) from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'auth' and c.relname in ('users', 'identities')")"
-            if [ "$readable" != t ]; then
-              echo "::error::backup_reader cannot read auth.users and auth.identities. Grant them (docs/ops/backups.md, step 4), or, once the owner has chosen a public-only backup, set BACKUP_INCLUDE_AUTH=false in the backup environment (ADR-0029). No backup was made."
+            callable="$(psql_backup -c "select count(*) = 2 and bool_and(has_schema_privilege(n.oid, 'usage') and has_function_privilege(p.oid, 'execute')) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'backup' and p.proname in ('auth_users', 'auth_identities') and p.pronargs = 0")"
+            if [ "$callable" != t ]; then
+              echo "::error::backup_reader cannot call backup.auth_users() and backup.auth_identities(): this project lacks supabase/migrations/20260927000400_backup_auth.sql, or its privileges were changed (docs/ops/backups.md §2 step 4, ADR-0029). No backup was made."
               exit 1
             fi
           fi
@@ -142,15 +146,16 @@ jobs:
 
           # One snapshot for both dumps and the counts, so a learner writing during the backup
           # cannot make them disagree: this psql session opens a repeatable-read transaction,
-          # exports its snapshot and stays open (reading its SQL from a FIFO) while both pg_dump
-          # runs import it; then it counts every dumped table in the same snapshot.
+          # exports its snapshot and stays open (reading its SQL from a FIFO) while pg_dump
+          # imports it for public; then, in the same snapshot, it copies the auth accounts out of
+          # the two functions (tools/backup/auth-dump.sql) and counts every dumped table.
           # This shell holds the FIFO open read-write (so opening it never blocks); psql must not
           # inherit that descriptor (3>&-), or it would never see the end of its input. Its query
           # output goes to \o files only; stdout is discarded all the same.
           mkfifo "$work/holder.sql"
           exec 3<> "$work/holder.sql"
           "$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
-            -v with_auth="$with_auth" -f "$work/holder.sql" > /dev/null 3>&- &
+            -v with_auth="$with_auth" -v auth_from=functions -f "$work/holder.sql" > /dev/null 3>&- &
           holder=$!
           trap 'kill "$holder" 2> /dev/null || true' EXIT
           printf '%s\n' \
@@ -183,11 +188,12 @@ jobs:
           # event_quota is never backed up (platform design §4.5), and backup_reader cannot read it.
           "$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges \
             --schema=public --exclude-table=public.event_quota --file="$work/public.sql"
-          if [ "$with_auth" = true ]; then
-            "$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges \
-              --table=auth.users --table=auth.identities --file="$work/auth.sql"
-          fi
 
+          # The auth accounts: COPY blocks of the allow-listed columns (tools/backup/auth-columns.ts),
+          # written by the snapshot session itself, so in the same snapshot.
+          if [ "$with_auth" = true ]; then
+            printf '%s\n' "\\o '$work/auth.sql'" "\\i '$GITHUB_WORKSPACE/tools/backup/auth-dump.sql'" '\o' >&3
+          fi
           printf '%s\n' \
             "\\o '$work/counts.tsv'" \
             "\\i '$GITHUB_WORKSPACE/tools/backup/counts.sql'" \
@@ -197,8 +203,10 @@ jobs:
           status=0
           wait "$holder" || status=$?
           trap - EXIT
+          # Any error — either auth function included — stops the session (ON_ERROR_STOP) and fails
+          # the job here, before anything is encrypted or uploaded: never a partial backup.
           if [ "$status" -ne 0 ]; then
-            echo "::error::counting the rows in the dumps' snapshot failed (psql exit $status)"
+            echo "::error::dumping auth or counting the rows in the snapshot failed (psql exit $status); no backup was made"
             exit 1
           fi
           {

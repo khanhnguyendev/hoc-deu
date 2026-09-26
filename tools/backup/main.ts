@@ -1,7 +1,8 @@
 /**
  * `pnpm exec tsx tools/backup/cli.ts <command> …` — the Node half of the backup and restore-test
  * workflows (task 5.7b, ADR-0029; `cli.ts` only calls `main`). The workflows' bash steps run
- * pg_dump, psql and age; these commands never touch the database, a secret or the network:
+ * pg_dump, psql and age; these commands never touch the database or a secret, and only
+ * `check-gotrue` the network — the local stack's API, with its local key:
  *
  * - `manifest --work <dir> --counts <file> --commit <sha> --kind daily|weekly --taken-at <iso>
  *   --pg-dump <version> --server <version> --with-auth true|false` — scans `<dir>/public.sql` (and
@@ -12,16 +13,27 @@
  *   `includes_auth=…`, `kind=…` and `taken_at=…` for `$GITHUB_OUTPUT`.
  * - `compare --manifest <file> --counts <file>` — the restored database's counts (counts.sql
  *   output) equal the manifest's.
+ * - `check-gotrue --manifest <file> --ids <file>` — every restored user id (one per line, as many
+ *   as the manifest's `auth.users`) loads in the local stack's GoTrue under that id (task 5.7c,
+ *   `gotrue.ts`); the API URL and key come from `supabase status`, never from the command line.
  *
- * Output names files and tables, never a row or a count. Exit codes: 0 fine · 1 the check failed
- * or a file is unreadable · 2 bad arguments.
+ * Output names files and tables, never a row or a count — except check-gotrue's user counts.
+ * Exit codes: 0 fine · 1 the check failed or a file is unreadable · 2 bad arguments.
  */
 import { access, chmod, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
+import { localSupabaseEnv } from '../db/local-env'
 import { checkArtifactDir, type AuthExpectation } from './artifact'
 import { compareCounts, describeDifferences, parseCounts } from './counts'
 import { scanDump } from './dump'
+import {
+  checkUsersLoad,
+  describeProblems,
+  parseUserIds,
+  type GoTrueCheck,
+  type LocalAuthApi,
+} from './gotrue'
 import {
   AUTH_FILE,
   MANIFEST_FILE,
@@ -34,12 +46,24 @@ import {
 
 export type Io = { out: (line: string) => void; err: (line: string) => void }
 
+/** What check-gotrue talks to; the tests replace both. */
+export type Deps = { localAuthApi: () => LocalAuthApi; fetch: typeof fetch }
+
+const DEFAULT_DEPS: Deps = {
+  localAuthApi: () => {
+    const env = localSupabaseEnv()
+    return { url: env.NEXT_PUBLIC_SUPABASE_URL, key: env.SUPABASE_SECRET_KEY }
+  },
+  fetch: (input, init) => fetch(input, init),
+}
+
 const USAGE = [
   'usage: tsx tools/backup/cli.ts manifest --work <dir> --counts <file> --commit <sha> --kind daily|weekly',
   '         --taken-at <iso> --pg-dump <version> --server <version> --with-auth true|false',
   '       tsx tools/backup/cli.ts check-artifact --dir <dir> --auth required|absent|optional',
   '       tsx tools/backup/cli.ts verify --dir <dir>',
   '       tsx tools/backup/cli.ts compare --manifest <file> --counts <file>',
+  '       tsx tools/backup/cli.ts check-gotrue --manifest <file> --ids <file>',
 ].join('\n')
 
 class UsageError extends Error {}
@@ -58,6 +82,7 @@ const COMMANDS = {
   'check-artifact': ['dir', 'auth'] as const,
   verify: ['dir'] as const,
   compare: ['manifest', 'counts'] as const,
+  'check-gotrue': ['manifest', 'ids'] as const,
 }
 type Command = keyof typeof COMMANDS
 
@@ -173,20 +198,51 @@ async function compareCommand(argv: readonly string[], io: Io): Promise<number> 
   return 0
 }
 
-const HANDLERS: Record<Command, (argv: readonly string[], io: Io) => Promise<number>> = {
-  manifest: manifestCommand,
-  'check-artifact': checkArtifactCommand,
-  verify: verifyCommand,
-  compare: compareCommand,
+async function checkGoTrueCommand(argv: readonly string[], io: Io, deps: Deps): Promise<number> {
+  const given = options('check-gotrue', argv)
+  const manifest = parseManifest(await readFile(given.manifest, 'utf8'))
+  if (!manifest.includesAuth) {
+    io.err('the manifest holds no auth accounts: nothing to check in GoTrue')
+    return 1
+  }
+  const ids = parseUserIds(await readFile(given.ids, 'utf8'))
+  if (ids.length !== manifest.counts['auth.users']) {
+    io.err('the restored auth.users ids and the manifest’s auth.users count differ')
+    return 1
+  }
+  const check: GoTrueCheck = await checkUsersLoad(ids, deps.localAuthApi(), deps.fetch)
+  const failed = check.total - check.loaded
+  if (failed > 0) {
+    io.err(
+      `${failed} of ${check.total} restored users do not load in GoTrue under their own id ` +
+        `(${describeProblems(check.problems)})`,
+    )
+    return 1
+  }
+  io.out(`${check.loaded} of ${check.total} restored users load in GoTrue, each under its own id`)
+  return 0
 }
 
-export async function main(argv: readonly string[], io: Io): Promise<number> {
+const HANDLERS: Record<Command, (argv: readonly string[], io: Io, deps: Deps) => Promise<number>> =
+  {
+    manifest: manifestCommand,
+    'check-artifact': checkArtifactCommand,
+    verify: verifyCommand,
+    compare: compareCommand,
+    'check-gotrue': checkGoTrueCommand,
+  }
+
+export async function main(
+  argv: readonly string[],
+  io: Io,
+  deps: Deps = DEFAULT_DEPS,
+): Promise<number> {
   const [command, ...rest] = argv
   try {
     if (command === undefined || !Object.hasOwn(HANDLERS, command)) {
       throw new UsageError(command === undefined ? 'no command' : `unknown command ${command}`)
     }
-    return await HANDLERS[command as Command](rest, io)
+    return await HANDLERS[command as Command](rest, io, deps)
   } catch (error) {
     if (error instanceof UsageError) {
       io.err(`${error.message}\n${USAGE}`)

@@ -3,9 +3,10 @@ name: restore-test
 # The weekly restore test (platform design §2.3, ADR-0029; docs/ops/backups.md; guarded by
 # tools/backup/workflows.test.ts): the newest backup is decrypted with the restore-test key,
 # checked against its manifest, loaded into the local Supabase stack built from the migrations of
-# the backup's own commit, and every table's row count is compared with the manifest. The
-# repository is public, so the job never prints a row: psql's output is discarded and its errors
-# are shown as SQLSTATE codes only.
+# the backup's own commit, and every table's row count is compared with the manifest; then the
+# local auth server (GoTrue) is asked for every restored account by id (ADR-0029). The repository
+# is public, so the job never prints a row: psql's output is discarded or goes to 0600 files, its
+# errors are shown as SQLSTATE codes only, and the GoTrue check prints counts only.
 
 on:
   schedule:
@@ -186,7 +187,9 @@ jobs:
           plain="$RUNNER_TEMP/restore/plain"
           files=()
           case "$INCLUDES_AUTH" in
-            true) files+=(-f "$plain/auth.sql") ;;
+            # A backup never holds GoTrue's token columns: normalise-auth.sql sets the ones GoTrue
+            # reads as non-null strings to '' (ADR-0029), in the same transaction.
+            true) files+=(-f "$plain/auth.sql" -f tools/backup/normalise-auth.sql) ;;
             false) echo "::warning::this backup holds public only (BACKUP_INCLUDE_AUTH=false, ADR-0029)" ;;
             *) echo "::error::includes_auth must be true or false"; exit 1 ;;
           esac
@@ -212,8 +215,28 @@ jobs:
           umask 077
           restore="$RUNNER_TEMP/restore"
           "$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
-            -v with_auth="$INCLUDES_AUTH" -f tools/backup/counts.sql > "$restore/restored-counts.tsv"
+            -v with_auth="$INCLUDES_AUTH" -v auth_from=tables -f tools/backup/counts.sql > "$restore/restored-counts.tsv"
           pnpm exec tsx tools/backup/cli.ts compare --manifest "$restore/plain/manifest.json" --counts "$restore/restored-counts.tsv"
+
+      # A GoTrue or Supabase CLI change that breaks loading a restored account fails here, every
+      # week, before a real restore needs it. A Google or GitHub sign-in it cannot prove: that is
+      # the owner's re-link drill (docs/ops/backups.md §8).
+      - name: Every restored account loads in the local auth server (GoTrue) under its own id
+        shell: bash
+        env:
+          INCLUDES_AUTH: ${{ steps.verify.outputs.includes_auth }}
+        run: |
+          set -euo pipefail
+          umask 077
+          restore="$RUNNER_TEMP/restore"
+          if [ "$INCLUDES_AUTH" != true ]; then
+            echo "::warning::this backup holds no auth accounts (BACKUP_INCLUDE_AUTH=false, ADR-0029): no account to load in GoTrue"
+            exit 0
+          fi
+          # The ids go to a 0600 file, never to the log.
+          "$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 \
+            -c 'select id from auth.users order by id' > "$restore/user-ids.txt"
+          pnpm exec tsx tools/backup/cli.ts check-gotrue --manifest "$restore/plain/manifest.json" --ids "$restore/user-ids.txt"
 
       - name: Remove the plaintext
         if: always()

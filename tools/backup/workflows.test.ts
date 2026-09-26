@@ -103,13 +103,14 @@ const R = {
   reset: 'Apply that commit’s migrations without seed.sql',
   load: 'Load the data, auth first, with triggers and foreign keys off',
   compare: 'Compare every table’s row count with the manifest',
+  gotrue: 'Every restored account loads in the local auth server (GoTrue) under its own id',
   cleanup: 'Remove the plaintext',
 }
 
 /** Steps that handle backup data or the key: they create files only their user can read. */
 const DATA_STEPS = {
   backup: [B.meta, B.dump, B.manifest, B.encrypt, B.check],
-  restore: [R.find, R.download, R.decrypt, R.verify, R.load, R.compare],
+  restore: [R.find, R.download, R.decrypt, R.verify, R.load, R.compare, R.gotrue],
 }
 
 describe('the print guard itself', () => {
@@ -305,46 +306,88 @@ describe('backup.yml', () => {
     expect(dump).toContain('sslmode=require')
   })
 
-  it('includes auth unless BACKUP_INCLUDE_AUTH=false, and fails clearly when auth is unreadable', () => {
+  it('includes auth unless BACKUP_INCLUDE_AUTH=false, and fails clearly without the auth functions', () => {
     const dump = script(B.dump)
     expect(dump).toContain('case "${BACKUP_INCLUDE_AUTH:-true}" in')
     expect(dump).toMatch(/\*\) echo "::error::BACKUP_INCLUDE_AUTH must be/)
-    expect(dump).toContain("has_schema_privilege('auth', 'usage')")
-    const unreadable = dump
+    expect(dump).toMatch(/::warning::BACKUP_INCLUDE_AUTH=false/)
+    // backup_reader reads auth only through the two functions of 20260927000400_backup_auth.sql
+    // (ADR-0029): the check is that it may call both, not that it may read the tables.
+    expect(dump).toContain(
+      "select count(*) = 2 and bool_and(has_schema_privilege(n.oid, 'usage') and has_function_privilege(p.oid, 'execute')) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'backup' and p.proname in ('auth_users', 'auth_identities') and p.pronargs = 0",
+    )
+    expect(dump).not.toContain("has_schema_privilege('auth'")
+    const unusable = dump
       .split('\n')
       .find((line) =>
-        line.includes('::error::backup_reader cannot read auth.users and auth.identities'),
+        line.includes(
+          '::error::backup_reader cannot call backup.auth_users() and backup.auth_identities()',
+        ),
       )
-    expect(unreadable).toContain('docs/ops/backups.md')
-    expect(unreadable).toContain('BACKUP_INCLUDE_AUTH=false')
-    expect(unreadable).toContain('No backup was made')
-    expect(dump).toMatch(/::warning::BACKUP_INCLUDE_AUTH=false/)
+    expect(unusable).toContain('supabase/migrations/20260927000400_backup_auth.sql')
+    expect(unusable).toContain('docs/ops/backups.md')
+    expect(unusable).toContain('No backup was made')
+    expect(unusable).not.toMatch(/\bgrant/i)
   })
 
-  it('dumps public (minus event_quota) and auth in one exported snapshot, and counts in it', () => {
+  it('dumps public (minus event_quota) with pg_dump in an exported snapshot, and counts in it', () => {
     const lines = commands(step(B.dump))
     expect(script(B.dump)).toContain('begin isolation level repeatable read, read only;')
     expect(script(B.dump)).toContain('pg_export_snapshot()')
-    const publicDump = lines.find((line) => line.includes('--file="$work/public.sql"'))
-    const authDump = lines.find((line) => line.includes('--file="$work/auth.sql"'))
-    for (const dump of [publicDump, authDump]) {
-      expect(dump).toMatch(
-        /^"\$PG_BIN\/pg_dump" --dbname="\$db" --snapshot="\$snapshot" --data-only --no-owner --no-privileges /,
-      )
-    }
-    expect(publicDump).toContain('--schema=public --exclude-table=public.event_quota')
-    expect(authDump).toContain('--table=auth.users --table=auth.identities')
+    const dumps = lines.filter((line) => line.startsWith('"$PG_BIN/pg_dump"'))
+    expect(dumps).toEqual([
+      '"$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges --schema=public --exclude-table=public.event_quota --file="$work/public.sql"',
+    ])
     // The snapshot session reads its SQL from a FIFO this shell holds open; it must not inherit
     // that descriptor, or it never sees the end of its input and the job hangs (dry run, 5.7b).
     expect(lines).toContain('exec 3<> "$work/holder.sql"')
     expect(lines).toContain(
-      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v with_auth="$with_auth" -f "$work/holder.sql" > /dev/null 3>&- &',
+      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v with_auth="$with_auth" -v auth_from=functions -f "$work/holder.sql" > /dev/null 3>&- &',
     )
     expect(lines).toContain('exec 3>&-')
     // The same session that exported the snapshot runs counts.sql, then commits.
     expect(script(B.dump)).toContain('"\\\\i \'$GITHUB_WORKSPACE/tools/backup/counts.sql\'"')
-    expect(lines.findIndex((line) => line.includes('counts.sql'))).toBeGreaterThan(
-      lines.findIndex((line) => line.includes('--file="$work/auth.sql"')),
+  })
+
+  it('never lets pg_dump read the auth schema: auth goes through backup_reader’s functions only', () => {
+    expect(backup.text).not.toMatch(/--table[= ]+"?auth\./)
+    expect(backup.text).not.toMatch(/--schema[= ]+"?auth\b/)
+    // No command names an auth table (messages may).
+    for (const line of backup.steps.flatMap(commands)) {
+      if (!line.startsWith('echo ')) expect(line).not.toMatch(/\bauth\.(users|identities)\b/)
+    }
+  })
+
+  it('dumps auth in the snapshot session, through the functions, after public and before the counts', () => {
+    const lines = commands(step(B.dump))
+    const publicAt = lines.findIndex((line) => line.includes('--file="$work/public.sql"'))
+    const authIf = lines.indexOf('if [ "$with_auth" = true ]; then', publicAt)
+    const authAt = lines.indexOf(
+      "printf '%s\\n' \"\\\\o '$work/auth.sql'\" \"\\\\i '$GITHUB_WORKSPACE/tools/backup/auth-dump.sql'\" '\\o' >&3",
+    )
+    const countsAt = lines.findIndex((line) => line.includes('tools/backup/counts.sql'))
+    expect(publicAt).toBeGreaterThan(-1)
+    expect(authIf).toBeGreaterThan(publicAt)
+    expect(authAt).toBe(authIf + 1)
+    expect(lines[authAt + 1]).toBe('fi')
+    expect(countsAt).toBeGreaterThan(authAt)
+    // …and commits only after the counts, in the same printf.
+    expect(lines[countsAt]).toMatch(/counts\.sql'" '\\o' 'commit;' >&3$/)
+    // auth-dump.sql reads the two functions — never the tables — and writes COPY blocks.
+    const authDump = readFileSync(join(ROOT, 'tools', 'backup', 'auth-dump.sql'), 'utf8')
+    expect(authDump).toContain('from backup.auth_users() order by id) to stdout;')
+    expect(authDump).toContain('from backup.auth_identities() order by id) to stdout;')
+    expect(authDump).not.toMatch(/\bfrom auth\./)
+  })
+
+  it('fails the job when the snapshot session fails — auth dump or counts — before anything is encrypted', () => {
+    const dump = script(B.dump)
+    expect(dump).toContain('wait "$holder" || status=$?')
+    expect(dump).toMatch(
+      /if \[ "\$status" -ne 0 \]; then\n\s+echo "::error::dumping auth or counting the rows in the snapshot failed \(psql exit \$status\); no backup was made"\n\s+exit 1/,
+    )
+    expect(indexOf(steps, named(B.dump), B.dump)).toBeLessThan(
+      indexOf(steps, named(B.encrypt), B.encrypt),
     )
   })
 
@@ -487,7 +530,7 @@ describe('restore-test.yml', () => {
     )
   })
 
-  it('restores in order: verify, check out the commit, install, start, reset without seed, load, compare', () => {
+  it('restores in order: verify, check out the commit, install, start, reset without seed, load, compare, GoTrue', () => {
     const at = (predicate: (candidate: Step) => boolean, label: string) =>
       indexOf(steps, predicate, label)
     const order = [
@@ -506,6 +549,7 @@ describe('restore-test.yml', () => {
       at(named(R.reset), R.reset),
       at(named(R.load), R.load),
       at(named(R.compare), R.compare),
+      at(named(R.gotrue), R.gotrue),
     ]
     expect(order).toEqual([...order].sort((a, b) => a - b))
     expect(step(R.reset).run).toBe('pnpm exec supabase db reset --no-seed')
@@ -528,13 +572,21 @@ describe('restore-test.yml', () => {
       '"$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate -v SHOW_CONTEXT=never --single-transaction -c \'set session_replication_role = replica\' "${files[@]}"',
     )
     const script = step(R.load).run ?? ''
-    expect(script.indexOf('files+=(-f "$plain/auth.sql")')).toBeGreaterThan(-1)
-    expect(script.indexOf('files+=(-f "$plain/auth.sql")')).toBeLessThan(
-      script.indexOf('files+=(-f "$plain/public.sql")'),
-    )
+    const auth = 'true) files+=(-f "$plain/auth.sql" -f tools/backup/normalise-auth.sql) ;;'
+    expect(commands(step(R.load))).toContain(auth)
+    expect(script.indexOf(auth)).toBeLessThan(script.indexOf('files+=(-f "$plain/public.sql")'))
     expect(restore.job.env?.LOCAL_DB_URL).toBe(
       'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
     )
+  })
+
+  it('normalises the restored accounts for GoTrue in the load’s own transaction, right after auth.sql', () => {
+    // The backup never holds GoTrue's token columns; normalise-auth.sql sets the ones GoTrue
+    // reads as non-null strings to '' (ADR-0029). Only for a backup with auth.
+    const lines = commands(step(R.load))
+    expect(lines.filter((line) => line.includes('normalise-auth.sql'))).toEqual([
+      'true) files+=(-f "$plain/auth.sql" -f tools/backup/normalise-auth.sql) ;;',
+    ])
   })
 
   it('never prints what psql says while loading, only its SQLSTATE lines', () => {
@@ -549,7 +601,7 @@ describe('restore-test.yml', () => {
     const lines = commands(step(R.compare))
     expect(lines).toContainEqual(
       expect.stringMatching(
-        /^"\$PG_BIN\/psql" --dbname="\$LOCAL_DB_URL" -X -q -A -t -F \$'\\t' -v ON_ERROR_STOP=1 -v with_auth="\$INCLUDES_AUTH" -f tools\/backup\/counts\.sql > "\$restore\/restored-counts\.tsv"$/,
+        /^"\$PG_BIN\/psql" --dbname="\$LOCAL_DB_URL" -X -q -A -t -F \$'\\t' -v ON_ERROR_STOP=1 -v with_auth="\$INCLUDES_AUTH" -v auth_from=tables -f tools\/backup\/counts\.sql > "\$restore\/restored-counts\.tsv"$/,
       ),
     )
     expect(lines).toContain(
@@ -558,5 +610,24 @@ describe('restore-test.yml', () => {
     expect(step(R.compare).env).toEqual({
       INCLUDES_AUTH: '${{ steps.verify.outputs.includes_auth }}',
     })
+  })
+
+  it('asks the local GoTrue for every restored account by id, printing no row', () => {
+    expect(step(R.gotrue).env).toEqual({
+      INCLUDES_AUTH: '${{ steps.verify.outputs.includes_auth }}',
+    })
+    const lines = commands(step(R.gotrue))
+    // A backup without auth has no account to ask for: said, not silently passed.
+    expect(lines).toContain('if [ "$INCLUDES_AUTH" != true ]; then')
+    expect(lines).toContainEqual(
+      expect.stringMatching(/^echo "::warning::this backup holds no auth accounts/),
+    )
+    // The ids go to a 0600 file (umask 077), never to the log; the check prints counts only.
+    expect(lines).toContain(
+      '"$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c \'select id from auth.users order by id\' > "$restore/user-ids.txt"',
+    )
+    expect(lines).toContain(
+      'pnpm exec tsx tools/backup/cli.ts check-gotrue --manifest "$restore/plain/manifest.json" --ids "$restore/user-ids.txt"',
+    )
   })
 })
