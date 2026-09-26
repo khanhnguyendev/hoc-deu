@@ -1,4 +1,5 @@
 import { compile, evaluate } from '@mdx-js/mdx'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { NextConfig } from 'next'
 import { createElement } from 'react'
@@ -130,9 +131,12 @@ describe('next.config.ts images (OD3)', () => {
     // Task 3.4a (decision 6): the manifests come from the bundled catalog, so no route reads
     // track.yaml at request time and nothing needs tracing.
     expect(config.outputFileTracingIncludes).toBeUndefined()
-    expect(await config.redirects?.()).toEqual([
-      { source: '/admin', destination: '/admin/users', permanent: false },
-    ])
+  })
+
+  it('has no redirects: /admin is the admin overview page since task 5.6 (ruling R12)', async () => {
+    const config = await loadConfig(true)
+    expect(config.redirects).toBeUndefined()
+    expect(existsSync('app/(admin)/admin/page.tsx')).toBe(true)
   })
 })
 

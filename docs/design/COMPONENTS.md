@@ -1693,4 +1693,80 @@ Task 5.4 adds these entries below this line (Part B-M5 decision 3).
 
 ### Admin overview components (`features/admin/components`)
 
-Task 5.6 adds these entries below this line (Part B-M5 decision 3).
+Task 5.6 adds these entries below this line (Part B-M5 decision 3). The view models are
+`features/admin/overview.ts` (`/admin`) and `features/admin/content.ts` (`/admin/content`, the
+coverage horizon of decision 25); the two tables share `features/admin/components/table.ts`.
+
+### AdminOverview
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/admin-overview.tsx`
+- **Props:** `page: AdminOverviewPage` (`getAdminOverview()`)
+- **Variants:** —
+- **States:** with warnings · no warning; each metric with a value or "chưa có dữ liệu" (before the
+  first cron run); loading — `app/(admin)/admin/loading.tsx`; error — the `(admin)` error boundary
+- **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
+- **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
+  by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
+  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam);
+  "Trang quản trị" (LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
+- **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
+  named (§4.5)
+
+### AdminWarnings
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/admin-warnings.tsx`
+- **Props:** `warnings: readonly AdminWarning[]` (red and critical first)
+- **Variants:** Banner `danger` (danger-soft: the red content-coverage warning, DB ≥ 450 MB) ·
+  Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
+  "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days)
+- **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
+- **Usage:** rendered by AdminOverview
+- **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link
+  styled as an outline Button, 44 px); GitHub links open in a new tab and say so ("(mở trong tab
+  mới)", screen readers only); never colour alone
+
+### CatalogStats
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/catalog-stats.tsx`
+- **Props:** `stats: TrackStats`
+- **Variants:** —
+- **States:** a table of items by listed type × status (Đang dùng / Bản nháp / Đã ngừng), plus the
+  verification line for a track with problems ("Kiểm chứng lời giải: n đã kiểm thử · n chỉ biên
+  dịch · n chưa có ghi chú") · empty ("Lộ trình này chưa có mục nào.", no table)
+- **Usage:** `<CatalogStats stats={track.stats} />` (`app/(admin)/admin/content/page.tsx`)
+- **Accessibility:** an `h3`; the table sits in a focusable `region` named "Số mục của {track} theo
+  loại và trạng thái" (keyboard horizontal scroll); row headers are the item types (`lang="en"`);
+  numbers in mono with tabular figures
+
+### ContentCoverage
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/content-coverage.tsx`
+- **Props:** `coverage: RoadmapCoverage` (one track variant)
+- **Variants:** columns follow the item types the track lists — Bài học, Ghi chú (bài chính),
+  Thẻ (core + extended), Exercise, Prompt; always Tuần, Học viên, Tình trạng
+- **States:** rows `red` (a week up to the highest learner week + 2 with a missing pattern lesson
+  or an unnoted placed problem — decision 25: `danger-soft`, an icon and "Cần bổ sung"), `gap`
+  (a gap further ahead: "Còn thiếu"), `covered` ("Đủ"); a line naming the horizon, or "Chưa học
+  viên nào có kế hoạch trong 14 ngày qua…"; a variant without its roadmap file ("Chưa có tệp lộ
+  trình cho biến thể này.", no table)
+- **Usage:** `{track.roadmaps.map((r) => <ContentCoverage key={r.variant} coverage={r} />)}`
+- **Accessibility:** an `h3`; a focusable `region` named "Độ phủ theo tuần của {track}, {variant}";
+  week numbers are row headers; a missing lesson says "(thiếu)" and a red row says "Cần bổ sung"
+  with an icon — never colour alone; English column headers carry `lang="en"`
+
+### DraftsList
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/drafts-list.tsx`
+- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`)
+- **Variants:** —
+- **States:** groups "Lộ trình nháp (n)", "Mục nháp (n)", "Ghi chú nháp (n)" (an empty group is left
+  out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
+  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)." — no publish button in v1.0 (§6.6)
+- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts} /></Section>`
+- **Accessibility:** each entry is a LinkRow (44 px) to its page — admins see drafts; LeetCode
+  titles and English card fronts carry `lang="en"`; group titles are `h3`
