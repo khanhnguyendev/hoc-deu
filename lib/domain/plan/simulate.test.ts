@@ -150,4 +150,9 @@ describe('simulate — externalResults', () => {
     )
     expect(unlocked.days[2]?.due).toBe(2)
   })
+
+  it('throws on an event the engine ignores, naming the reason (4.8 minor)', () => {
+    const unknown = english({ externalResults: { itemIds: ['english:nope'], perDay: 1 } })
+    expect(() => simulate(unknown)).toThrow(/ignored.*english:nope.*unknown_item/)
+  })
 })

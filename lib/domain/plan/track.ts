@@ -6,7 +6,7 @@
  * functions (M4 final review M-11: `buildPlan.ts` no longer exports its internals).
  */
 import type { PlanRoadmap, PlanTemplateBlock, PlanTrack } from '../catalog'
-import { compareIds } from '../compare'
+import { compareIds, own } from '../compare'
 import { weakTopics } from '../stats/weakTopics'
 import { weekdayOf } from '../time/weekday'
 import {
@@ -21,7 +21,7 @@ import {
   startBudget,
 } from './budget'
 import { type DueEntry, dueQueue } from './queues'
-import { roadmapWeek } from './roadmap'
+import { newQueue, roadmapWeek } from './roadmap'
 import { dayTemplate, planBlockId } from './template'
 import { effectiveNewPerDay } from './throttle'
 import type {
@@ -50,6 +50,9 @@ export type TrackSetup = {
   readonly debt: boolean
   /** The effective new-item cap (§5.5); null = no cap. */
   readonly newCap: number | null
+  /** The track's new-item queue (§5.3), built on first use and then reused: every new-item
+   *  selection of the plan reads the same queue (4.6 minor). */
+  readonly newQueue: () => readonly string[]
 }
 
 /** The running state of a track's plan (step 9). */
@@ -106,7 +109,7 @@ export function eligibleTracks(ctx: PlanContext): TrackEntry[] {
 }
 
 /** Steps 1–2: the roadmap week, the day's template, weak topics, the due queue, review debt and
- *  the effective new-item cap. */
+ *  the effective new-item cap; the new-item queue once a step asks for it. */
 export function trackSetup(ctx: PlanContext, { enrollment, track }: TrackEntry): TrackSetup {
   const { trackId } = enrollment
   const roadmap = track.roadmaps[enrollment.variant] ?? null
@@ -121,6 +124,7 @@ export function trackSetup(ctx: PlanContext, { enrollment, track }: TrackEntry):
     today: ctx.planDate,
     weakTopicIds,
   })
+  let queue: readonly string[] | undefined
   return {
     ctx,
     enrollment,
@@ -130,6 +134,14 @@ export function trackSetup(ctx: PlanContext, { enrollment, track }: TrackEntry):
     due,
     debt: inReviewDebt(due.map((entry) => entry.overdueDays)),
     newCap: effectiveNewPerDay(enrollment.newPerDay, enrollment.throttle, due.length),
+    newQueue: () =>
+      (queue ??= newQueue({
+        trackId,
+        roadmap,
+        catalog: ctx.catalog,
+        items: ctx.items,
+        includeBonus: enrollment.includeBonus,
+      })),
   }
 }
 
@@ -252,6 +264,20 @@ export function mayForceNew(progress: Progress): boolean {
   return !progress.newStarted && !progress.budget.overshootUsed
 }
 
+/** The candidates of `itemIds`, in order, that are in the catalog and not in the plan yet — one
+ *  at a time, so a selection reads only as far into the queue as it takes (4.6 minor). */
+function* newCandidates(
+  setup: TrackSetup,
+  itemIds: readonly string[],
+  planned: ReadonlySet<string>,
+): Generator<Candidate> {
+  for (const itemId of itemIds) {
+    const item = own(setup.ctx.catalog.items, itemId)
+    if (item === undefined || planned.has(itemId)) continue
+    yield { itemId, mode: 'new', minutes: item.minutes.new, srs: item.srs !== null }
+  }
+}
+
 /** A new block from `itemIds` (in order, those not in the plan yet): take-first-then-half-fit
  *  under the new-item cap left today (§5.4 step 5). */
 export function placeNewItems(
@@ -260,12 +286,7 @@ export function placeNewItems(
   progress: Progress,
   forceFirst: boolean,
 ): Placed {
-  const candidates = itemIds.flatMap((itemId): Candidate[] => {
-    const item = setup.ctx.catalog.items[itemId]
-    if (item === undefined || progress.planned.has(itemId)) return []
-    return [{ itemId, mode: 'new', minutes: item.minutes.new, srs: item.srs !== null }]
-  })
-  const selection = selectHalfFit(candidates, {
+  const selection = selectHalfFit(newCandidates(setup, itemIds, progress.planned), {
     remaining: progress.budget.remaining,
     newCap: newCapLeft(setup, progress),
     forceFirst,

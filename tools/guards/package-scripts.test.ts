@@ -46,4 +46,17 @@ describe('package scripts', () => {
       'next build',
     ])
   })
+
+  it('test:sim runs the full §5.10 simulation (200 seeds; CI job sim), which pnpm test reduces', () => {
+    expect(scripts['test:sim']).toBe('SIM_FULL=1 vitest run lib/domain/plan/__tests__/simulation')
+  })
+
+  it('verify:full runs verify, test:sim, test:db and test:e2e', () => {
+    expect(scripts['verify:full']?.split(' && ')).toEqual([
+      'pnpm verify',
+      'pnpm test:sim',
+      'pnpm test:db',
+      'pnpm test:e2e',
+    ])
+  })
 })

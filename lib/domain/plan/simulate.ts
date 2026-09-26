@@ -1,17 +1,28 @@
 /**
  * The plan simulation (platform design §5.10; Part B-M4 decisions 20, 21, 32): the real engine run
  * day by day for a synthetic learner — `gateStatus` → `buildPlan` → the learner's results as
- * events folded with `project` — so the §5.10 thresholds and the §5.11 projection table measure
- * the code learners use, not a model of it. Pure and deterministic for a seed: the learner draws
- * from `mulberry32(seed)`, dates come from `startDate`, nothing reads a clock.
+ * events folded with `projectChanges` — so the §5.10 thresholds and the §5.11 projection table
+ * measure the code learners use, not a model of it. Pure and deterministic for a seed: the learner
+ * draws from `mulberry32(seed)`, dates come from `startDate`, nothing reads a clock.
+ *
+ * The fold is a batch fold (M4 final review M-8): one working copy of the derived state, which
+ * only `simulate` holds, takes each event's rows in place (`applyChangesInPlace`) instead of
+ * copying the whole state per event. An event the engine ignores throws (4.8 minor): a simulation
+ * that feeds the engine events it ignores measures nothing.
  */
 import { isActiveItem, type PlanCatalog, type PlanRoadmap } from '../catalog'
+import { own } from '../compare'
 import type { EventType } from '../events'
-import { type DomainEvent, project } from '../projection/project'
+import {
+  applyChangesInPlace,
+  type DomainEvent,
+  mutableCopy,
+  projectChanges,
+} from '../projection/project'
 import { mulberry32 } from '../random'
 import { RULES_VERSION } from '../rules'
 import type { Outcome } from '../srs/outcomes'
-import { type DerivedState, EMPTY_DERIVED_STATE } from '../state'
+import { EMPTY_DERIVED_STATE } from '../state'
 import { addDays, type LocalDay } from '../time/localDay'
 import { buildPlan, checkInMinutes, largestItemMinutes, plannedMinutes } from './buildPlan'
 import { gateStatus, unfinishedBlocks } from './gate'
@@ -199,10 +210,11 @@ const NO_TOPICS: ReadonlySet<string> = new Set()
  *  skipped — when the gate is open the plan is created and seen, and nothing is done. On a later
  *  day with the gate closed the learner completes the paused plan instead; the gate is then open
  *  with `resumedToday`, so no new plan is built that day (decision 32). Results become events
- *  folded with `project` (4.2): SRS items `item.result` (solved / hint / failed), lessons
- *  `lesson.completed`, exercises `exercise.submitted` (pass / close / miss), prompts
- *  `prompt.completed`; every block is checked in `done` with `checkInMinutes(block)` (4.6).
- *  Deterministic for a seed. */
+ *  folded with `projectChanges` (4.2, in place — M-8): SRS items (and items the catalog does not
+ *  know) `item.result` (solved / hint / failed), lessons `lesson.completed`, exercises
+ *  `exercise.submitted` (pass / close / miss), prompts `prompt.completed`; every block is checked
+ *  in `done` with `checkInMinutes(block)` (4.6). Throws on an event the engine ignores, naming the
+ *  reason. Deterministic for a seed. */
 export function simulate(options: SimOptions): SimRun {
   const { catalog, enrollment, days, startDate, externalResults } = options
   const { trackId } = enrollment
@@ -215,15 +227,26 @@ export function simulate(options: SimOptions): SimRun {
   const learner = learnerFor(options.profile, options.seed)
   const eventOf = eventFactory()
 
-  let derived: DerivedState = EMPTY_DERIVED_STATE
+  /** The derived state, changed in place by `fold` — never handed to a caller. */
+  const derived = mutableCopy(EMPTY_DERIVED_STATE)
   const plans: StoredPlan[] = []
   let externalDone = 0
 
-  /** One result of `itemId` on `day`, as the learner's outcome (or a success). */
+  /** Stores the rows `event` changes; an event the engine ignores stops the simulation. */
+  const fold = (event: DomainEvent): void => {
+    const { changes, ignored } = projectChanges(derived, event, catalog)
+    if (ignored !== null) {
+      const item = event.itemId === null ? '' : ` for ${event.itemId}`
+      throw new Error(`simulate: the engine ignored ${event.type}${item} (${ignored})`)
+    }
+    applyChangesInPlace(derived, changes)
+  }
+
+  /** One result of `itemId` on `day`, as the learner's outcome (or a success). An item the
+   *  catalog does not know gets an `item.result`, which the engine ignores (`fold` throws). */
   const resultEvent = (day: LocalDay, itemId: string, keys: EventKeys, outcome: () => Outcome) => {
-    const item = catalog.items[itemId]
-    if (item === undefined) throw new Error(`simulate: ${itemId} is not in the catalog`)
-    if (item.srs !== null) {
+    const item = own(catalog.items, itemId)
+    if (item === undefined || item.srs !== null) {
       return eventOf(day, { type: 'item.result', payload: { result: RESULT_OF[outcome()] } }, keys)
     }
     const completion = COMPLETIONS[item.itemType]
@@ -238,16 +261,17 @@ export function simulate(options: SimOptions): SimRun {
     for (const block of blocks) {
       const keys = { trackId, planId: plan.id, blockId: block.id }
       for (const planned of block.items) {
-        const event = resultEvent(day, planned.itemId, { ...keys, itemId: planned.itemId }, () =>
-          learner.outcome(),
+        fold(
+          resultEvent(day, planned.itemId, { ...keys, itemId: planned.itemId }, () =>
+            learner.outcome(),
+          ),
         )
-        derived = project(derived, event, catalog)
       }
       const checkIn = {
         type: 'block.checked_in',
         payload: { status: 'done', minutes: checkInMinutes(block) },
       } as const
-      derived = project(derived, eventOf(day, checkIn, { ...keys, itemId: null }), catalog)
+      fold(eventOf(day, checkIn, { ...keys, itemId: null }))
     }
   }
 
@@ -258,13 +282,9 @@ export function simulate(options: SimOptions): SimRun {
     const target = Math.min(Math.floor((index + 1) * perDay), itemIds.length)
     for (; externalDone < target; externalDone += 1) {
       const itemId = itemIds[externalDone] ?? ''
-      const trackOf = catalog.items[itemId]?.trackId ?? null
+      const trackOf = own(catalog.items, itemId)?.trackId ?? null
       const keys = { trackId: trackOf, itemId, planId: null, blockId: null }
-      derived = project(
-        derived,
-        resultEvent(day, itemId, keys, () => 'success'),
-        catalog,
-      )
+      fold(resultEvent(day, itemId, keys, () => 'success'))
     }
   }
 

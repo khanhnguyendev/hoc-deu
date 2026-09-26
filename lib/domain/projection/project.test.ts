@@ -9,11 +9,26 @@ import {
   statesOf,
   withItems,
 } from '../plan/__tests__/fixtures'
+import { mulberry32 } from '../random'
 import { RULES_VERSION } from '../rules'
-import { EMPTY_DERIVED_STATE, type BlockState, type DerivedState, type ItemState } from '../state'
-import type { LocalDay } from '../time/localDay'
+import {
+  CHECK_IN_STATUSES,
+  EMPTY_DERIVED_STATE,
+  type BlockState,
+  type DerivedState,
+  type ItemState,
+} from '../state'
+import { addDays, type LocalDay } from '../time/localDay'
 import { deepFreeze, eventBuilder, type EventBuilder, type EventFields } from './__tests__/events'
-import { project, projectEvent, type DomainEvent, type IgnoreReason } from './project'
+import {
+  applyChangesInPlace,
+  mutableCopy,
+  project,
+  projectChanges,
+  projectEvent,
+  type DomainEvent,
+  type IgnoreReason,
+} from './project'
 
 const TUESDAY: LocalDay = '2026-09-29'
 const WEDNESDAY: LocalDay = '2026-09-30'
@@ -834,7 +849,10 @@ describe('purity', () => {
     ]
 
     // Each event on the frozen state, and all of them folded (every step frozen in turn).
-    for (const each of events) expect(() => projectEvent(state, each, catalog)).not.toThrow()
+    for (const each of events) {
+      expect(() => projectEvent(state, each, catalog)).not.toThrow()
+      expect(() => projectChanges(state, each, catalog)).not.toThrow()
+    }
     const folded = events.reduce(
       (current, each) => deepFreeze(project(current, each, catalog)),
       state,
@@ -852,5 +870,201 @@ describe('project', () => {
     expect(project(EMPTY_DERIVED_STATE, solved, CATALOG)).toEqual(
       projectEvent(EMPTY_DERIVED_STATE, solved, CATALOG).state,
     )
+  })
+})
+
+describe('projectChanges (M-8): only the rows one event changes', () => {
+  const event = eventBuilder()
+  /** Two items, two blocks and two days, so a change to one row is visible as one row. */
+  const studied = deepFreeze(
+    projectAll([
+      event('item.result', { trackId: 'dsa', itemId: 'dsa:p1', payload: { result: 'solved' } }),
+      event('item.result', {
+        localDay: TUESDAY,
+        trackId: 'english',
+        itemId: 'english:e1',
+        payload: { result: 'know' },
+      }),
+      event('block.checked_in', {
+        planId: 'plan-1',
+        blockId: 'dsa:new:1',
+        trackId: 'dsa',
+        payload: { status: 'done', minutes: 30 },
+      }),
+      event('block.checked_in', {
+        localDay: TUESDAY,
+        planId: 'plan-2',
+        blockId: 'english:new:1',
+        trackId: 'english',
+        payload: { status: 'done', minutes: 12 },
+      }),
+    ]),
+  )
+
+  it('an item.result → one item and one day', () => {
+    const { changes, ignored } = projectChanges(
+      studied,
+      event('item.result', { trackId: 'dsa', itemId: 'dsa:p2', payload: { result: 'hint' } }),
+      CATALOG,
+    )
+    expect(ignored).toBeNull()
+    expect(changes.items.map((row) => row.itemId)).toEqual(['dsa:p2'])
+    expect(changes.removedItems).toEqual([])
+    expect(changes.blocks).toEqual([])
+    expect(changes.days).toEqual([
+      { localDay: MONDAY, minutesByTrack: { dsa: 30 }, itemsDone: 2, completed: true },
+    ])
+  })
+
+  it('a check-in → its block and the day it counts for', () => {
+    const { changes } = projectChanges(
+      studied,
+      event('block.checked_in', {
+        localDay: WEDNESDAY,
+        planId: 'plan-1',
+        blockId: 'dsa:new:1',
+        trackId: 'dsa',
+        payload: { status: 'partial', minutes: 20 },
+      }),
+      CATALOG,
+    )
+    expect(changes.items).toEqual([])
+    expect(changes.blocks.map((row) => [row.blockId, row.status, row.checkedInOn])).toEqual([
+      ['dsa:new:1', 'partial', MONDAY],
+    ])
+    expect(changes.days.map((row) => [row.localDay, row.minutesByTrack])).toEqual([
+      [MONDAY, { dsa: 20 }],
+    ])
+  })
+
+  it("track.reset → the track's item IDs as removed, nothing else", () => {
+    const { changes } = projectChanges(
+      studied,
+      event('track.reset', { localDay: WEDNESDAY, trackId: 'english' }),
+      CATALOG,
+    )
+    expect(changes).toEqual({ items: [], removedItems: ['english:e1'], blocks: [], days: [] })
+  })
+
+  it('an ignored event, or one that changes nothing, → no rows', () => {
+    const none = { items: [], removedItems: [], blocks: [], days: [] }
+    const unknown = event('item.result', { itemId: 'dsa:nope', payload: { result: 'solved' } })
+    expect(projectChanges(studied, unknown, CATALOG)).toEqual({
+      changes: none,
+      ignored: 'unknown_item',
+    })
+    const again = event('item.result', { itemId: 'dsa:p1', payload: { result: 'failed' } })
+    expect(projectChanges(studied, again, CATALOG)).toEqual({ changes: none, ignored: null })
+    const settings = event('settings.changed', { payload: { theme: 'dark' } })
+    expect(projectChanges(studied, settings, CATALOG)).toEqual({ changes: none, ignored: null })
+  })
+})
+
+describe('one rule, two appliers (M-8)', () => {
+  const ITEM_IDS = [...Object.keys(CATALOG.items), 'dsa:nope', 'constructor', '__proto__']
+  const TRACK_IDS = ['dsa', 'english', null]
+  const RESULTS = ['solved', 'hint', 'failed', 'know', 'unsure', 'dont_know']
+  const GRADES = ['pass', 'close', 'miss']
+
+  /** `count` random events from `mulberry32(seed)`: every event type the projection handles, on
+   *  mostly forward local days (sometimes an earlier one), unknown and inherited item IDs, invalid
+   *  payloads and missing keys included. */
+  function randomEvents(seed: number, count: number): DomainEvent[] {
+    const random = mulberry32(seed)
+    const pick = <T>(values: readonly T[]): T => values[Math.floor(random() * values.length)] as T
+    const int = (below: number): number => Math.floor(random() * below)
+    const event = eventBuilder()
+    let today = MONDAY
+    return Array.from({ length: count }, () => {
+      if (random() < 0.15) today = addDays(today, 1)
+      const localDay = random() < 0.1 ? addDays(today, -int(3)) : today
+      const itemId = pick(ITEM_IDS)
+      const item = { localDay, itemId, trackId: pick(TRACK_IDS) }
+      const kind = int(12)
+      if (kind < 3) {
+        return event('item.result', { ...item, payload: { result: pick(RESULTS) } })
+      }
+      if (kind === 3) return event('lesson.completed', item)
+      if (kind === 4) {
+        return event('exercise.submitted', { ...item, payload: { kind: 'x', grade: pick(GRADES) } })
+      }
+      if (kind === 5) {
+        return event(pick(['prompt.completed', 'item.skipped', 'item.readded'] as const), item)
+      }
+      if (kind === 6) {
+        return event('item.snapshot', {
+          ...item,
+          payload: {
+            level: int(4),
+            weak: random() < 0.3,
+            topSuccesses: int(3),
+            dueOn: random() < 0.5 ? null : addDays(localDay, int(10)),
+            lapses: int(3),
+            reps: int(5),
+            introducedOn: localDay,
+            lastResult: random() < 0.5 ? null : pick(RESULTS),
+            lastResultOn: random() < 0.5 ? null : localDay,
+            rulesVersion: RULES_VERSION,
+          },
+        })
+      }
+      if (kind <= 9) {
+        return event('block.checked_in', {
+          localDay,
+          planId: pick(['plan-1', 'plan-2', null]),
+          blockId: pick(['b1', 'b2', 'b3']),
+          trackId: pick(TRACK_IDS),
+          payload: {
+            status: pick(CHECK_IN_STATUSES),
+            minutes: random() < 0.05 ? 601 : int(60),
+            ...(random() < 0.3 && { note: 'ghi chú' }),
+            ...(random() < 0.3 && { auto: true }),
+          },
+        })
+      }
+      if (kind === 10) {
+        return event('track.resumed', {
+          localDay,
+          trackId: pick(TRACK_IDS),
+          payload: { pausedDays: int(10) },
+        })
+      }
+      return random() < 0.5
+        ? event('track.reset', { localDay, trackId: pick(TRACK_IDS) })
+        : event('settings.changed', { localDay, payload: { theme: 'dark' } })
+    })
+  }
+
+  it('projectEvent and the in-place fold agree over 200 seeded random sequences', () => {
+    for (let seed = 0; seed < 200; seed += 1) {
+      const events = randomEvents(seed, 80)
+      const immutable = events.reduce(
+        (state, each) => deepFreeze(project(state, each, CATALOG)),
+        EMPTY_DERIVED_STATE,
+      )
+      const working = mutableCopy(EMPTY_DERIVED_STATE)
+      for (const each of events) {
+        applyChangesInPlace(working, projectChanges(working, each, CATALOG).changes)
+      }
+      expect(working, `seed ${seed}`).toStrictEqual(immutable)
+      // The same rows in the same order, not only the same set.
+      expect(JSON.stringify(working), `seed ${seed}`).toBe(JSON.stringify(immutable))
+    }
+  })
+
+  it('mutableCopy copies the tables, so the in-place fold never changes the state it started from', () => {
+    const start = deepFreeze(
+      project(
+        EMPTY_DERIVED_STATE,
+        eventBuilder()('item.result', { itemId: 'dsa:p1', payload: { result: 'solved' } }),
+        CATALOG,
+      ),
+    )
+    const working = mutableCopy(start)
+    for (const each of randomEvents(7, 80)) {
+      applyChangesInPlace(working, projectChanges(working, each, CATALOG).changes)
+    }
+    expect(start.items['dsa:p1']?.reps).toBe(1)
+    expect(Object.keys(start.items)).toEqual(['dsa:p1'])
   })
 })

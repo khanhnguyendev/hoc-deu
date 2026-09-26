@@ -9,12 +9,13 @@
  * (step 3), review blocks (4), recap blocks (5), new blocks (6), the fallbacks and the spill of a
  * day without a `new` block (7), shadowing cards (8), and numbering (9). Every step spends the
  * track's budget (`spend`) and records the items it placed, so no item is placed twice and the
- * track's one overshoot (decision 13) is used at most once.
+ * track's one overshoot (decision 13) is used at most once. The track's new-item queue is built
+ * once and read by every new-item selection (4.6 minor).
  */
 import type { PlanRoadmap, PlanTemplateBlock } from '../catalog'
 import { type Candidate, reserveFixed, selectSkipping } from './budget'
 import { pickByItemType, pickByTag, pickShadowing, SHADOWING_TAG } from './practice'
-import { newQueue, recapCandidates, recapSource } from './roadmap'
+import { recapCandidates, recapSource } from './roadmap'
 import {
   assemblePlan,
   type DraftBlock,
@@ -185,21 +186,9 @@ function placeRecap(setup: TrackSetup, count: number, progress: Progress): Place
 // Step 6: new blocks
 // ---------------------------------------------------------------------------------------------
 
-/** The track's new-item queue (§5.3). */
-function queueOf(setup: TrackSetup): string[] {
-  const { ctx, enrollment, roadmap } = setup
-  return newQueue({
-    trackId: enrollment.trackId,
-    roadmap,
-    catalog: ctx.catalog,
-    items: ctx.items,
-    includeBonus: enrollment.includeBonus,
-  })
-}
-
 /** Step 6: a new block from the new-item queue. */
 function placeNew(setup: TrackSetup, progress: Progress): Placed {
-  return placeNewItems(setup, queueOf(setup), progress, mayForceNew(progress))
+  return placeNewItems(setup, setup.newQueue(), progress, mayForceNew(progress))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -268,7 +257,7 @@ function placeFallback(setup: TrackSetup, kind: 'review' | 'recap', progress: Pr
     const filler = recapBlock(setup, null, FILLER_RECAP_COUNT, progress)
     if (filler.draft.items.length > 0) return filler
   }
-  return placeNewItems(setup, queueOf(setup), progress, mayForceNew(progress))
+  return placeNewItems(setup, setup.newQueue(), progress, mayForceNew(progress))
 }
 
 /** Step 7 (only on a day whose template has no `new` block): empty review and recap blocks fall
@@ -291,7 +280,7 @@ function placeSpill(setup: TrackSetup, state: TrackState): TrackState {
   )
   const fellBackToNew = state.slots.some((draft) => draft?.kind === 'new' && draft.items.length > 0)
   if (hasNewOrRecap || fellBackToNew) return state
-  const placed = placeNewItems(setup, queueOf(setup), state.progress, false)
+  const placed = placeNewItems(setup, setup.newQueue(), state.progress, false)
   return { ...state, progress: placed.progress, spill: placed.draft }
 }
 

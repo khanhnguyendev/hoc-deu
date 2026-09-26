@@ -155,10 +155,11 @@ export function selectSkipping(
  * `overBudget` + `overshoot` if it does not fit); each following unit when at least half of it
  * fits (`remaining − used ≥ minutes / 2`); the first unit that fails stops the selection — order
  * is never broken. SRS units stop at `newCap` (null = no cap); `newCap` 0 → no SRS unit, even
- * with `forceFirst`.
+ * with `forceFirst`. `candidates` is read in order and only up to the unit that stops the
+ * selection, so a lazy sequence over a long queue costs only what is read.
  */
 export function selectHalfFit(
-  candidates: readonly Candidate[],
+  candidates: Iterable<Candidate>,
   options: {
     readonly remaining: number
     readonly newCap: number | null
@@ -169,10 +170,10 @@ export function selectHalfFit(
   let used = 0
   let overshoot = false
   let srsTaken = 0
+  let index = -1
 
-  for (let index = 0; index < candidates.length; index += 1) {
-    const candidate = candidates[index]
-    if (candidate === undefined) continue
+  for (const candidate of candidates) {
+    index += 1
     if (candidate.srs && options.newCap !== null && srsTaken >= options.newCap) break
 
     const cost = unitMinutes(candidate)

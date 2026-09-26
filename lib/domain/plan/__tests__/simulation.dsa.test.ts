@@ -5,6 +5,11 @@
  * thresholds are the spec's, recalibrated once against this engine in task 4.8 and frozen: a
  * failure is an engine regression (or a deliberate rules change that needs a ledger ruling), never
  * a reason to loosen a number here.
+ *
+ * `pnpm test:sim` (`SIM_FULL=1`, CI job `sim`) runs all 200 seeds and the realistic thresholds;
+ * `pnpm test` runs 20 seeds and checks what holds for every run — no event the engine ignores
+ * (`simulate` throws), the §5.4 budget invariant, determinism — and the ideal learner's thresholds
+ * (owner item b, M5).
  */
 import { describe, expect, it } from 'vitest'
 import simInputsFile from '../sim-inputs.generated.json'
@@ -15,7 +20,9 @@ import { type LearnerProfile, percentile, type SimRun, simulate } from '../simul
 const INPUTS = simInputsFile as SimInputs
 const CATALOG = simCatalog(INPUTS)
 
-const RUNS = 200
+/** The full simulation (`pnpm test:sim`), or the reduced one `pnpm test` runs. */
+const FULL = process.env.SIM_FULL === '1'
+const RUNS = FULL ? 200 : 20
 const DAYS = 126
 /** The last simulated day (the prototype's "week 18"). */
 const LAST_DAY = DAYS - 1
@@ -26,23 +33,24 @@ type Scenario = { readonly variant: string; readonly budget: number }
 
 const cache = new Map<string, readonly SimRun[]>()
 
-/** The scenario's runs: seeds 0…199 (realistic) or seed 0 (ideal), computed once per file. */
-function runsOf({ variant, budget }: Scenario, profile: LearnerProfile): readonly SimRun[] {
-  const key = `${variant}@${budget}:${profile}`
+function simulateRun({ variant, budget }: Scenario, profile: LearnerProfile, seed: number): SimRun {
+  return simulate({
+    catalog: CATALOG,
+    enrollment: simEnrollment(INPUTS, variant, budget),
+    profile,
+    seed,
+    days: DAYS,
+    startDate: SIM_START_DATE,
+  })
+}
+
+/** The scenario's runs: seeds 0…RUNS − 1 (realistic) or seed 0 (ideal), computed once per file. */
+function runsOf(scenario: Scenario, profile: LearnerProfile): readonly SimRun[] {
+  const key = `${scenario.variant}@${scenario.budget}:${profile}`
   const cached = cache.get(key)
   if (cached !== undefined) return cached
-  const enrollment = simEnrollment(INPUTS, variant, budget)
   const seeds = profile === 'ideal' ? [0] : Array.from({ length: RUNS }, (_, seed) => seed)
-  const runs = seeds.map((seed) =>
-    simulate({
-      catalog: CATALOG,
-      enrollment,
-      profile,
-      seed,
-      days: DAYS,
-      startDate: SIM_START_DATE,
-    }),
-  )
+  const runs = seeds.map((seed) => simulateRun(scenario, profile, seed))
   cache.set(key, runs)
   return runs
 }
@@ -71,8 +79,9 @@ const DEFAULT: Scenario = { variant: '8w', budget: 60 }
 const TEN_WEEKS_75: Scenario = { variant: '10w', budget: 75 }
 const TEN_WEEKS_90: Scenario = { variant: '10w', budget: 90 }
 const TEN_WEEKS_60: Scenario = { variant: '10w', budget: 60 }
+const SCENARIOS = [DEFAULT, TEN_WEEKS_75, TEN_WEEKS_90, TEN_WEEKS_60]
 
-describe('DSA simulation (§5.10)', { timeout: 180_000 }, () => {
+describe.runIf(FULL)('DSA simulation thresholds (§5.10), 200 seeds', { timeout: 180_000 }, () => {
   it('8w @ 60 min realistic (the default): finish p90 ≤ 12.5 weeks, max ≤ 13.5', () => {
     const observed = finish(runsOf(DEFAULT, 'realistic'))
     expect(observed.p90, describeFinish(observed)).toBeLessThanOrEqual(12.5)
@@ -87,13 +96,6 @@ describe('DSA simulation (§5.10)', { timeout: 180_000 }, () => {
   it('10w @ 75 min realistic: finish p90 ≤ 14 weeks', () => {
     const observed = finish(runsOf(TEN_WEEKS_75, 'realistic'))
     expect(observed.p90, describeFinish(observed)).toBeLessThanOrEqual(14)
-  })
-
-  it('ideal: 8w @ 60 ≤ 8.5 weeks, 10w @ 90 ≤ 7.5 weeks', () => {
-    const [eightWeeks] = runsOf(DEFAULT, 'ideal').map(finishWeeks)
-    const [tenWeeks] = runsOf(TEN_WEEKS_90, 'ideal').map(finishWeeks)
-    expect(eightWeeks, `8w @ 60 observed ${eightWeeks}`).toBeLessThanOrEqual(8.5)
-    expect(tenWeeks, `10w @ 90 observed ${tenWeeks}`).toBeLessThanOrEqual(7.5)
   })
 
   it.each([DEFAULT, TEN_WEEKS_75, TEN_WEEKS_90])(
@@ -115,9 +117,26 @@ describe('DSA simulation (§5.10)', { timeout: 180_000 }, () => {
     const observed = finish(runsOf(TEN_WEEKS_60, 'realistic'))
     expect(observed.median, describeFinish(observed)).toBeGreaterThan(12)
   })
+})
+
+describe(`DSA simulation (§5.10), ${RUNS} seeds: every run`, { timeout: 180_000 }, () => {
+  it('feeds the engine no event it ignores (simulate throws on one)', () => {
+    for (const scenario of SCENARIOS) {
+      for (const profile of ['ideal', 'realistic'] as const) {
+        expect(runsOf(scenario, profile)).toHaveLength(profile === 'ideal' ? 1 : RUNS)
+      }
+    }
+  })
+
+  it('ideal: 8w @ 60 ≤ 8.5 weeks, 10w @ 90 ≤ 7.5 weeks', () => {
+    const [eightWeeks] = runsOf(DEFAULT, 'ideal').map(finishWeeks)
+    const [tenWeeks] = runsOf(TEN_WEEKS_90, 'ideal').map(finishWeeks)
+    expect(eightWeeks, `8w @ 60 observed ${eightWeeks}`).toBeLessThanOrEqual(8.5)
+    expect(tenWeeks, `10w @ 90 observed ${tenWeeks}`).toBeLessThanOrEqual(7.5)
+  })
 
   it('every simulated day of every run: planned ≤ budget + the largest item (§5.4)', () => {
-    for (const scenario of [DEFAULT, TEN_WEEKS_75, TEN_WEEKS_90, TEN_WEEKS_60]) {
+    for (const scenario of SCENARIOS) {
       for (const profile of ['ideal', 'realistic'] as const) {
         const over = runsOf(scenario, profile).flatMap((run) =>
           run.days.filter((day) => !day.withinBudget),
@@ -125,5 +144,10 @@ describe('DSA simulation (§5.10)', { timeout: 180_000 }, () => {
         expect(over, `${scenario.variant} @ ${scenario.budget} ${profile}`).toEqual([])
       }
     }
+  })
+
+  it('is deterministic: seed 0 twice gives equal runs', () => {
+    expect(simulateRun(DEFAULT, 'realistic', 0)).toEqual(runsOf(DEFAULT, 'realistic')[0])
+    expect(simulateRun(DEFAULT, 'ideal', 0)).toEqual(runsOf(DEFAULT, 'ideal')[0])
   })
 })
