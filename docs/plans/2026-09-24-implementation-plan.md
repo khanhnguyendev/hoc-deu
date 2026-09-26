@@ -10268,6 +10268,7 @@ the stack lock (decision 4), so several e2e tasks may share a wave.
 | 5.6 admin overview and content | 5.1b, 5.7a | DB, e2e | `supabase/migrations/20260927000300_*`, `supabase/tests/database/{001,041,051}-*.sql`, `lib/supabase/database.types.ts`, `features/admin/**`, `app/(admin)/**`, `next.config.ts`, `tools/guards/next-config.test.ts`, `components/patterns/focus-layout.tsx`, `e2e/admin.spec.ts` — never `registry.tsx` (5.2c owns it in wave 4) |
 | 5.3 `/review` | 5.2c | e2e | `features/review/**`, `app/(app)/review/**` |
 | 5.4 "Học thêm", off-plan study, "Bắt đầu lại", track progress | 5.2b, 5.2c | e2e | `lib/plans/extra.ts`, `lib/domain/plan/extra.ts`, `features/checkin/actions.ts`, `features/today/**`, `features/roadmap/**`, `features/settings/{actions.ts,index.ts}`, `app/(app)/t/[trackId]/page.tsx`, `e2e/tracks.spec.ts` |
+| 5.7c auth accounts in the backup (owner 2026-09-27) | 5.7b | DB (the local round trip resets the stack) | `supabase/migrations/20260927000400_*`, `supabase/tests/database/{001,080,081}-*.sql`, `lib/supabase/database.types.ts`, `.github/workflows/{backup,restore-test}.yml`, `tools/backup/**`, `docs/ops/{backups,production}.md`, `docs/adr/0029-*.md` |
 | 5.8b launch **[owner]** | M5 merged | — | runbook steps only (no branch) |
 
 Each task also owns, without listing them, the files it creates and **its own area's** block of the
@@ -12143,6 +12144,97 @@ prints rows.
 - [ ] **Step 6:** `pnpm verify`. **Commit** `ci: daily encrypted backups and the weekly restore
   test (ADR-0005, ADR-0029)`. The first real runs happen after the merge (5.8b step 2).
 
+### Task 5.7c: Auth accounts in the backup through allow-listed functions — **Amends ADR-0029**
+
+**Source:** owner ruling 2026-09-27 (ledger M5-R29, M5-R30). Hosted `postgres` holds `SELECT WITH
+GRANT OPTION` on `auth.users` / `auth.identities` but no grantable `USAGE` on schema `auth`, so
+5.7b's step 4 grant cannot be given; the owner chose option (b) of `docs/ops/backups.md` §2 step 4
+— keep the accounts in the backup — **through functions, not views** (a view pins the auth columns
+it names: a GoTrue migration that drops or retypes one would fail on hosted). Wave 5, parallel with
+5.3 / 5.4. **Files:**
+
+- Create: `supabase/migrations/20260927000400_backup_auth.sql`, `tools/backup/auth-columns.ts`
+  (+ test).
+- Modify: `supabase/tests/database/001-schema-invariants.test.sql`,
+  `supabase/tests/database/080-ops.test.sql` (or a new `081-backup-auth.test.sql`),
+  `.github/workflows/{backup,restore-test}.yml`, `tools/backup/**`, `docs/ops/{backups,production}.md`,
+  `docs/adr/0029-backups.md`; `lib/supabase/database.types.ts` only if `pnpm db:types` changes it.
+
+**The migration.** Schema `backup`, owned by the migration role (`postgres`); `revoke all on schema
+backup from public`; `grant usage on schema backup to backup_reader` only. Two functions,
+`backup.auth_users()` and `backup.auth_identities()`: `language plpgsql` (never a `begin atomic`
+SQL body — that one is dependency-tracked and would pin the columns like a view), `stable`,
+`security definer`, `set search_path = ''`, fully qualified names, `returns table (…)` with an
+**explicit column allow-list** (no `select *`, so a new GoTrue column never leaks in):
+
+- `auth.users`: `id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, last_sign_in_at, is_anonymous`, plus a column the restore or GoTrue needs
+  only when the local round trip (step 3) proves it (likely `instance_id`: GoTrue writes the nil
+  instance id; `is_sso_user` has a default) — each addition with its reason in ADR-0029.
+- `auth.identities`: `id, user_id, provider, provider_id, identity_data, created_at, updated_at,
+  last_sign_in_at`. `email` is `GENERATED ALWAYS` from `identity_data`: the restore cannot load it
+  and gets it back anyway, so it is not returned (ADR-0029 says so).
+- **Never** `encrypted_password`, any `*_token`, `reauthentication_*`, `recovery_*`,
+  `email_change*`, `confirmation_*`, `phone_change*` column. Return types match the local stack's
+  columns (the Supabase CLI pinned in `package.json`).
+
+`revoke all on function … from public, anon, authenticated, service_role`; `grant execute … to
+backup_reader`. The allow-list lives once in `tools/backup/auth-columns.ts`; a Vitest fails when
+the migration's `returns table` lists differ from it, and pgTAP pins the same lists.
+
+**The dump.** The auth dump runs **in the same snapshot** as the public one: `COPY (SELECT <the
+allow-list> FROM backup.auth_users() ORDER BY id) TO STDOUT` (same for identities), written as
+`COPY auth.users (<the allow-list>) FROM stdin;` … `\.` blocks, so `tools/backup/dump.ts` counts it
+and the restore loads it into those columns only. The backup job counts the auth rows through the
+functions (reported as `auth.users` / `auth.identities`, as today); the restore counts the tables.
+The readable check becomes "`backup_reader` can execute both functions" (error text points to this
+migration, not to grants). Any error from either function fails the job before anything is
+encrypted or uploaded — never a partial backup; the `/admin` backup-age warning (36 h, decision
+26) then surfaces it within a day. `BACKUP_INCLUDE_AUTH=false` stays as the owner-only fallback.
+
+**The restore.** Restored users must load in GoTrue: string columns GoTrue reads as non-null and
+that have no default (`confirmation_token`, `recovery_token`, `email_change_token_new`,
+`email_change`, and whichever else the round trip shows) come back as `''` — never an old value —
+by a committed SQL step that `restore-test.yml` and the manual restore (§7) both run.
+`restore-test.yml` restores into a local Supabase stack, GoTrue included, so after the counts it
+also asks the local GoTrue's admin API for every restored user by id and fails unless each comes
+back with the same id (prints counts only, never a row): a GoTrue or CLI change that breaks loading
+fails the weekly test before a real restore needs it. It cannot prove a Google / GitHub sign-in:
+that is the owner's drill (5.8b step 2).
+
+- [ ] **Step 1: Failing tests.** pgTAP `001`: schema `backup` is not exposed (no `USAGE` for `public`,
+  `anon`, `authenticated`, `service_role`, `authenticator`; `USAGE` for `backup_reader`); both
+  functions `SECURITY DEFINER`, `search_path` set, owned by the migration role, `EXECUTE` for
+  `backup_reader` only (`public`, `anon`, `authenticated`, `service_role` none); `080` / `081`: as
+  `backup_reader` both functions return the seeded users' rows, `pg_get_function_result` equals the
+  exact allow-list, no returned column matches the never-list; as `authenticated` or `anon` a call
+  fails `42501`. Vitest: `auth-columns.ts` = the migration's lists; `supabase/config.toml`'s
+  `[api].schemas` excludes `backup`; `workflows.test.ts` — the auth dump reads the functions, not
+  the tables, in the snapshot session; no `pg_dump --table=auth.*`; the restore runs the
+  normalisation step and the GoTrue check; no row printed.
+- [ ] **Step 2:** implement. **Step 3:** the local round trip, **holding the stack lock for the
+  whole run** (as 5.7b's step 3): synthetic users created through the local GoTrue admin API (email
+  identity), each with a profile and some history; dump as `backup_reader` (local login set and
+  removed as in 5.7b); `supabase db reset --no-seed`; load and normalise; the GoTrue admin API
+  returns each user by its old id; a magic-link sign-in (`generateLink` + verify) comes back as the
+  **same** user id, whose `profiles` row and history are there. Then `pnpm db:reset` before
+  releasing the lock. Record commands and results in the report.
+- [ ] **Step 4: `docs/ops/backups.md`** — §2 step 4 rewritten (no grants: the migration does it;
+  the controller check calls both functions as `backup_reader` and reads the counts; the hosted
+  project's exposed schemas — Management API `GET /v1/projects/{ref}/postgrest`, read-only — must
+  not list `backup`); §7 manual restore gains the normalisation and says a restore needs no
+  re-sign-up; a new **re-link drill** section (the owner's checklist for 5.8b step 2): restore a
+  staging backup into an emptied staging (or a throwaway project with its own OAuth callback URLs —
+  the doc names how the target is emptied and what is lost), sign in with Google and with GitHub,
+  confirm the same `profiles.id` and the same history (event count, plans, streak) — before and
+  after written down. `docs/ops/production.md`: four M5 migrations, the drill in 5.8b's order.
+- [ ] **Step 5: ADR-0029** — the choice (b) through functions and why not views or grants, the
+  column allow-list and the never-list, `identities.email`, the `''` normalisation, the weekly
+  GoTrue check, the re-link drill.
+- [ ] **Step 6:** `pnpm verify`; `pnpm test:db` under the lock. **Commits** `feat(db): allow-listed
+  auth accounts for backup_reader` and `ci: back up auth accounts through the allow-listed
+  functions (ADR-0029)`.
+
 ### Task 5.8a: Launch runbook, the time-zone sweep and the themed `global-error` — **Writes ADR-0038**
 
 **Source:** Part A 5.8 (code and docs half); M-13 (decision 30's precheck remedy; tzdata parity);
@@ -12205,15 +12297,19 @@ decision 37 of M4 (the pace check); M1 #17 (`global-error.tsx` follows the saved
 Not on the branch: the controller and the owner follow `docs/ops/production.md` once the owner has
 merged M5.
 
-- [ ] **1. Staging:** `supabase db push` of the three M5 migrations to `hoc-deu` (staging) —
+- [ ] **1. Staging:** `supabase db push` of the four M5 migrations to `hoc-deu` (staging) —
   precheck first, as the runbook says; `migration list` local = remote; the rolled-back DB smoke
   (onboarding → `plan.generated` → `mark_plan_seen` → check-in → `plan.extra_added` → auto check-in
   → reset); the owner's staging smoke checklist (decision 28).
 - [ ] **2. Backups on staging — right after the merge, before any launch step** (owner
   2026-09-26): the owner creates the `backup` environment and keys (`docs/ops/backups.md`); the
-  controller sets `backup_reader`'s password and the `auth` grants; run `backup.yml`, then
-  `restore-test.yml`, once each via `workflow_dispatch` on `main`; **both green before step 4**
-  (Part A 5.7's verify).
+  controller sets `backup_reader`'s password and checks the auth functions (5.7c: no `auth`
+  grants) and that the API does not expose `backup`; run `backup.yml`, then `restore-test.yml`,
+  once each via `workflow_dispatch` on `main`; **both green before step 4** (Part A 5.7's verify).
+  Then, **once, the owner's re-link drill** (owner 2026-09-27, `docs/ops/backups.md`): restore a
+  backup into staging (or a throwaway project), sign in with Google and with GitHub, and confirm
+  the same `profiles.id` and learning history come back — the weekly restore test cannot prove an
+  OAuth sign-in.
 - [ ] **3. Required check:** add `sim` to the `main` ruleset's required checks (decision 29).
 - [ ] **4. Production:** every production step of the runbook, in order, through the smoke; then
   point the backup environment at production and dispatch both workflows once more.
