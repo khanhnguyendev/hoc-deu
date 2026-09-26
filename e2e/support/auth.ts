@@ -4,7 +4,7 @@ import type { TestUser } from './users'
 
 /** The test-login form on /sign-in (AUTH_TEST_LOGIN=true, §2.3). */
 export const testLoginForm = (page: Page) =>
-  page.getByRole('form', { name: 'Đăng nhập thử nghiệm' })
+  page.getByRole('form', { name: 'Biểu mẫu đăng nhập thử nghiệm' })
 
 /**
  * Signs in through the test-login form on `/sign-in` (with `?next=` when given) and waits until

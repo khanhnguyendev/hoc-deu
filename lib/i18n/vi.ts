@@ -122,6 +122,9 @@ export const vi = {
     signInFailed: 'Đăng nhập không thành công. Bạn thử lại nhé.',
     testLoginTitle: 'Đăng nhập thử nghiệm',
     testLoginDescription: 'Chỉ có trên máy local và CI, với tài khoản thử nghiệm.',
+    /** The form's own accessible name (M2 minor: distinct from the section's `testLoginTitle`,
+     *  so the two nested landmarks are not named alike — landmark-unique). */
+    testLoginFormLabel: 'Biểu mẫu đăng nhập thử nghiệm',
     email: 'Email',
     password: 'Mật khẩu',
     submit: 'Đăng nhập',
@@ -149,6 +152,8 @@ export const vi = {
       title: 'Tài khoản đang tạm khoá',
       description: 'Quản trị viên đã tạm khoá tài khoản này. Bạn hãy liên hệ họ để mở lại.',
     },
+    /** AccountMenu's "Đăng xuất" (M2 minor): shown when the sign-out action rejects. */
+    signOutFailed: 'Không đăng xuất được. Bạn thử lại nhé.',
   },
   /**
    * /onboarding, the setup wizard (§2.4, task 2.10). `{minutes}` is a formatted number of

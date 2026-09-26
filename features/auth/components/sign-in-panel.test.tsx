@@ -61,13 +61,15 @@ describe('SignInPanel', () => {
 
   it('shows the test-login form only when test login is enabled', () => {
     renderPanel({ testLogin: false })
-    expect(screen.queryByRole('form', { name: 'Đăng nhập thử nghiệm' })).toBeNull()
+    expect(screen.queryByRole('form', { name: 'Biểu mẫu đăng nhập thử nghiệm' })).toBeNull()
     expect(screen.queryByLabelText(/Mật khẩu/)).toBeNull()
   })
 
   it('renders the test-login form with labelled e-mail and password fields', () => {
     renderPanel({ testLogin: true, next: '/today' })
-    const form = screen.getByRole('form', { name: 'Đăng nhập thử nghiệm' }) as HTMLFormElement
+    const form = screen.getByRole('form', {
+      name: 'Biểu mẫu đăng nhập thử nghiệm',
+    }) as HTMLFormElement
     const email = within(form).getByLabelText(/Email/) as HTMLInputElement
     const password = within(form).getByLabelText(/Mật khẩu/) as HTMLInputElement
     expect(email.type).toBe('email')
@@ -84,7 +86,7 @@ describe('SignInPanel', () => {
     const { signInWithTestLogin } = renderPanel({ testLogin: true })
     signInWithTestLogin.mockResolvedValueOnce({ error: WRONG_CREDENTIALS })
     const user = userEvent.setup()
-    const form = screen.getByRole('form', { name: 'Đăng nhập thử nghiệm' })
+    const form = screen.getByRole('form', { name: 'Biểu mẫu đăng nhập thử nghiệm' })
     await user.type(within(form).getByLabelText(/Email/), 'learner@example.test')
     await user.type(within(form).getByLabelText(/Mật khẩu/), 'wrong-password')
     await user.click(within(form).getByRole('button', { name: 'Đăng nhập' }))
@@ -110,5 +112,11 @@ describe('SignInPanel', () => {
     renderPanel({ testLogin: true })
     expect(screen.getByRole('heading', { level: 1, name: 'Đăng nhập' })).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: 'Đăng nhập thử nghiệm' })).toBeTruthy()
+  })
+
+  it('names the test-login section and its form differently (M2 minor, landmark-unique)', () => {
+    renderPanel({ testLogin: true })
+    expect(screen.getByRole('region', { name: 'Đăng nhập thử nghiệm' })).toBeTruthy()
+    expect(screen.getByRole('form', { name: 'Biểu mẫu đăng nhập thử nghiệm' })).toBeTruthy()
   })
 })

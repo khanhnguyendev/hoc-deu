@@ -1579,7 +1579,8 @@ export const CATALOG: Entry[] = [
         title: 'Không có giao diện — làm mới trang mỗi 30 giây, khi focus lại hoặc hiện lại',
         render: () => (
           <div className="text-sm text-muted-foreground">
-            <StatusWatcher />
+            {/* paused: the catalog runs no live 30 s interval in the background (M2 minor). */}
+            <StatusWatcher paused />
             <p>Không hiển thị gì (features/auth/components/status-watcher.tsx).</p>
           </div>
         ),

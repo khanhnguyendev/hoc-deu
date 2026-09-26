@@ -314,7 +314,10 @@ export async function setTrackStatus(
  * exists to revoke a session for) and returns to the landing page with the deleted notice.
  * `redirect()` is the function's last statement, outside any try/catch (it works by throwing).
  * Takes no arguments (assignable to `SettingsAction`: fewer parameters is fine) — there is no
- * form data to read.
+ * form data to read. The local sign-out's own error is checked, not ignored (M2 minor: an
+ * unnoticed failure there is a ghost session — the cookie survives an account that no longer
+ * exists, until the JWT itself expires) — it throws, the same way `signOut` does when even its
+ * local fallback fails, since there is nothing more local left to fall back to.
  */
 export async function deleteAccount(): Promise<SettingsResult> {
   const user = await requireUser()
@@ -322,6 +325,7 @@ export async function deleteAccount(): Promise<SettingsResult> {
   if (error) return { ok: false, message: copy.deleteAccount.failed }
 
   const supabase = await createClient()
-  await supabase.auth.signOut({ scope: 'local' })
+  const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
+  if (signOutError) throw signOutError
   redirect('/?account=deleted')
 }

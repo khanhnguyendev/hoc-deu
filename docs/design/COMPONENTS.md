@@ -250,10 +250,10 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
 - **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
-  menu with "Quản trị" for admins only; "Đăng xuất" is invoked as `() => void onSignOut()` from
-  `DropdownMenuItem onSelect` (Radix passes a non-serializable Event, and `onSignOut` takes none);
-  bottom nav 56 px; `main` and the root scroll padding keep content and focus clear of the top bar
-  and bottom nav
+  menu with "Quản trị" for admins only; "Đăng xuất" is awaited from `DropdownMenuItem onSelect`
+  (Radix passes a non-serializable Event, and `onSignOut` takes none) — a rejection (the redirect
+  never arrived) shows a toast instead of failing silently (M2 minor); bottom nav 56 px; `main`
+  and the root scroll padding keep content and focus clear of the top bar and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
 - **Toasts:** mounts the one `Toaster` of the signed-in pages (task 2.8) — layouts and pages may
@@ -706,20 +706,25 @@ from `lib/i18n/vi.ts`.
   signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
 - **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
   GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
-  form named by its h2 "Đăng nhập thử nghiệm", with labelled, required e-mail and password fields
-  (`autocomplete` username / current-password) and its error in an always-mounted `role="alert"`
-  region, so it is announced when it appears
+  region named by its h2 "Đăng nhập thử nghiệm" containing a form of its own, named "Biểu mẫu đăng
+  nhập thử nghiệm" — a distinct name from the region's, not the same one twice (M2 minor,
+  landmark-unique) — with labelled, required e-mail and password fields (`autocomplete` username /
+  current-password) and its error in an always-mounted `role="alert"` region, so it is announced
+  when it appears
 
 ### StatusWatcher
 
 - **Layer:** feature (`features/auth`, client)
 - **File:** `features/auth/components/status-watcher.tsx`
-- **Props:** none
+- **Props:** `paused?: boolean` (default `false`) — stops the interval and every listener; the
+  catalog demo sets it, so `/dev/components` runs no live 30 s interval in the background
 - **Variants:** none
 - **States:** renders nothing — it exists only for its effect
 - **Usage:** `<StatusWatcher />` inside `/pending` (`app/(account)/pending/page.tsx`); refreshes
-  the server page (`router.refresh()`) every 30 s, on `focus` and when the tab becomes visible
-  again, so the redirect to the user's home path fires as soon as an admin approves the account
+  the server page (`router.refresh()`) every 30 s while the tab is visible, on `focus` and when the
+  tab becomes visible again, so the redirect to the user's home path fires as soon as an admin
+  approves the account — the interval itself checks `document.visibilityState`, so a hidden tab
+  never refreshes on the tick (M2 minor)
 - **Accessibility:** no visible output, nothing to announce
 
 ### AdminLink

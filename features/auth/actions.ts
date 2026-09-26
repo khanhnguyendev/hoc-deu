@@ -66,10 +66,20 @@ export async function signInWithTestLogin(
   redirect(await completeSignIn(supabase, data.user, text(formData.get('next'))))
 }
 
-/** Ends the session and returns to sign-in. */
+/**
+ * Ends the session and returns to sign-in. The scope stays global by default (an owner decision
+ * left open at M2; ADR-0003 records this as a ruling the owner can overturn): a failed global
+ * sign-out falls back to a local one (cookies only), so the browser's own session is cleared
+ * either way (M2 minor) — a failure there too is unusual enough to surface as a rejection, which
+ * the account menu turns into a toast (`components/patterns/app-shell/account-menu.tsx`).
+ */
 export async function signOut(): Promise<never> {
   await requireUser()
   const supabase = await createClient()
-  await supabase.auth.signOut()
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    const { error: localError } = await supabase.auth.signOut({ scope: 'local' })
+    if (localError) throw localError
+  }
   redirect('/sign-in')
 }

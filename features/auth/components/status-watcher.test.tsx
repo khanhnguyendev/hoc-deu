@@ -53,4 +53,27 @@ describe('StatusWatcher', () => {
     window.dispatchEvent(new Event('focus'))
     expect(refresh).not.toHaveBeenCalled()
   })
+
+  it('never refreshes on the interval while the tab stays hidden (M2 minor)', () => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    })
+    render(<StatusWatcher />)
+    vi.advanceTimersByTime(90_000)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('watches nothing while paused — no interval, no focus or visibility listener', () => {
+    const { unmount } = render(<StatusWatcher paused />)
+    vi.advanceTimersByTime(90_000)
+    window.dispatchEvent(new Event('focus'))
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(refresh).not.toHaveBeenCalled()
+    unmount()
+  })
 })

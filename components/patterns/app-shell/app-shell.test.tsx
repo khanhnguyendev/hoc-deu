@@ -154,6 +154,22 @@ describe('AccountMenu', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
     expect(onSignOut).toHaveBeenCalledWith()
   })
+
+  it('awaits onSignOut and toasts when it rejects (M2 minor)', async () => {
+    const onSignOut = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('network down')
+    })
+    const user = userEvent.setup()
+    render(
+      <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin={false} onSignOut={onSignOut}>
+        <p>Nội dung</p>
+      </AppShell>,
+    )
+    await user.click(screen.getAllByRole('button', { name: 'Tài khoản: Nguyễn Văn An' })[0]!)
+    const menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
+    expect(await screen.findByText('Không đăng xuất được. Bạn thử lại nhé.')).toBeTruthy()
+  })
 })
 
 describe('AccountMenu avatar', () => {

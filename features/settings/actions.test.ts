@@ -31,6 +31,8 @@ const fake = vi.hoisted(() => ({
   failOn: null as { type: string; error: Error } | null,
   /** `deleteAccount`: what the admin API's `deleteUser` returns. */
   deleteUserResult: { error: null as { message: string } | null },
+  /** `deleteAccount`: what its local `signOut` returns. */
+  deleteAccountSignOutResult: { error: null as Error | null },
   calls: [] as unknown[][],
 }))
 
@@ -61,7 +63,7 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signOut: async (options: unknown) => {
         fake.calls.push(['signOut', options])
-        return { error: null }
+        return fake.deleteAccountSignOutResult
       },
     },
   }),
@@ -148,6 +150,7 @@ beforeEach(() => {
   fake.pausedDays = {}
   fake.failOn = null
   fake.deleteUserResult = { error: null }
+  fake.deleteAccountSignOutResult = { error: null }
   fake.calls = []
 })
 afterEach(() => {
@@ -646,5 +649,15 @@ describe('deleteAccount — §4.6', () => {
     const result = await run(null, new FormData())
     expect(result).toEqual({ ok: false, message: 'Không xoá được tài khoản. Bạn thử lại nhé.' })
     expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
+  })
+
+  it('throws (no redirect) when the local sign-out fails, after the account is already deleted (M2 minor)', async () => {
+    fake.deleteAccountSignOutResult = { error: new Error('cookies unavailable') }
+    await expect(run(null, new FormData())).rejects.toThrow('cookies unavailable')
+    expect(fake.calls).toEqual([
+      ['requireUser'],
+      ['deleteUser', USER_ID],
+      ['signOut', { scope: 'local' }],
+    ])
   })
 })

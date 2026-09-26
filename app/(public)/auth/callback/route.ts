@@ -8,7 +8,10 @@ import { createClient } from '@/lib/supabase/server'
  * `GET /auth/callback` — Google or GitHub return here with a PKCE `code` (§2.4, ADR-0003). The
  * code is exchanged for a session (its verifier is in a cookie from `signInWithProvider`), a
  * listed admin is bootstrapped (§2.5), and the user goes to the safe `next` or their home path.
- * No code (e.g. the user cancelled) or a failed exchange → `/sign-in?error=oauth`.
+ * No code (e.g. the user cancelled) or a failed exchange → `/sign-in?error=oauth`. A failure
+ * *after* the exchange succeeded — the bootstrap RPC or the profile read, inside `completeSignIn`
+ * — signs the exchanged session out locally (cookies only) and returns the same way, instead of
+ * a bare 500 (route handlers bypass `error.tsx`, M2 minor; ADR-0003).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   publicRoute()
@@ -19,7 +22,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (code) {
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error && data.user) return redirectTo(await completeSignIn(supabase, data.user, next))
+    if (!error && data.user) {
+      try {
+        return redirectTo(await completeSignIn(supabase, data.user, next))
+      } catch {
+        await supabase.auth.signOut({ scope: 'local' })
+      }
+    }
   }
   return redirectTo(signInErrorPath(next))
 }
