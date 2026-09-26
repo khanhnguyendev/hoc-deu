@@ -17,9 +17,9 @@ export async function generateMetadata(
 }
 
 /**
- * One route for every item type (§2.4, §3.2; decision 24): a link back to its track, then the
- * item's page under a link back to its track. Draft items are for admins; a retired item shows its
- * notice (ItemPageFrame, M3-R4). Results arrive with task 5.2.
+ * One route for every item type (§2.4, §3.2; decision 24): the item's page (`ItemBody`, loaded
+ * inside ItemView's Suspense) under a link back to its track. Draft items are for admins; a
+ * retired item shows its notice (ItemPageFrame, M3-R4). Results arrive with task 5.2.
  *
  * Task 5.1c: this segment has no `loading.tsx` and the params are validated (`notFound()`) before
  * anything renders, so an unknown, mismatched or hidden item answers a real HTTP 404 — never the

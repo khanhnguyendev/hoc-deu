@@ -84,6 +84,9 @@ test.describe('unknown tracks and items', () => {
       const ok = await page.goto('/t/dsa/items/lc-0001')
       expect(ok?.status()).toBe(200)
       await expect(page.getByRole('heading', { level: 1, name: 'Two Sum' })).toBeVisible()
+
+      // The track route has no Suspense at all — `load()` runs before anything renders.
+      expect((await page.goto('/t/dsa'))?.status()).toBe(200)
     } finally {
       await deleteTestUser(learner.id)
     }
