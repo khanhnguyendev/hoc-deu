@@ -18,6 +18,7 @@ import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { rebuildTodayIfUntouched } from '@/lib/plans/rebuild'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
@@ -60,9 +61,16 @@ const stale = (message: string = vi.errors.invalidTransition): SettingsResult =>
 /**
  * Records one event, then re-renders `/settings` — which also brings a fresh `requestId`, so the
  * next change is a new event (decision 9). An `EventError` becomes its Vietnamese message; any
- * other error goes to the route's error boundary.
+ * other error goes to the route's error boundary. With `rebuildFor` (a track change: budget,
+ * variant, add, pause, resume, remove), a recorded event is followed by
+ * `rebuildTodayIfUntouched` (Part B-M5 decision 11): today's plan follows the change while it is
+ * untouched, otherwise the change applies from tomorrow — its outcome never changes the message.
  */
-async function record(apply: () => Promise<unknown>, message: string): Promise<SettingsResult> {
+async function record(
+  apply: () => Promise<unknown>,
+  message: string,
+  rebuildFor?: string,
+): Promise<SettingsResult> {
   try {
     await apply()
   } catch (error) {
@@ -71,6 +79,7 @@ async function record(apply: () => Promise<unknown>, message: string): Promise<S
     if (STALE.has(error.code)) return stale(error.userMessage)
     return { ok: false, message: error.userMessage }
   }
+  if (rebuildFor !== undefined) await rebuildTodayIfUntouched(rebuildFor)
   revalidatePath(PATH)
   return { ok: true, message }
 }
@@ -193,6 +202,7 @@ export async function updateTrack(
         payload: changes,
       }),
     withTitle(copy.tracks.updated, track.title.vi),
+    user.id,
   )
 }
 
@@ -245,6 +255,7 @@ export async function enrollTrack(
         payload: { roadmapVariant, budgetMinutes, startDate },
       }),
     withTitle(copy.add.added, track.title.vi),
+    user.id,
   )
 }
 
@@ -275,6 +286,7 @@ export async function setTrackStatus(
           payload: {},
         }),
       withTitle(copy.tracks.paused, title),
+      user.id,
     )
   }
   if (to === 'removed') {
@@ -287,6 +299,7 @@ export async function setTrackStatus(
           payload: {},
         }),
       withTitle(copy.tracks.removed, title),
+      user.id,
     )
   }
 
@@ -308,6 +321,7 @@ export async function setTrackStatus(
         payload: { pausedDays },
       }),
     withTitle(copy.tracks.resumed, title),
+    user.id,
   )
 }
 

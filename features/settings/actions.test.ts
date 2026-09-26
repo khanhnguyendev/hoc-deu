@@ -35,6 +35,8 @@ const fake = vi.hoisted(() => ({
   deleteAccountSignOutResult: { error: null as Error | null },
   /** Set to make the mocked `signOut` reject instead of returning `{ error }`. */
   deleteAccountSignOutThrows: null as Error | null,
+  /** What `rebuildTodayIfUntouched` answers (decision 11). */
+  rebuildOutcome: 'rebuilt' as string,
   calls: [] as unknown[][],
 }))
 
@@ -97,6 +99,12 @@ vi.mock('./reads', () => ({
     return fake.pausedDays[trackId] ?? null
   },
 }))
+vi.mock('@/lib/plans/rebuild', () => ({
+  rebuildTodayIfUntouched: async (userId: string) => {
+    fake.calls.push(['rebuildTodayIfUntouched', userId])
+    return fake.rebuildOutcome
+  },
+}))
 vi.mock('@/lib/events/apply', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/events/apply')>()
   return {
@@ -155,6 +163,7 @@ beforeEach(() => {
   fake.deleteUserResult = { error: null }
   fake.deleteAccountSignOutResult = { error: null }
   fake.deleteAccountSignOutThrows = null
+  fake.rebuildOutcome = 'rebuilt'
   fake.calls = []
 })
 afterEach(() => {
@@ -648,6 +657,90 @@ describe('setTrackStatus — pause, resume, remove', () => {
       message: 'Không đọc được yêu cầu. Bạn tải lại trang rồi thử lại nhé.',
     })
     expect(events()).toEqual([])
+  })
+})
+
+describe("today's plan after a track change (decision 11)", () => {
+  const rebuilds = () => fake.calls.filter(([name]) => name === 'rebuildTodayIfUntouched')
+  const changes = [
+    [
+      'track.updated',
+      () =>
+        updateTrack(
+          null,
+          form({
+            requestId: REQUEST_ID,
+            trackId: 'dsa',
+            budgetMinutes: '90',
+            roadmapVariant: '8w',
+          }),
+        ),
+    ],
+    [
+      'track.enrolled',
+      () => {
+        fake.enrollments = []
+        return enrollTrack(
+          null,
+          form({
+            requestId: REQUEST_ID,
+            trackId: 'dsa',
+            budgetMinutes: '75',
+            roadmapVariant: '10w',
+            startDate: '2026-09-24',
+          }),
+        )
+      },
+    ],
+    [
+      'track.paused',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'english', to: 'paused' })),
+    ],
+    [
+      'track.resumed',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'english', to: 'active' })),
+    ],
+    [
+      'track.removed',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'dsa', to: 'removed' })),
+    ],
+  ] as const
+
+  it.each(changes)(
+    'rebuilds it once after a successful %s — after the event, before the re-render',
+    async (_, change) => {
+      expect(await change()).toMatchObject({ ok: true })
+      expect(rebuilds()).toEqual([['rebuildTodayIfUntouched', USER_ID]])
+      const order = fake.calls.map(([name]) => name)
+      expect(order.indexOf('applyLearnerEvent')).toBeLessThan(
+        order.indexOf('rebuildTodayIfUntouched'),
+      )
+      expect(order.indexOf('rebuildTodayIfUntouched')).toBeLessThan(order.indexOf('revalidatePath'))
+    },
+  )
+
+  it.each(changes)('never rebuilds it after a failed %s', async (type, change) => {
+    fake.failOn = { type, error: new EventError('invalid_transition') }
+    expect(await change()).toMatchObject({ ok: false })
+    expect(rebuilds()).toEqual([])
+  })
+
+  it.each(['rebuilt', 'unchanged', 'in_use', 'resume_plan', 'no_plan'])(
+    'keeps the message whatever the rebuild answers (%s)',
+    async (outcome) => {
+      fake.rebuildOutcome = outcome
+      await expect(changes[0][1]()).resolves.toEqual({ ok: true, message: `Đã lưu ${DSA}.` })
+    },
+  )
+
+  it('never rebuilds it after a schedule or code-language change', async () => {
+    await updateSchedule(
+      null,
+      form({ requestId: REQUEST_ID, timezone: 'America/Los_Angeles', dayStartsAt: '04:00' }),
+    )
+    await updateCodeLanguage(null, form({ requestId: REQUEST_ID, codeLanguage: 'go' }))
+    expect(events()).toHaveLength(2)
+    expect(rebuilds()).toEqual([])
   })
 })
 

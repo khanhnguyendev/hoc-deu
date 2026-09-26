@@ -5,32 +5,16 @@
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { LocalDay, ScheduleVersion } from '@/lib/domain/time/localDay'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 import type { Database } from '@/lib/supabase/database.types'
 import type { Enrollment, EnrollmentStatus } from './schema'
+
+/** One copy of the schedule reader: the plan service's (task 5.1a). */
+export { readScheduleVersions } from '@/lib/plans/reads'
 
 type Client = SupabaseClient<Database>
 
 const STATUSES: readonly EnrollmentStatus[] = ['active', 'paused', 'removed']
-
-/** Every schedule version of the user, oldest first (`effectiveAt` as ISO-8601 UTC). */
-export async function readScheduleVersions(
-  supabase: Client,
-  userId: string,
-): Promise<ScheduleVersion[]> {
-  const { data, error } = await supabase
-    .from('schedule_versions')
-    .select('timezone, day_starts_at, effective_at')
-    .eq('user_id', userId)
-    .order('effective_at')
-  if (error) throw new Error('Could not read the schedule versions', { cause: error })
-  return data.map((row) => ({
-    timezone: row.timezone,
-    // `time` reads as HH:MM:SS; day starts are whole minutes (decision 5).
-    dayStartsAt: row.day_starts_at.slice(0, 5),
-    effectiveAt: new Date(row.effective_at).toISOString(),
-  }))
-}
 
 /** Every track the user was ever enrolled in, with its status (removed ones too). */
 export async function readEnrollments(
