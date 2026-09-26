@@ -11,12 +11,7 @@
  * Not `server-only`: no secrets, and a "use server" module may only export async functions, so
  * `completeOnboarding` (`./actions.ts`) imports these as a plain module instead.
  */
-import { createHash } from 'node:crypto'
-
-/** A short, stable digest of `value` (JSON-serialised) for an event key. */
-function digest(value: unknown): string {
-  return createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 16)
-}
+import { digest } from '@/lib/events/ids'
 
 /** The schedule fields the learner chose (never the derived `effectiveAt`, decision 5). */
 export const scheduleKey = (fields: { timezone: string; dayStartsAt: string }): string =>
@@ -25,9 +20,21 @@ export const scheduleKey = (fields: { timezone: string; dayStartsAt: string }): 
 export const settingsKey = (codeLanguage: string): string =>
   `settings.changed:${digest({ codeLanguage })}`
 
+/**
+ * `currentStatus` is the track's `user_tracks` row status as read *before* this event (`null`
+ * when never enrolled) — not a chosen field, but it must still be part of the digest: a track
+ * removed by the orphan cleanup (below) earlier in the same render, then re-selected with the
+ * exact same fields, would otherwise key identically to its first enrollment and read back as a
+ * no-op `duplicate`, leaving the row `removed` (M2 minor, an A→B→A selection within one render).
+ */
 export const trackEnrolledKey = (
   trackId: string,
-  fields: { roadmapVariant: string; budgetMinutes: number; startDate: string },
+  fields: {
+    roadmapVariant: string
+    budgetMinutes: number
+    startDate: string
+    currentStatus: 'active' | 'paused' | 'removed' | null
+  },
 ): string => `track.enrolled:${trackId}:${digest(fields)}`
 
 /** An orphan enrollment the final selection dropped (no chosen fields to digest). */

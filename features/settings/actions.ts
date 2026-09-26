@@ -15,7 +15,7 @@ import {
 } from '@/lib/domain/time/localDay'
 import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, EventError } from '@/lib/events/apply'
-import { deriveEventId } from '@/lib/events/ids'
+import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -112,7 +112,10 @@ export async function updateSchedule(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(parsed.data.requestId, 'schedule.changed'),
+        // Digested on `desired` only, never `effectiveAt` (server-derived): an edited resubmit —
+        // a different zone, picked after reading the first error — must send a new event, but the
+        // same tap twice must still collapse to one (M2 RF-2 "digest keys" minor; decision 16).
+        id: deriveEventId(parsed.data.requestId, `schedule.changed:${digest(desired)}`),
         type: 'schedule.changed',
         payload: { ...desired, effectiveAt },
       }),
@@ -141,7 +144,7 @@ export async function updateCodeLanguage(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, 'settings.changed:codeLanguage'),
+        id: deriveEventId(requestId, `settings.changed:${digest({ codeLanguage })}`),
         type: 'settings.changed',
         payload: { codeLanguage },
       }),
@@ -184,7 +187,7 @@ export async function updateTrack(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, `track.updated:${trackId}`),
+        id: deriveEventId(requestId, `track.updated:${trackId}:${digest(changes)}`),
         type: 'track.updated',
         trackId,
         payload: changes,
@@ -233,7 +236,10 @@ export async function enrollTrack(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, `track.enrolled:${trackId}`),
+        id: deriveEventId(
+          requestId,
+          `track.enrolled:${trackId}:${digest({ roadmapVariant, budgetMinutes, startDate })}`,
+        ),
         type: 'track.enrolled',
         trackId,
         payload: { roadmapVariant, budgetMinutes, startDate },

@@ -97,6 +97,9 @@ function check(input: OnboardingInput, now: Date): Checked | Record<string, stri
 
 const isChecked = (value: Checked | Record<string, string>): value is Checked => 'schedule' in value
 
+type EnrollmentStatus = 'active' | 'paused' | 'removed'
+const ENROLLMENT_STATUSES: readonly EnrollmentStatus[] = ['active', 'paused', 'removed']
+
 /** The user's currently `active` enrollments (own row, RLS): candidates for the orphan cleanup below. */
 async function activeEnrollmentIds(
   supabase: SupabaseClient<Database>,
@@ -109,6 +112,34 @@ async function activeEnrollmentIds(
     .eq('status', 'active')
   if (error) throw new Error('Could not read the enrolled tracks', { cause: error })
   return data.map((row) => row.track_id)
+}
+
+/**
+ * The current status (own row, RLS) of each of `trackIds` — needed only to key `track.enrolled`:
+ * a track re-selected after an earlier `track.removed` in this same render (the orphan cleanup
+ * below, on a prior submission attempt) must not digest identically to its first enrollment, or
+ * `apply_event` reads the resubmit as a no-op `duplicate` and the row stays `removed` (M2 minor,
+ * an A→B→A selection within one render). `null` for a track never enrolled.
+ */
+async function currentStatusesOf(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  trackIds: string[],
+): Promise<Map<string, EnrollmentStatus>> {
+  if (trackIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('user_tracks')
+    .select('track_id, status')
+    .eq('user_id', userId)
+    .in('track_id', trackIds)
+  if (error) throw new Error('Could not read the enrolled tracks', { cause: error })
+  return new Map(
+    data.map((row) => [
+      row.track_id,
+      // The check constraint allows exactly these; anything else reads as removed (not active).
+      ENROLLMENT_STATUSES.find((status) => status === row.status) ?? 'removed',
+    ]),
+  )
 }
 
 /**
@@ -162,9 +193,13 @@ export async function completeOnboarding(
       })
     }
     const selectedTrackIds = new Set(input.tracks.map((track) => track.trackId))
+    const currentStatuses = await currentStatusesOf(supabase, user.id, [...selectedTrackIds])
     for (const { trackId, roadmapVariant, budgetMinutes } of input.tracks) {
+      const currentStatus = currentStatuses.get(trackId) ?? null
       await applyLearnerEvent(supabase, {
-        id: eventId(trackEnrolledKey(trackId, { roadmapVariant, budgetMinutes, startDate })),
+        id: eventId(
+          trackEnrolledKey(trackId, { roadmapVariant, budgetMinutes, startDate, currentStatus }),
+        ),
         type: 'track.enrolled',
         trackId,
         payload: { roadmapVariant, budgetMinutes, startDate },

@@ -34,3 +34,16 @@ export function deriveEventId(requestId: string, key: string): string {
     hex.slice(20, 32),
   ].join('-')
 }
+
+/**
+ * A short, stable digest of `value` (JSON-serialised), for mixing into an event key alongside its
+ * type and id (M2 RF-2 "digest keys" minor): a key built from the type and id alone repeats across
+ * an edited resubmit — a different budget, picked after reading the first error, say — which
+ * `apply_event` would then record as a no-op `duplicate`, keeping the first submission's values.
+ * Mixing in a digest of the fields actually chosen makes a changed value a different event.
+ * Never include a value derived from the clock or from another event (an effective-at, a computed
+ * pausedDays): the same tap twice must still collapse to one event (decision 16).
+ */
+export function digest(value: unknown): string {
+  return createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 16)
+}

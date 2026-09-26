@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { deriveEventId } from '@/lib/events/ids'
+import { deriveEventId, digest } from '@/lib/events/ids'
 import type { SettingsAction } from './schema'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
@@ -166,7 +166,9 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('schedule.changed'),
+        id: id(
+          `schedule.changed:${digest({ timezone: 'America/Los_Angeles', dayStartsAt: '04:00' })}`,
+        ),
         type: 'schedule.changed',
         payload: {
           timezone: 'America/Los_Angeles',
@@ -228,7 +230,9 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     const result = await save({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })
     expect(sent()).toEqual([
       {
-        id: id('schedule.changed'),
+        id: id(
+          `schedule.changed:${digest({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })}`,
+        ),
         type: 'schedule.changed',
         payload: {
           timezone: 'Asia/Ho_Chi_Minh',
@@ -361,7 +365,7 @@ describe('updateCodeLanguage', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('settings.changed:codeLanguage'),
+        id: id(`settings.changed:${digest({ codeLanguage: 'java' })}`),
         type: 'settings.changed',
         payload: { codeLanguage: 'java' },
       },
@@ -405,7 +409,7 @@ describe('updateTrack — minutes and roadmap variant', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('track.updated:dsa'),
+        id: id(`track.updated:dsa:${digest({ budgetMinutes: 90 })}`),
         type: 'track.updated',
         trackId: 'dsa',
         payload: { budgetMinutes: 90 },
@@ -419,6 +423,18 @@ describe('updateTrack — minutes and roadmap variant', () => {
     await save({ budgetMinutes: '60', roadmapVariant: '10w' })
     expect(sent()).toMatchObject([{ payload: { roadmapVariant: '10w' } }])
     expect((sent()[0] as { payload: object }).payload).not.toHaveProperty('budgetMinutes')
+  })
+
+  it("sends a new id — with the new budget — on an edited resubmit after a partial failure, under the same requestId (M2 RF-2 'digest keys')", async () => {
+    fake.failOn = { type: 'track.updated', error: new EventError('unknown') }
+    await save({ budgetMinutes: '90', roadmapVariant: '8w' })
+    const firstId = (sent()[0] as { id: string }).id
+    fake.calls = []
+    fake.failOn = null
+    await save({ budgetMinutes: '75', roadmapVariant: '8w' })
+    const retryEvent = sent()[0] as { id: string; payload: { budgetMinutes: number } }
+    expect(retryEvent.payload.budgetMinutes).toBe(75)
+    expect(retryEvent.id).not.toBe(firstId)
   })
 
   it('sends nothing when nothing changed', async () => {
@@ -488,7 +504,9 @@ describe('enrollTrack — "Thêm lộ trình"', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('track.enrolled:dsa'),
+        id: id(
+          `track.enrolled:dsa:${digest({ roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' })}`,
+        ),
         type: 'track.enrolled',
         trackId: 'dsa',
         payload: { roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' },
