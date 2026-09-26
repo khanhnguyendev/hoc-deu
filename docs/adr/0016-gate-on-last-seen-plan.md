@@ -1,7 +1,7 @@
 # ADR-0016: Gate rule on the last **seen** plan; stale-plan resume
 
 - **Status:** accepted
-- **Date:** 2026-09-25
+- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5, owner ruling)
 - **Spec:** platform design §5.2, §5.6, §5.8, §5.9
 
 ## Context
@@ -28,8 +28,9 @@ Two further constraints shape the rule:
   today (`lastSeenPlan`); an unseen plan, whatever its date, is invisible to the gate. This keeps
   AI and baseline users on one rule: skipping a day never closes the gate on a plan nobody opened.
 - **Open** when there is no last seen plan, when it has no blocks (an empty plan gave nothing to
-  do — RF-4), or when any of its blocks has been checked in `done` or `partial`, at any time
-  including a later day. **Closed** otherwise (nothing done, or everything skipped).
+  do — RF-4), when any of its blocks has been checked in `done` or `partial`, at any time
+  including a later day, or when none of its blocks belongs to a track that is still active
+  (M-5, below). **Closed** otherwise (nothing done, or everything skipped).
 - **`resumedToday`.** When the gate is open because of a check-in on an **earlier** day's plan,
   `gateStatus` reports whether the *earliest* qualifying (`done`/`partial`) check-in landed on
   `today`. When it did, the caller (`ensurePlan`, M5 task 5.1) builds no new plan today — the resumed work
@@ -41,6 +42,16 @@ Two further constraints shape the rule:
   unfinished blocks (`unfinishedBlocks`, plan order, `done`/`partial` dropped) with the paused
   banner, and check-ins go to that old plan. The bot cannot write a plan for this user
   (`skipped_gate_closed`).
+- **Blocks of tracks no longer active never hold the gate closed (M-5 A, owner ruling
+  2026-09-26).** `gateStatus` and `unfinishedBlocks` take the learner's active track IDs
+  (`activeTrackIds`: the `active` enrollments, which `ensurePlan` passes — M5 task 5.1a). A `done` /
+  `partial` check-in on any block still opens the gate, whatever its track; when there is none,
+  only blocks of active tracks count, so a last seen plan whose blocks all belong to tracks paused
+  or removed since is treated like an empty plan (open), and the paused view lists only the active
+  tracks' unfinished blocks. Pausing a track to open the gate gains nothing: the roadmap moves only
+  on introduced items, so the next plan holds the same unfinished items plus the due reviews, as
+  "Học tiếp hôm nay" would. Without `activeTrackIds` every track counts (the M4 rule). Not a
+  `RULES_VERSION` change: the gate reads history and derives no rows.
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
   plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
   old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers

@@ -8,8 +8,8 @@ import type { PlanBlock, StoredPlan } from './types'
 const TODAY: LocalDay = '2026-09-25'
 const YESTERDAY: LocalDay = '2026-09-24'
 
-function block(id: string): PlanBlock {
-  return { id, trackId: 'dsa', kind: 'review', estMinutes: 10, items: [] }
+function block(id: string, trackId = 'dsa'): PlanBlock {
+  return { id, trackId, kind: 'review', estMinutes: 10, items: [] }
 }
 
 /** A stored plan with the given block IDs. `seenAt: null` makes it an unseen plan. */
@@ -24,7 +24,7 @@ function plan(
     version: 1,
     source: 'baseline',
     seenAt,
-    blocks: blockIds.map(block),
+    blocks: blockIds.map((id) => block(id)),
     tracks: {},
   }
 }
@@ -34,11 +34,12 @@ function checkIn(
   blockId: string,
   status: CheckInStatus,
   checkedInOn: LocalDay,
+  trackId = 'dsa',
 ): BlockState {
   return {
     planId,
     blockId,
-    trackId: 'dsa',
+    trackId,
     status,
     minutes: 10,
     note: null,
@@ -225,5 +226,80 @@ describe('unfinishedBlocks (M5 paused view)', () => {
     )
     const remaining = unfinishedBlocks(last, blocks)
     expect(remaining.map((b) => b.id)).toEqual(['b2', 'b3'])
+  })
+})
+
+describe('M-5 (A): blocks of tracks no longer active never hold the gate closed', () => {
+  /** DSA was paused or removed since yesterday; only English is active. */
+  const ACTIVE = new Set(['english'])
+
+  /** A seen plan of `planDate` with the given `[blockId, trackId]` blocks. */
+  function mixedPlan(planDate: LocalDay, blocks: readonly [string, string][]): StoredPlan {
+    return { ...plan(planDate, []), blocks: blocks.map(([id, trackId]) => block(id, trackId)) }
+  }
+
+  it('only blocks of an inactive track, none checked in → open, resumedToday false', () => {
+    const last = mixedPlan(YESTERDAY, [
+      ['dsa:review:1', 'dsa'],
+      ['dsa:new:1', 'dsa'],
+    ])
+    expect(gateStatus([last], {}, TODAY, ACTIVE)).toEqual({
+      open: true,
+      lastSeen: last,
+      resumedToday: false,
+    })
+  })
+
+  it('blocks of an inactive and an active track, none done → closed', () => {
+    const last = mixedPlan(YESTERDAY, [
+      ['dsa:new:1', 'dsa'],
+      ['english:new:1', 'english'],
+    ])
+    const blocks = blockStates(checkIn(last.id, 'english:new:1', 'skipped', YESTERDAY, 'english'))
+    expect(gateStatus([last], blocks, TODAY, ACTIVE)).toEqual({
+      open: false,
+      lastSeen: last,
+      daysSince: 1,
+      offerResume: false,
+    })
+  })
+
+  it('a done block of the inactive track still opens it', () => {
+    const last = mixedPlan(YESTERDAY, [
+      ['dsa:new:1', 'dsa'],
+      ['english:new:1', 'english'],
+    ])
+    const blocks = blockStates(checkIn(last.id, 'dsa:new:1', 'done', YESTERDAY))
+    expect(gateStatus([last], blocks, TODAY, ACTIVE)).toEqual({
+      open: true,
+      lastSeen: last,
+      resumedToday: false,
+    })
+  })
+
+  it('unfinishedBlocks with the set lists only the unfinished blocks of active tracks', () => {
+    const last = mixedPlan(YESTERDAY, [
+      ['dsa:review:1', 'dsa'],
+      ['english:review:1', 'english'],
+      ['dsa:new:1', 'dsa'],
+      ['english:new:1', 'english'],
+    ])
+    const blocks = blockStates(
+      checkIn(last.id, 'english:review:1', 'done', YESTERDAY, 'english'),
+      checkIn(last.id, 'dsa:new:1', 'skipped', YESTERDAY),
+    )
+    expect(unfinishedBlocks(last, blocks, ACTIVE).map((b) => b.id)).toEqual(['english:new:1'])
+    // Without the set every track counts (M4).
+    expect(unfinishedBlocks(last, blocks).map((b) => b.id)).toEqual([
+      'dsa:review:1',
+      'dsa:new:1',
+      'english:new:1',
+    ])
+  })
+
+  it('without the set, a plan of only DSA blocks stays closed (M4 behaviour)', () => {
+    const last = mixedPlan(YESTERDAY, [['dsa:new:1', 'dsa']])
+    expect(gateStatus([last], {}, TODAY).open).toBe(false)
+    expect(gateStatus([last], {}, TODAY, new Set(['dsa'])).open).toBe(false)
   })
 })
