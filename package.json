@@ -24,6 +24,7 @@
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local --schema public > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
     "db:fixtures": "tsx tools/db/local-day-parity-cli.ts",
+    "db:tz-sweep": "tsx tools/db/tz-sweep.ts",
     "test:db": "supabase test db",
     "test:sim": "SIM_FULL=1 vitest run lib/domain/plan/__tests__/simulation",
     "content:build": "tsx tools/content/cli.ts",
