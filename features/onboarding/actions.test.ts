@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { deriveEventId } from '@/lib/events/ids'
+import { scheduleKey, settingsKey, trackEnrolledKey, trackRemovedKey } from './event-keys'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
 const USER_ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
@@ -13,6 +14,8 @@ const fake = vi.hoisted(() => ({
   /** Throw this from the apply call with this event type (a partial failure). */
   failOn: null as { type: string; error: Error } | null,
   calls: [] as unknown[][],
+  /** `user_tracks` rows with status `active`, read before `onboarding.completed` (orphan cleanup). */
+  activeEnrollments: [] as string[],
 }))
 
 vi.mock('next/navigation', () => ({
@@ -27,7 +30,24 @@ vi.mock('@/lib/auth/dal', () => ({
     return fake.user
   },
 }))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ client: 'user' }) }))
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({
+    client: 'user',
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => {
+            fake.calls.push(['from', table])
+            return Promise.resolve({
+              data: fake.activeEnrollments.map((trackId) => ({ track_id: trackId })),
+              error: null,
+            })
+          },
+        }),
+      }),
+    }),
+  }),
+}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ client: 'admin' }) }))
 vi.mock('@/lib/events/apply', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/events/apply')>()
@@ -92,13 +112,20 @@ const eventTypes = () => events().map((call) => (call.at(-1) as { type: string }
 const learnerEvent = (type: string) =>
   events()
     .find((call) => (call.at(-1) as { type: string }).type === type)
-    ?.at(-1) as { payload: Record<string, unknown> } | undefined
+    ?.at(-1) as { id: string; payload: Record<string, unknown> } | undefined
+const learnerEvents = (type: string) =>
+  events()
+    .filter((call) => (call.at(-1) as { type: string }).type === type)
+    .map(
+      (call) => call.at(-1) as { id: string; trackId?: string; payload: Record<string, unknown> },
+    )
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: new Date(NOW) })
   fake.user = { id: USER_ID, onboardedAt: null }
   fake.failOn = null
   fake.calls = []
+  fake.activeEnrollments = []
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -113,7 +140,7 @@ describe('completeOnboarding — the events, in order', () => {
         'applyLearnerEvent',
         'user',
         {
-          id: id('schedule.changed'),
+          id: id(scheduleKey({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })),
           type: 'schedule.changed',
           payload: {
             timezone: 'Asia/Ho_Chi_Minh',
@@ -126,7 +153,7 @@ describe('completeOnboarding — the events, in order', () => {
         'applyLearnerEvent',
         'user',
         {
-          id: id('settings.changed'),
+          id: id(settingsKey('python')),
           type: 'settings.changed',
           payload: { codeLanguage: 'python' },
         },
@@ -135,7 +162,13 @@ describe('completeOnboarding — the events, in order', () => {
         'applyLearnerEvent',
         'user',
         {
-          id: id('track.enrolled:dsa'),
+          id: id(
+            trackEnrolledKey('dsa', {
+              roadmapVariant: '10w',
+              budgetMinutes: 75,
+              startDate: '2026-09-24',
+            }),
+          ),
           type: 'track.enrolled',
           trackId: 'dsa',
           payload: { roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' },
@@ -145,12 +178,19 @@ describe('completeOnboarding — the events, in order', () => {
         'applyLearnerEvent',
         'user',
         {
-          id: id('track.enrolled:english'),
+          id: id(
+            trackEnrolledKey('english', {
+              roadmapVariant: '10w',
+              budgetMinutes: 25,
+              startDate: '2026-09-24',
+            }),
+          ),
           type: 'track.enrolled',
           trackId: 'english',
           payload: { roadmapVariant: '10w', budgetMinutes: 25, startDate: '2026-09-24' },
         },
       ],
+      ['from', 'user_tracks'],
       [
         'applySystemEvent',
         'admin',
@@ -172,7 +212,7 @@ describe('completeOnboarding — the events, in order', () => {
     expect(learnerEvent('schedule.changed')?.payload.timezone).toBe('Asia/Ho_Chi_Minh')
   })
 
-  it('re-sends the same event ids on a retry after a partial failure (RF-2)', async () => {
+  it('re-sends the same event ids on a retry that changes nothing (RF-2)', async () => {
     fake.failOn = { type: 'track.enrolled', error: new EventError('unknown') }
     await submit(input())
     const firstIds = events().map((call) => (call.at(-1) as { id: string }).id)
@@ -181,6 +221,53 @@ describe('completeOnboarding — the events, in order', () => {
     await expect(submit(input())).rejects.toThrow('REDIRECT:/today')
     const retryIds = events().map((call) => (call.at(-1) as { id: string }).id)
     expect(retryIds.slice(0, firstIds.length)).toEqual(firstIds)
+  })
+
+  it("sends a new track.enrolled id — with the new budget — on an edited resubmit after a partial failure (M2 RF-2 'digest keys')", async () => {
+    fake.failOn = { type: 'onboarding.completed', error: new EventError('unknown') }
+    await submit(input())
+    const firstDsaId = learnerEvents('track.enrolled').find((event) => event.trackId === 'dsa')?.id
+    fake.calls = []
+    fake.failOn = null
+    const edited = input({
+      tracks: [
+        { trackId: 'dsa', budgetMinutes: 90, roadmapVariant: '10w' },
+        { trackId: 'english', budgetMinutes: 25, roadmapVariant: '10w' },
+      ],
+    })
+    await expect(submit(edited)).rejects.toThrow('REDIRECT:/today')
+    const dsaEvent = learnerEvents('track.enrolled').find((event) => event.trackId === 'dsa')
+    expect(dsaEvent?.payload.budgetMinutes).toBe(90)
+    expect(dsaEvent?.id).not.toBe(firstDsaId)
+  })
+})
+
+describe('completeOnboarding — orphan enrollments (M2 minor)', () => {
+  it('removes an active enrollment the final selection no longer contains', async () => {
+    fake.activeEnrollments = ['dsa']
+    const englishOnly = input({ tracks: [input().tracks[1]!], codeLanguage: undefined })
+    await expect(submit(englishOnly)).rejects.toThrow('REDIRECT:/today')
+    expect(learnerEvent('track.removed')).toMatchObject({
+      id: id(trackRemovedKey('dsa')),
+      type: 'track.removed',
+      trackId: 'dsa',
+      payload: {},
+    })
+    // Removed strictly before onboarding.completed.
+    const types = eventTypes()
+    expect(types.indexOf('track.removed')).toBeLessThan(types.indexOf('onboarding.completed'))
+  })
+
+  it('removes nothing when the final selection still contains every active track', async () => {
+    fake.activeEnrollments = ['dsa', 'english']
+    await expect(submit(input())).rejects.toThrow('REDIRECT:/today')
+    expect(eventTypes()).not.toContain('track.removed')
+  })
+
+  it('removes nothing when there is no active enrollment yet (a fresh onboarding)', async () => {
+    fake.activeEnrollments = []
+    await expect(submit(input())).rejects.toThrow('REDIRECT:/today')
+    expect(eventTypes()).not.toContain('track.removed')
   })
 })
 
