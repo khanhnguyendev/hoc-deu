@@ -1,8 +1,9 @@
 /**
- * The day's plan in the database (platform design §2.3, §4.1, §4.4, §5.4; Part B-M4 decisions 12,
- * 33): `storePlan` writes it through `apply_system_event` (`plan.generated`, secret key), which
- * takes the `(user, plan_date)` lock, refuses a second plan for a date and a rebuild of a plan in
- * use; `storedPlanFromRow` reads a `day_plans` row back for the engine.
+ * The day's plan in the database (platform design §2.3, §4.1, §4.4, §5.4, §5.9; Part B-M4
+ * decisions 12, 33; Part B-M5 decision 22): `storePlan` writes it through `apply_system_event`
+ * (`plan.generated`, secret key), which takes the `(user, plan_date)` lock, refuses a second plan
+ * for a date and a rebuild of a plan in use; `addExtraItems` appends items to a track's `extra`
+ * block (`plan.extra_added`); `storedPlanFromRow` reads a `day_plans` row back for the engine.
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -11,8 +12,10 @@ import {
   planBlockSchema,
   trackSnapshotSchema,
   type DayPlan,
+  type PlanBlock,
   type StoredPlan,
 } from '@/lib/domain/plan/types'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 import type { Database, Json } from '@/lib/supabase/database.types'
 import { EventError, eventErrorOf, systemEventBody } from './apply'
 
@@ -95,6 +98,95 @@ export async function storePlan(
     throw eventErrorOf(error)
   }
   return planWriteResult(data)
+}
+
+/**
+ * `plan.extra_added`'s `itemIds` bound, as `apply_system_event` checks it (ruling M5-R2): 1 to
+ * `max` distinct ids of 1 to `maxLength` characters. The Zod payload schema stays unbounded
+ * (`lib/domain/events.ts`); `addExtraItems` checks this before any call, and
+ * `tools/db/sql-sync.test.ts` keeps it equal to the SQL.
+ */
+export const EXTRA_ITEM_IDS = { max: 20, maxLength: 128 } as const
+
+function extraItemIdsValid(itemIds: readonly string[]): boolean {
+  return (
+    itemIds.length >= 1 &&
+    itemIds.length <= EXTRA_ITEM_IDS.max &&
+    new Set(itemIds).size === itemIds.length &&
+    itemIds.every((id) => id.length >= 1 && id.length <= EXTRA_ITEM_IDS.maxLength)
+  )
+}
+
+/** The plan's new version under `key` from an `applied` answer; anything else is `unknown`. */
+function extraAddedResult(
+  data: Json | null,
+  key: string,
+): { readonly outcome: 'applied' | 'duplicate'; readonly version: number | null } {
+  const result: { [key: string]: Json | undefined } =
+    data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}
+  if (result.outcome === 'duplicate') return { outcome: 'duplicate', version: null }
+  const versions = result.versions
+  const version =
+    versions !== null && typeof versions === 'object' && !Array.isArray(versions)
+      ? versions[key]
+      : undefined
+  if (result.outcome === 'applied' && typeof version === 'number' && Number.isInteger(version)) {
+    return { outcome: 'applied', version }
+  }
+  throw new EventError('unknown')
+}
+
+/** plan.extra_added through apply_system_event (5.4): `block` is the track's whole extra block
+ *  after the addition (planBlockSchema-validated here first); `itemIds` the items it appends. */
+export async function addExtraItems(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  input: {
+    readonly eventId: string
+    readonly planId: string
+    readonly planDate: LocalDay
+    readonly trackId: string
+    readonly block: PlanBlock
+    readonly itemIds: readonly string[]
+    /** The plan's current version. */
+    readonly expectedVersion: number
+    /** The day the caller computed the addition for (decision 10 of M4). */
+    readonly localDay: LocalDay
+  },
+): Promise<{ readonly outcome: 'applied' | 'duplicate'; readonly version: number | null }> {
+  const { eventId, planId, planDate, trackId, itemIds, expectedVersion, localDay } = input
+  // The database checks the rest (the block id, kind and track, and that it only appends
+  // `itemIds` to the stored extra block); these bounds never reach it (ruling M5-R2).
+  const block = planBlockSchema.safeParse(input.block)
+  if (
+    !block.success ||
+    !extraItemIdsValid(itemIds) ||
+    !Number.isInteger(expectedVersion) ||
+    expectedVersion < 1
+  ) {
+    throw new EventError('invalid_event')
+  }
+  const p_event = systemEventBody({
+    id: eventId,
+    type: 'plan.extra_added',
+    payload: { itemIds: [...itemIds] },
+    trackId,
+    planId,
+    localDay,
+  })
+  const key = `day_plans:${planDate}`
+  // The block is plain JSON once parsed (lib/domain/plan/types.ts), camelCase inside.
+  const row = block.data as { [key: string]: Json }
+  const { data, error } = await admin.rpc('apply_system_event', {
+    p_user_id: userId,
+    p_event,
+    p_changes: [{ table: 'day_plan_block', row }],
+    p_expected: { [key]: expectedVersion },
+  })
+  if (error) {
+    throw eventErrorOf(error)
+  }
+  return extraAddedResult(data, key)
 }
 
 const blocksSchema = z.array(planBlockSchema)

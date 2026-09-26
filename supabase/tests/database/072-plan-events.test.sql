@@ -1048,7 +1048,7 @@ select is(
 );
 
 -- Every other system type stays not_implemented, before any lock or lookup (its owning task:
--- plan.extra_added 5.4, plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
+-- plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
 -- admin.bot_token_rotated 6.3, item.snapshot the compaction job; the admin decisions have their
 -- own functions).
 select results_eq(
@@ -1056,7 +1056,8 @@ select results_eq(
     $$select t, tests.system_error(%L, jsonb_build_object(
           'id', gen_random_uuid(), 'type', t, 'payload', '{}'::jsonb))
       from unnest(public.system_event_types()) as t
-      where t not in ('onboarding.completed', 'plan.generated', 'block.checked_in')
+      where t not in (
+        'onboarding.completed', 'plan.generated', 'plan.extra_added', 'block.checked_in')
       order by 1$$,
     :'learner'
   ),
@@ -1065,11 +1066,11 @@ select results_eq(
       'admin.ai_flag_changed', 'admin.bootstrapped', 'admin.bot_token_rotated',
       'admin.role_changed', 'admin.user_approved', 'admin.user_rejected', 'admin.user_suspended',
       'item.snapshot', 'plan.ai_applied', 'plan.ai_proposed', 'plan.ai_skipped',
-      'plan.extra_added', 'roadmap.override_resumed', 'roadmap.override_revoked',
+      'roadmap.override_resumed', 'roadmap.override_revoked',
       'roadmap.override_set', 'roadmap.override_suspended', 'user_item.created',
       'user_item.hidden', 'user_item.retired'
     ]) as t order by 1$$,
-  'every other system type (19) raises not_implemented'
+  'every other system type (18) raises not_implemented (plan.extra_added: task 5.0b, 073)'
 );
 
 select * from finish();

@@ -7,6 +7,7 @@ import { LEARNER_EVENT_TYPES, MAX_PAUSED_DAYS, SYSTEM_EVENT_TYPES } from '@/lib/
 import { RULES_VERSION } from '@/lib/domain/rules'
 import { BUDGET_MINUTES, CODE_LANGUAGES, ROADMAP_VARIANT_PATTERN } from '@/lib/domain/settings'
 import { CHECK_IN_STATUSES, ITEM_STATE_STATUSES } from '@/lib/domain/state'
+import { EXTRA_ITEM_IDS } from '@/lib/events/plans'
 
 const MIGRATIONS = 'supabase/migrations'
 
@@ -149,6 +150,18 @@ describe('SQL and TypeScript stay in sync', () => {
     const pgtap = readFileSync('supabase/tests/database/071-apply-event-derived.test.sql', 'utf8')
     expect(pgtap).toContain(`{"pausedDays": ${MAX_PAUSED_DAYS}}`)
     expect(pgtap).toContain(`{"pausedDays": ${MAX_PAUSED_DAYS + 1}}`)
+  })
+
+  // Ruling M5-R2: plan.extra_added's itemIds bound (1–20 distinct ids of 1–128 characters) lives in
+  // apply_system_event and in addExtraItems, which checks it before any call.
+  it('apply_system_event bounds plan.extra_added itemIds as EXTRA_ITEM_IDS', () => {
+    const body = lastFunctionBody(migrationsSql(), 'apply_system_event')
+    expect(
+      lastCheck(body, /jsonb_array_length\(v_item_ids\)\s+not\s+between\s+1\s+and\s+(\d+)/gi),
+    ).toEqual([String(EXTRA_ITEM_IDS.max)])
+    expect(lastCheck(body, /char_length\([^)]*\)\s+not\s+between\s+1\s+and\s+(\d+)/gi)).toEqual([
+      String(EXTRA_ITEM_IDS.maxLength),
+    ])
   })
 
   it("reads a table's own checks, the last one winning", () => {

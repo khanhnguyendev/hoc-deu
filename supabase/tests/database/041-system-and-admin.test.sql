@@ -168,12 +168,12 @@ select throws_ok(
 select throws_ok(
   format(
     $$select public.apply_system_event(%L::uuid, jsonb_build_object(
-        'id', gen_random_uuid(), 'type', 'plan.extra_added',
-        'payload', '{"itemIds": ["dsa:lc-0001"]}'::jsonb))$$,
+        'id', gen_random_uuid(), 'type', 'plan.ai_proposed',
+        'payload', '{"runId": "run-1", "outcome": "proposed"}'::jsonb))$$,
     :'sys_other'
   ),
   'P0001', 'not_implemented',
-  'a system type not implemented yet raises not_implemented (plan.extra_added: task 5.4)'
+  'a system type not implemented yet raises not_implemented (plan.ai_proposed: task 6.5)'
 );
 select throws_ok(
   format(
