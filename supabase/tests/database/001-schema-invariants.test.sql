@@ -17,7 +17,9 @@ create extension if not exists pgtap with schema extensions;
 -- itself) and plan_lock_key (the invoker apply_event takes the plan lock as the learner). 4.9b
 -- adds apply_derived_changes (SECURITY INVOKER: the invoker apply_event writes the derived rows as
 -- the learner, under RLS and the derived-table bounds). 4.9c adds none: plans and the auto
--- check-in go through apply_system_event, which stays service_role only (041, 072).
+-- check-in go through apply_system_event, which stays service_role only (041, 072). 5.0b adds
+-- none: plan.extra_added goes through apply_system_event, and its two trigger functions
+-- (plan_block_state_check_in_day, schedule_versions_lock_user) get no grants (073).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),

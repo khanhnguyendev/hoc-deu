@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(71);
+select plan(85);
 
 -- Task 5.0b: SQL for plans and check-ins (platform design §2.3, §4.3–§4.5, §5.5, §5.9;
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2,
@@ -1000,6 +1000,149 @@ select is(
   (select count from public.event_quota where user_id = :'quota'),
   500,
   '... and the counter stays 500 (each failed insert rolled its increment back)'
+);
+
+-- ---------------------------------------------------------------------------------------------
+-- 5. Composite same-user keys (parked M4 item): a block state or an event names only a plan of
+--    its own user — also for the secret-key role, which the insert triggers do not check.
+-- ---------------------------------------------------------------------------------------------
+select tests.create_user('m5-keys@hocdeu.test') as keys \gset
+select tests.create_user('m5-keys-other@hocdeu.test') as keys_other \gset
+insert into public.day_plans (id, user_id, plan_date, blocks) values
+  ('73000000-0000-4000-8000-0000000000d1', :'keys', :'today', tests.blocks(:'today')),
+  ('73000000-0000-4000-8000-0000000000d2', :'keys_other', :'today', tests.blocks(:'today'));
+select col_is_unique(
+  'public', 'day_plans', array['id', 'user_id'], 'day_plans has unique (id, user_id)'
+);
+select fk_ok(
+  'public', 'plan_block_state', array['plan_id', 'user_id'],
+  'public', 'day_plans', array['id', 'user_id'],
+  'plan_block_state (plan_id, user_id) references day_plans (id, user_id)'
+);
+select fk_ok(
+  'public', 'events', array['plan_id', 'user_id'],
+  'public', 'day_plans', array['id', 'user_id'],
+  'events (plan_id, user_id) references day_plans (id, user_id)'
+);
+select results_eq(
+  $$select conname::text collate "default", confdeltype::text, confmatchtype::text
+    from pg_constraint
+    where conname in ('plan_block_state_plan_id_user_id_fkey', 'events_plan_id_user_id_fkey')
+    order by 1$$,
+  $$values ('events_plan_id_user_id_fkey'::text, 'c'::text, 's'::text),
+           ('plan_block_state_plan_id_user_id_fkey', 'c', 's')$$,
+  '... both on delete cascade, match simple (an event with no plan_id is not checked)'
+);
+select tests.authenticate_as_service_role();
+select throws_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('73000000-0000-4000-8000-0000000000d2', %1$L || ':dsa:review:1', %2$L, 'dsa',
+              'done', 20, %1$L)$$,
+    :'today', :'keys'
+  ),
+  '23503',
+  'insert or update on table "plan_block_state" violates foreign key constraint '
+  '"plan_block_state_plan_id_user_id_fkey"',
+  'a block state naming another user''s plan (as the secret-key role) violates the foreign key'
+);
+select throws_ok(
+  format(
+    $$insert into public.events (id, user_id, source, type, plan_id, payload)
+      values (gen_random_uuid(), %L, 'system', 'plan.generated',
+              '73000000-0000-4000-8000-0000000000d2', '{"mode": "baseline", "planVersion": 1}')$$,
+    :'keys'
+  ),
+  '23503',
+  'insert or update on table "events" violates foreign key constraint '
+  '"events_plan_id_user_id_fkey"',
+  '... and so does an event naming another user''s plan'
+);
+select lives_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('73000000-0000-4000-8000-0000000000d1', %L || ':dsa:review:1', %L, 'dsa', 'done',
+              20, %1$L);
+      insert into public.events (id, user_id, source, type, plan_id, payload)
+      values (gen_random_uuid(), %2$L, 'system', 'plan.generated',
+              '73000000-0000-4000-8000-0000000000d1', '{"mode": "baseline", "planVersion": 1}'),
+             (gen_random_uuid(), %2$L, 'system', 'onboarding.completed', null, '{}')$$,
+    :'today', :'keys'
+  ),
+  'a block state and an event naming the user''s own plan, and an event naming none, are accepted'
+);
+select tests.clear_authentication();
+
+-- ---------------------------------------------------------------------------------------------
+-- 6. Ruling M4-R22: a statement-level BEFORE UPDATE trigger on schedule_versions takes the
+--    learner's schedule lock before any row lock, so a crafted update (a PostgREST PATCH) and a
+--    settings save queue instead of deadlocking. The secret-key role (no auth.uid()) takes none.
+-- ---------------------------------------------------------------------------------------------
+-- How many advisory locks this transaction holds.
+create function tests.advisory_lock_count() returns integer language sql stable as $$
+  select count(*)::int from pg_catalog.pg_locks l
+  where l.locktype = 'advisory' and l.pid = pg_catalog.pg_backend_pid() and l.granted
+$$;
+
+grant execute on function tests.advisory_lock_count() to authenticated, service_role;
+
+select tests.create_user('m5-schedule@hocdeu.test') as schedule_user \gset
+select trigger_is(
+  'public', 'schedule_versions', 'lock_user', 'public', 'schedule_versions_lock_user',
+  'schedule_versions has the lock_user trigger (schedule_versions_lock_user)'
+);
+select results_eq(
+  $$select action_timing::text collate "default", event_manipulation::text collate "default",
+           action_orientation::text collate "default"
+    from information_schema.triggers
+    where event_object_schema = 'public' and event_object_table = 'schedule_versions'
+      and trigger_name = 'lock_user'$$,
+  $$values ('BEFORE'::text, 'UPDATE'::text, 'STATEMENT'::text)$$,
+  '... which fires before update, for each statement'
+);
+select ok(
+  not tests.holds_advisory_lock(
+    pg_catalog.hashtextextended('schedule_versions:' || :'schedule_user', 0)),
+  'no transaction holds the learner''s schedule lock yet'
+);
+select tests.authenticate_as(:'schedule_user');
+update public.schedule_versions set timezone = 'Asia/Ho_Chi_Minh'
+where effective_at < '2000-01-01';
+select tests.clear_authentication();
+select ok(
+  tests.holds_advisory_lock(
+    pg_catalog.hashtextextended('schedule_versions:' || :'schedule_user', 0)),
+  'a learner''s update takes their schedule lock, even when it matches no row'
+);
+select tests.advisory_lock_count() as locks_before \gset
+select tests.authenticate_as_service_role();
+update public.schedule_versions set timezone = 'Asia/Ho_Chi_Minh'
+where effective_at < '2000-01-01';
+select tests.clear_authentication();
+select is(
+  tests.advisory_lock_count(), :'locks_before'::int,
+  'the secret-key role''s update takes no advisory lock'
+);
+
+-- The complete EXECUTE grants of this task's new functions: trigger functions get none.
+select is_empty(
+  $$select p.proname, r.rolname
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join (values ('anon'::text), ('authenticated'), ('service_role')) as r (rolname)
+    where n.nspname = 'public'
+      and p.proname in ('plan_block_state_check_in_day', 'schedule_versions_lock_user')
+      and has_function_privilege(r.rolname, p.oid, 'EXECUTE')$$,
+  'the new trigger functions are executable by no API role'
+);
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('plan_block_state_check_in_day', 'schedule_versions_lock_user')),
+  2,
+  '(both trigger functions exist)'
 );
 
 select * from finish();

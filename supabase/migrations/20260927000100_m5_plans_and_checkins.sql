@@ -6,6 +6,8 @@
 --    partial on a later local day counts for that later day (apply_derived_changes, a column
 --    grant and the check_in_day trigger that bounds it).
 -- 3. M2 minor "quota #500": a same-user double submit of the 500th event is a duplicate.
+-- 4. Parked M4 items (decision 30): composite same-user plan keys, and a statement-level
+--    schedule lock taken before any row lock (M4-R22).
 -- Merged migrations are never edited: the functions are replaced here (`create or replace` keeps
 -- their owner, privileges and triggers; the grants are restated below). Every function revokes
 -- EXECUTE from PUBLIC explicitly and grants exactly its callers (see 20260925000100);
@@ -739,4 +741,50 @@ end $$;
 
 -- A trigger function: no caller needs EXECUTE (the 20260925000200 revoke, restated).
 revoke execute on function public.events_enforce_quota()
+from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- 4a. Composite same-user plan keys (parked M4 item, decision 30): a block state or an event may
+--     name only a plan of its own user — for every role, not only where the insert triggers check
+--     it (events_prepare and known_block act for `authenticated` only). The single-column keys
+--     stay. MATCH SIMPLE: an event with a null plan_id is not checked. Existing rows satisfy them
+--     (the insert triggers and apply_system_event already check the owner); task 5.8b's runbook
+--     still runs the precheck before the production push.
+-- ---------------------------------------------------------------------------------------------
+
+alter table public.day_plans add constraint day_plans_id_user_id_key unique (id, user_id);
+alter table public.plan_block_state add constraint plan_block_state_plan_id_user_id_fkey
+  foreign key (plan_id, user_id) references public.day_plans (id, user_id) on delete cascade;
+alter table public.events add constraint events_plan_id_user_id_fkey
+  foreign key (plan_id, user_id) references public.day_plans (id, user_id) on delete cascade;
+
+-- ---------------------------------------------------------------------------------------------
+-- 4b. Ruling M4-R22 (ADR-0017): the history guard takes the per-user schedule lock in a
+--     row-level trigger, so a learner's direct update of a pending version (a crafted PostgREST
+--     PATCH) locked the row first and the advisory lock second, while a settings save (the
+--     apply_event upsert) takes the advisory lock in its BEFORE INSERT trigger first and the row
+--     second: 40P01. This statement-level BEFORE UPDATE trigger takes the same key before any row
+--     is locked, so the two queue instead. It fires for an upsert's update half too (Postgres
+--     fires statement-level UPDATE triggers for every INSERT … ON CONFLICT DO UPDATE), where the
+--     lock is re-entrant. It keys on auth.uid(): RLS lets a learner update only their own rows.
+--     The secret-key role (no auth.uid()) is unchanged.
+-- ---------------------------------------------------------------------------------------------
+
+create function public.schedule_versions_lock_user() returns trigger
+language plpgsql set search_path = '' as $$
+declare
+  v_uid constant uuid := auth.uid();
+begin
+  if v_uid is not null then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('schedule_versions:' || v_uid::text, 0)
+    );
+  end if;
+  return null;
+end $$;
+
+create trigger lock_user before update on public.schedule_versions
+  for each statement execute function public.schedule_versions_lock_user();
+
+revoke execute on function public.schedule_versions_lock_user()
 from public, anon, authenticated, service_role;

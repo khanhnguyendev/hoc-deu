@@ -172,6 +172,13 @@ export type Database = {
             referencedColumns: ['id']
           },
           {
+            foreignKeyName: 'events_plan_id_user_id_fkey'
+            columns: ['plan_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id', 'user_id']
+          },
+          {
             foreignKeyName: 'events_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
@@ -298,6 +305,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'day_plans'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'plan_block_state_plan_id_user_id_fkey'
+            columns: ['plan_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id', 'user_id']
           },
           {
             foreignKeyName: 'plan_block_state_user_id_fkey'

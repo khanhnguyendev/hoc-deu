@@ -72,6 +72,15 @@ belonged to.
   checks under the per-user advisory lock the pending-version cap takes, so two concurrent first
   inserts cannot both count as the first. `service_role` and SECURITY DEFINER functions keep the
   pre-4.12 rules.
+- **The schedule lock comes before any row lock** (ruling M4-R22, task 5.0b). The insert triggers
+  take the per-user lock (`hashtextextended('schedule_versions:' || user_id, 0)`) before any row
+  is written, but an update took it in the row-level history guard, after the row was locked: a
+  learner's direct update of a pending version (a crafted PostgREST `PATCH`) racing their own
+  settings save (the `apply_event` upsert: the lock first, then the conflicting row) could
+  deadlock (`40P01`). A statement-level `BEFORE UPDATE` trigger (`lock_user`) now takes the same
+  key for `auth.uid()` before any row is locked — Postgres also fires it for an upsert's
+  `ON CONFLICT DO UPDATE`, where the lock is re-entrant — so the two queue instead. RLS lets a
+  learner update only their own rows; the secret-key role (no `auth.uid()`) is unchanged.
 
 ## Consequences
 
@@ -86,3 +95,12 @@ belonged to.
   can see a date skipped outright; both are treated as expected consequences of the day-start
   model, not bugs, and are called out explicitly wherever the gate rule or streak reads the
   calendar.
+- Accepted (task 4.12 minor, documented in task 5.0b): on a fall-back day whose day start lies
+  inside the repeated hour (New York, day start 01:30, 1 November), the wall clock passes the day
+  start, falls back and reads the previous local day again until the day start repeats. A settings
+  save in that window that re-sends the version already pending for tomorrow's day start (saved
+  after the day start's first occurrence) is rejected (`schedule_backdated`, shown as stale): the
+  database reads the local day at `now()` as the previous day, so D is today's repeated day start
+  and tomorrow's lies after it. It succeeds once the day start repeats — at most an hour later,
+  once a year, only for day starts inside the repeated hour — so it is self-recovering and not
+  fixed (a fix would skip the window when a pending row with the same key exists).
