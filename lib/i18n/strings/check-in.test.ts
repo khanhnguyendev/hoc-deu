@@ -31,5 +31,6 @@ describe('lib/i18n/strings/check-in.ts (tasks 5.2a, 5.2b)', () => {
     expect(checkIn.errors.noteTooLong).toContain('280')
     expect(checkIn.errors.stale).toBe('Kế hoạch đã thay đổi — tải lại trang.')
     expect(checkIn.outcome.saved).toBe('Đã lưu kết quả.')
+    expect(checkIn.outcome.savedAutoCheckInFailed).toBe('Đã lưu kết quả; chưa tự check-in được.')
   })
 })

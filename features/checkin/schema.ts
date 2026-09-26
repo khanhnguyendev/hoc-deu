@@ -1,7 +1,8 @@
 /**
- * The check-in and result inputs (platform design §4.4, §5.5; Part B-M5 decisions 14–17, RF-3),
- * their event payloads and their event keys. Client-safe — zod, the pure domain, the strings and
- * `./digest` only — so the check-in sheet can count a note's characters with the same rules.
+ * The check-in and result inputs (platform design §4.4, §5.5; Part B-M5 decisions 14–17, RF-3)
+ * and their event payloads. Browser-safe — zod, the pure domain and the strings only — so the
+ * check-in sheet applies the server's note rules as the learner types (`noteError`). The event
+ * keys, which digest these payloads with `node:crypto`, are server-side: `./event-keys`.
  */
 import { z } from 'zod'
 import {
@@ -10,11 +11,9 @@ import {
   MAX_PAYLOAD_BYTES,
   type EventPayload,
 } from '@/lib/domain/events'
-import type { PlanBlock } from '@/lib/domain/plan/types'
 import type { ResultName } from '@/lib/domain/srs/outcomes'
 import { CHECK_IN_STATUSES, type CheckInStatus } from '@/lib/domain/state'
 import { vi } from '@/lib/i18n/vi'
-import { sha256Hex } from './digest'
 
 const errors = vi.checkIn.errors
 
@@ -54,11 +53,26 @@ function noteFits(note: string): boolean {
 /** jsonb stores neither U+0000 nor an unpaired surrogate (`parseEventPayload`). */
 const storable = (note: string): boolean => !note.includes('\u0000') && note.isWellFormed()
 
+/**
+ * The server's rules for a raw note, for the sheet to apply as the learner types (RF-3): null when
+ * it is fine (a blank note included — it is dropped), else the message the server would answer —
+ * "Ghi chú quá dài" for any of the three bounds (`noteFits`), else "invalid" for text jsonb cannot
+ * store. `checkInInputSchema` checks exactly this.
+ */
+export function noteError(raw: string): string | null {
+  const note = normalizeNote(raw)
+  if (note === undefined) return null
+  if (!noteFits(note)) return errors.noteTooLong
+  return storable(note) ? null : errors.invalid
+}
+
 const noteSchema = z
   .string()
+  .superRefine((raw, ctx) => {
+    const message = noteError(raw)
+    if (message !== null) ctx.addIssue({ code: 'custom', message })
+  })
   .transform(normalizeNote)
-  .refine((note) => note === undefined || noteFits(note), { error: errors.noteTooLong })
-  .refine((note) => note === undefined || storable(note), { error: errors.invalid })
 
 const requestId = z.uuid()
 /** `planBlockSchema`'s bounds on block and item ids. */
@@ -70,7 +84,7 @@ export type CheckInInput = {
   readonly planId: string
   readonly blockId: string
   readonly status: CheckInStatus
-  /** Omitted = checkInMinutes(block) (one-tap, decision 34 of M4). */
+  /** Omitted = checkInMinutes(block) (one-tap, decision 34 of M4); 0 for a skip. */
   readonly minutes?: number
   readonly note?: string
 }
@@ -170,25 +184,4 @@ export function checkInPayload(
 ): EventPayload<'block.checked_in'> {
   const { status, minutes, note } = input
   return note === undefined ? { status, minutes } : { status, minutes, note }
-}
-
-/** The first 16 hex digits of the SHA-256 of the payload's JSON (decision 16). */
-const payloadDigest = (payload: object): string => sha256Hex(JSON.stringify(payload)).slice(0, 16)
-
-/** decision 16: `<type>:<ids>:<sha-256 of the canonical payload JSON, 16 hex>`. */
-export function outcomeKey(input: OutcomeInput): string {
-  const { type, payload } = outcomeEvent(input.outcome)
-  return `${type}:${input.itemId}:${payloadDigest(payload)}`
-}
-
-export function checkInKey(input: CheckInInput & { readonly minutes: number }): string {
-  return `block.checked_in:${input.planId}:${input.blockId}:${payloadDigest(checkInPayload(input))}`
-}
-
-/**
- * The server's auto check-in (decision 16): `auto:<planId>:<blockId>:<minutes>:<itemCount>` — the
- * same work repeats the key, and a re-send after the `extra` block grew is a new event.
- */
-export function autoCheckInKey(planId: string, block: PlanBlock, minutes: number): string {
-  return `auto:${planId}:${block.id}:${minutes}:${block.items.length}`
 }

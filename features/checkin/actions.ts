@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
-import { itemHref } from '@/features/items'
+import { itemHref } from '@/features/items/href'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
@@ -22,15 +22,13 @@ import { readEnrollments, readScheduleVersions, todayOf } from '@/lib/plans/read
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
+import { autoCheckInKey, checkInKey, outcomeKey } from './event-keys'
 import {
-  autoCheckInKey,
   checkInInputSchema,
-  checkInKey,
   checkInPayload,
   isCountedOutcome,
   outcomeEvent,
   outcomeInputSchema,
-  outcomeKey,
   type CheckInInput,
   type OutcomeInput,
 } from './schema'
@@ -86,11 +84,17 @@ function domainEvent(
   }
 }
 
-/** `loadDerivedFor` → `project` → `derivedWrite`: the rows `event` changes, with their versions. */
-async function derivedFor(supabase: Client, userId: string, load: DerivedLoad, event: DomainEvent) {
-  const { state, versions } = await loadDerivedFor(supabase, userId, load)
+type Loaded = Awaited<ReturnType<typeof loadDerivedFor>>
+
+/** `project` → `derivedWrite` on `loaded`: the rows `event` changes, with their versions. */
+function writeFor({ state, versions }: Loaded, event: DomainEvent) {
   const { state: after, ignored } = projectEvent(state, event, planCatalog())
   return { ignored, write: derivedWrite(state, after, versions) }
+}
+
+/** `loadDerivedFor` → `project` → `derivedWrite`. */
+async function derivedFor(supabase: Client, userId: string, load: DerivedLoad, event: DomainEvent) {
+  return writeFor(await loadDerivedFor(supabase, userId, load), event)
 }
 
 /** The parse error's message: the note's own (RF-3), else "invalid". */
@@ -114,7 +118,8 @@ async function checkInAttempt(
   // Decision 13: only the plan /today shows now — never yesterday's plan as if it were today's.
   if (block === undefined) return { ok: false, message: copy.errors.stale }
 
-  const minutes = request.minutes ?? checkInMinutes(block)
+  // One-tap pre-fills the block's minutes (decision 34 of M4); a skip without minutes is 0.
+  const minutes = request.minutes ?? (request.status === 'skipped' ? 0 : checkInMinutes(block))
   const payload = checkInPayload({ ...request, minutes })
   const id = deriveEventId(request.requestId, checkInKey({ ...request, minutes }))
   const keys = { planId: request.planId, blockId: block.id, trackId: block.trackId }
@@ -140,14 +145,14 @@ async function checkInAttempt(
 }
 
 /**
- * A block check-in (§5.5): one-tap (`minutes` omitted = checkInMinutes(block)) or the sheet
- * (status, minutes, a note of at most 280 graphemes, NFC — RF-3). Each attempt re-derives today
- * and the current plan (decision 13, RF-1), which must still be the plan named — else the answer
- * is "stale" and nothing is written — then loads the rows the check-in reads, projects and
- * applies it (`withRetry`: a version conflict or a day change runs the attempt again). The event
- * id digests the payload (decision 16): the same tap twice is one event. `/today` re-renders
- * whatever the outcome; an EventError becomes its Vietnamese message, anything else reaches the
- * route's error boundary.
+ * A block check-in (§5.5): one-tap (`minutes` omitted = checkInMinutes(block); 0 for a skip) or
+ * the sheet (status, minutes, a note of at most 280 graphemes, NFC — RF-3). Each attempt
+ * re-derives today and the current plan (decision 13, RF-1), which must still be the plan named —
+ * else the answer is "stale" and nothing is written — then loads the rows the check-in reads,
+ * projects and applies it (`withRetry`: a version conflict or a day change runs the attempt
+ * again). The event id digests the payload (decision 16): the same tap twice is one event.
+ * `/today` re-renders whatever the outcome; an EventError becomes its Vietnamese message,
+ * anything else reaches the route's error boundary.
  */
 export async function checkInBlock(input: CheckInInput): Promise<CheckInResult> {
   const user = await requireOnboarded()
@@ -206,17 +211,21 @@ async function outcomeAttempt(
  * The auto check-in after a result on `planId` (§5.5, decision 15), in its own `withRetry`: each
  * attempt re-derives the current plan (it must still be `planId`, decision 13 — a day start in
  * between may have replaced it) with its block states, reloads the item states of the blocks
- * listing the item, and checks in `blocksToAutoCheckIn` of those rows — so a block the learner
- * checked in meanwhile is left alone — through `apply_system_event` with `auto: true` and the key
+ * listing the item, and picks `blocksToAutoCheckIn` of those rows. Each pick is decided again on
+ * the rows its write is computed from (`loadDerivedFor`, whose versions the write expects): a
+ * learner's check-in that landed after the plan's block states were read — the sheet racing the
+ * auto check-in — is seen there and left alone, and one that lands later makes the write conflict
+ * and the attempt run again. Written through `apply_system_event` with `auto: true` and the key
  * `auto:<planId>:<blockId>:<minutes>:<itemCount>` (decision 16). The result is already saved: a
- * failure here is logged (its name and message only) and the blocks checked in so far returned.
+ * failure here is logged (its name and message only) and reported with the blocks checked in so
+ * far.
  */
 async function autoCheckIn(
   supabase: Client,
   userId: string,
   request: OutcomeInput,
   planId: string,
-): Promise<string[]> {
+): Promise<{ readonly checked: string[]; readonly failed: boolean }> {
   const checked = new Set<string>()
   let admin: Client | undefined
   try {
@@ -229,14 +238,22 @@ async function autoCheckIn(
       )
       const items = await loadItemStates(supabase, userId, itemIds)
       for (const block of blocksToAutoCheckIn(plan, blocks, items, request.itemId)) {
+        const loaded = await loadDerivedFor(supabase, userId, {
+          kind: 'block',
+          planId: plan.id,
+          blockId: block.id,
+          localDay: today,
+          status: 'done',
+        })
+        const due = blocksToAutoCheckIn(plan, loaded.state.blocks, items, request.itemId)
+        if (!due.some((candidate) => candidate.id === block.id)) continue
+
         const minutes = checkInMinutes(block)
         const payload = { status: 'done', minutes, auto: true } as const
         const id = deriveEventId(request.requestId, autoCheckInKey(plan.id, block, minutes))
         const keys = { planId: plan.id, blockId: block.id, trackId: block.trackId }
-        const { write } = await derivedFor(
-          supabase,
-          userId,
-          { kind: 'block', planId: plan.id, blockId: block.id, localDay: today, status: 'done' },
+        const { write } = writeFor(
+          loaded,
           domainEvent({ id, type: 'block.checked_in', localDay: today, payload, ...keys }),
         )
         admin ??= createAdminClient()
@@ -254,8 +271,9 @@ async function autoCheckIn(
       '[checkin] auto check-in failed:',
       error instanceof Error ? `${error.name}: ${error.message}` : typeof error,
     )
+    return { checked: [...checked], failed: true }
   }
-  return [...checked]
+  return { checked: [...checked], failed: false }
 }
 
 /**
@@ -295,12 +313,15 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
     return { ok: false, message: copy.errors.invalid, autoCheckedIn: [] }
   }
 
-  const autoCheckedIn =
-    recorded === null ? [] : await autoCheckIn(supabase, user.id, request, recorded.id)
+  const auto =
+    recorded === null
+      ? { checked: [], failed: false }
+      : await autoCheckIn(supabase, user.id, request, recorded.id)
   revalidate()
-  return {
-    ok: true,
-    message: autoCheckedIn.length > 0 ? copy.outcome.savedAndCheckedIn : copy.outcome.saved,
-    autoCheckedIn,
-  }
+  const message = auto.failed
+    ? copy.outcome.savedAutoCheckInFailed
+    : auto.checked.length > 0
+      ? copy.outcome.savedAndCheckedIn
+      : copy.outcome.saved
+  return { ok: true, message, autoCheckedIn: auto.checked }
 }

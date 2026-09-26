@@ -31,6 +31,8 @@ const state = vi.hoisted(() => ({
   denied: null as Error | null,
   userId: '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10',
   fake: null as unknown as import('@/lib/testing/fake-supabase').FakeSupabase,
+  /** Runs when the auto check-in reads the item states (another request landing then). */
+  onLoadItemStates: null as (() => void) | null,
 }))
 
 vi.mock('next/cache', () => ({
@@ -55,6 +57,16 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => state.fake.client('admin'),
 }))
+vi.mock('@/lib/events/load-derived', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/events/load-derived')>()
+  return {
+    ...real,
+    loadItemStates: (...args: Parameters<typeof real.loadItemStates>) => {
+      state.onLoadItemStates?.()
+      return real.loadItemStates(...args)
+    },
+  }
+})
 vi.mock('@/lib/plans/catalog', async () => {
   const { CATALOG } = await import('@/lib/domain/plan/__tests__/fixtures')
   return { planCatalog: () => CATALOG }
@@ -104,6 +116,7 @@ const handled = (itemId: string, day: LocalDay = TODAY) => itemStateRow(itemStat
 beforeEach(() => {
   state.log = []
   state.denied = null
+  state.onLoadItemStates = null
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
 })
@@ -338,21 +351,48 @@ describe('checkInBlock', () => {
           version: 1,
           rules_version: RULES_VERSION,
         },
+        // Today already has a row (two results): a check-in that did not read today's row too
+        // would send it as new (expected 0) and conflict on every attempt.
+        {
+          user_id: USER_ID,
+          local_day: TODAY,
+          minutes_by_track: {},
+          items_done: 2,
+          completed: false,
+          version: 2,
+          rules_version: RULES_VERSION,
+        },
       ],
     })
     expect((await checkInBlock(input({ planId: paused.id, blockId: old.id }))).ok).toBe(true)
     const [call] = learnerCalls(fake)
+    expect(learnerCalls(fake)).toHaveLength(1)
     expect(call?.p_expected).toEqual({
       [`plan_block_state:${paused.id}/${old.id}`]: 1,
       [`daily_activity:${YESTERDAY}`]: 1,
-      [`daily_activity:${TODAY}`]: 0,
+      [`daily_activity:${TODAY}`]: 2,
     })
     expect(blockRow(fake, paused.id, old.id)).toMatchObject({
       status: 'done',
       checked_in_on: TODAY,
     })
     expect(dayRow(fake, YESTERDAY)).toMatchObject({ completed: false, minutes_by_track: {} })
-    expect(dayRow(fake, TODAY)).toMatchObject({ completed: true, minutes_by_track: { dsa: 10 } })
+    expect(dayRow(fake, TODAY)).toMatchObject({
+      completed: true,
+      minutes_by_track: { dsa: 10 },
+      items_done: 2,
+      version: 3,
+    })
+  })
+
+  it('a skip without minutes records 0 minutes, not the block estimate', async () => {
+    const fake = setup({ day_plans: [plan] })
+    expect(await checkInBlock(input({ status: 'skipped' }))).toEqual({
+      ok: true,
+      message: copy.checkIn.checkedIn.skipped,
+    })
+    expect(learnerCalls(fake)[0]?.p_event.payload).toEqual({ status: 'skipped', minutes: 0 })
+    expect(dayRow(fake, TODAY)).toMatchObject({ completed: false, minutes_by_track: { dsa: 0 } })
   })
 
   it('answers an EventError with its Vietnamese message (quota)', async () => {
@@ -689,6 +729,32 @@ describe('recordOutcome', () => {
     })
   })
 
+  it('[RF-2] the auto check-in sees a learner check-in that landed after the plan was read', async () => {
+    // The sheet's `partial` lands while the auto check-in reads the item states: after
+    // currentPlan read the block states (no check-in yet), before the block's rows are loaded for
+    // the write. The pick is decided again on those rows, so the learner's check-in stays.
+    const fake = setup({ day_plans: [plan], item_state: [handled('dsa:p2')], plan_block_state: [] })
+    state.onLoadItemStates = () => {
+      state.onLoadItemStates = null
+      state.fake.tables.plan_block_state?.push({
+        ...blockStateRow(plan, pair, 'partial', TODAY),
+        minutes: 12,
+      })
+    }
+    expect(await recordOutcome(solved())).toEqual({
+      ok: true,
+      message: copy.checkIn.outcome.saved,
+      autoCheckedIn: [],
+    })
+    expect(fake.rpcs('apply_system_event')).toEqual([])
+    expect(blockRow(fake, plan.id, pair.id)).toMatchObject({
+      status: 'partial',
+      minutes: 12,
+      auto: false,
+      version: 1,
+    })
+  })
+
   it('checks the extra block in again after it grew; the auto key follows its minutes and items', async () => {
     const small = planBlock(TODAY, 'dsa', 'extra', ['dsa:p1'])
     const grown = planBlock(TODAY, 'dsa', 'extra', ['dsa:p1', 'dsa:p2'])
@@ -770,7 +836,7 @@ describe('recordOutcome', () => {
       )
       expect(await recordOutcome(solved())).toEqual({
         ok: true,
-        message: copy.checkIn.outcome.saved,
+        message: copy.checkIn.outcome.savedAutoCheckInFailed,
         autoCheckedIn: [],
       })
       expect(fake.tables.events?.map((row) => row.type)).toEqual(['item.result'])

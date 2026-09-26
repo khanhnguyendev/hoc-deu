@@ -1,20 +1,15 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { EVENT_PAYLOADS, MAX_PAYLOAD_BYTES, jsonbTextBytes } from '@/lib/domain/events'
-import type { PlanBlock } from '@/lib/domain/plan/types'
 import { vi as copy } from '@/lib/i18n/vi'
-import { sha256Hex } from './digest'
 import {
-  autoCheckInKey,
   checkInInputSchema,
-  checkInKey,
+  checkInPayload,
   graphemeCount,
+  noteError,
   normalizeNote,
   NOTE_MAX_GRAPHEMES,
+  outcomeEvent,
   outcomeInputSchema,
-  outcomeKey,
-  type CheckInInput,
-  type OutcomeInput,
 } from './schema'
 
 const REQUEST_ID = '3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c'
@@ -41,21 +36,6 @@ function messages(result: ReturnType<typeof checkIn>): Record<string, string> {
     result.error.issues.map((issue) => [issue.path.join('.'), issue.message]),
   )
 }
-
-describe('sha256Hex', () => {
-  it.each([
-    '',
-    'abc',
-    'a'.repeat(55),
-    'a'.repeat(56),
-    'a'.repeat(64),
-    'a'.repeat(1000),
-    `Ghi chú ${'ệ'.repeat(40)} ${FAMILY}`,
-    JSON.stringify({ status: 'done', minutes: 20, note: E_NFD }),
-  ])('equals node:crypto sha256 for %j', (text) => {
-    expect(sha256Hex(text)).toBe(createHash('sha256').update(text, 'utf8').digest('hex'))
-  })
-})
 
 describe('notes (RF-3)', () => {
   it('normalizeNote: NFC, trimmed; empty or blank → undefined', () => {
@@ -129,6 +109,31 @@ describe('notes (RF-3)', () => {
   it('refuses a note that is not text jsonb can store (U+0000, a lone surrogate)', () => {
     expect(checkIn({ note: 'a\u0000b' }).success).toBe(false)
     expect(checkIn({ note: 'a\uD800b' }).success).toBe(false)
+  })
+})
+
+describe("noteError (the sheet applies the server's rules, RF-3)", () => {
+  const FAMILY_NOTE = FAMILY.repeat(280)
+  const BYTES_NOTE = `a${'\u20D0'.repeat(3)}`.repeat(250)
+
+  it.each([
+    ['a blank note', '  ', null],
+    ['280 graphemes of NFD "ệ"', E_NFD.repeat(280), null],
+    ['281 graphemes', E_NFD.repeat(281), copy.checkIn.errors.noteTooLong],
+    ['over 1000 UTF-16 units', FAMILY_NOTE, copy.checkIn.errors.noteTooLong],
+    ['over the payload bytes', BYTES_NOTE, copy.checkIn.errors.noteTooLong],
+    ['U+0000', 'a\u0000b', copy.checkIn.errors.invalid],
+  ])('%s → %j', (_case, raw, message) => {
+    expect(noteError(raw)).toBe(message)
+  })
+
+  it('agrees with checkInInputSchema on every case', () => {
+    for (const raw of ['ok', '  ', E_NFD.repeat(281), FAMILY_NOTE, BYTES_NOTE, 'a\uD800b']) {
+      const parsed = checkIn({ note: raw })
+      const message = noteError(raw)
+      expect(parsed.success).toBe(message === null)
+      if (!parsed.success) expect(messages(parsed)).toEqual({ note: message })
+    }
   })
 })
 
@@ -212,81 +217,29 @@ describe('outcomeInputSchema', () => {
   })
 })
 
-describe('event keys (decision 16)', () => {
-  const result = (fields: Record<string, unknown>, change: Partial<OutcomeInput> = {}) =>
-    outcomeInputSchema.parse({
+describe('the payloads the keys digest', () => {
+  it('outcomeEvent builds each payload with its keys in one order, whatever the input order', () => {
+    const parsed = outcomeInputSchema.parse({
       requestId: REQUEST_ID,
       itemId: 'dsa:p1',
-      outcome: { type: 'item.result', ...fields },
-      ...change,
+      outcome: { mode: 'redo', result: 'hint', type: 'item.result' },
     })
-
-  it('outcomeKey is <type>:<item>:<16 hex of the canonical payload>', () => {
-    const key = outcomeKey(result({ result: 'solved', mode: 'recall' }))
-    const digest = sha256Hex(JSON.stringify({ result: 'solved', mode: 'recall' })).slice(0, 16)
-    expect(key).toBe(`item.result:dsa:p1:${digest}`)
-  })
-
-  it('outcomeKey is equal for equal inputs, whatever their key order or block', () => {
-    const a = outcomeKey(result({ result: 'hint', mode: 'redo' }))
-    const b = outcomeKey(result({ mode: 'redo', result: 'hint' }, { blockId: BLOCK_ID }))
-    expect(a).toBe(b)
-  })
-
-  it('outcomeKey differs for a different grade, mode, item or type', () => {
-    const base = outcomeKey(result({ result: 'hint', mode: 'redo' }))
-    expect(outcomeKey(result({ result: 'solved', mode: 'redo' }))).not.toBe(base)
-    expect(outcomeKey(result({ result: 'hint', mode: 'recall' }))).not.toBe(base)
-    expect(outcomeKey(result({ result: 'hint' }))).not.toBe(base)
-    expect(outcomeKey(result({ result: 'hint', mode: 'redo' }, { itemId: 'dsa:p2' }))).not.toBe(
-      base,
-    )
-    const skip = outcomeInputSchema.parse({
-      requestId: REQUEST_ID,
-      itemId: 'dsa:p1',
-      outcome: { type: 'item.skipped' },
+    const event = outcomeEvent(parsed.outcome)
+    expect(event).toEqual({ type: 'item.result', payload: { result: 'hint', mode: 'redo' } })
+    expect(Object.keys(event.payload)).toEqual(['result', 'mode'])
+    expect(outcomeEvent({ type: 'lesson.completed' })).toEqual({
+      type: 'lesson.completed',
+      payload: {},
     })
-    expect(outcomeKey(skip)).toMatch(/^item\.skipped:dsa:p1:[0-9a-f]{16}$/)
   })
 
-  const input = (change: Partial<CheckInInput> = {}) => ({
-    requestId: REQUEST_ID,
-    planId: PLAN_ID,
-    blockId: BLOCK_ID,
-    status: 'done' as const,
-    minutes: 20,
-    ...change,
-  })
-
-  it('checkInKey is <type>:<plan>:<block>:<16 hex>, equal for equal inputs', () => {
-    const digest = sha256Hex(JSON.stringify({ status: 'done', minutes: 20 })).slice(0, 16)
-    expect(checkInKey(input())).toBe(`block.checked_in:${PLAN_ID}:${BLOCK_ID}:${digest}`)
-    expect(checkInKey(input())).toBe(checkInKey({ ...input() }))
-  })
-
-  it('checkInKey differs for a different status, minutes or note', () => {
-    const base = checkInKey(input())
-    expect(checkInKey(input({ status: 'partial' }))).not.toBe(base)
-    expect(checkInKey(input({ minutes: 21 }))).not.toBe(base)
-    expect(checkInKey(input({ note: 'x' }))).not.toBe(base)
-    expect(checkInKey(input({ blockId: '2026-09-28:dsa:new:2' }))).not.toBe(base)
-  })
-
-  it('autoCheckInKey is auto:<plan>:<block>:<minutes>:<item count>, and follows both', () => {
-    const block: PlanBlock = {
-      id: '2026-09-28:dsa:extra:1',
-      trackId: 'dsa',
-      kind: 'extra',
-      estMinutes: 7.5,
-      items: [{ itemId: 'dsa:p1', mode: 'new', minutes: 7.5 }],
-    }
-    expect(autoCheckInKey(PLAN_ID, block, 8)).toBe(`auto:${PLAN_ID}:${block.id}:8:1`)
-    const grown: PlanBlock = {
-      ...block,
-      estMinutes: 17.5,
-      items: [...block.items, { itemId: 'dsa:p2', mode: 'new', minutes: 10 }],
-    }
-    expect(autoCheckInKey(PLAN_ID, grown, 18)).toBe(`auto:${PLAN_ID}:${block.id}:18:2`)
-    expect(autoCheckInKey(PLAN_ID, block, 9)).not.toBe(autoCheckInKey(PLAN_ID, block, 8))
+  it('checkInPayload sends a note only when there is one', () => {
+    const base = { requestId: REQUEST_ID, planId: PLAN_ID, blockId: BLOCK_ID, minutes: 20 }
+    expect(checkInPayload({ ...base, status: 'done' })).toEqual({ status: 'done', minutes: 20 })
+    expect(checkInPayload({ ...base, status: 'partial', note: 'x' })).toEqual({
+      status: 'partial',
+      minutes: 20,
+      note: 'x',
+    })
   })
 })

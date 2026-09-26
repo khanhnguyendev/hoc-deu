@@ -11,6 +11,8 @@ export const checkIn = {
     saved: 'Đã lưu kết quả.',
     /** The result finished a block, which the server then checked in (§5.5). */
     savedAndCheckedIn: 'Đã lưu kết quả. Khối học đã được tự động check-in.',
+    /** The result is saved, but its auto check-in failed: the learner can still tap check-in. */
+    savedAutoCheckInFailed: 'Đã lưu kết quả; chưa tự check-in được.',
   },
   errors: {
     /** RF-3: more than 280 graphemes, or more than the event payload holds — one message. */
