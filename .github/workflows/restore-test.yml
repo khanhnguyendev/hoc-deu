@@ -9,8 +9,9 @@ name: restore-test
 
 on:
   schedule:
-    # Saturday 03:00 UTC.
-    - cron: '0 3 * * 6'
+    # Saturday 03:17 UTC. Off the top of the hour: GitHub delays or drops scheduled runs when load
+    # peaks there (ruling M5-R20).
+    - cron: '17 3 * * 6'
   workflow_dispatch:
 
 permissions:

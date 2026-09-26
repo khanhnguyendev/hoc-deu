@@ -150,7 +150,8 @@ export function parseManifest(text: string): Manifest {
 /**
  * Checks a decrypted, decompressed backup directory against its manifest: exactly manifest.json
  * and the listed dump files, each with its SHA-256 and size, each file's rows equal to the
- * manifest's counts, and no psql meta-command in any of them (scanDump). Returns the manifest.
+ * manifest's counts, and nothing in any of them but what a data-only pg_dump writes — no psql
+ * meta-command (scanDump). Returns the manifest.
  */
 export async function verifyBackupDir(dir: string): Promise<Manifest> {
   const names = (await readdir(dir)).sort()

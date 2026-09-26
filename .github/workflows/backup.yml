@@ -8,8 +8,9 @@ name: backup
 
 on:
   schedule:
-    # 22:00 UTC = 05:00 in Viet Nam, an hour after the maintenance cron (ADR-0034).
-    - cron: '0 22 * * *'
+    # 22:17 UTC = 05:17 in Viet Nam, after the maintenance cron (21:00 UTC, ADR-0034). Off the top
+    # of the hour: GitHub delays or drops scheduled runs when load peaks there (ruling M5-R20).
+    - cron: '17 22 * * *'
   workflow_dispatch:
 
 permissions:
@@ -144,11 +145,12 @@ jobs:
           # exports its snapshot and stays open (reading its SQL from a FIFO) while both pg_dump
           # runs import it; then it counts every dumped table in the same snapshot.
           # This shell holds the FIFO open read-write (so opening it never blocks); psql must not
-          # inherit that descriptor (3>&-), or it would never see the end of its input.
+          # inherit that descriptor (3>&-), or it would never see the end of its input. Its query
+          # output goes to \o files only; stdout is discarded all the same.
           mkfifo "$work/holder.sql"
           exec 3<> "$work/holder.sql"
           "$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
-            -v with_auth="$with_auth" -f "$work/holder.sql" 3>&- &
+            -v with_auth="$with_auth" -f "$work/holder.sql" > /dev/null 3>&- &
           holder=$!
           trap 'kill "$holder" 2> /dev/null || true' EXIT
           printf '%s\n' \
@@ -271,6 +273,14 @@ jobs:
           umask 077
           if [ "$WITH_AUTH" = true ]; then auth=required; else auth=absent; fi
           pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/backup-upload" --auth "$auth"
+
+      # The dumps, gzipped dumps, manifest and counts are no longer needed: gone before the upload
+      # (the last step removes them too, whatever happened before).
+      - name: Remove the plaintext before the upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/backup"
 
       - id: upload-weekly
         name: Upload the weekly backup (kept 90 days)

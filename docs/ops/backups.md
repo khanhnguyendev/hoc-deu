@@ -15,11 +15,12 @@ See also: `.github/workflows/backup.yml` and `restore-test.yml` (guarded by
 
 | Workflow | When | What |
 | --- | --- | --- |
-| `backup.yml` | daily 22:00 UTC (05:00 in Viet Nam) and by hand | Data-only dump of `public` (minus `event_quota`) and of `auth.users` + `auth.identities`, as `backup_reader`, in one snapshot; a manifest (commit, row counts, SHA-256s); gzip; `age` for every recipient; one artifact |
-| `restore-test.yml` | Saturday 03:00 UTC and by hand | Decrypts the newest backup with the restore-test key, checks it against its manifest, starts the local Supabase stack at the backup's commit, applies the migrations without `seed.sql`, loads the data, compares every table's row count |
+| `backup.yml` | daily 22:17 UTC (05:17 in Viet Nam) and by hand | Data-only dump of `public` (minus `event_quota`) and of `auth.users` + `auth.identities`, as `backup_reader`, in one snapshot; a manifest (commit, row counts, SHA-256s); gzip; `age` for every recipient; one artifact |
+| `restore-test.yml` | Saturday 03:17 UTC and by hand | Decrypts the newest backup with the restore-test key, checks it against its manifest, starts the local Supabase stack at the backup's commit, applies the migrations without `seed.sql`, loads the data, compares every table's row count |
 
-Both run only on `main`, in the GitHub environment `backup` (limited to `main`, so no other
-branch can read its secrets). The repository is public: anyone can read the logs and download the
+Both run at minute 17, not on the hour: GitHub delays, and under load drops, scheduled runs at
+the top of the hour (ruling M5-R20; the spec's 22:00 UTC became 22:17). Both run only on `main`,
+in the GitHub environment `backup` (limited to `main`, so no other branch can read its secrets). The repository is public: anyone can read the logs and download the
 artifacts, so every artifact is encrypted before the upload and neither job ever prints a row
 (ADR-0005). `/admin` shows the age of the last successful run of each, read once a day by the
 maintenance cron (ADR-0034).
@@ -82,9 +83,13 @@ log or history ever holds it), and written straight into the environment secret 
 never in git or the chat:
 
 ```bash
+(
+set -euo pipefail
 ref=<project ref>
 pooler_host=<the Session pooler host: dashboard → Connect → Session pooler, aws-…pooler.supabase.com>
-work="$(mktemp -d)"   # 0700
+: "${SUPABASE_ACCESS_TOKEN:?export a Management API token first}"
+work="$(mktemp -d)"   # 0700; kept when a step fails, removed at the end
+echo "work dir: $work"
 python3 - "$work" <<'PY'
 import base64, hashlib, hmac, json, os, secrets, sys
 work = sys.argv[1]
@@ -100,14 +105,29 @@ open(f'{work}/password', 'w').write(password)
 open(f'{work}/body.json', 'w').write(json.dumps(
     {'query': f"alter role backup_reader with login password '{verifier}'"}))
 PY
+# 1. The role first: one statement, so a failure changes nothing.
 curl -fsS -X POST "https://api.supabase.com/v1/projects/$ref/database/query" \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
   --data-binary @"$work/body.json" > /dev/null
+# 2. Only then the secret, with the password the role now has.
 printf 'postgresql://backup_reader.%s:%s@%s:5432/postgres?sslmode=require' \
   "$ref" "$(< "$work/password")" "$pooler_host" \
   | gh secret set SUPABASE_BACKUP_DB_URL --env backup --repo khanhnguyendev/hoc-deu
+# 3. Only after both: the local copy goes.
 rm -rf "$work"
+echo "backup_reader can sign in; SUPABASE_BACKUP_DB_URL is set"
+)
 ```
+
+The subshell stops at the first failing command (`set -euo pipefail`), so the secret never gets a
+password the role did not, and the password file is never deleted before the secret holds it:
+
+- **`curl` failed** (token, ref, or the statement): nothing changed. Delete the printed work dir
+  and run the block again.
+- **`gh secret set` failed** after `curl` succeeded: the role already has the new password, and
+  the work dir still holds it. Either run the block again (a fresh password replaces it), or fix
+  `gh` and re-run only its `printf … | gh secret set` pipeline with the same values; then delete
+  the work dir.
 
 - The URL is the pooler's **session mode** (port **5432**, user `backup_reader.<ref>`): pg_dump
   does not work through transaction mode (6543, which the job refuses), and the direct host
@@ -228,8 +248,19 @@ Staging's remaining artifacts expire by retention; the restore test always takes
 
 On a trusted machine with the owner key, `age`, `psql` ≥ 17 and this repository:
 
-1. **Pick the backup:** `gh run list --workflow backup.yml --branch main --status success`, then
-   `gh run download <run id> --name db-backup-<kind>-<date> --dir backup-encrypted`.
+1. **Pick the backup** the way the restore test does — a successful `backup.yml` run on `main`
+   of this repository, started by its schedule or by hand. Never pick one by artifact name alone
+   (or from `gh run list`, which does not show the head repository): a pull request from a fork
+   can upload an artifact named `db-backup-…` (ADR-0005).
+
+   ```bash
+   gh api 'repos/khanhnguyendev/hoc-deu/actions/workflows/backup.yml/runs?branch=main&status=success&per_page=50' \
+     --jq '.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")
+           | select(.head_repository.full_name == "khanhnguyendev/hoc-deu")
+           | "\(.id)  \(.event)  \(.created_at)"'
+   gh run download <run id> --repo khanhnguyendev/hoc-deu --name db-backup-<kind>-<date> \
+     --dir backup-encrypted
+   ```
 2. **Decrypt and check** (plaintext in a `0700` directory; delete it when done):
 
    ```bash

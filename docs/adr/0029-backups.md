@@ -43,15 +43,18 @@ and size, every table's row count. No personal data, and encrypted with the dump
 **Encryption and retention.** gzip, then `age` for every recipient in `BACKUP_AGE_RECIPIENTS` (at
 least the owner's offline key and the restore-test key; ADR-0005). One artifact per run:
 `db-backup-weekly-<date>` on Sundays (UTC), kept 90 days; `db-backup-daily-<date>` otherwise,
-kept 14 days (owner-approved 2026-09-26, decision 27). The job runs daily at 22:00 UTC and fails
-when an expected file is missing, empty or not encrypted, or when no artifact was uploaded.
+kept 14 days (owner-approved 2026-09-26, decision 27). The job runs daily at **22:17 UTC** — the
+spec's 22:00 moved off the top of the hour, when GitHub delays and under load drops scheduled runs
+(controller ruling M5-R20) — and fails when an expected file is missing, empty or not encrypted,
+or when no artifact was uploaded. The plaintext is deleted right after the encrypted files are
+checked, before the upload.
 
-**The restore test**, Saturday 03:00 UTC: the newest artifact of a successful scheduled or
-dispatched `backup.yml` run on `main` (ADR-0005); decrypted with the restore-test key; checked
-against its manifest (every SHA-256, every file's rows, no psql meta-command); the manifest's
-commit — only one on `main` — checked out; the **local Supabase stack** started and that
-commit's migrations applied **without `seed.sql`** (whose synthetic users would collide with the
-dumped ones); `auth.sql`, then `public.sql`, loaded in one transaction with
+**The restore test**, Saturday **03:17 UTC** (M5-R20 as well): the newest artifact of a successful
+scheduled or dispatched `backup.yml` run on `main` of this repository (ADR-0005); decrypted with
+the restore-test key; checked against its manifest (every SHA-256, every file's rows, nothing but
+what a data-only pg_dump writes — no psql meta-command); the manifest's commit — only one on
+`main` — checked out; the **local Supabase stack** started and that commit's migrations applied
+**without `seed.sql`** (whose synthetic users would collide with the dumped ones); `auth.sql`, then `public.sql`, loaded in one transaction with
 `session_replication_role = replica` (triggers and foreign keys off, so nothing is recomputed and
 load order does not matter); every table's row count compared with the manifest. The spec said
 "a Postgres service container": the migrations need Supabase's roles, `auth` schema and

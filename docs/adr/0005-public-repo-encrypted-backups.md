@@ -26,10 +26,13 @@ database, a key that decrypts it, and a database URL with a password.
   job gzips and encrypts each dump and the manifest, then checks that its upload directory holds
   exactly the expected `age`-encrypted, non-empty files (`tools/backup/artifact.ts`) before the
   upload step runs: plaintext can never reach an artifact.
-- **Logs never show data.** No `set -x`; no `cat` / `head` / `tail` / `tee` of any file; psql's
-  output is discarded and its errors are shown as SQLSTATE codes only (a server message can quote
-  a row); tools print table and file names, never a row or a count. Row counts and checksums live
-  in the encrypted manifest. `tools/backup/workflows.test.ts` guards all of it — these workflows
+- **Logs never show data.** No `set -x`; no command that prints a file (`cat`, `head`, `tail`,
+  pagers, `tee`, `zcat` and the other z-tools, `base64`, `jq`, hex dumpers); `gzip` / `gunzip` /
+  `age` never write to stdout (`age` always names its `--output`); every psql's output is
+  redirected or captured, and its load errors are shown as SQLSTATE codes only (a server message
+  can quote a row); tools print table and file names, never a row or a count. Row counts and
+  checksums live in the encrypted manifest; the plaintext is deleted as soon as the encrypted files
+  are checked. `tools/backup/workflows.test.ts` guards all of it — these workflows
   run only on `main`, so that test is their only check before a merge.
 - **Secrets live in environments limited to `main`** — `backup` now, `bot` in v1.1 — or in Vercel;
   no pull-request branch (`claude/*` included) can read them. Inside a job, only the step that
@@ -37,8 +40,13 @@ database, a key that decrypts it, and a database URL with a password.
   through `env` only (no `${{ }}` inside a script), and the secret-bearing steps run no Node code.
 - **Nothing a pull request can create is trusted.** The restore test takes the newest artifact of a
   successful `backup.yml` run on `main` of this repository, started by its schedule or by hand —
-  never the newest artifact by name — checks the manifest's commit is on `main` before checking it
-  out, and scans every dump for psql meta-commands before `psql` loads it.
+  never the newest artifact by name — and checks the manifest's commit is on `main` before checking
+  it out; the maintenance cron's backup and restore-test ages (`lib/ops/github.ts`) trust the same
+  runs only. Before `psql` loads a dump, `tools/backup/dump.ts` accepts only what a data-only
+  pg_dump writes: outside COPY data, pg_dump's `\restrict <key>` first and `\unrestrict <key>`
+  last, and otherwise only blank lines, comments, `SET`, `set_config`, `setval` and the COPY
+  lines — any other backslash, even in the middle of a line or in a comment, fails the job, so a
+  forged dump cannot run a psql meta-command such as `\!`.
 - **GitHub's security features stay on** (task 0.10): secret scanning with push protection,
   Dependabot alerts and version updates (`.github/dependabot.yml`), CodeQL for
   JavaScript/TypeScript and Actions (`.github/workflows/codeql.yml`), and the `main` ruleset.
@@ -57,3 +65,13 @@ database, a key that decrypts it, and a database URL with a password.
   same trust as the database URL beside it.
 - Accepted: losing both private keys loses every backup; the owner keeps the offline key in two
   places (docs/ops/backups.md §2 step 1).
+
+## Follow-ups
+
+- **Pin third-party actions by commit SHA.** The workflows use major-version tags
+  (`actions/checkout@v7`, `pnpm/action-setup@v6`, …) like the rest of the repository; task 7.3 pins
+  every action by commit SHA, the backup workflows included.
+- **`sslmode=verify-full` for the backup's database URL.** The job requires TLS
+  (`sslmode=require`) but does not yet verify the pooler's certificate. Check on staging first that
+  the pooler's certificate chain verifies against Supabase's CA, then switch the URL and the
+  workflow's check to `verify-full`.

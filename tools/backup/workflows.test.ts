@@ -62,6 +62,8 @@ const indexOf = (steps: Step[], predicate: (step: Step) => boolean, label: strin
   return index
 }
 const named = (name: string) => (step: Step) => step.name === name
+/** Where a word runs as a command: line start, after an operator, a keyword or a wrapper. */
+const COMMAND_AT = String.raw`(?:^|[|;&({!]|\$\(|\b(?:sudo|do|then|else|if|elif|while|until|exec|xargs|env|command|time)\b)\s*`
 /** A script's commands: continuation lines joined, comment lines dropped, indentation trimmed. */
 const commands = (step: Step): string[] =>
   (step.run ?? '')
@@ -80,6 +82,7 @@ const B = {
   check: 'Every expected file is present, encrypted and not empty',
   weekly: 'Upload the weekly backup (kept 90 days)',
   daily: 'Upload the daily backup (kept 14 days)',
+  shred: 'Remove the plaintext before the upload',
   uploaded: 'The backup artifact was uploaded',
   cleanup: 'Remove the plaintext',
 }
@@ -103,16 +106,22 @@ const DATA_STEPS = {
 }
 
 describe.each([
-  ['backup.yml', backup, { cron: '0 22 * * *', permissions: { contents: 'read' } }],
+  ['backup.yml', backup, { cron: '17 22 * * *', permissions: { contents: 'read' } }],
   [
     'restore-test.yml',
     restore,
-    { cron: '0 3 * * 6', permissions: { contents: 'read', actions: 'read' } },
+    { cron: '17 3 * * 6', permissions: { contents: 'read', actions: 'read' } },
   ],
 ] as const)('%s', (_file, { text, workflow, job, steps }, expected) => {
   it('runs on its schedule and by hand only — never for a push or a pull request', () => {
     expect(Object.keys(workflow.on).sort()).toEqual(['schedule', 'workflow_dispatch'])
     expect(workflow.on.schedule).toEqual([{ cron: expected.cron }])
+  })
+
+  it('is scheduled off the top of the hour, when GitHub delays or drops runs (ruling M5-R20)', () => {
+    const [minute] = expected.cron.split(' ')
+    expect(minute).not.toBe('0')
+    expect(text).toContain('M5-R20')
   })
 
   it('uses the backup environment (limited to main) with the least permissions', () => {
@@ -140,11 +149,36 @@ describe.each([
     )
   })
 
-  it('never prints a file: no cat, head, tail, less, more, tee or hex dumpers anywhere', () => {
-    const printers =
-      /(?:^|[|;&(]|\$\(|\bsudo)\s*(cat|head|tail|less|more|tee|xxd|od|hexdump|strings)\b/
+  it('never prints a file: no cat, head, tail, pagers, tee, z-tools, encoders or hex dumpers', () => {
+    const printers = new RegExp(
+      `${COMMAND_AT}(cat|head|tail|less|more|tee|xxd|od|hexdump|strings|zcat|zless|zmore|zgrep|bzcat|xzcat|base64|jq)\\b`,
+    )
     for (const step of steps) {
       for (const line of commands(step)) expect(line, step.name).not.toMatch(printers)
+    }
+  })
+
+  it('never lets gzip or gunzip write to stdout (or gzip decompress)', () => {
+    for (const step of steps) {
+      for (const line of commands(step)) {
+        expect(line, step.name).not.toMatch(
+          /\bgzip\b.*\s(-[a-zA-Z]*[cd]\b|--(stdout|to-stdout|decompress)\b)/,
+        )
+        expect(line, step.name).not.toMatch(/\bgunzip\b.*\s(-[a-zA-Z]*c\b|--(stdout|to-stdout)\b)/)
+      }
+    }
+  })
+
+  it('never lets age write to stdout: every encrypt or decrypt names its --output', () => {
+    const ageCommand = new RegExp(`${COMMAND_AT}age\\s`)
+    const invocations = steps
+      .flatMap(commands)
+      .filter((line) => ageCommand.test(line) && !line.includes('age --version'))
+    expect(invocations.length).toBeGreaterThan(0)
+    for (const line of invocations) {
+      expect(line).toMatch(/\bage --(encrypt|decrypt) /)
+      expect(line).toContain(' --output "')
+      expect(line).not.toMatch(/\s-[a-zA-Z]*[do]\s/)
     }
   })
 
@@ -162,6 +196,19 @@ describe.each([
     for (const line of psql) {
       expect(line).toContain(' -X ')
       expect(line).not.toMatch(/--echo|\s-[a-zA-Z]*[aeb]\s/)
+    }
+  })
+
+  it('never lets psql print to the log: its output is redirected or captured', () => {
+    const lines = steps.flatMap(commands)
+    const connecting = lines.filter((line) => line.includes('"$PG_BIN/psql" --dbname='))
+    for (const line of connecting) {
+      if (line.startsWith('psql_backup() {')) continue // the helper; its calls are checked below
+      expect(line).toMatch(/\s>\s/)
+    }
+    for (const line of lines.filter((candidate) => /\bpsql_backup\s/.test(candidate))) {
+      if (line.startsWith('psql_backup() {')) continue
+      expect(line).toMatch(/\$\(psql_backup /)
     }
   })
 
@@ -261,7 +308,7 @@ describe('backup.yml', () => {
     // that descriptor, or it never sees the end of its input and the job hangs (dry run, 5.7b).
     expect(lines).toContain('exec 3<> "$work/holder.sql"')
     expect(lines).toContain(
-      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v with_auth="$with_auth" -f "$work/holder.sql" 3>&- &',
+      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v with_auth="$with_auth" -f "$work/holder.sql" > /dev/null 3>&- &',
     )
     expect(lines).toContain('exec 3>&-')
     // The same session that exported the snapshot runs counts.sql, then commits.
@@ -316,6 +363,17 @@ describe('backup.yml', () => {
     expect(script(B.check)).toContain(
       'pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/backup-upload" --auth "$auth"',
     )
+  })
+
+  it('removes the plaintext dumps and manifest right after the check, before any upload', () => {
+    const checkAt = indexOf(steps, named(B.check), B.check)
+    const shredAt = indexOf(steps, named(B.shred), B.shred)
+    expect(shredAt).toBe(checkAt + 1)
+    expect(script(B.shred)).toBe('set -euo pipefail\nrm -rf "$RUNNER_TEMP/backup"\n')
+    // Nothing after it reads the work directory but the final fallback cleanup.
+    const later = steps.slice(shredAt + 1, -1)
+    expect(later.filter((step) => JSON.stringify(step).includes('RUNNER_TEMP/backup"'))).toEqual([])
+    expect(later.filter((step) => JSON.stringify(step).includes('RUNNER_TEMP/backup/'))).toEqual([])
   })
 
   it('keeps Sunday’s artifact 90 days and the others 14 (decision 27)', () => {
