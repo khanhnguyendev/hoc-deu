@@ -79,9 +79,26 @@ async function record(
     if (STALE.has(error.code)) return stale(error.userMessage)
     return { ok: false, message: error.userMessage }
   }
-  if (rebuildFor !== undefined) await rebuildTodayIfUntouched(rebuildFor)
+  if (rebuildFor !== undefined) await rebuildToday(rebuildFor)
   revalidatePath(PATH)
   return { ok: true, message }
+}
+
+/**
+ * `rebuildTodayIfUntouched` after a recorded change. The change is saved whatever happens here:
+ * a failure (e.g. a read that failed) is logged — its name and message only, never user data —
+ * and today's plan stays as it is (the change applies from tomorrow), so the learner still sees
+ * the success message and the re-rendered page.
+ */
+async function rebuildToday(userId: string): Promise<void> {
+  try {
+    await rebuildTodayIfUntouched(userId)
+  } catch (error) {
+    console.error(
+      '[settings] rebuild failed:',
+      error instanceof Error ? `${error.name}: ${error.message}` : typeof error,
+    )
+  }
 }
 
 /** The learner's today, in the schedule in force (§5.1). */

@@ -37,6 +37,8 @@ const fake = vi.hoisted(() => ({
   deleteAccountSignOutThrows: null as Error | null,
   /** What `rebuildTodayIfUntouched` answers (decision 11). */
   rebuildOutcome: 'rebuilt' as string,
+  /** `rebuildTodayIfUntouched` rejects with this when set. */
+  rebuildFails: null as Error | null,
   calls: [] as unknown[][],
 }))
 
@@ -102,6 +104,7 @@ vi.mock('./reads', () => ({
 vi.mock('@/lib/plans/rebuild', () => ({
   rebuildTodayIfUntouched: async (userId: string) => {
     fake.calls.push(['rebuildTodayIfUntouched', userId])
+    if (fake.rebuildFails) throw fake.rebuildFails
     return fake.rebuildOutcome
   },
 }))
@@ -164,6 +167,7 @@ beforeEach(() => {
   fake.deleteAccountSignOutResult = { error: null }
   fake.deleteAccountSignOutThrows = null
   fake.rebuildOutcome = 'rebuilt'
+  fake.rebuildFails = null
   fake.calls = []
 })
 afterEach(() => {
@@ -730,6 +734,24 @@ describe("today's plan after a track change (decision 11)", () => {
     async (outcome) => {
       fake.rebuildOutcome = outcome
       await expect(changes[0][1]()).resolves.toEqual({ ok: true, message: `Đã lưu ${DSA}.` })
+    },
+  )
+
+  it.each(changes)(
+    'still answers success and re-renders when the rebuild after %s throws (the change is saved)',
+    async (_, change) => {
+      fake.rebuildFails = new Error('Could not read the day plan')
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        expect(await change()).toMatchObject({ ok: true })
+        expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+        expect(logged).toHaveBeenCalledWith(
+          '[settings] rebuild failed:',
+          'Error: Could not read the day plan',
+        )
+      } finally {
+        logged.mockRestore()
+      }
     },
   )
 
