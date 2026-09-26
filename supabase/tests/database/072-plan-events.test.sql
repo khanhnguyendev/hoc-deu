@@ -9,7 +9,7 @@ select plan(76);
 -- (platform design §2.3, §4.3, §4.4, §5.4, §5.5; implementation plan Part B-M4 decisions 10, 12,
 -- 30, 33). The server calls it with the secret key, so every call here runs as service_role.
 
--- A system event as lib/events/apply.ts sends it: snake_case keys, rules_version 2 (override it
+-- A system event as lib/events/apply.ts sends it: snake_case keys, rules_version 3 (override it
 -- with `|| '{"rules_version": 1}'`).
 create function tests.sys_event(
   p_id text, p_type text, p_payload jsonb default '{}'::jsonb, p_plan text default null,
@@ -18,7 +18,7 @@ create function tests.sys_event(
   select jsonb_strip_nulls(jsonb_build_object(
       'id', p_id, 'type', p_type, 'plan_id', p_plan, 'block_id', p_block, 'track_id', p_track,
       'local_day', p_local_day))
-    || jsonb_build_object('payload', p_payload, 'rules_version', 2)
+    || jsonb_build_object('payload', p_payload, 'rules_version', 3)
 $$;
 
 -- A learner event (apply_event, 4.9b), as 071 builds it.
@@ -29,7 +29,7 @@ create function tests.learner_event(
   select jsonb_strip_nulls(jsonb_build_object(
       'id', p_id, 'type', p_type, 'track_id', p_track, 'item_id', p_item, 'plan_id', p_plan,
       'block_id', p_block))
-    || jsonb_build_object('payload', p_payload, 'rules_version', 2)
+    || jsonb_build_object('payload', p_payload, 'rules_version', 3)
 $$;
 
 -- plan.generated's payload.
@@ -385,7 +385,7 @@ select results_eq(
     :'plan_today'
   ),
   format(
-    $$values (2, 'baseline'::text, '2026-01-02T00:00:00Z'::timestamptz, 2, tests.blocks(%L, 45),
+    $$values (2, 'baseline'::text, '2026-01-02T00:00:00Z'::timestamptz, 3, tests.blocks(%L, 45),
               tests.weeks(2))$$,
     :'today'
   ),
@@ -749,7 +749,7 @@ select results_eq(
       from public.plan_block_state where plan_id = %L and block_id = %L$$,
     :'plan_today', :'today' || ':dsa:new:1'
   ),
-  format($$values (%L::uuid, 'done'::text, 45, true, %L::date, 1, 2)$$, :'learner', :'today'),
+  format($$values (%L::uuid, 'done'::text, 45, true, %L::date, 1, 3)$$, :'learner', :'today'),
   '... stores the check-in for the user: auto true, checked_in_on the event''s local day'
 );
 select results_eq(

@@ -628,7 +628,8 @@ insert into public.day_plans (id, user_id, plan_date, blocks) values
      {"id": "t3", "trackId": "dsa", "kind": "recap", "estMinutes": 20, "items": []},
      {"id": "t4", "trackId": "dsa", "kind": "practice", "estMinutes": 20, "items": []}]');
 
--- Step 1 (D1): b1 skipped, 0 minutes → skipped, 0, on D1; D1 {}, not completed.
+-- Step 1 (D1): b1 skipped, 0 minutes → skipped, 0, on D1; D1 {dsa: 0}, not completed (the
+-- engine keeps a 0-minute skipped block's track in minutesByTrack, ruling M5-R9).
 select tests.authenticate_as(:'m6');
 select is(
   public.apply_event(
@@ -636,7 +637,7 @@ select is(
                    '73000000-0000-4000-8000-0000000000c1', 'b1', 'skipped', 0, :'today'),
     jsonb_build_array(
       tests.block_change('73000000-0000-4000-8000-0000000000c1', 'b1', 'skipped', 0),
-      tests.day_change(:'today', '{}', false)),
+      tests.day_change(:'today', '{"dsa": 0}', false)),
     jsonb_build_object(
       'plan_block_state:73000000-0000-4000-8000-0000000000c1/b1', 0,
       'daily_activity:' || :'today', 0)
@@ -655,9 +656,10 @@ select results_eq(
     :'m6'
   ),
   format(
-    $$values ('skipped'::text, 0, %1$L::date, 1, 3, %1$L::date, '{}'::jsonb, false)$$, :'today'
+    $$values ('skipped'::text, 0, %1$L::date, 1, 3, %1$L::date, '{"dsa": 0}'::jsonb, false)$$,
+    :'today'
   ),
-  '... b1 is skipped, 0, on D1 (rules_version 3); D1 is {}, not completed'
+  '... b1 is skipped, 0, on D1 (rules_version 3); D1 is {dsa: 0}, not completed'
 );
 -- A day passes: D1 is yesterday.
 update public.plan_block_state set checked_in_on = checked_in_on - 1 where user_id = :'m6';

@@ -322,8 +322,11 @@ select throws_ok(
               '70000000-0000-4000-8000-0000000000ff')$$,
     :'learner'
   ),
-  '23503', 'insert or update on table "events" violates foreign key constraint "events_plan_id_fkey"',
-  'a system insert naming a plan that does not exist fails the foreign key'
+  -- SQLSTATE only: events_plan_id_fkey and events_plan_id_user_id_fkey (task 5.0b) both fail
+  -- here, and which one reports depends on the order their triggers fire in. 073 pins the
+  -- composite key's message for another user's plan.
+  '23503', null,
+  'a system insert naming a plan that does not exist fails a foreign key'
 );
 
 -- ---------------------------------------------------------------------------------------------
