@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventError } from '@/lib/events/apply'
 import { vi as copy } from '@/lib/i18n/vi'
+import type { ExtraOutcome } from '@/lib/plans/extra'
 import type { ResumeOutcome } from '@/lib/plans/resume'
 import { createFakeSupabase, type FakeSupabase } from '@/lib/testing/fake-supabase'
 
 const USER_ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
 const PLAN_ID = '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f'
+const REQUEST_ID = '3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c'
 
 const state = vi.hoisted(() => ({
   log: [] as unknown[][],
@@ -13,6 +15,7 @@ const state = vi.hoisted(() => ({
   denied: null as Error | null,
   fake: null as unknown as FakeSupabase,
   resume: (async () => 'created') as () => Promise<ResumeOutcome>,
+  extra: (async () => 'added') as () => Promise<ExtraOutcome>,
 }))
 
 vi.mock('next/cache', () => ({
@@ -30,6 +33,12 @@ vi.mock('@/lib/auth/dal', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => state.fake.client('session'),
 }))
+vi.mock('@/lib/plans/extra', () => ({
+  addExtraForTrack: async (userId: string, trackId: string, requestId: string) => {
+    state.log.push(['addExtraForTrack', userId, trackId, requestId])
+    return state.extra()
+  },
+}))
 vi.mock('@/lib/plans/resume', () => ({
   resumeToday: async (userId: string) => {
     state.log.push(['resumeToday', userId])
@@ -37,7 +46,7 @@ vi.mock('@/lib/plans/resume', () => ({
   },
 }))
 
-const { markPlanSeen, resumeTodayAction } = await import('./actions')
+const { addExtraAction, markPlanSeen, resumeTodayAction } = await import('./actions')
 
 beforeEach(() => {
   state.log = []
@@ -48,6 +57,7 @@ beforeEach(() => {
     return { data: true, error: null }
   })
   state.resume = async () => 'created'
+  state.extra = async () => 'added'
 })
 
 describe('markPlanSeen (§5.2, ADR-0039)', () => {
@@ -123,6 +133,59 @@ describe('resumeTodayAction ("Học tiếp hôm nay", §5.8)', () => {
   it('does nothing when the guard redirects', async () => {
     state.denied = new Error('REDIRECT:/onboarding')
     await expect(resumeTodayAction()).rejects.toThrow('REDIRECT:/onboarding')
+    expect(state.log).toEqual([['requireOnboarded']])
+  })
+})
+
+describe('addExtraAction ("Học thêm", decision 20)', () => {
+  const input = { requestId: REQUEST_ID, trackId: 'dsa' }
+
+  it.each([
+    ['added', true, copy.extra.add.added],
+    ['nothing_to_add', false, copy.extra.add.nothingToAdd],
+    ['throttled', false, copy.extra.add.stale],
+    ['no_plan', false, copy.extra.add.stale],
+  ] as const)('answers %s with its message and re-renders /today', async (outcome, ok, message) => {
+    state.extra = async () => outcome
+    expect(await addExtraAction(input)).toEqual({ ok, message })
+    expect(state.log).toEqual([
+      ['requireOnboarded'],
+      ['addExtraForTrack', USER_ID, 'dsa', REQUEST_ID],
+      ['revalidatePath', '/today'],
+    ])
+  })
+
+  it.each([
+    { requestId: 'not-a-uuid', trackId: 'dsa' },
+    { requestId: REQUEST_ID, trackId: 'DSA!' },
+    { requestId: REQUEST_ID, trackId: 'dsa', extra: true },
+    null,
+  ])('refuses an invalid input %j, sending nothing', async (bad) => {
+    expect(await addExtraAction(bad as unknown as typeof input)).toEqual({
+      ok: false,
+      message: copy.extra.add.invalid,
+    })
+    expect(state.log).toEqual([['requireOnboarded']])
+  })
+
+  it('answers an EventError with its Vietnamese message', async () => {
+    state.extra = async () => {
+      throw new EventError('quota_exceeded')
+    }
+    expect(await addExtraAction(input)).toEqual({ ok: false, message: copy.errors.quotaExceeded })
+    expect(state.log).toContainEqual(['revalidatePath', '/today'])
+  })
+
+  it('lets any other error reach the error boundary', async () => {
+    state.extra = async () => {
+      throw new Error('boom')
+    }
+    await expect(addExtraAction(input)).rejects.toThrow('boom')
+  })
+
+  it('does nothing when the guard redirects', async () => {
+    state.denied = new Error('REDIRECT:/onboarding')
+    await expect(addExtraAction(input)).rejects.toThrow('REDIRECT:/onboarding')
     expect(state.log).toEqual([['requireOnboarded']])
   })
 })

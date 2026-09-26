@@ -548,3 +548,58 @@ describe('buildTodayPage — seen, request', () => {
     expect(page.requestId).toBe(REQUEST_ID)
   })
 })
+
+describe('buildTodayPage — "Học thêm" (task 5.4, decision 20)', () => {
+  it('offers it per active, started track in the plan and resumed states', () => {
+    const plan = storedPlan({ tracks: { dsa: SNAPSHOT, english: { ...SNAPSHOT, variant: '10w' } } })
+    for (const state of [planState(plan), { kind: 'resumed', plan, blocks: {} } as const]) {
+      expect(buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID).extra).toEqual([
+        { trackId: 'dsa', trackTitle: DSA_TITLE, accent: 'track-1', throttledDue: null },
+        { trackId: 'english', trackTitle: ENGLISH_TITLE, accent: 'track-2', throttledDue: null },
+      ])
+    }
+  })
+
+  it("carries the snapshot's due count when the plan caps the track at 0 new items (§5.5)", () => {
+    const plan = storedPlan({
+      tracks: {
+        dsa: SNAPSHOT,
+        english: { ...SNAPSHOT, variant: '10w', dueCount: 61, newPerDay: 0, throttled: true },
+      },
+    })
+    const page = buildTodayPage(todayData(planState(plan)), NO_ACTIVITY, REQUEST_ID)
+    expect(page.extra.map((view) => [view.trackId, view.throttledDue])).toEqual([
+      ['dsa', null],
+      ['english', 61],
+    ])
+  })
+
+  it('leaves out paused, removed and not-started tracks', () => {
+    const data = todayData(planState(), {
+      enrollments: [
+        enrollment('dsa', { status: 'paused' }),
+        enrollment('english', { startDate: '2026-10-01' }),
+      ],
+    })
+    expect(buildTodayPage(data, NO_ACTIVITY, REQUEST_ID).extra).toEqual([])
+    const removed = todayData(planState(), {
+      enrollments: [enrollment('dsa', { status: 'removed' }), enrollment('english')],
+    })
+    expect(
+      buildTodayPage(removed, NO_ACTIVITY, REQUEST_ID).extra.map((view) => view.trackId),
+    ).toEqual(['english'])
+  })
+
+  it('offers nothing in the paused view and the states without a plan', () => {
+    const plan = storedPlan()
+    const states: TodayState[] = [
+      { kind: 'paused', plan, unfinished: [], blocks: {}, daysSince: 1, offerResume: false },
+      { kind: 'notStarted', startDate: '2026-10-03' },
+      { kind: 'noTracks' },
+      { kind: 'unreadable' },
+    ]
+    for (const state of states) {
+      expect(buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID).extra).toEqual([])
+    }
+  })
+})

@@ -2,9 +2,9 @@ import type * as React from 'react'
 import { LinkRow } from '@/components/patterns/link-row'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { StatusPill } from '@/components/patterns/status-pill'
-import type { CheckInResult } from '@/features/checkin/actions'
+import type { CheckInResult, OutcomeResult } from '@/features/checkin/actions'
 import { CheckInButton } from '@/features/checkin/components/check-in-button'
-import type { ResumeResult } from '@/features/today/actions'
+import type { ExtraResult, ResumeResult } from '@/features/today/actions'
 import { BlockItemList } from '@/features/today/components/block-item-list'
 import { MarkPlanSeen } from '@/features/today/components/mark-plan-seen'
 import { PausedBanner } from '@/features/today/components/paused-banner'
@@ -20,6 +20,7 @@ import { WeakAreas } from '@/features/today/components/weak-areas'
 import type { BlockItemSlot, TodaySlots } from '@/features/today/slots'
 import type {
   BlockView,
+  ExtraView,
   TodayPage,
   TrackProgressView,
   WeakTopicView,
@@ -30,9 +31,10 @@ import { vi } from '@/lib/i18n/vi'
 import type { Entry } from '../types'
 
 /**
- * `/dev/components` entries of features/today (tasks 5.1b, 5.2b; 5.4 later) — Part B-M5
- * decision 3: only that task edits this file. The rows are plain LinkRows standing in for the
- * registry's (the page builds the real ones, `todaySlots`); the actions are no-ops or demos.
+ * `/dev/components` entries of features/today (tasks 5.1b, 5.2b, 5.4) — Part B-M5 decision 3:
+ * only that task edits this file. The rows are plain LinkRows standing in for the registry's (the
+ * page builds the real ones, `todaySlots`); the actions are no-ops or demos. "Học thêm" and the
+ * card block have their own entries in `entries/extra.tsx`.
  */
 
 const TODAY = '2026-09-28'
@@ -55,16 +57,24 @@ const demoCheckIn = async (): Promise<CheckInResult> => ({
   ok: true,
   message: vi.checkIn.checkedIn.done,
 })
+/** "Học thêm" and a card's grade answer as their actions would; nothing is saved. */
+const demoAddExtra = async (): Promise<ExtraResult> => ({ ok: true, message: vi.extra.add.added })
+const demoRecord = async (): Promise<OutcomeResult> => ({
+  ok: true,
+  message: vi.checkIn.outcome.saved,
+  autoCheckedIn: [],
+})
 
+/** A stand-in row; `noNote` adds the problem Row's own "Chưa có ghi chú" hint (M5-R26). */
 const row = (itemId: string, title: string, meta: string[], noNote = false): BlockItemSlot => ({
   itemId,
-  noNote,
   row: (
     <LinkRow
       href={`/t/${itemId.replace(':', '/items/')}`}
       title={title}
       titleLang="en"
       meta={meta}
+      badges={noNote ? vi.items.problem.noNote : undefined}
       trailing={<StatusPill status="not-started" />}
     />
   ),
@@ -120,10 +130,26 @@ const SHADOWING_BLOCK = view({
   kindLabel: vi.today.practice.shadowing,
 })
 
+const EXTRA_BLOCK = view({
+  block: planBlock(`${TODAY}:dsa:extra:1`, { kind: 'extra', estMinutes: 20 }),
+  kindLabel: vi.today.kind.extra,
+  checkIn: {
+    planId: PLAN_ID,
+    blockId: `${TODAY}:dsa:extra:1`,
+    trackId: 'dsa',
+    status: 'done',
+    minutes: 20,
+    note: null,
+    auto: true,
+    checkedInOn: TODAY,
+  },
+})
+
 const DEMO_SLOTS: TodaySlots = {
   [REVIEW_BLOCK.block.id]: {
     items: [row('dsa:lc-0001', 'Two Sum', ['#1', 'Easy', 'Arrays & Hashing'])],
     sentences: [],
+    cards: null,
   },
   [NEW_BLOCK.block.id]: {
     items: [
@@ -131,6 +157,7 @@ const DEMO_SLOTS: TodaySlots = {
       row('dsa:lc-0002', 'Add Two Numbers', ['#2', 'Medium', 'Linked List'], true),
     ],
     sentences: [],
+    cards: null,
   },
   [ENGLISH_BLOCK.block.id]: {
     items: [
@@ -138,6 +165,7 @@ const DEMO_SLOTS: TodaySlots = {
       row('english:w01-bandwidth', 'bandwidth', ['Cốt lõi']),
     ],
     sentences: [],
+    cards: null,
   },
   [SHADOWING_BLOCK.block.id]: {
     items: [],
@@ -151,8 +179,19 @@ const DEMO_SLOTS: TodaySlots = {
         text: 'I have some bandwidth this afternoon if anyone needs help with code reviews.',
       },
     ],
+    cards: null,
+  },
+  [EXTRA_BLOCK.block.id]: {
+    items: [row('dsa:lc-0020', 'Valid Parentheses', ['#20', 'Easy', 'Stack'])],
+    sentences: [],
+    cards: null,
   },
 }
+
+const EXTRA_VIEWS: ExtraView[] = [
+  { trackId: 'dsa', trackTitle: DSA, accent: 'track-1', throttledDue: null },
+  { trackId: 'english', trackTitle: ENGLISH, accent: 'track-2', throttledDue: 61 },
+]
 
 const DSA_TRACK: TrackProgressView = {
   trackId: 'dsa',
@@ -213,6 +252,7 @@ const page = (state: TodayState, change: Partial<Omit<TodayPage, 'data'>> = {}):
   tracks: [],
   streak: 0,
   weakTopics: [],
+  extra: [],
   markSeenPlanId: null,
   requestId: 'demo',
   openBlockId: null,
@@ -229,6 +269,20 @@ const DEMO_PAGES: { title: string; page: TodayPage }[] = [
         tracks: [DSA_TRACK, ENGLISH_TRACK],
         streak: 12,
         weakTopics: WEAK_TOPICS,
+        extra: EXTRA_VIEWS,
+        markSeenPlanId: PLAN_ID,
+      },
+    ),
+  },
+  {
+    title: 'Sau "Học thêm": khối Học thêm (Xong · tự động), Học thêm từng lộ trình (task 5.4)',
+    page: page(
+      { kind: 'plan', plan: plan(), blocks: {} },
+      {
+        blocks: [REVIEW_BLOCK, EXTRA_BLOCK],
+        tracks: [DSA_TRACK],
+        streak: 3,
+        extra: [EXTRA_VIEWS[0]!],
         markSeenPlanId: PLAN_ID,
       },
     ),
@@ -355,6 +409,8 @@ export const TODAY_ENTRIES: Entry[] = [
               markPlanSeen={noopMarkSeen}
               resumeToday={demoResume}
               checkIn={demoCheckIn}
+              addExtra={demoAddExtra}
+              record={demoRecord}
             />,
           ),
       })),
@@ -457,7 +513,7 @@ export const TODAY_ENTRIES: Entry[] = [
     file: 'features/today/components/block-item-list.tsx',
     demos: [
       {
-        title: 'Các dòng, "Chưa có ghi chú" dưới bài chưa có ghi chú (RF-4)',
+        title: 'Các dòng (bài chưa có ghi chú tự báo trong dòng của nó, RF-4)',
         render: () => narrow(<BlockItemList items={DEMO_SLOTS[NEW_BLOCK.block.id]!.items} />),
       },
       { title: 'Trống', render: () => narrow(<BlockItemList items={[]} />) },

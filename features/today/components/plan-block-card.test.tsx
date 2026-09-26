@@ -16,10 +16,11 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
         view={blockView({ minutes: 45 })}
         slots={{
           items: [
-            { itemId: 'dsa:lc-0001', row: row('Two Sum'), noNote: false },
-            { itemId: 'dsa:lc-0002', row: row('Add Two Numbers'), noNote: true },
+            { itemId: 'dsa:lc-0001', row: row('Two Sum') },
+            { itemId: 'dsa:lc-0002', row: row('Add Two Numbers') },
           ],
           sentences: [],
+          cards: null,
         }}
       />,
     )
@@ -33,8 +34,6 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['Two Sum', 'Add Two Numbers'])
-    // RF-4: the note-less problem says so.
-    expect(within(card).getAllByText('Chưa có ghi chú')).toHaveLength(1)
   })
 
   it('shows the over-budget hint only when flagged', () => {
@@ -129,11 +128,25 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
         slots={{
           items: [],
           sentences: [{ itemId: 'english:w01-blocker', text: 'I have one blocker.' }],
+          cards: null,
         }}
       />,
     )
     expect(screen.getByText('I have one blocker.').getAttribute('lang')).toBe('en')
     expect(screen.queryByText('Khối này chưa có bài nào.')).toBeNull()
+  })
+
+  it('a card-only block shows its card session instead of the rows (decision 19)', () => {
+    render(
+      <PlanBlockCard
+        view={blockView()}
+        slots={{ items: [{ itemId: 'a', row: row('blocker') }], sentences: [], cards: [] }}
+        cards={<div data-testid="session">Còn 2 thẻ</div>}
+      />,
+    )
+    const card = screen.getByRole('article')
+    expect(within(card).getByTestId('session').textContent).toBe('Còn 2 thẻ')
+    expect(within(card).queryByRole('link')).toBeNull()
   })
 
   it('says so when a block has no rows (empty)', () => {

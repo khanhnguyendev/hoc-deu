@@ -161,6 +161,7 @@ export function todayPage(
     tracks: [],
     streak: 0,
     weakTopics: [],
+    extra: [],
     markSeenPlanId: null,
     requestId: REQUEST_ID,
     openBlockId: null,

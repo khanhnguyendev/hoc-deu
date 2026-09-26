@@ -23,6 +23,9 @@ type PlanBlockCardProps = {
   slots?: BlockSlots
   /** The one-tap check-in (CheckInButton, task 5.2b) while the block has no check-in. */
   actions?: React.ReactNode
+  /** A card-only block's card session (CardBlock, task 5.4 — decision 19), shown instead of its
+   *  rows. */
+  cards?: React.ReactNode
   /** The paused view (§5.2): a skipped block says how to correct it (M-6 a). */
   paused?: boolean
 }
@@ -32,13 +35,14 @@ type PlanBlockCardProps = {
  * estimated minutes, "Dài hơn thời gian dự kiến" when over budget, the item rows (or a shadowing
  * block's sentences), then the `actions` slot — the one-tap check-in — which a check-in collapses
  * into CheckInStatus (the status pill, minutes, "tự động", "Sửa"; in the paused view a skipped
- * block's M-6 lines). A card-only block lists its rows until task 5.4 renders the card session
- * there (decision 19).
+ * block's M-6 lines). A card-only block shows its `cards` slot — CardBlock, the inline card
+ * session (task 5.4, decision 19) — instead of its rows.
  */
 function PlanBlockCard({
   view,
   slots = EMPTY_BLOCK_SLOTS,
   actions,
+  cards,
   paused = false,
 }: PlanBlockCardProps) {
   const titleId = useId()
@@ -76,7 +80,7 @@ function PlanBlockCard({
         {isShadowing ? (
           <ShadowingSentences sentences={slots.sentences} />
         ) : (
-          <BlockItemList items={slots.items} />
+          (cards ?? <BlockItemList items={slots.items} />)
         )}
         {view.checkIn !== null && (
           <CheckInStatus

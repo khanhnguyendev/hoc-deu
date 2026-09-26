@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CheckInInput, CheckInResult } from '@/features/checkin'
+import { cardItem, SAVED } from '@/features/items/fixtures'
+import type { RecordOutcome } from '@/features/items/outcome'
 import type { TodayState } from '@/lib/plans/today'
 import {
   block,
@@ -30,11 +32,17 @@ const checkIn = vi.fn<(input: CheckInInput) => Promise<CheckInResult>>(async () 
   ok: true,
   message: 'Đã check-in: xong khối học.',
 }))
+const addExtra = vi.fn<
+  (input: { requestId: string; trackId: string }) => Promise<{ ok: boolean; message: string }>
+>(async () => ({ ok: true, message: 'Đã thêm bài mới vào kế hoạch.' }))
+const record = vi.fn<RecordOutcome>(async () => SAVED)
 
 beforeEach(() => {
   markPlanSeen.mockClear()
   resumeToday.mockClear()
   checkIn.mockClear()
+  addExtra.mockClear()
+  record.mockClear()
   router.replace.mockClear()
   router.refresh.mockClear()
 })
@@ -55,19 +63,26 @@ const blocks = [
 ]
 const slots: TodaySlots = {
   [NEW_BLOCK]: {
-    items: [{ itemId: 'dsa:lc-0002', row: <a href="/r">Add Two Numbers</a>, noNote: true }],
+    items: [{ itemId: 'dsa:lc-0002', row: <a href="/r">Add Two Numbers</a> }],
     sentences: [],
+    cards: null,
   },
 }
 
-function view(state: TodayState, change: Parameters<typeof todayPage>[1] = {}) {
+function view(
+  state: TodayState,
+  change: Parameters<typeof todayPage>[1] = {},
+  pageSlots: TodaySlots = slots,
+) {
   return render(
     <TodayView
       page={todayPage(state, change)}
-      slots={slots}
+      slots={pageSlots}
       markPlanSeen={markPlanSeen}
       resumeToday={resumeToday}
       checkIn={checkIn}
+      addExtra={addExtra}
+      record={record}
     />,
   )
 }
@@ -103,7 +118,7 @@ describe('TodayView (§2.4, DESIGN_SYSTEM §5 dashboard order)', () => {
     ).toHaveLength(2)
     expect(within(section).getByRole('article', { name: `Bài mới ${DSA_TITLE}` })).toBeTruthy()
     expect(within(section).getByRole('article', { name: `Ôn tập ${ENGLISH_TITLE}` })).toBeTruthy()
-    expect(within(section).getByText('Chưa có ghi chú')).toBeTruthy()
+    expect(within(section).getByRole('link', { name: 'Add Two Numbers' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Tiến độ' }).textContent).toContain(
       '4 ngày liên tiếp',
     )
@@ -271,5 +286,83 @@ describe('TodayView — check-in (5.2b)', () => {
   it('no ?block= (or an unknown one, which the view model drops): no sheet', () => {
     view({ kind: 'plan', plan, blocks: {} }, { blocks })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  describe('"Học thêm" and card blocks (task 5.4)', () => {
+    const DSA_EXTRA = {
+      trackId: 'dsa',
+      trackTitle: DSA_TITLE,
+      accent: 'track-1',
+      throttledDue: null,
+    } as const
+    const ENGLISH_EXTRA = {
+      trackId: 'english',
+      trackTitle: ENGLISH_TITLE,
+      accent: 'track-2',
+      throttledDue: 61,
+    } as const
+
+    it('offers "Học thêm" per track under the plan; a tap sends the track with the page’s request id', async () => {
+      const user = userEvent.setup()
+      view({ kind: 'plan', plan, blocks: {} }, { blocks, extra: [DSA_EXTRA, ENGLISH_EXTRA] })
+      const extra = screen.getByRole('region', { name: 'Học thêm' })
+      await user.click(within(extra).getByRole('button', { name: `Học thêm ${DSA_TITLE}` }))
+      expect(addExtra).toHaveBeenCalledExactlyOnceWith({ requestId: REQUEST_ID, trackId: 'dsa' })
+      // English is throttled to 0 new cards: why, and the way to its reviews.
+      expect(
+        within(extra).getByText('Đang có 61 thẻ cần ôn — hãy ôn trước khi học thêm.'),
+      ).toBeTruthy()
+      expect(within(extra).getAllByRole('button')).toHaveLength(1)
+    })
+
+    it('shows no "Học thêm" section without tracks to offer (the paused view)', () => {
+      view(
+        {
+          kind: 'paused',
+          plan: storedPlan({ id: OLD_PLAN_ID, planDate: YESTERDAY }),
+          unfinished: [],
+          blocks: {},
+          daysSince: 1,
+          offerResume: false,
+        },
+        { blocks, extra: [] },
+      )
+      expect(screen.queryByRole('region', { name: 'Học thêm' })).toBeNull()
+    })
+
+    it('grades a card-only block inline, sending recordOutcome with the block and request id (decision 19)', async () => {
+      const user = userEvent.setup()
+      const card = cardItem()
+      const { front, back, hint, usage, example, pronunciation, lang } = card.content
+      const cardSlots: TodaySlots = {
+        ...slots,
+        [ENGLISH_BLOCK]: {
+          items: [{ itemId: card.id, row: <a href="/c">blocker</a> }],
+          sentences: [],
+          cards: [
+            {
+              itemId: card.id,
+              blockId: ENGLISH_BLOCK,
+              sides: { front, back, hint, usage, example, pronunciation, lang },
+            },
+          ],
+        },
+      }
+      view({ kind: 'plan', plan, blocks: {} }, { blocks }, cardSlots)
+      const english = screen.getByRole('article', { name: `Ôn tập ${ENGLISH_TITLE}` })
+      expect(within(english).queryByRole('link', { name: 'blocker' })).toBeNull()
+      await user.click(within(english).getByRole('button', { name: 'Xem nghĩa' }))
+      await user.click(within(english).getByRole('button', { name: /^Biết/ }))
+      expect(record).toHaveBeenCalledExactlyOnceWith({
+        requestId: REQUEST_ID,
+        itemId: card.id,
+        blockId: ENGLISH_BLOCK,
+        outcome: { type: 'item.result', result: 'know' },
+      })
+      // The other block keeps its rows and its one-tap check-in.
+      const dsa = screen.getByRole('article', { name: `Bài mới ${DSA_TITLE}` })
+      expect(within(dsa).getByRole('link', { name: 'Add Two Numbers' })).toBeTruthy()
+      expect(within(english).getByRole('button', { name: /Check-in/ })).toBeTruthy()
+    })
   })
 })

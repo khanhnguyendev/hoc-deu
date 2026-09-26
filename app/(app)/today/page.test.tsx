@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   markPlanSeen: async () => {},
   resumeTodayAction: async () => ({ ok: true, message: '' }),
   checkInBlock: async () => ({ ok: true, message: '' }),
+  addExtraAction: async () => ({ ok: true, message: '' }),
+  recordOutcome: async () => ({ ok: true, message: '', autoCheckedIn: [] }),
   props: null as TodayViewProps | null,
 }))
 
@@ -23,12 +25,16 @@ vi.mock('@/features/today', () => ({
   },
   markPlanSeen: state.markPlanSeen,
   resumeTodayAction: state.resumeTodayAction,
+  addExtraAction: state.addExtraAction,
   TodayView: (props: TodayViewProps) => {
     state.props = props
     return <h1>Hôm nay</h1>
   },
 }))
-vi.mock('@/features/checkin', () => ({ checkInBlock: state.checkInBlock }))
+vi.mock('@/features/checkin', () => ({
+  checkInBlock: state.checkInBlock,
+  recordOutcome: state.recordOutcome,
+}))
 
 const { default: TodayPage, metadata } = await import('./page')
 
@@ -43,7 +49,7 @@ beforeEach(() => {
   state.props = null
 })
 
-describe('(app)/today/page (tasks 5.1b, 5.2b)', () => {
+describe('(app)/today/page (tasks 5.1b, 5.2b, 5.4)', () => {
   it('loads the page, builds its slots, and hands TodayView the actions unbound', async () => {
     render(await TodayPage(props({})))
     expect(screen.getByRole('heading', { level: 1, name: 'Hôm nay' })).toBeTruthy()
@@ -57,6 +63,9 @@ describe('(app)/today/page (tasks 5.1b, 5.2b)', () => {
     expect(state.props?.resumeToday).toBe(state.resumeTodayAction)
     // 5.2b: the check-in action, unbound — the client builds its input.
     expect(state.props?.checkIn).toBe(state.checkInBlock)
+    // 5.4: "Học thêm" and a card block's grades, unbound too.
+    expect(state.props?.addExtra).toBe(state.addExtraAction)
+    expect(state.props?.record).toBe(state.recordOutcome)
   })
 
   it('passes ?block= to getToday when it is a single value (§2.4)', async () => {

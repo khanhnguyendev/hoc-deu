@@ -1525,10 +1525,11 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 Task 5.1b (5.2b and 5.4 later) adds these entries below this line (Part B-M5 decision 3).
 
 `/today` (task 5.1b). The page builds each block's rows through the registry and hands them over
-as slots — `todaySlots(page)` (`features/today/rows.tsx`, server-only: each item's type's `Row`
-with the learner's state, the block's mode and the `?block=&mode=` href, since `renderItemRow`
-links to the plain item page) — so every component here takes plain props and ReactNodes and
-renders in the client catalog. Server-compatible unless marked client; the client leaves take the
+as slots — `todaySlots(page)` (`features/today/rows.tsx`, server-only: `renderItemRow(item, {
+state, mode, href, showStatus, showNoteHint })` — the learner's state, the block's mode, the
+`?block=&mode=` href, and the Row's own note hint (ruling M5-R26: no item-type decision in the
+screen) — plus, for a card-only block, the cards its session grades, task 5.4) — so every
+component here takes plain props and ReactNodes and renders in the client catalog. Server-compatible unless marked client; the client leaves take the
 server actions as unbound props from the page. Data: `TodayPage` / `BlockView` /
 `TrackProgressView` / `WeakTopicView` (`features/today/view-model.ts`), `TodaySlots`
 (`features/today/slots.ts`). Loading is the route's `loading.tsx` (LoadingState `variant="page"`),
@@ -1541,7 +1542,9 @@ Copy: `vi.today`.
 - **File:** `features/today/components/today-view.tsx`
 - **Props:** `page: TodayPage` (`getToday(block)`), `slots: TodaySlots` (`todaySlots(page)`),
   `markPlanSeen: (planId) => Promise<void>`, `resumeToday: () => Promise<ResumeResult>`,
-  `checkIn: (input: CheckInInput) => Promise<CheckInResult>` (the server actions, unbound)
+  `checkIn: (input: CheckInInput) => Promise<CheckInResult>`, `addExtra: (input: { requestId,
+  trackId }) => Promise<ExtraResult>`, `record: RecordOutcome` (the server actions, unbound; the
+  last two task 5.4)
 - **Variants:** by `page.data.state.kind` — `plan` (throttle notices, "Kế hoạch hôm nay" with "{n}
   khối · {minutes}", PlanBlockCards, TodayStats + WeakAreas; marks the plan seen) · `resumed` (an
   info Banner "Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.", "Kế hoạch ngày
@@ -1550,11 +1553,15 @@ Copy: `vi.today`.
   (UnreadablePlan). Each block without a check-in gets a CheckInButton in its `actions` slot
   (check-ins go to the plan shown — the paused plan while the gate is closed, decision 13);
   `page.openBlockId` (`/today?block=<id>`, a block the dashboard shows) opens its CheckInSheet.
-  No mode badge in v1.0 (decision 12)
+  Task 5.4: a card-only block grades its cards inline (CardBlock in PlanBlockCard's `cards`
+  slot, decision 19), and in the plan and resumed states a Section "Học thêm" under the blocks
+  lists an ExtraButton per active, started track (`page.extra`). No mode badge in v1.0
+  (decision 12)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
   error (`unreadable`; `error.tsx`) · ready
 - **Usage:** `<TodayView page={page} slots={todaySlots(page)} markPlanSeen={markPlanSeen}
-  resumeToday={resumeTodayAction} checkIn={checkInBlock} />` (`app/(app)/today/page.tsx`)
+  resumeToday={resumeTodayAction} checkIn={checkInBlock} addExtra={addExtraAction}
+  record={recordOutcome} />` (`app/(app)/today/page.tsx`)
 - **Accessibility:** PageHeader `h1` "Hôm nay" with the long date; each column part is a Section
   (a region named by its `h2`); blocks are a `role="list"`; DESIGN_SYSTEM §5 order — banners →
   blocks (2/3 column from 1024 px) → stats and weak areas (1/3 column)
@@ -1564,9 +1571,11 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/plan-block-card.tsx`
 - **Props:** `view: BlockView`, `slots?: BlockSlots` (`{ items: BlockItemSlot[], sentences:
-  ShadowingSentence[] }`), `actions?: ReactNode` (the one-tap CheckInButton while the block has
-  no check-in), `paused?: boolean` (the paused view: a skipped block's M-6 lines)
-- **Variants:** item rows (BlockItemList) · shadowing block (`block.shadowing` set:
+  ShadowingSentence[], cards: CardSessionCard[] | null }`), `actions?: ReactNode` (the one-tap
+  CheckInButton while the block has no check-in), `cards?: ReactNode` (a card-only block's
+  CardBlock, task 5.4), `paused?: boolean` (the paused view: a skipped block's M-6 lines)
+- **Variants:** item rows (BlockItemList) · card-only block (`cards` set: its card session
+  instead of the rows, decision 19) · shadowing block (`block.shadowing` set:
   ShadowingSentences instead) · over budget (a warning Badge "Dài hơn thời gian dự kiến": a new
   item flagged `overBudget`, or a practice block longer than the track budget, M4-R10) · not
   checked in (the `actions` slot: CheckInButton) · checked in (collapses into CheckInStatus —
@@ -1584,13 +1593,13 @@ Copy: `vi.today`.
 
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/block-item-list.tsx`
-- **Props:** `items: BlockItemSlot[]` (`{ itemId, row, noNote }`: the registry row, and whether
-  it is a problem without a visible note)
-- **Variants:** a note-less problem gets "Chưa có ghi chú" under its row (§5.9, RF-4)
+- **Props:** `items: BlockItemSlot[]` (`{ itemId, row }`: the registry row — a note-less problem
+  says "Chưa có ghi chú" in its own row, `showNoteHint`, ruling M5-R26; §5.9, RF-4)
+- **Variants:** —
 - **States:** with rows · empty ("Khối này chưa có bài nào.")
-- **Usage:** `<BlockItemList items={slots.items} />` (PlanBlockCard)
-- **Accessibility:** a `role="list"`; each row is its type's LinkRow (44 px, one link); the
-  no-note line has a decorative icon and text
+- **Usage:** `<BlockItemList items={slots.items} />` (PlanBlockCard; CardBlock once every card is
+  handled)
+- **Accessibility:** a `role="list"`; each row is its type's LinkRow (44 px, one link)
 
 ### ShadowingSentences
 
@@ -2076,6 +2085,49 @@ Task 5.5 adds these entries below this line (Part B-M5 decision 3).
 ### Extra study components (`features/today`, `features/roadmap`)
 
 Task 5.4 adds these entries below this line (Part B-M5 decision 3).
+
+"Học thêm" and the card blocks on `/today` (decisions 19, 20), and the learner's part of the track
+page (Part B-M3 decision 25; §5.9 "Bắt đầu lại"). The client leaves take their server actions
+unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`). Data:
+`ExtraView` (`features/today/view-model.ts`), `CardSessionCard` (`features/items/outcome.ts`),
+`TrackProgressData` (`features/roadmap/view-model.ts`). Copy: `vi.extra`. Catalog:
+`app/dev/components/entries/extra.tsx`.
+
+### ExtraButton
+
+- **Layer:** feature (`features/today`, client)
+- **File:** `features/today/components/extra-button.tsx`
+- **Props:** `view: ExtraView` (`{ trackId, trackTitle, accent, throttledDue: number | null }`),
+  `requestId: string` (the page's), `action: AddExtraAction` (`addExtraAction`, unbound)
+- **Variants:** available (the track chip and an outline "Học thêm" button) · throttled — the
+  plan's snapshot caps the track at 0 new items (§5.5): "Đang có {n} thẻ cần ôn — hãy ôn trước
+  khi học thêm." and an "Ôn tập" link to `/review?track=<id>`, no button
+- **States:** default, pending (the button busy; a second click is ignored), answered (the
+  message in its live region; a success also a toast — "Đã thêm bài mới vào kế hoạch.";
+  "Bạn đã học hết bài mới của lộ trình này." stays beside the button)
+- **Usage:** `<ExtraButton view={extra} requestId={page.requestId} action={addExtra} />`
+  (TodayView's Section "Học thêm", plan and resumed states)
+- **Accessibility:** in the track's `data-accent`, the track named by its chip (never colour
+  alone); the button's and the link's accessible names carry the track title (`sr-only`), so
+  several are distinct; a polite `role="status"` for the answer; 44 px targets
+
+### CardBlock
+
+- **Layer:** feature (`features/today`, client)
+- **File:** `features/today/components/card-block.tsx`
+- **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
+  `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
+  (`recordOutcome`, unbound)
+- **Variants:** session (CardSession: FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows
+  (every card was handled before the page rendered: BlockItemList)
+- **States:** grading · saving · error (CardSession's ErrorState + "Thử lại") · end ("Đã ôn xong":
+  a session keeps its deck to the end while the revalidated page drops the graded cards) ·
+  handled (the rows)
+- **Usage:** `<PlanBlockCard … cards={slots.cards && <CardBlock cards={slots.cards}
+  items={slots.items} requestId={page.requestId} record={record} />} />` (TodayView)
+- **Accessibility:** CardSession's (focus to the next card's "Xem nghĩa", the polite "Đã lưu thẻ
+  …" region); keys 1 / 2 / 3 grade only the card focus is in — two card blocks on one page never
+  both take a key
 
 ### Admin overview components (`features/admin/components`)
 

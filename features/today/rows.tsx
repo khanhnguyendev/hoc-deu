@@ -1,29 +1,24 @@
 /**
- * `/today`'s rows through the item registry (§3.2, §7.6): each block item's type's `Row` with the
- * learner's state, the block's mode and the `?block=&mode=` link, plus the shadowing cards'
- * sentences. Server-only (the registry and the generated catalog); the page calls `todaySlots`.
+ * `/today`'s rows through the item registry (§3.2, §7.6): each block item's Row
+ * (`renderItemRow`) with the learner's state, the block's mode, the `?block=&mode=` link and the
+ * note hint — the Row decides whether it has one (ruling M5-R26) — plus the shadowing cards'
+ * sentences, and for a card-only block the cards its session grades inline (decision 19).
+ * Server-only (the registry and the generated catalog); the page calls `todaySlots`.
  */
 import 'server-only'
-import type * as React from 'react'
 import { isItemOfType } from '@/features/items/narrow'
-import { isNoteVisible } from '@/features/items/problem/note'
-import { getItemType } from '@/features/items/registry'
-import type { ItemRowProps, ItemStateView, ItemType } from '@/features/items/types'
+import type { CardSessionCard, FlashcardSides } from '@/features/items/outcome'
+import { renderItemRow } from '@/features/items/render'
+import type { ItemStateView } from '@/features/items/types'
 import { getItem } from '@/lib/content/catalog'
 import type { CatalogItem } from '@/lib/content/catalog-types'
+import { itemHandled } from '@/lib/domain/plan/checkin'
 import type { ItemState } from '@/lib/domain/state'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 import type { BlockItemSlot, BlockSlots, ShadowingSentence, TodaySlots } from './slots'
 import type { BlockView, TodayPage } from './view-model'
 
-/**
- * The item's own type's Row, typed for any item. Sound for the reason `renderItemRow`'s is: the
- * registry maps each type to that type's definition. `renderItemRow` links to the plain item
- * page; a block's rows need `?block=&mode=`, so the Row gets the block's href here.
- */
-function rowOf(item: CatalogItem): React.ComponentType<ItemRowProps<ItemType>> {
-  return (getItemType(item.type) as unknown as { Row: React.ComponentType<ItemRowProps<ItemType>> })
-    .Row
-}
+type States = TodayPage['data']['items']
 
 function stateView(state: ItemState | undefined): ItemStateView | null {
   return state === undefined
@@ -31,34 +26,47 @@ function stateView(state: ItemState | undefined): ItemStateView | null {
     : { status: state.status, level: state.level, dueOn: state.dueOn }
 }
 
-/** RF-4: a problem whose note a learner cannot see (none yet, or a draft) — §5.9. */
-function hasNoVisibleNote(item: CatalogItem): boolean {
-  return isItemOfType(item, 'problem') && !isNoteVisible(item.content.note, false)
+/** The block's items the catalog still lists (an ID retired by hand has no page, ADR-0010). */
+function knownItems(view: BlockView): { ref: BlockView['items'][number]; item: CatalogItem }[] {
+  return view.items.flatMap((ref) => {
+    const item = getItem(ref.itemId)
+    return item === null ? [] : [{ ref, item }]
+  })
 }
 
-function itemSlots(view: BlockView, states: TodayPage['data']['items']): BlockItemSlot[] {
-  return view.items.flatMap(({ itemId, mode, href }) => {
-    const item = getItem(itemId)
-    // An item the catalog no longer lists (its ID retired by hand, ADR-0010) has no page.
-    if (item === null) return []
-    const Row = rowOf(item)
-    return [
-      {
-        itemId,
-        row: (
-          <Row
-            key={itemId}
-            item={item}
-            state={stateView(states[itemId])}
-            mode={mode}
-            href={href}
-            showStatus
-          />
-        ),
-        noNote: hasNoVisibleNote(item),
-      },
-    ]
-  })
+function itemSlots(view: BlockView, states: States): BlockItemSlot[] {
+  return knownItems(view).map(({ ref, item }) => ({
+    itemId: ref.itemId,
+    row: renderItemRow(item, {
+      state: stateView(states[ref.itemId]),
+      mode: ref.mode,
+      href: ref.href,
+      showStatus: true,
+      showNoteHint: true,
+    }),
+  }))
+}
+
+/** What a FlashcardView shows: plain, serialisable data (it crosses to the client). */
+function sidesOf(card: CatalogItem<'flashcard'>): FlashcardSides {
+  const { front, back, hint, usage, example, pronunciation, lang } = card.content
+  return { front, back, hint, usage, example, pronunciation, lang }
+}
+
+/**
+ * Decision 19: a block whose items are all flashcards grades them inline — its cards not handled
+ * yet for the plan's date (a result on or after it, or skipped: `itemHandled`), each with the
+ * block's id so the result names it (decision 14). Null for any other block (and a shadowing
+ * block, which reads sentences).
+ */
+function cardsOf(view: BlockView, states: States, planDate: LocalDay): CardSessionCard[] | null {
+  if (view.block.shadowing !== undefined) return null
+  const items = knownItems(view).map(({ item }) => item)
+  const cards = items.filter((item) => isItemOfType(item, 'flashcard'))
+  if (cards.length === 0 || cards.length !== items.length) return null
+  return cards
+    .filter((card) => !itemHandled(card.id, planDate, states))
+    .map((card) => ({ itemId: card.id, sides: sidesOf(card), blockId: view.block.id }))
 }
 
 /** §5.6: the example sentence of each listed card that has one, in block order. */
@@ -71,12 +79,25 @@ function sentencesOf(view: BlockView): ShadowingSentence[] {
   })
 }
 
+/** The date of the plan the dashboard shows (the paused plan's own date while paused). */
+function planDateOf(page: TodayPage): LocalDay {
+  const { state } = page.data
+  return state.kind === 'plan' || state.kind === 'resumed' || state.kind === 'paused'
+    ? state.plan.planDate
+    : page.data.today
+}
+
 /** Every shown block's slots, keyed by block ID. */
 export function todaySlots(page: TodayPage): TodaySlots {
+  const planDate = planDateOf(page)
   return Object.fromEntries(
     page.blocks.map((view): [string, BlockSlots] => [
       view.block.id,
-      { items: itemSlots(view, page.data.items), sentences: sentencesOf(view) },
+      {
+        items: itemSlots(view, page.data.items),
+        sentences: sentencesOf(view),
+        cards: cardsOf(view, page.data.items, planDate),
+      },
     ]),
   )
 }

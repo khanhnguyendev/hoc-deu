@@ -58,6 +58,15 @@ export type TrackProgressView = {
   readonly throttleMessage: string | null
 }
 
+/** "Học thêm" for one track (decision 20): shown in the plan and resumed states. */
+export type ExtraView = {
+  readonly trackId: string
+  readonly trackTitle: string
+  readonly accent: string
+  /** The shown plan's snapshot caps the track at 0 new items (§5.5): its due count, else null. */
+  readonly throttledDue: number | null
+}
+
 export type WeakTopicView = {
   /** The topic's track: WeakAreas links to `/t/<trackId>`. */
   readonly trackId: string
@@ -74,6 +83,8 @@ export type TodayPage = {
   readonly tracks: readonly TrackProgressView[]
   readonly streak: number
   readonly weakTopics: readonly WeakTopicView[]
+  /** "Học thêm" per active, started track — plan and resumed states only (task 5.4). */
+  readonly extra: readonly ExtraView[]
   /** The plan <MarkPlanSeen> marks: today's plan when the state is `plan`, else null. */
   readonly markSeenPlanId: string | null
   /** Per render (decision 16): the check-in and "Học thêm" forms derive event ids from it. */
@@ -235,6 +246,31 @@ function trackViews(data: TodayData): TrackProgressView[] {
     })
 }
 
+/**
+ * "Học thêm" (decision 20): one per active enrollment that has started, on the plan the dashboard
+ * shows as today's work (the plan and resumed states — never the paused view), with the snapshot's
+ * due count when it caps the track at 0 new items.
+ */
+function extraViews(data: TodayData): ExtraView[] {
+  const plan = shownPlan(data)
+  if (plan === null) return []
+  return data.enrollments
+    .filter(
+      // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
+      (enrollment) => enrollment.status === 'active' && enrollment.startDate <= data.today,
+    )
+    .map(({ trackId }) => {
+      const snapshot = Object.hasOwn(plan.tracks, trackId) ? plan.tracks[trackId] : undefined
+      const { title, accent } = trackInfo(trackId)
+      return {
+        trackId,
+        trackTitle: title,
+        accent,
+        throttledDue: snapshot?.newPerDay === 0 ? snapshot.dueCount : null,
+      }
+    })
+}
+
 function weakTopicViews(data: TodayData): WeakTopicView[] {
   const active = new Set(
     data.enrollments.filter((entry) => entry.status === 'active').map((entry) => entry.trackId),
@@ -266,7 +302,7 @@ function streakOf(
 }
 
 /**
- * `/today`'s view (tasks 5.1b, 5.2b): pure over its inputs and the track manifests. `block` is
+ * `/today`'s view (tasks 5.1b, 5.2b, 5.4): pure over its inputs and the track manifests. `block` is
  * `?block=`: its sheet opens only for a block the dashboard shows — an unknown ID, or a finished
  * block of the paused plan, opens nothing.
  */
@@ -283,6 +319,7 @@ export function buildTodayPage(
     tracks: trackViews(data),
     streak: streakOf(data, dailyActivity),
     weakTopics: weakTopicViews(data),
+    extra: extraViews(data),
     markSeenPlanId: data.state.kind === 'plan' ? data.state.plan.id : null,
     requestId,
     openBlockId: blocks.find((view) => view.block.id === block)?.block.id ?? null,

@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { EventError } from '@/lib/events/apply'
 import { vi } from '@/lib/i18n/vi'
+import { addExtraForTrack, type ExtraOutcome } from '@/lib/plans/extra'
 import { resumeToday, type ResumeOutcome } from '@/lib/plans/resume'
 import { createClient } from '@/lib/supabase/server'
 
@@ -45,6 +47,49 @@ export async function resumeTodayAction(): Promise<ResumeResult> {
   let result: ResumeResult
   try {
     result = RESULTS[await resumeToday(user.id)]
+  } catch (error) {
+    if (!(error instanceof EventError)) throw error
+    result = { ok: false, message: error.userMessage }
+  }
+  revalidatePath(PATH)
+  return result
+}
+
+export type ExtraResult = { readonly ok: boolean; readonly message: string }
+
+const EXTRA_RESULTS = {
+  added: { ok: true, message: vi.extra.add.added },
+  nothing_to_add: { ok: false, message: vi.extra.add.nothingToAdd },
+  // The page showed "Học thêm", so the plan changed since it rendered: throttled to 0 (its
+  // throttled notice replaces the button, `ExtraButton`), paused, or not built yet.
+  throttled: { ok: false, message: vi.extra.add.stale },
+  no_plan: { ok: false, message: vi.extra.add.stale },
+} as const satisfies Record<ExtraOutcome, ExtraResult>
+
+const extraInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  /** The database's rule for track ids (`user_tracks.track_id`). */
+  trackId: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+})
+
+/**
+ * "Học thêm" (decision 20, §5.9): `addExtraForTrack` with the page's per-render request id — a
+ * double tap in one render adds once (`extra:<planId>:<trackId>`, decision 16) — then
+ * revalidatePath('/today'), whatever the outcome: the extra block appears, or the page shows what
+ * changed. An EventError becomes its Vietnamese message; any other error reaches the route's
+ * error boundary.
+ */
+export async function addExtraAction(input: {
+  requestId: string
+  trackId: string
+}): Promise<ExtraResult> {
+  const user = await requireOnboarded()
+  const parsed = extraInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.extra.add.invalid }
+  const { requestId, trackId } = parsed.data
+  let result: ExtraResult
+  try {
+    result = EXTRA_RESULTS[await addExtraForTrack(user.id, trackId, requestId)]
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     result = { ok: false, message: error.userMessage }

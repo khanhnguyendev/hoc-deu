@@ -15,11 +15,13 @@ import {
   stableSchedule,
   type StableSchedule,
 } from './support/plans'
+import { blockCheckIn, itemEvents } from './support/results'
 import { expect, test } from './support/test'
 import { createTestUser, deleteTestUser, seedLearnerSetup, type TestUser } from './support/users'
 
 /**
- * `/today` (task 5.1b; §2.4, §5.2, §5.4, §5.8; RF-4, RF-5; decision 32 of M4; M-5 A; ADR-0039).
+ * `/today` (tasks 5.1b, 5.4; §2.4, §5.2, §5.4, §5.8; RF-4, RF-5; decision 32 of M4; M-5 A;
+ * ADR-0039; decision 19: card blocks graded inline).
  * Every test creates its own learner with a UTC schedule whose day start is far from now
  * (`stableSchedule`), so the local day the test seeds is the app's; cleanup deletes the user —
  * never a plan (decision 35 of M4).
@@ -273,4 +275,83 @@ test('ADR-0039: a prefetch never marks a plan seen; opening /today does', async 
   await expect
     .poll(async () => (await rowsFor(user.id, today)).map((row) => row.seen_at !== null))
     .toEqual([true])
+})
+
+test('decision 19: an English card-only block is graded inline, through its card session', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['english'], (day) => addDays(day, -10))
+  const block = newBlock(today, 'english', [
+    { itemId: 'english:w01-blocker', minutes: 1.5 },
+    { itemId: 'english:w01-unblock', minutes: 1.5 },
+  ])
+  const planId = await seedPlan(user.id, {
+    planDate: today,
+    blocks: [block],
+    tracks: { english: snapshot('10w') },
+  })
+  await openToday(page, user)
+  const card = page.getByRole('article', { name: `Bài mới ${ENGLISH}` })
+  await expect(card.getByText('Còn 2 thẻ')).toBeVisible()
+  // The session replaces the rows: the cards are graded here, not on their pages.
+  await expect(card.getByRole('link', { name: /blocker/ })).toHaveCount(0)
+  await expectNoAxeViolationsInBothThemes(page)
+
+  await card.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await card.getByRole('button', { name: /^Biết/ }).click()
+  await expect(card.getByText('Còn 1 thẻ')).toBeVisible()
+  await card.getByRole('button', { name: 'Xem nghĩa' }).click()
+  // The grades are listening once they show; key 2 inside the card (focus is on its toggle):
+  // "Chưa chắc".
+  await expect(card.getByRole('group', { name: 'Bạn nhớ thẻ này không?' })).toBeVisible()
+  await page.keyboard.press('2')
+  await expect(card.getByRole('heading', { name: 'Đã ôn xong' })).toBeVisible()
+
+  const recorded = async (itemId: string) => itemEvents(user.id, itemId, 'item.result')
+  expect(await recorded('english:w01-blocker')).toEqual([
+    {
+      type: 'item.result',
+      payload: { result: 'know' },
+      plan_id: planId,
+      block_id: block.id,
+      source: 'learner',
+    },
+  ])
+  expect((await recorded('english:w01-unblock')).map((event) => event.payload)).toEqual([
+    { result: 'unsure' },
+  ])
+  // Both cards handled: the block's auto check-in (§5.5), and the finished session stays.
+  expect(await blockCheckIn(user.id, planId, block.id)).toEqual({
+    status: 'done',
+    auto: true,
+    minutes: 3,
+  })
+  await expect(card.locator('[data-slot="check-in-status"]')).toContainText('tự động')
+  await expect(card.getByRole('heading', { name: 'Đã ôn xong' })).toBeVisible()
+})
+
+test('5.2c’s dashboard check: a block’s only item solved on its page — /today shows "Xong · tự động"', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa'], (day) => addDays(day, -10))
+  const block = newBlock(today, 'dsa', [{ itemId: 'dsa:lc-0001', minutes: 20 }])
+  await seedPlan(user.id, { planDate: today, blocks: [block], tracks: { dsa: snapshot('8w') } })
+  await openToday(page, user)
+  const card = page.getByRole('article', { name: `Bài mới ${DSA}` })
+  await card.getByRole('link', { name: /Two Sum/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Two Sum' })).toBeVisible()
+  await page.getByRole('button', { name: 'Tự giải được' }).click()
+  await expect(
+    page
+      .locator('[data-slot="outcome-message"]')
+      .filter({ hasText: 'Đã lưu kết quả. Khối học đã được tự động check-in.' }),
+  ).toBeVisible()
+
+  await page.goto('/today')
+  const status = card.locator('[data-slot="check-in-status"]')
+  await expect(status).toHaveAttribute('data-status', 'done')
+  await expect(status).toContainText('Xong')
+  await expect(status).toContainText('tự động')
+  // The one-tap button collapsed into the status row.
+  await expect(card.getByRole('button', { name: /^Check-in/ })).toHaveCount(0)
 })
