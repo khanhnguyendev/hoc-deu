@@ -11264,7 +11264,8 @@ export type TodayPage = {
   readonly blocks: readonly BlockView[]
   readonly tracks: readonly TrackProgressView[]
   readonly streak: number
-  readonly weakTopics: readonly { readonly title: string; readonly trackTitle: string; readonly count: number }[]
+  /** trackId for the /t/<track> link (ruling M5-R25). */
+  readonly weakTopics: readonly { readonly trackId: string; readonly title: string; readonly trackTitle: string; readonly count: number }[]
   /** The plan <MarkPlanSeen> marks: today's plan when the state is `plan`, else null. */
   readonly markSeenPlanId: string | null
   /** Per render (decision 16): the check-in and "Học thêm" forms derive event ids from it. */

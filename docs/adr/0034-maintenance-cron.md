@@ -26,7 +26,8 @@ Constraints:
 ## Decision
 
 - **One daily Vercel cron**, `vercel.json`: `GET /api/cron/maintenance` at `0 21 * * *` (21:00
-  UTC = 04:00 in Viet Nam, the default day start, and an hour before the 22:00 UTC backup job).
+  UTC = 04:00 in Viet Nam, the default day start, and about an hour before the 22:17 UTC backup
+  job — the backup crons sit off the top of the hour, ruling M5-R20).
 - **`CRON_SECRET`** (§2.5, at least 32 characters). Vercel sends `Authorization: Bearer
   <CRON_SECRET>`; `requireCronSecret` (`lib/auth/cron.ts`) hashes both sides with SHA-256 and
   compares them with `timingSafeEqual`, and returns a 401 response to send — no secret
@@ -42,7 +43,9 @@ Constraints:
   2. `prune` — `ops_prune()` deletes `event_quota` rows with `local_day < current_date − 2` (a
      learner's local day is at most one day off the database's date, so the current counter is
      never touched) and `ops_metrics` rows older than 400 days.
-  3. `backups` — the latest successful run on `main` of `backup.yml` and `restore-test.yml`, from
+  3. `backups` — the latest successful **trusted** run of `backup.yml` and `restore-test.yml` (event
+     `schedule` or `workflow_dispatch`, head branch `main`, head repository this one — a fork's
+     pull-request run on a branch named `main` never counts; task 5.7b), from
      the public GitHub API (`lib/ops/github.ts`; the repository is a constant, no token, two
      requests a day), recorded as `backup.last_success_at` and `restore_test.last_success_at`.
      The step fails when either run cannot be read — an API error, a rate limit or no successful
@@ -73,7 +76,7 @@ Constraints:
 - Easier: one route, one secret, one schedule; a missed or doubled run needs no repair. `/admin`
   renders from the database alone, so it never waits on or is rate-limited by GitHub.
 - Harder: the backup and restore-test ages on `/admin` are up to a day stale (they are read once a
-  day, an hour before the backup runs, so the newest backup shows up the next evening).
+  day, about an hour before the backup runs, so the newest backup shows up the next evening).
 - Accepted: Hobby's timing means the cron runs somewhere between 21:00 and 21:59 UTC; nothing in
   it depends on the exact minute.
 - Accepted: until the first restore test has run on `main` (5.8b), every report says
