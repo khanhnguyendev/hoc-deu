@@ -255,6 +255,27 @@ export type Database = {
           },
         ]
       }
+      ops_metrics: {
+        Row: {
+          id: number
+          key: string
+          recorded_at: string
+          value: number
+        }
+        Insert: {
+          id?: never
+          key: string
+          recorded_at?: string
+          value: number
+        }
+        Update: {
+          id?: never
+          key?: string
+          recorded_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       plan_block_state: {
         Row: {
           auto: boolean
@@ -512,6 +533,7 @@ export type Database = {
         }
         Returns: Json
       }
+      health: { Args: never; Returns: boolean }
       is_active: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       learner_event_types: { Args: never; Returns: string[] }
@@ -520,6 +542,12 @@ export type Database = {
         Returns: string
       }
       mark_plan_seen: { Args: { p_plan_id: string }; Returns: boolean }
+      ops_prune: { Args: never; Returns: Json }
+      ops_record_db_size: { Args: never; Returns: number }
+      ops_record_metric: {
+        Args: { p_key: string; p_value: number }
+        Returns: undefined
+      }
       plan_lock_key: {
         Args: { p_plan_date: string; p_user_id: string }
         Returns: number
