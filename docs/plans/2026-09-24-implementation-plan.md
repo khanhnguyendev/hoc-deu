@@ -10151,8 +10151,10 @@ of one wave in separate worktrees, then one whole-branch review on the most capa
 pass and one re-review. **M5 stops for the owner's review before merge.**
 
 **Branch:** `feat/m5-dashboard` from `main` at `b05edc7`; this section is its first commit. One
-pull request, "M5: dashboard, check-in, review", merged only after the owner's review. Task 5.8b
-(launch) runs **after** the merge.
+pull request, "M5: dashboard, check-in, review", merged only after the owner's review — which
+covers, by the owner's autonomy policy (2026-09-26), 5.0b and every change under `supabase/**`,
+`lib/auth/**`, `app/api/**` and `.github/**`. Task 5.8b (launch) runs **after** the merge and
+stops for the owner.
 
 **Scope.** The v1.0 learner loop on top of M4's engine: `/today` (today's plan, the paused and
 resumed states, "Học tiếp hôm nay", streak, per-track progress, due reviews, weak areas, the
@@ -10165,8 +10167,13 @@ engine clean-up (M-8, M-11) and the M2 carry-overs. Nothing from v1.1 or "later"
 mode badge (the "AI-personalized" badge is v1.1), no bot, no overrides, no custom items, no
 template or throttle editing UI.
 
-**Owner decisions** (raised with this section, as the hand-off asks; each task below implements
-the recommendation, and the task text says what changes if the owner picks another option):
+**Owner decisions — ruled 2026-09-26: M-5 → (A), M-6 → (a)** (the owner's review of this section;
+ledger rulings M5-R3, M5-R4). The owner's reasons: pausing a track to open the gate gains nothing —
+the roadmap only moves on introduced items, so the new plan holds the same unfinished items plus
+the due reviews, like "Học tiếp hôm nay"; and a block counts for the day it was actually done, so
+one plan per day holds. Added by the owner: the paused view and ADR-0016 say in one line that
+correcting a skip after the day start counts for the new day, and the earlier day stays incomplete.
+The options stay below as the record of the choice:
 
 - **M-5 — the gate stays closed on a plan whose only blocks belong to a track since paused or
   removed** (M4 final review; `gate.ts`). Yesterday's seen plan had only DSA blocks, none done;
@@ -10375,7 +10382,7 @@ its section of `COMPONENTS.md` (plus the existing entries of components it chang
     only appends items to that track's `extra` block (or creates it), bumps the plan's `version`,
     and stores the event with the `plan_id` (so the plan is touched). The `apply_system_event`
     `plan_id` rule widens to this type (M4 hand-off).
-23. **M-5 (A)** and **M-6 (a)** as recommended above, pending the owner. `RULES_VERSION` becomes 3
+23. **M-5 (A)** and **M-6 (a)**, ruled by the owner on 2026-09-26. `RULES_VERSION` becomes 3
     with M-6 (a) (the check-in projection changes); 5.0b bumps TypeScript and SQL together and runs
     `pnpm sim:projections` (ruling M4-R11).
 24. **`/progress`:** the heatmap shows all minutes (history, removed tracks included); the weekly
@@ -10393,8 +10400,13 @@ its section of `COMPONENTS.md` (plus the existing entries of components it chang
     `auth.users` and `auth.identities`) — the schema comes from the migrations of the dump's commit;
     the restore test starts the local Supabase stack in CI, applies the migrations, loads the data
     and checks the row counts against the manifest. Artifacts: daily kept 14 days, Sunday's kept
-    90 days (the 500 MB artifact allowance, spec §9.3). The `backup` environment is limited to
-    `main`, so the first runs happen right after the merge (5.8b), against staging.
+    90 days (owner-approved 2026-09-26). Spec §9.3 assumed the Free plan's 500 MB artifact
+    allowance applies; GitHub's Actions billing page (checked 2026-09-26) says "GitHub Actions
+    usage is free … for public repositories that use standard GitHub-hosted runners" and describes
+    the artifact-storage quota "for private repositories", so the limit most likely does not apply
+    to this public repository — the retention stays 14 / 90 days either way (owner). The `backup`
+    environment is limited to `main`, so the first runs happen right after the merge (5.8b),
+    against staging.
 28. **"Full e2e against staging" (Part A 5.8) becomes the owner's staging smoke checklist plus the
     controller's rolled-back DB smoke:** staging has no test login (OAuth only, §2.3, ADR-0003), so
     Playwright cannot sign in there. The full e2e runs in CI against the local stack.
@@ -10447,13 +10459,18 @@ bullet gains "M5: step-level detail in Part B-M5 (subagent-driven, parallel wave
 2026-09-26)"; the Execution methods table moves M5 from the "M1, M5 — native" row to its own row
 "Subagent-driven, parallel waves in git worktrees (owner answer 2026-09-26)"; under the M5 table a
 note "**Part B-M5 changes to this table**" (decisions 2, 12, 28, 29) and a backlog table **"Later
-(after v1.1)"** with row **L1** — the drift check, which also fixes replay vs live ordering under a
+(after v1.1)"** with rows **L1** — the drift check, which also fixes replay vs live ordering under a
 concurrent reset / resume (M-7: set `occurred_at := clock_timestamp()` after the quota upsert and
-raise `day_changed` if the local day moved) and the ms-vs-µs replay sort (decision 30); Part A row
+raise `day_changed` if the local day moved) and the ms-vs-µs replay sort (decision 30) — and **L2**
+(could-have, owner 2026-09-26) — email sign-in enabled on the **staging** project only, with one
+synthetic user, so the e2e suite can run against preview deployments automatically (production
+keeps email off, ADR-0003); Part A row
 **6.5** gains "widen `apply_system_event`'s `plan_id` rule to `plan.ai_*` (5.0b widens it to
 `plan.extra_added`)"; spec §2.4's `/today` row is annotated "no mode badge in v1.0 — the badge is
-v1.1 (release table; Part B-M5 decision 12)"; spec §5.2 gains the M-5 ruling and §4.1 / §5.5 the
-M-6 ruling once the owner has decided; spec §5.4 step 1 is annotated with decision 9, and §2.3's
+v1.1 (release table; Part B-M5 decision 12)"; spec §5.2 gains the M-5 ruling (blocks of tracks no
+longer active never hold the gate closed) and §4.1 / §5.5 the M-6 ruling (a skipped block
+corrected to done / partial on a later day counts for that day; the earlier day stays
+incomplete); spec §9.3's artifact-storage note gains decision 27's finding; spec §5.4 step 1 is annotated with decision 9, and §2.3's
 "`/admin` shows the latest backup and restore-test status, read from the public GitHub API" with
 decision 26 (the maintenance cron reads it once a day into `ops_metrics`);
 `docs/adr/README.md` links rows 0005, 0029, 0031, 0034, 0036, 0038 and 0039 with their final file
@@ -10702,7 +10719,8 @@ D1.
   `sim-inputs.generated.json` is compared by value (ruling M4-R22); ADR-0016 gains two paragraphs:
   the M-5 rule (blocks of tracks no longer active never hold the gate closed) and the M-6 rule (a
   skipped block resumed on a later day counts for that day, so resuming through it is
-  `resumedToday`).
+  `resumedToday`), including the owner's line: **correcting a skip after the day start counts for
+  the new day; the earlier day stays incomplete**.
 - [ ] **Step 7:** `pnpm verify`. **Commits** `perf(domain): simulation folds rows in place;
   test:sim runs the full simulation`, `refactor(domain): one comparator, one throttle schema,
   per-track internals in plan/track.ts`, `feat(domain): paused or removed tracks never hold the
@@ -11478,7 +11496,9 @@ the block's `planId` / `blockId`; the component builds the `CheckInInput` (a bou
 lose its argument). `CheckInStatus`: the checked-in row —
 status pill (Xong / Một phần / Bỏ qua with icons, §3.3), minutes, "tự động" for `auto`, a "Sửa" link
 to `/today?block=<id>`; in the paused view a `skipped` block adds "Đã bỏ qua — bấm Sửa khi bạn làm
-xong" (its items' results never re-check it automatically — see M-6). `CheckInSheet` (client): a bottom Sheet below `md`, a Dialog from `md`;
+xong" (its items' results never re-check it automatically — see M-6) and the owner's line (M-6
+ruling): "Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành." (render
+test). `CheckInSheet` (client): a bottom Sheet below `md`, a Dialog from `md`;
 title focused on open; `Esc` and the close button go back to `/today` (`router.replace`, so the
 back button works as §2.4 asks); a ToggleGroup Xong / Một phần / Bỏ qua; a minutes stepper
 (0–600, pre-filled with the block's check-in minutes or `checkInMinutes`); an optional note
@@ -12163,16 +12183,18 @@ merged M5.
   precheck first, as the runbook says; `migration list` local = remote; the rolled-back DB smoke
   (onboarding → `plan.generated` → `mark_plan_seen` → check-in → `plan.extra_added` → auto check-in
   → reset); the owner's staging smoke checklist (decision 28).
-- [ ] **2. Backups on staging:** the owner creates the `backup` environment and keys
-  (`docs/ops/backups.md`); the controller sets `backup_reader`'s password and the `auth` grants;
-  dispatch `backup.yml`, then `restore-test.yml`; both green (Part A 5.7's verify).
+- [ ] **2. Backups on staging — right after the merge, before any launch step** (owner
+  2026-09-26): the owner creates the `backup` environment and keys (`docs/ops/backups.md`); the
+  controller sets `backup_reader`'s password and the `auth` grants; run `backup.yml`, then
+  `restore-test.yml`, once each via `workflow_dispatch` on `main`; **both green before step 4**
+  (Part A 5.7's verify).
 - [ ] **3. Required check:** add `sim` to the `main` ruleset's required checks (decision 29).
 - [ ] **4. Production:** every production step of the runbook, in order, through the smoke; then
   point the backup environment at production and dispatch both workflows once more.
 - [ ] **5. Dogfooding:** the owner uses production for two weeks; then the pace check (decision 37,
   `docs/ops/dogfooding.md`) → the owner decides whether to invite learners.
 - [ ] Archive the ledger; update the memory file; write the M6 hand-off (including 6.5's `plan_id`
-  widening and backlog row L1).
+  widening and backlog rows L1, L2).
 
 ### M5 finish
 
