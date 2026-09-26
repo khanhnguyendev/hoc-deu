@@ -22,7 +22,8 @@ const RATINGS: readonly Rating[] = [1, 2, 3]
  */
 function PromptOutcome({ binding }: { binding: OutcomeBinding }) {
   const [rating, setRating] = useState<Rating | null>(null)
-  const { pending, sent, saved, send } = useOutcome<'completed'>(binding)
+  // One key per rating: a changed rating after "Đã làm xong" is sent, the same one is not again.
+  const { pending, sent, saved, send } = useOutcome<'0' | '1' | '2' | '3'>(binding)
   const labelId = useId()
 
   const done = () =>
@@ -30,8 +31,10 @@ function PromptOutcome({ binding }: { binding: OutcomeBinding }) {
       rating === null
         ? { type: 'prompt.completed' }
         : { type: 'prompt.completed', selfRating: rating },
-      'completed',
+      rating === null ? '0' : `${rating}`,
     )
+  const label = (key: '0' | '1' | '2' | '3') =>
+    key === '0' ? copy.done : `${copy.done} (${copy.ratings[Number(key) as Rating]})`
 
   return (
     <div
@@ -59,7 +62,7 @@ function PromptOutcome({ binding }: { binding: OutcomeBinding }) {
         {saved !== null && <CircleCheck aria-hidden="true" strokeWidth={1.75} />}
         {copy.done}
       </Button>
-      <OutcomeMessage result={sent} />
+      <OutcomeMessage result={sent} label={sent === null ? undefined : label(sent.key)} />
     </div>
   )
 }

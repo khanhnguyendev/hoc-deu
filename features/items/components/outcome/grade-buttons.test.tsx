@@ -104,4 +104,24 @@ describe('OutcomeMessage', () => {
     expect(region.textContent).toBe('Chưa lưu được kết quả.')
     expect(region.dataset.tone).toBe('failed')
   })
+
+  it('names what was sent (label), and each answer is a new text node — re-announced', () => {
+    const { rerender } = render(
+      <OutcomeMessage result={{ ok: false, message: 'Chưa lưu.', seq: 1 }} label="Biết" />,
+    )
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('Biết: Chưa lưu.')
+    const first = region.querySelector('span')
+    rerender(<OutcomeMessage result={{ ok: false, message: 'Chưa lưu.', seq: 2 }} label="Biết" />)
+    expect(region.textContent).toBe('Biết: Chưa lưu.')
+    expect(region.querySelector('span')).not.toBe(first)
+  })
+
+  it('can take focus when given a ref (ItemActions after a skip)', () => {
+    const ref = { current: null as HTMLParagraphElement | null }
+    render(<OutcomeMessage ref={ref} result={null} />)
+    expect(ref.current?.getAttribute('tabindex')).toBe('-1')
+    render(<OutcomeMessage result={null} />)
+    expect(screen.getAllByRole('status')[1]!.hasAttribute('tabindex')).toBe(false)
+  })
 })

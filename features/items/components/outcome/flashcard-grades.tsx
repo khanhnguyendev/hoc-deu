@@ -32,8 +32,10 @@ function isEditable(target: EventTarget | null): boolean {
 /**
  * A card's three grades (DESIGN_SYSTEM §9 FlashcardViewer): "Biết" / "Chưa chắc" / "Không biết"
  * (`know` / `unsure` / `dont_know`), also on the keys 1 / 2 / 3 — while nothing saves, without a
- * modifier, not while typing, and only for keys pressed on the page itself or inside this card (so
- * two cards on one screen never both take a key). Presentational: the caller records the grade
+ * modifier, not while typing or composing, and only for keys pressed inside this card (the
+ * listener sits on the card, which keeps focus — FlashcardView — so two cards on one screen never
+ * both take a key, and a key on the page outside any card grades none). Presentational: the caller
+ * records the grade
  * (FlashcardOutcome on the card's page, CardSession on /review and /today).
  */
 function FlashcardGrades({
@@ -52,20 +54,19 @@ function FlashcardGrades({
 
   const listening = !disabled && pending === null
   useEffect(() => {
-    if (!listening) return
+    // Keys pressed inside this card only (its FlashcardView, else these buttons): with two cards
+    // on one screen, a key grades the one the learner is in — never the other, never both.
+    const card = ref.current?.closest<HTMLElement>('[data-slot="flashcard-view"]') ?? ref.current
+    if (!listening || card === null) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat) return
+      if (event.defaultPrevented || event.repeat || event.isComposing) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
       if (!Object.hasOwn(BY_KEY, event.key) || isEditable(event.target)) return
-      const card = ref.current?.closest('[data-slot="flashcard-view"]') ?? ref.current
-      const target = event.target
-      const onPage = target === document.body || target === document.documentElement
-      if (!onPage && !(target instanceof Node && card?.contains(target))) return
       event.preventDefault()
       gradeByKey(BY_KEY[event.key]!)
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    card.addEventListener('keydown', onKeyDown)
+    return () => card.removeEventListener('keydown', onKeyDown)
   }, [listening])
 
   return (
@@ -97,7 +98,7 @@ function FlashcardOutcome({ binding }: { binding: OutcomeBinding }) {
         pending={pending}
         onGrade={(grade) => send({ type: 'item.result', result: grade }, grade)}
       />
-      <OutcomeMessage result={sent} />
+      <OutcomeMessage result={sent} label={sent === null ? undefined : copy.grades[sent.key]} />
     </div>
   )
 }

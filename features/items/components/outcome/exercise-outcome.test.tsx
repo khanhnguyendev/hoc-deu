@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { fillBlankItem, outcomeBinding, REQUEST_ID, rewriteItem, SAVED } from '../../fixtures'
@@ -32,6 +32,30 @@ describe('ExerciseOutcome — fill-blank', () => {
     })
     expect(screen.getByText('Chính xác')).toBeTruthy()
     expect(await screen.findByText('Đã lưu kết quả.')).toBeTruthy()
+  })
+
+  it('"Kiểm tra" is busy while its grade saves: a check then is never silently dropped', async () => {
+    const user = userEvent.setup()
+    let resolve!: (value: typeof SAVED) => void
+    const record = vi.fn<RecordOutcome>(
+      () => new Promise((res) => (resolve = res as (value: typeof SAVED) => void)),
+    )
+    render(
+      <ExerciseOutcome
+        exercise={FILL.content}
+        binding={outcomeBinding(record, { itemId: FILL.id })}
+      />,
+    )
+    await user.type(screen.getByRole('textbox', { name: 'Từ còn thiếu' }), 'blocked')
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    const check = screen.getByRole('button', { name: 'Kiểm tra' })
+    expect(check.getAttribute('aria-busy')).toBe('true')
+    await user.click(check)
+    await user.type(screen.getByRole('textbox', { name: 'Từ còn thiếu' }), '{Enter}')
+    expect(record).toHaveBeenCalledOnce()
+    await act(async () => resolve(SAVED))
+    expect(await screen.findByText('Đã lưu kết quả.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Kiểm tra' }).getAttribute('aria-busy')).toBeNull()
   })
 
   it('each check is a submission: a miss, then a pass after the hint is close', async () => {

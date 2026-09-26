@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { cardItem, derivedCardItem, REQUEST_ID, SAVED } from '../../fixtures'
@@ -59,7 +59,50 @@ describe('CardSession (decision 19)', () => {
     // The next card starts on its front, and focus is on its "Xem nghĩa".
     expect(screen.queryByText('gỡ vướng cho ai đó')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Xem nghĩa' }))
-    expect(screen.getByRole('status').textContent).toContain('Chưa chắc')
+    // The live region names the card and the grade: "Đã lưu thẻ blocker: Chưa chắc."
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Đã lưu thẻ blocker: Chưa chắc.')
+    expect(within(status).getByText('blocker').getAttribute('lang')).toBe('en')
+  })
+
+  it('two revealed sessions: a key grades only the card focus is in; a key on the page, neither', async () => {
+    const user = userEvent.setup()
+    const recordA = vi.fn<RecordOutcome>(async () => SAVED)
+    const recordB = vi.fn<RecordOutcome>(async () => SAVED)
+    render(
+      <>
+        <section aria-label="A">
+          <CardSession cards={CARDS.slice(0, 1)} requestId={REQUEST_ID} record={recordA} />
+        </section>
+        <section aria-label="B">
+          <CardSession cards={CARDS.slice(1, 2)} requestId={REQUEST_ID} record={recordB} />
+        </section>
+      </>,
+    )
+    const a = screen.getByRole('region', { name: 'A' })
+    const b = screen.getByRole('region', { name: 'B' })
+    // A is revealed first, then B.
+    await user.click(within(a).getByRole('button', { name: 'Xem nghĩa' }))
+    await user.click(within(b).getByRole('button', { name: 'Xem nghĩa' }))
+
+    act(() => {
+      fireEvent.keyDown(document.body, { key: '2' })
+    })
+    expect(recordA).not.toHaveBeenCalled()
+    expect(recordB).not.toHaveBeenCalled()
+
+    within(b).getByRole('button', { name: 'Ẩn nghĩa' }).focus()
+    act(() => {
+      fireEvent.keyDown(document.activeElement!, { key: '1' })
+    })
+    expect(await within(b).findByRole('heading', { name: 'Đã ôn xong' })).toBeTruthy()
+    expect(recordA).not.toHaveBeenCalled()
+    expect(recordB).toHaveBeenCalledExactlyOnceWith({
+      requestId: REQUEST_ID,
+      itemId: UNBLOCK.id,
+      blockId: 'b-review',
+      outcome: { type: 'item.result', result: 'know' },
+    })
   })
 
   it('grades three cards in order even when its cards prop shrinks after the first (a revalidation)', async () => {
@@ -87,8 +130,9 @@ describe('CardSession (decision 19)', () => {
       name: 'Explain the optimal approach for Two Sum in English.',
     })
     await reveal(user)
+    // Key 1 where the learner is: inside the card (focus is on its toggle).
     act(() => {
-      fireEvent.keyDown(document.body, { key: '1' })
+      fireEvent.keyDown(document.activeElement!, { key: '1' })
     })
     expect(await screen.findByRole('heading', { name: 'Đã ôn xong' })).toBeTruthy()
     expect(

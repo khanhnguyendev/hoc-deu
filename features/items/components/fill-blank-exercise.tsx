@@ -26,18 +26,22 @@ const VERDICT = {
  * grades it with `gradeFillBlank` — "Chính xác", "Gần đúng — bạn đã xem gợi ý" after the hint, or
  * "Chưa đúng — đáp án: …" — as icon + text in a polite live region; editing the answer clears the
  * verdict. "Xem gợi ý" reveals the hint. Every check's grade goes to `onGrade` (task 5.2c:
- * ExerciseOutcome submits it as `exercise.submitted`); the answer text itself is never sent.
+ * ExerciseOutcome submits it as `exercise.submitted`); the answer text itself is never sent. While
+ * that submission saves (`pending`), "Kiểm tra" shows busy and a check is ignored — never a grade
+ * silently dropped.
  */
 function FillBlankExercise({
   text,
   answers,
   hint,
   onGrade,
+  pending = false,
 }: {
   text: string
   answers: readonly string[]
   hint?: string
   onGrade?: (grade: FillBlankGrade) => void
+  pending?: boolean
 }) {
   const [value, setValue] = useState('')
   const [hintOpen, setHintOpen] = useState(false)
@@ -51,6 +55,7 @@ function FillBlankExercise({
 
   const check = (event: FormEvent) => {
     event.preventDefault()
+    if (pending) return
     const next = gradeFillBlank(value, answers, hintSeen)
     setGrade(next)
     onGrade?.(next)
@@ -85,7 +90,9 @@ function FillBlankExercise({
         {after}
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit">{copy.check}</Button>
+        <Button type="submit" loading={pending}>
+          {copy.check}
+        </Button>
         {hint !== undefined && (
           <Button
             type="button"

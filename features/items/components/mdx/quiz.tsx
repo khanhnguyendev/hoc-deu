@@ -101,7 +101,12 @@ function Quiz({
       <div data-slot="quiz" className="space-y-6">
         {children}
         <div className="flex flex-wrap items-center gap-4">
-          <Button variant={checked ? 'outline' : 'primary'} onClick={checked ? retry : check}>
+          <Button
+            // Inside a lesson with result controls, "Hoàn thành bài học" is the view's one
+            // primary action (DESIGN_SYSTEM §9): the check steps down to secondary.
+            variant={checked ? 'outline' : signals === null ? 'primary' : 'secondary'}
+            onClick={checked ? retry : check}
+          >
             {checked ? copy.retry : copy.check}
           </Button>
           <p role="status" aria-live="polite" className="font-semibold">

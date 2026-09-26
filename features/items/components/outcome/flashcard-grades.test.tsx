@@ -5,9 +5,10 @@ import { outcomeBinding, REQUEST_ID, SAVED } from '../../fixtures'
 import type { RecordOutcome } from '../../outcome'
 import { FlashcardGrades, FlashcardOutcome } from './flashcard-grades'
 
+/** A key pressed inside the grades (the card, when there is one): where the listener sits. */
 const press = (key: string, init: KeyboardEventInit = {}) =>
   act(() => {
-    fireEvent.keyDown(document.body, { key, ...init })
+    fireEvent.keyDown(screen.getAllByRole('button')[0]!, { key, ...init })
   })
 
 describe('FlashcardGrades (DESIGN_SYSTEM §9)', () => {
@@ -35,33 +36,54 @@ describe('FlashcardGrades (DESIGN_SYSTEM §9)', () => {
     expect(onGrade.mock.calls).toEqual([['dont_know'], ['know'], ['unsure'], ['dont_know']])
   })
 
-  it('ignores the keys with a modifier, while typing, while saving and when disabled', () => {
+  it('ignores the keys with a modifier, while typing or composing, while saving and when disabled', () => {
     const onGrade = vi.fn()
-    const { rerender } = render(
-      <>
+    // A card with a field in it: the listener sits on the card.
+    const card = (props: { pending?: 'know'; disabled?: boolean }) => (
+      <div data-slot="flashcard-view">
         <input aria-label="Ghi chú" />
-        <FlashcardGrades onGrade={onGrade} />
-      </>,
+        <FlashcardGrades onGrade={onGrade} {...props} />
+      </div>
     )
+    const { rerender } = render(card({}))
     press('1', { ctrlKey: true })
     press('2', { metaKey: true })
     press('3', { altKey: true })
+    press('1', { isComposing: true })
     act(() => {
       fireEvent.keyDown(screen.getByRole('textbox'), { key: '1' })
     })
     press('4')
-    rerender(<FlashcardGrades onGrade={onGrade} pending="know" />)
+    rerender(card({ pending: 'know' }))
     press('2')
-    rerender(<FlashcardGrades onGrade={onGrade} disabled />)
+    rerender(card({ disabled: true }))
     press('2')
     expect(onGrade).not.toHaveBeenCalled()
+  })
+
+  it('takes keys pressed anywhere in its card; never on the page outside it', () => {
+    const onGrade = vi.fn()
+    render(
+      <div data-slot="flashcard-view" data-testid="card">
+        <h2>blocker</h2>
+        <FlashcardGrades onGrade={onGrade} />
+      </div>,
+    )
+    act(() => {
+      fireEvent.keyDown(screen.getByTestId('card'), { key: '3' })
+      fireEvent.keyDown(document.body, { key: '1' })
+    })
+    expect(onGrade.mock.calls).toEqual([['dont_know']])
   })
 
   it('stops listening when it unmounts', () => {
     const onGrade = vi.fn()
     const { unmount } = render(<FlashcardGrades onGrade={onGrade} />)
+    const button = screen.getAllByRole('button')[0]!
     unmount()
-    press('1')
+    act(() => {
+      fireEvent.keyDown(button, { key: '1' })
+    })
     expect(onGrade).not.toHaveBeenCalled()
   })
 })
@@ -83,9 +105,14 @@ describe('FlashcardOutcome (the flashcard page)', () => {
       outcome: { type: 'item.result', result: 'unsure' },
     })
     expect(await screen.findByText('Đã lưu kết quả.')).toBeTruthy()
+    // The live region names the grade, so a later save is new text (announced again).
+    expect(screen.getByRole('status').textContent).toBe('Chưa chắc: Đã lưu kết quả.')
     expect(screen.getByRole('button', { name: /^Chưa chắc/ }).getAttribute('aria-pressed')).toBe(
       'true',
     )
+    // The saved grade again (after a re-render, with a new request id) records nothing more.
+    await user.click(screen.getByRole('button', { name: /^Chưa chắc/ }))
+    expect(record).toHaveBeenCalledOnce()
   })
 
   it('key 2 grades "unsure" (no block: off-plan)', async () => {

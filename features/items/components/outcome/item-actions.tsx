@@ -1,7 +1,7 @@
 'use client'
 
 import { RotateCcw, SkipForward } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { vi } from '@/lib/i18n/vi'
@@ -17,10 +17,12 @@ const copy = vi.outcomes.actions
  * handled for its block and leaves review) — and "Ôn lại" on a mastered item (`item.readded`: back
  * in review, due today). Rendered by ItemPageFrame under the page's body. Nothing when neither
  * applies; the last answer stays in its polite live region after the page re-renders without the
- * action.
+ * action, and a confirmed skip moves focus there (the button it came from is gone).
  */
 function ItemActions({ binding }: { binding: OutcomeBinding }) {
   const [confirming, setConfirming] = useState(false)
+  const confirmed = useRef(false)
+  const message = useRef<HTMLParagraphElement>(null)
   const { pending, sent, send } = useOutcome<'skip' | 'readd'>(binding)
   const { skip, readd } = itemActionsFor(binding)
   if (!skip && !readd && sent === null) return null
@@ -56,11 +58,25 @@ function ItemActions({ binding }: { binding: OutcomeBinding }) {
             description={copy.skipBody}
             confirmLabel={copy.skipConfirm}
             pending={pending === 'skip'}
-            onConfirm={() => send({ type: 'item.skipped' }, 'skip', () => setConfirming(false))}
+            onConfirm={() => {
+              confirmed.current = true
+              send({ type: 'item.skipped' }, 'skip', () => setConfirming(false))
+            }}
+            onCloseAutoFocus={(event) => {
+              // After a confirmed skip the page re-renders without this button: focus the answer.
+              if (!confirmed.current) return
+              confirmed.current = false
+              event.preventDefault()
+              message.current?.focus()
+            }}
           />
         </>
       )}
-      <OutcomeMessage result={sent} />
+      <OutcomeMessage
+        ref={message}
+        result={sent}
+        label={sent === null ? undefined : sent.key === 'skip' ? copy.skip : copy.readd}
+      />
     </div>
   )
 }

@@ -1140,7 +1140,8 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
   check also reports the percent to the page's `OutcomeSignalsContext` when a LessonComplete wraps
   the lesson (task 5.2c sends it as `lesson.completed { quizScore }`) · `Question`: `prompt:
   string`, `answer: string` (a Choice id) · `Choice`: `id: string`, `children`
-- **Variants:** —
+- **Variants:** "Kiểm tra" is `primary` alone, `secondary` inside a lesson with result controls
+  (task 5.2c: "Hoàn thành bài học" is then the view's one primary)
 - **States:** answering; checked ("Kiểm tra": choices locked, a verdict under each question —
   icon + "Chính xác" or "Chưa đúng — đáp án: …" — an unanswered question counts as wrong, the
   score "Đúng {correct}/{total}"); "Làm lại" clears; an empty quiz scores 0/0 (percent 0)
@@ -1328,7 +1329,10 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
   binding={outcome} />}</FlashcardView>` (FlashcardPage)
 - **Accessibility:** the front is a heading in the card's front language; the toggle has
   `aria-expanded` / `aria-controls`; nothing of the back is in the DOM until revealed; the example
-  and pronunciation are `lang="en"`; fields are a `<dl>`
+  and pronunciation are `lang="en"`; fields are a `<dl>`. The card takes focus (`tabIndex={-1}`):
+  a click inside keeps focus in it (Safari and Firefox on macOS do not focus a clicked button), and
+  the first reveal focuses the card when focus is outside it — so the grades' keys 1 / 2 / 3 reach
+  the card the learner is using
 
 ### FillBlankExercise
 
@@ -1336,7 +1340,8 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **File:** `features/items/components/fill-blank-exercise.tsx`
 - **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`,
   `onGrade?: (grade: 'pass' | 'close' | 'miss') => void` (every check's grade; task 5.2c:
-  ExerciseOutcome submits it — the answer text is never sent)
+  ExerciseOutcome submits it — the answer text is never sent), `pending?: boolean` (the submission
+  saves: "Kiểm tra" busy, a check — click or Enter — ignored, never a grade silently dropped)
 - **Variants:** with / without a hint
 - **States:** answering; checked — pass ("Chính xác", `CircleCheck`, success), close ("Gần đúng —
   bạn đã xem gợi ý", `CircleDot`, warning), miss ("Chưa đúng — đáp án: …", `CircleX`, danger);
@@ -1789,7 +1794,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Props:** `label: string` (the group's name), `grades: { value, label, shortcut? }[]`,
   `onGrade(value)`, `selected?` (pressed: the saved grade or a preselected one), `pending?` (the
   saving one), `disabled?`, `description?` (a nudge, key hints) · `OutcomeMessage`: `result: { ok,
-  message } | null`
+  message, seq? } | null`, `label?` (what was sent: the grade, "Bỏ qua mục này", …), `ref?` (makes it
+  focusable, `tabIndex={-1}`)
 - **Variants:** the selected grade `primary` + `aria-pressed="true"`, the others `outline` — at
   most one primary · a key cap per grade with a `shortcut` (from `md`) · OutcomeMessage tones idle /
   saved (`CircleCheck`, success) / failed (`CircleAlert`, danger)
@@ -1800,7 +1806,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Accessibility:** a `role="group"` named by its visible label and described by `description`;
   44 px Buttons; a press sends at once (pressing the preselected grade records it); shortcuts in
   `aria-keyshortcuts`, key caps `aria-hidden`; OutcomeMessage is an always-present polite
-  `role="status"` — icon + text, never colour alone
+  `role="status"` — icon + text, never colour alone — reading "{label}: {message}"; each answer
+  (`seq`) is a new text node, so a repeated message is announced again
 
 ### ProblemOutcome
 
@@ -1814,9 +1821,11 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
   then "Nhớ rõ" / "Nhớ một phần" / "Không nhớ" with `mode: 'recall'` (no visible note: the grades
   at once); "Làm lại từ đầu" switches a recall to a redo in place (§5.5)
 - **States:** the nudge (decision 18): opening the note's "Xem lời giải" before a grade is saved
-  preselects the `hint` grade, with "Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bạn vẫn có
-  thể chọn mức khác." — any grade can still be chosen · saving · saved (pressed; the server's
-  message, e.g. "… tự động check-in") · failed (the message; every grade available)
+  preselects the `hint` grade, with "Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bấm để
+  lưu, hoặc chọn mức khác." — any grade can still be chosen · saving · saved (pressed; pressing it
+  again sends nothing; "Tự giải được: …" with the server's message, e.g. "… tự động check-in") ·
+  failed (the message; every grade available) · redo: "Giải lại trên LeetCode từ đầu, không mở lời
+  giải, rồi tự chấm." above the note
 - **Usage:** ProblemPage: `<ProblemOutcome binding={outcome} hasNote={…}>{noteSection}</ProblemOutcome>`
 - **Accessibility:** the recall prompt is an `h2` section; "Xem ghi chú" has `aria-expanded` /
   `aria-controls`; "Làm lại từ đầu" is a link-styled button (an in-page switch, not a navigation);
@@ -1829,14 +1838,15 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Props:** `onGrade(grade: 'know' | 'unsure' | 'dont_know')`, `selected?`, `pending?`,
   `disabled?`
 - **Variants:** —
-- **States:** ready (keys 1 / 2 / 3 listened to) · saving or disabled (keys ignored) · a grade
-  pressed
+- **States:** ready (keys 1 / 2 / 3 listened to on its card) · saving or disabled (keys ignored) ·
+  a grade pressed
 - **Usage:** `<FlashcardView card={sides}><FlashcardGrades onGrade={grade} /></FlashcardView>`
   (CardSession); presentational — the caller records
 - **Accessibility:** GradeButtons "Bạn nhớ thẻ này không?" — "Biết" / "Chưa chắc" / "Không biết"
   (DESIGN_SYSTEM §9) with `aria-keyshortcuts` 1 / 2 / 3 and the key hint as its description; the
-  keys work without a modifier, never while typing in a field, and only for keys pressed on the
-  page itself or inside this card, so two cards on one screen never both take a key
+  keydown listener sits on its card (its FlashcardView, else the buttons), so a key grades the card
+  focus is in — never another card, never one when focus is on the page outside every card —
+  without a modifier, never while typing or composing (FlashcardView keeps focus in the card)
 
 ### FlashcardOutcome
 
@@ -1865,7 +1875,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Accessibility:** decision 19 — the cards are kept in state from mount (a revalidation that
   drops a graded card never shifts the session) and the mount's request id is used throughout;
   after a grade focus moves to the next card's "Xem nghĩa" (or the end state), and a polite
-  `role="status"` says "Đã lưu: {grade}."; keys 1 / 2 / 3
+  `role="status"` says "Đã lưu thẻ {front}: {grade}." (the front in its language; new text for every
+  card, so equal grades are announced again); keys 1 / 2 / 3 on the card
 
 ### LessonComplete
 
@@ -1874,10 +1885,11 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Props:** `binding: OutcomeBinding`, `children` (the lesson body)
 - **Variants:** without / with a checked Quiz ("Kèm điểm kiểm tra nhanh: 50%": `quizScore` 0–100,
   the latest check, is sent)
-- **States:** ready · saving · saved (a check icon on the button; the server's message) · failed
+- **States:** ready · saving · saved (a check icon on the button; the server's message; the same
+  completion — same score — again sends nothing, a new quiz score does) · failed
 - **Usage:** LessonPage: `<LessonComplete binding={outcome}>{body}</LessonComplete>`
-- **Accessibility:** "Hoàn thành bài học" is the view's one primary Button (`lg`); the answer in
-  the OutcomeMessage live region
+- **Accessibility:** "Hoàn thành bài học" is the view's one primary Button (`lg`) — the lesson's
+  Quiz check steps down to `secondary` inside it; the answer in the OutcomeMessage live region
 
 ### ExerciseOutcome
 
@@ -1886,7 +1898,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Props:** `exercise: Exercise` (catalog content), `binding?: OutcomeBinding`
 - **Variants:** fill-blank (every "Kiểm tra" submits its grade `pass` / `close` / `miss`) ·
   respond / rewrite (the self-grade after the samples) · read-only (no binding: the exercise alone)
-- **States:** saving · saved (the self-grade pressed; the message) · failed
+- **States:** saving ("Kiểm tra" busy — a check then is ignored, not dropped) · saved (the
+  self-grade pressed; "{grade}: {message}"; the same grade again sends nothing) · failed
 - **Usage:** ExercisePage: `<ExerciseOutcome exercise={item.content} binding={outcome} />`
 - **Accessibility:** sends `exercise.submitted { kind, grade }` only — the answer text never
   leaves the page ("Câu trả lời không được lưu." stays true); see the two exercise components
@@ -1898,7 +1911,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Props:** `binding: OutcomeBinding`
 - **Variants:** without / with a self-rating ("1 — Chưa tốt", "2 — Tạm được", "3 — Tốt"; choosing
   the chosen one again clears it)
-- **States:** ready · saving · saved (a check icon on the button; the message) · failed
+- **States:** ready · saving · saved (a check icon on the button; "Đã làm xong (3 — Tốt): …"; the
+  same rating again sends nothing, a changed one does) · failed
 - **Usage:** PromptPage: `{outcome && <PromptOutcome binding={outcome} />}`
 - **Accessibility:** the rating is a single-choice ToggleGroup (a `radiogroup` named "Tự đánh giá
   (không bắt buộc)", arrow keys); "Đã làm xong" is the view's one primary Button (`lg`)
@@ -1914,8 +1928,9 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **States:** nothing when neither applies · confirming · saving · the answer, kept after the page
   re-renders without the action
 - **Usage:** rendered by ItemPageFrame under the body when the page has a binding
-- **Accessibility:** the skip is confirmed in an alert dialog (focus returns to the opener); the
-  answer in the OutcomeMessage live region
+- **Accessibility:** the skip is confirmed in an alert dialog (cancel returns focus to the opener;
+  a confirmed skip moves focus to the answer, since the button goes away when the page re-renders);
+  the answer in the OutcomeMessage live region
 
 ### Review components (`features/review/components`)
 

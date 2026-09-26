@@ -36,11 +36,15 @@ function setup() {
 }
 
 describe('LessonComplete', () => {
-  it('renders the lesson, then the one primary "Hoàn thành bài học"', () => {
+  it('renders the lesson, then "Hoàn thành bài học" — the view’s one primary (the quiz check steps down)', () => {
     setup()
     expect(screen.getByTestId('lesson')).toBeTruthy()
     const complete = screen.getByRole('button', { name: 'Hoàn thành bài học' })
     expect(complete.dataset.variant).toBe('primary')
+    expect(screen.getByRole('button', { name: 'Kiểm tra' }).dataset.variant).toBe('secondary')
+    expect(
+      screen.getAllByRole('button').filter((button) => button.dataset.variant === 'primary'),
+    ).toEqual([complete])
   })
 
   it('sends lesson.completed without a score when the quiz was not answered', async () => {
@@ -63,5 +67,20 @@ describe('LessonComplete', () => {
     expect(screen.getByText('Kèm điểm kiểm tra nhanh: 50%')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Hoàn thành bài học' }))
     expect(record.mock.calls[0]![0].outcome).toEqual({ type: 'lesson.completed', quizScore: 50 })
+    await screen.findByText('Đã lưu kết quả.')
+    // (The quiz has its own status region: pick the outcome's.)
+    const outcome = screen
+      .getAllByRole('status')
+      .find((region) => region.dataset.slot === 'outcome-message')
+    expect(outcome?.textContent).toBe('Hoàn thành bài học: Đã lưu kết quả.')
+    // The same completion again records nothing more; a new score does.
+    await user.click(screen.getByRole('button', { name: 'Hoàn thành bài học' }))
+    expect(record).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Làm lại' }))
+    await user.click(screen.getByRole('radio', { name: 'Có' }))
+    await user.click(screen.getByRole('radio', { name: 'O(n)' }))
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    await user.click(screen.getByRole('button', { name: 'Hoàn thành bài học' }))
+    expect(record.mock.calls[1]![0].outcome).toEqual({ type: 'lesson.completed', quizScore: 100 })
   })
 })

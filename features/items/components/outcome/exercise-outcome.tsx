@@ -1,6 +1,7 @@
 'use client'
 
 import type { Exercise } from '@/lib/content/item-types/exercise'
+import { vi } from '@/lib/i18n/vi'
 import type { OutcomeBinding } from '../../outcome'
 import { FillBlankExercise, type FillBlankGrade } from '../fill-blank-exercise'
 import { SelfGradedExercise, type SelfGrade } from '../self-graded-exercise'
@@ -32,6 +33,7 @@ function ExerciseOutcome({ exercise, binding }: { exercise: Exercise; binding?: 
           answers={exercise.answers}
           hint={exercise.hint}
           onGrade={submit}
+          pending={pending !== null}
         />
       ) : (
         <SelfGradedExercise
@@ -44,7 +46,12 @@ function ExerciseOutcome({ exercise, binding }: { exercise: Exercise; binding?: 
           pendingGrade={pending}
         />
       )}
-      {binding !== undefined && <OutcomeMessage result={sent} />}
+      {binding !== undefined && (
+        <OutcomeMessage
+          result={sent}
+          label={sent === null ? undefined : vi.outcomes.exercise.grades[sent.key]}
+        />
+      )}
     </div>
   )
 }

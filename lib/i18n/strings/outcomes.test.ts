@@ -37,6 +37,11 @@ describe('lib/i18n/strings/outcomes.ts (task 5.2c)', () => {
     expect(outcomes.problem.showNote).toBe('Xem ghi chú')
     expect(outcomes.problem.redo).toBe('Làm lại từ đầu')
     expect(outcomes.problem.nudge).toContain('{grade}')
+    expect(outcomes.problem.nudge).toContain('bấm để lưu')
+    // The note stays visible in a redo: the rule is about the solution, not the note.
+    expect(outcomes.problem.redoBody).toContain('không mở lời giải')
+    expect(outcomes.session.saved).toContain('{front}')
+    expect(outcomes.session.saved).toContain('{grade}')
   })
 
   it('labels exactly the results the item.result payload knows (§4.4)', () => {

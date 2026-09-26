@@ -9,6 +9,8 @@ export type SentOutcome<K extends string> = {
   readonly key: K
   readonly ok: boolean
   readonly message: string
+  /** Counts the answers, so the live region re-announces a repeated message. */
+  readonly seq: number
 }
 
 /**
@@ -17,7 +19,9 @@ export type SentOutcome<K extends string> = {
  * send while one runs is ignored — and keeps the answer: the server's message (saved, auto
  * checked in, or why not), or "Chưa lưu được kết quả" when the call itself failed. A retry within
  * the same render resends the same request id, so the server records the event once (decision 16).
- * `key` names the control (a grade) so it can show busy, then pressed.
+ * `key` names the control (a grade) so it can show busy, then pressed. Sending the key that is
+ * already saved does nothing: after a save the page re-renders with a new request id, so pressing
+ * the saved grade again would otherwise record a second event.
  */
 export function useOutcome<K extends string>(
   binding: Pick<OutcomeBinding, 'requestId' | 'itemId' | 'blockId' | 'record'>,
@@ -28,16 +32,16 @@ export function useOutcome<K extends string>(
   const [saved, setSaved] = useState<K | null>(null)
 
   const send = (outcome: Outcome, key: K, then?: (ok: boolean) => void) => {
-    if (pending) return
+    if (pending || key === saved) return
     setSending(key)
     startTransition(async () => {
       let answer: SentOutcome<K>
       try {
         const result = await binding.record(outcomeInput(binding, outcome))
-        answer = { key, ok: result.ok, message: result.message }
+        answer = { key, ok: result.ok, message: result.message, seq: (sent?.seq ?? 0) + 1 }
       } catch {
         // The action never answered (offline, a server error): nothing is known to be saved.
-        answer = { key, ok: false, message: vi.outcomes.failed }
+        answer = { key, ok: false, message: vi.outcomes.failed, seq: (sent?.seq ?? 0) + 1 }
       }
       setSent(answer)
       if (answer.ok) setSaved(key)

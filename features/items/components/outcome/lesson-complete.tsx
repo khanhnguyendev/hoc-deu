@@ -20,7 +20,8 @@ const copy = vi.outcomes.lesson
  */
 function LessonComplete({ binding, children }: { binding: OutcomeBinding; children?: ReactNode }) {
   const [quizScore, setQuizScore] = useState<number | null>(null)
-  const { pending, sent, saved, send } = useOutcome<'completed'>(binding)
+  // One key per score: completing again after a new quiz check is sent, the same one is not.
+  const { pending, sent, saved, send } = useOutcome<string>(binding)
   const signals = useMemo<OutcomeSignals>(
     () => ({ solutionRevealed: () => {}, quizScored: setQuizScore }),
     [],
@@ -29,7 +30,7 @@ function LessonComplete({ binding, children }: { binding: OutcomeBinding; childr
   const complete = () =>
     send(
       quizScore === null ? { type: 'lesson.completed' } : { type: 'lesson.completed', quizScore },
-      'completed',
+      `completed:${quizScore ?? 'none'}`,
     )
 
   return (
@@ -48,7 +49,7 @@ function LessonComplete({ binding, children }: { binding: OutcomeBinding; childr
             {fill(copy.quizScore, { percent: quizScore })}
           </p>
         )}
-        <OutcomeMessage result={sent} />
+        <OutcomeMessage result={sent} label={sent === null ? undefined : copy.complete} />
       </div>
     </OutcomeSignalsContext>
   )

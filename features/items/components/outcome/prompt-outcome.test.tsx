@@ -51,6 +51,10 @@ describe('PromptOutcome', () => {
     await user.click(screen.getByRole('button', { name: 'Đã làm xong' }))
     expect(record.mock.calls[0]![0].outcome).toEqual({ type: 'prompt.completed', selfRating: 3 })
     await screen.findByText('Đã lưu kết quả.')
+    expect(screen.getByRole('status').textContent).toBe('Đã làm xong (3 — Tốt): Đã lưu kết quả.')
+    // The same rating again records nothing more.
+    await user.click(screen.getByRole('button', { name: 'Đã làm xong' }))
+    expect(record).toHaveBeenCalledOnce()
 
     await user.click(three)
     expect(three.getAttribute('aria-checked')).toBe('false')
@@ -63,8 +67,9 @@ describe('PromptOutcome', () => {
     const record = vi.fn<RecordOutcome>().mockRejectedValue(new Error('offline'))
     render(<PromptOutcome binding={outcomeBinding(record)} />)
     await user.click(screen.getByRole('button', { name: 'Đã làm xong' }))
-    expect((await screen.findByRole('status')).textContent).toBe(
-      'Chưa lưu được kết quả. Bạn thử lại nhé.',
+    await screen.findByText('Chưa lưu được kết quả. Bạn thử lại nhé.')
+    expect(screen.getByRole('status').textContent).toBe(
+      'Đã làm xong: Chưa lưu được kết quả. Bạn thử lại nhé.',
     )
   })
 })

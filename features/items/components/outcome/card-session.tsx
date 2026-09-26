@@ -8,11 +8,14 @@ import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { outcomeInput, type CardSessionCard, type CardSessionProps } from '../../outcome'
 import { FlashcardView } from '../flashcard-view'
+import { fillNode } from '../mdx/copy'
 import { FlashcardGrades, type FlashcardGrade } from './flashcard-grades'
 
 const copy = vi.outcomes.session
 
 type Failure = { readonly grade: FlashcardGrade; readonly message: string }
+/** What the live region says after a grade: the card and the grade, so every save is new text. */
+type Announcement = { readonly card: CardSessionCard; readonly grade: FlashcardGrade }
 
 /**
  * Cards graded where they are listed (decision 19): due cards on /review (5.3), card-only blocks
@@ -20,7 +23,7 @@ type Failure = { readonly grade: FlashcardGrade; readonly message: string }
  * from the `cards` prop never shifts the session — and graded one at a time: FlashcardView, then
  * FlashcardGrades (keys 1 / 2 / 3) once revealed. A grade sends `{ requestId, itemId, blockId,
  * outcome }` with the mount's request id and moves to the next card (focus on its "Xem nghĩa"); the
- * remaining count and a polite live region follow. A failed save keeps the card and shows the
+ * remaining count and a polite live region ("Đã lưu thẻ {front}: {grade}.") follow. A failed save keeps the card and shows the
  * error state — "Thử lại" resends the same input (the same event id, decision 16) — and the
  * end state "Đã ôn xong" takes focus after the last card. No cards: an empty state.
  */
@@ -30,7 +33,7 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
   const [index, setIndex] = useState(0)
   const [grading, setGrading] = useState<FlashcardGrade | null>(null)
   const [failure, setFailure] = useState<Failure | null>(null)
-  const [announcement, setAnnouncement] = useState('')
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null)
   const [pending, startTransition] = useTransition()
   const graded = useRef(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -67,7 +70,7 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
         return
       }
       graded.current = true
-      setAnnouncement(fill(copy.saved, { grade: vi.outcomes.flashcard.grades[value] }))
+      setAnnouncement({ card, grade: value })
       setIndex((current) => current + 1)
     })
   }
@@ -104,7 +107,17 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
         </div>
       )}
       <p role="status" aria-live="polite" className="sr-only">
-        {announcement}
+        {announcement !== null && (
+          <span key={announcement.card.itemId}>
+            {fillNode(
+              fill(copy.saved, { grade: vi.outcomes.flashcard.grades[announcement.grade] }),
+              '{front}',
+              <span lang={announcement.card.sides.lang.front}>
+                {announcement.card.sides.front}
+              </span>,
+            )}
+          </span>
+        )}
       </p>
     </div>
   )

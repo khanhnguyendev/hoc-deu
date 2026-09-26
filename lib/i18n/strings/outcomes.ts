@@ -12,7 +12,7 @@ export const outcomes = {
     /** A new problem, or a redo (§5.5): solved alone, needed a hint, not solved. */
     solveLabel: 'Bạn giải bài này thế nào?',
     solve: { solved: 'Tự giải được', hint: 'Cần gợi ý', failed: 'Chưa giải được' },
-    redoBody: 'Giải lại trên LeetCode từ đầu, không nhìn ghi chú, rồi tự chấm.',
+    redoBody: 'Giải lại trên LeetCode từ đầu, không mở lời giải, rồi tự chấm.',
     /** Quick recall and explain-aloud (§5.5; decision 17): the same results, `mode: 'recall'`. */
     recallLabel: 'Bạn nhớ bài này đến đâu?',
     recall: { solved: 'Nhớ rõ', hint: 'Nhớ một phần', failed: 'Không nhớ' },
@@ -24,7 +24,7 @@ export const outcomes = {
     /** Switches a quick recall to a redo (§5.5). */
     redo: 'Làm lại từ đầu',
     /** Decision 18 (DESIGN_SYSTEM §9): the nudge after "Xem lời giải"; `{grade}` is its label. */
-    nudge: 'Bạn đã xem lời giải nên "{grade}" được chọn sẵn — bạn vẫn có thể chọn mức khác.',
+    nudge: 'Bạn đã xem lời giải nên "{grade}" được chọn sẵn — bấm để lưu, hoặc chọn mức khác.',
   },
   flashcard: {
     label: 'Bạn nhớ thẻ này không?',
@@ -66,8 +66,8 @@ export const outcomes = {
   /** CardSession (decision 19): due cards on /review, card blocks on /today. */
   session: {
     remaining: 'Còn {count} thẻ',
-    /** Announced after a grade: the grade's label. */
-    saved: 'Đã lưu: {grade}.',
+    /** Announced after a grade: the card's front and the grade's label (a new text each time). */
+    saved: 'Đã lưu thẻ {front}: {grade}.',
     doneTitle: 'Đã ôn xong',
     doneBody: 'Bạn đã chấm {count} thẻ.',
     emptyTitle: 'Không có thẻ nào để ôn',

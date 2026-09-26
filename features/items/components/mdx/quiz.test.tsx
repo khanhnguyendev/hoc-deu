@@ -164,6 +164,11 @@ describe('Quiz', () => {
     expect(screen.getByRole('status').textContent).toBe('Đúng 0/0')
   })
 
+  it('task 5.2c: standing alone (no result controls), "Kiểm tra" is primary', () => {
+    render(<ThreeQuestions />)
+    expect(screen.getByRole('button', { name: 'Kiểm tra' }).dataset.variant).toBe('primary')
+  })
+
   it('task 5.2c: reports each checked score to the page’s outcome signals (lesson.completed)', async () => {
     const signals = { solutionRevealed: vi.fn(), quizScored: vi.fn() }
     const user = userEvent.setup()
@@ -172,6 +177,8 @@ describe('Quiz', () => {
         <ThreeQuestions />
       </OutcomeSignalsContext>,
     )
+    // In a lesson with result controls, "Hoàn thành bài học" is the one primary: the check steps down.
+    expect(screen.getByRole('button', { name: 'Kiểm tra' }).dataset.variant).toBe('secondary')
     await user.click(radio('Câu 1', 'Một A'))
     await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
     expect(signals.quizScored).toHaveBeenCalledExactlyOnceWith(33)

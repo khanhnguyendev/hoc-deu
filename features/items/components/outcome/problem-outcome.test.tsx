@@ -51,11 +51,14 @@ describe('ProblemOutcome — a new problem', () => {
       blockId: 'b-new',
       outcome: { type: 'item.result', result: 'solved' },
     })
-    const status = await screen.findByRole('status')
-    expect(status.textContent).toBe('Đã lưu kết quả.')
+    await screen.findByText('Đã lưu kết quả.')
+    expect(screen.getByRole('status').textContent).toBe('Tự giải được: Đã lưu kết quả.')
     expect(screen.getByRole('button', { name: 'Tự giải được' }).getAttribute('aria-pressed')).toBe(
       'true',
     )
+    // The saved grade again (the page re-rendered with a new request id) records nothing more.
+    await user.click(screen.getByRole('button', { name: 'Tự giải được' }))
+    expect(record).toHaveBeenCalledOnce()
   })
 
   it('a failure says so and leaves every grade available', async () => {
@@ -67,8 +70,9 @@ describe('ProblemOutcome — a new problem', () => {
       </ProblemOutcome>,
     )
     await user.click(screen.getByRole('button', { name: 'Chưa giải được' }))
-    expect((await screen.findByRole('status')).textContent).toBe(
-      'Chưa lưu được kết quả. Bạn thử lại nhé.',
+    await screen.findByText('Chưa lưu được kết quả. Bạn thử lại nhé.')
+    expect(screen.getByRole('status').textContent).toBe(
+      'Chưa giải được: Chưa lưu được kết quả. Bạn thử lại nhé.',
     )
     for (const button of within(grades(SOLVE)).getAllByRole('button')) {
       expect((button as HTMLButtonElement).disabled).toBe(false)
@@ -85,7 +89,11 @@ describe('ProblemOutcome — the solution-reveal nudge (decision 18)', () => {
     await user.click(screen.getByRole('button', { name: 'Xem lời giải' }))
     expect(hint.getAttribute('aria-pressed')).toBe('true')
     expect(hint.dataset.variant).toBe('primary')
-    expect(screen.getByText(/Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn/)).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bấm để lưu, hoặc chọn mức khác.',
+      ),
+    ).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Tự giải được' }))
     expect(record.mock.calls[0]![0].outcome).toEqual({ type: 'item.result', result: 'solved' })
   })
@@ -115,6 +123,9 @@ describe('ProblemOutcome — redo', () => {
   it('uses the solve labels and sends mode: redo', async () => {
     const { user, record } = setup({ mode: 'redo' })
     expect(screen.getByTestId('note')).toBeTruthy()
+    expect(
+      screen.getByText('Giải lại trên LeetCode từ đầu, không mở lời giải, rồi tự chấm.'),
+    ).toBeTruthy()
     await user.click(within(grades(SOLVE)).getByRole('button', { name: 'Cần gợi ý' }))
     expect(record.mock.calls[0]![0].outcome).toEqual({
       type: 'item.result',

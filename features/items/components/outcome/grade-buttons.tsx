@@ -2,7 +2,7 @@
 
 import { cva } from 'class-variance-authority'
 import { CircleAlert, CircleCheck } from 'lucide-react'
-import { useId } from 'react'
+import { useId, type Ref } from 'react'
 import { Button } from '@/components/ui/button'
 
 export type GradeOption<G extends string> = {
@@ -91,19 +91,28 @@ const messageVariants = cva('flex min-h-6 items-start gap-2 text-sm font-medium'
 })
 
 /**
- * The polite live region beside a page's result controls: empty until an answer, then the
- * server's message ("Đã lưu kết quả.", "… tự động check-in.") or why it was not saved — an icon and
- * text, never colour alone. Always rendered, so screen readers announce the change.
+ * The polite live region beside a page's result controls: empty until an answer, then what was
+ * sent (`label`: the grade, "Bỏ qua mục này", …) and the server's message ("Đã lưu kết quả.",
+ * "… tự động check-in.") or why it was not saved — an icon and text, never colour alone. Always
+ * rendered, so screen readers announce the change; each answer (`seq`) is a new text node, so the
+ * same message twice (a retry that fails again) is announced again. With a `ref` it can take
+ * focus (`tabIndex={-1}`): ItemActions moves focus here after a confirmed skip.
  */
 function OutcomeMessage({
   result,
+  label,
+  ref,
 }: {
-  result: { readonly ok: boolean; readonly message: string } | null
+  result: { readonly ok: boolean; readonly message: string; readonly seq?: number } | null
+  label?: string
+  ref?: Ref<HTMLParagraphElement>
 }) {
   const tone = result === null ? 'idle' : result.ok ? 'saved' : 'failed'
   const Icon = result === null ? null : result.ok ? CircleCheck : CircleAlert
   return (
     <p
+      ref={ref}
+      tabIndex={ref === undefined ? undefined : -1}
       role="status"
       aria-live="polite"
       data-slot="outcome-message"
@@ -113,7 +122,17 @@ function OutcomeMessage({
       {Icon !== null && (
         <Icon aria-hidden="true" strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
       )}
-      {result?.message}
+      {result !== null && (
+        <span key={result.seq ?? 0}>
+          {label !== undefined && (
+            <>
+              <span data-slot="outcome-label">{label}</span>
+              {': '}
+            </>
+          )}
+          <span>{result.message}</span>
+        </span>
+      )}
     </p>
   )
 }

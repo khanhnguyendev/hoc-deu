@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { outcomeBinding, REQUEST_ID, SAVED } from '../../fixtures'
@@ -30,6 +30,10 @@ describe('ItemActions (§5.7)', () => {
     })
     expect(await screen.findByText('Đã lưu kết quả.')).toBeTruthy()
     expect(screen.queryByRole('alertdialog')).toBeNull()
+    // Focus follows to the answer: the skip button goes away once the page re-renders.
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Bỏ qua mục này: Đã lưu kết quả.')
+    await waitFor(() => expect(document.activeElement).toBe(status))
   })
 
   it('cancelling sends nothing', async () => {
@@ -38,6 +42,9 @@ describe('ItemActions (§5.7)', () => {
     await user.click(screen.getByRole('button', { name: 'Huỷ' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(record).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Bỏ qua mục này' })),
+    )
   })
 
   it('offers the skip while the item is due, not once it is scheduled or skipped', () => {
@@ -75,6 +82,6 @@ describe('ItemActions (§5.7)', () => {
       />,
     )
     expect(screen.queryByRole('button', { name: 'Bỏ qua mục này' })).toBeNull()
-    expect(screen.getByRole('status').textContent).toBe('Đã lưu kết quả.')
+    expect(screen.getByRole('status').textContent).toBe('Bỏ qua mục này: Đã lưu kết quả.')
   })
 })

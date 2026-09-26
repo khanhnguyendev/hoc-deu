@@ -86,4 +86,24 @@ describe('FlashcardView', () => {
     await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
     expect(onReveal).toHaveBeenCalledOnce()
   })
+
+  it('fix 1: the card takes focus — a click inside keeps it there; the first reveal focuses it when focus is elsewhere', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<FlashcardView card={cardItem().content} />)
+    const card = container.querySelector<HTMLElement>('[data-slot="flashcard-view"]')!
+    expect(card.getAttribute('tabindex')).toBe('-1')
+    // Safari and Firefox on macOS do not focus a clicked button: focus stays on the page.
+    const toggle = screen.getByRole('button', { name: 'Xem nghĩa' })
+    toggle.addEventListener('mousedown', (event) => event.preventDefault())
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await user.click(toggle)
+    expect(document.activeElement).toBe(card)
+  })
+
+  it('fix 1: leaves focus where it is when it is already inside the card', async () => {
+    const user = userEvent.setup()
+    render(<FlashcardView card={cardItem().content} />)
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ẩn nghĩa' }))
+  })
 })

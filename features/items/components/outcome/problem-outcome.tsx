@@ -127,7 +127,10 @@ function ProblemOutcome({
             onGrade={grade}
           />
         )}
-        <OutcomeMessage result={sent} />
+        <OutcomeMessage
+          result={sent}
+          label={grades.find((option) => option.value === sent?.key)?.label}
+        />
       </div>
     </OutcomeSignalsContext>
   )
