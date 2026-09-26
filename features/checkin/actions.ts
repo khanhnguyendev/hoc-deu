@@ -5,8 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { itemHref } from '@/features/items/href'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
+import type { PlanItem } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
 import { blocksToAutoCheckIn, blocksWithItem } from '@/lib/domain/plan/checkin'
+import { offPlanMode } from '@/lib/domain/plan/extra'
 import type { PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { projectEvent, type DomainEvent } from '@/lib/domain/projection/project'
 import { RULES_VERSION } from '@/lib/domain/rules'
@@ -18,6 +20,7 @@ import { loadDerivedFor, loadItemStates, type DerivedLoad } from '@/lib/events/l
 import { vi } from '@/lib/i18n/vi'
 import { planCatalog } from '@/lib/plans/catalog'
 import { currentPlan, type CurrentPlan } from '@/lib/plans/current'
+import { attachOffPlan } from '@/lib/plans/extra'
 import { readEnrollments, readScheduleVersions, todayOf } from '@/lib/plans/reads'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
@@ -171,7 +174,7 @@ export async function checkInBlock(input: CheckInInput): Promise<CheckInResult> 
 }
 
 /** The block a result belongs to (decision 14): `blockId` when it lists the item, else the first
- *  block listing it; none when no block of the plan lists it (off-plan study, 5.4). */
+ *  block listing it; none when no block of the plan lists it (off-plan study, decision 21). */
 function blockFor(plan: StoredPlan, itemId: string, blockId?: string): PlanBlock | undefined {
   const blocks = blocksWithItem(plan, itemId)
   return blocks.find((block) => block.id === blockId) ?? blocks[0]
@@ -181,30 +184,74 @@ function blockFor(plan: StoredPlan, itemId: string, blockId?: string): PlanBlock
  *  item never studied): nothing is written. */
 const NOT_APPLICABLE = Symbol('not applicable')
 
-/** One attempt of `recordOutcome`: the plan it was recorded on, when a block was found. */
+type Placement = { readonly planId: string; readonly blockId: string }
+
+/**
+ * Off-plan study (decision 21, §5.9): `attachOffPlan` appends the item — in the result's mode
+ * (`offPlanMode`, from its state before the result) — to its track's extra block of the current
+ * plan, building today's plan first when there is none, and answers where it landed. A failure
+ * here never loses the result: it is logged (its name and message only) and the result is
+ * recorded without a plan, as before task 5.4.
+ */
+async function attach(
+  userId: string,
+  request: OutcomeInput,
+  item: PlanItem,
+  loaded: Loaded,
+): Promise<Placement | null> {
+  const requested = request.outcome.type === 'item.result' ? request.outcome.mode : undefined
+  const mode = offPlanMode(item, own(loaded.state.items, request.itemId), requested)
+  try {
+    return await attachOffPlan(userId, request.itemId, mode, request.requestId)
+  } catch (error) {
+    if (!(error instanceof EventError)) throw error
+    console.error('[checkin] off-plan attachment failed:', `${error.name}: ${error.message}`)
+    return null
+  }
+}
+
+/**
+ * One attempt of `recordOutcome`: the id of the plan it was recorded on, when it names a block.
+ * The block is resolved on this attempt's current plan (decision 14); when no block lists the
+ * item and the outcome is study (`isCountedOutcome` — a skip or a re-add is not), the item is
+ * attached to the extra block first (`attach`), and the result then names that block. The
+ * derived rows of an item outcome never depend on the plan it names, so they are projected once
+ * the placement is known.
+ */
 async function outcomeAttempt(
   supabase: Client,
   userId: string,
   request: OutcomeInput,
-  trackId: string,
-): Promise<StoredPlan | null | typeof NOT_APPLICABLE> {
+  item: PlanItem,
+): Promise<string | null | typeof NOT_APPLICABLE> {
   const { today, current } = await currentNow(supabase, userId)
   const plan = current?.plan ?? null
   const block = plan === null ? undefined : blockFor(plan, request.itemId, request.blockId)
-  const placed = plan !== null && block !== undefined ? { planId: plan.id, blockId: block.id } : {}
   const { type, payload } = outcomeEvent(request.outcome)
   const id = deriveEventId(request.requestId, outcomeKey(request))
-  const keys = { itemId: request.itemId, trackId, ...placed }
-  const { ignored, write } = await derivedFor(
-    supabase,
-    userId,
-    { kind: 'item', itemId: request.itemId, localDay: today, outcome: isCountedOutcome(type) },
-    domainEvent({ id, type, localDay: today, payload, ...keys }),
-  )
-  if (ignored !== null) return NOT_APPLICABLE
+  const counted = isCountedOutcome(type)
+  const loaded = await loadDerivedFor(supabase, userId, {
+    kind: 'item',
+    itemId: request.itemId,
+    localDay: today,
+    outcome: counted,
+  })
+  const project = (placed: Placement | null) => {
+    const keys = { itemId: request.itemId, trackId: item.trackId, ...placed }
+    return {
+      keys,
+      ...writeFor(loaded, domainEvent({ id, type, localDay: today, payload, ...keys })),
+    }
+  }
+  const inPlan =
+    plan !== null && block !== undefined ? { planId: plan.id, blockId: block.id } : null
+  if (project(inPlan).ignored !== null) return NOT_APPLICABLE
+
+  const placed = inPlan ?? (counted ? await attach(userId, request, item, loaded) : null)
+  const { keys, write } = project(placed)
   // `duplicate` (the same grade tapped twice) is success: the first one was recorded.
   await applyLearnerEvent(supabase, { id, type, payload, localDay: today, ...keys }, write)
-  return block === undefined ? null : plan
+  return placed?.planId ?? null
 }
 
 /**
@@ -277,14 +324,17 @@ async function autoCheckIn(
 }
 
 /**
- * An item's result (§4.4, §5.5, §5.7; decisions 14–17): each attempt re-derives today and the
- * current plan (decision 13, RF-1), resolves the block — `blockId` when it lists the item, else
- * the first block listing it, else none (off-plan: recorded without a plan until 5.4 attaches
- * it) — loads the item's rows, projects and applies the event (`withRetry`). Then, when a block
- * was found, the auto check-in of the blocks it completed (`autoCheckIn`). The event id digests
- * the payload (decision 16): the same grade twice is one event, another grade a second one.
- * Revalidates `/today` and the item's page — not `/review`, whose card session keeps its own list
- * (5.2c). An EventError becomes its Vietnamese message; anything else reaches the error boundary.
+ * An item's result (§4.4, §5.5, §5.7, §5.9; decisions 14–17, 21): each attempt re-derives today
+ * and the current plan (decision 13, RF-1), resolves the block — `blockId` when it lists the item,
+ * else the first block listing it, else off-plan study: the item is attached to its track's extra
+ * block first (`attachOffPlan` — the paused plan's while the gate is closed, today's plan built
+ * first when there is none; a skip or a re-add attaches nothing) — loads the item's rows,
+ * projects and applies the event (`withRetry`). Then, when the result names a block, the auto
+ * check-in of the blocks it completed (`autoCheckIn`), the extra block included. The event id
+ * digests the payload (decision 16): the same grade twice is one event, another grade a second
+ * one. Revalidates `/today` and the item's page — not `/review`, whose card session keeps its own
+ * list (5.2c). An EventError becomes its Vietnamese message; anything else reaches the error
+ * boundary.
  */
 export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult> {
   const user = await requireOnboarded()
@@ -301,9 +351,9 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
       itemHref({ trackId: item.trackId, localId: item.id.slice(item.trackId.length + 1) }),
     )
   }
-  let recorded: StoredPlan | null | typeof NOT_APPLICABLE
+  let recorded: string | null | typeof NOT_APPLICABLE
   try {
-    recorded = await withRetry(() => outcomeAttempt(supabase, user.id, request, item.trackId))
+    recorded = await withRetry(() => outcomeAttempt(supabase, user.id, request, item))
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     revalidate()
@@ -316,7 +366,7 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
   const auto =
     recorded === null
       ? { checked: [], failed: false }
-      : await autoCheckIn(supabase, user.id, request, recorded.id)
+      : await autoCheckIn(supabase, user.id, request, recorded)
   revalidate()
   const message = auto.failed
     ? copy.outcome.savedAutoCheckInFailed

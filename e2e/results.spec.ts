@@ -4,6 +4,7 @@ import { signIn } from './support/auth'
 import {
   addDays,
   newBlock,
+  plansOf,
   seedItemStates,
   seedPlan,
   snapshot,
@@ -128,8 +129,11 @@ test('a due problem opened with ?mode=recall: the prompt, "Xem ghi chú", then "
 
   const results = await itemEvents(user.id, 'dsa:lc-0217', 'item.result')
   expect(results.map((event) => event.payload)).toEqual([{ result: 'hint', mode: 'recall' }])
-  // Off the plan (no plan today): no plan or block on the event.
-  expect(results[0]).toMatchObject({ plan_id: null, block_id: null })
+  // No plan today yet: the result builds today's plan first and names a block of it — the review
+  // block listing the due problem, or the extra block it is attached to (task 5.4, decision 21).
+  const plan = (await plansOf(user.id)).find((row) => row.plan_date === today)
+  expect(results[0]?.plan_id).toBe(plan?.id)
+  expect(results[0]?.block_id).toMatch(new RegExp(`^${today}:dsa:`))
 })
 
 test('the nudge: revealing the solution before grading preselects "Cần gợi ý", which records hint', async ({

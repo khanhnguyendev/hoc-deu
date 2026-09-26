@@ -75,6 +75,7 @@ vi.mock('@/lib/plans/catalog', async () => {
 const { checkInBlock, recordOutcome } = await import('./actions')
 
 const REQUEST_ID = '3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c'
+const OTHER_REQUEST_ID = '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f'
 /** 10:00 on TODAY in Ho Chi Minh (day start 04:00). */
 const NOW = new Date('2026-09-28T03:00:00.000Z')
 /** 03:59:59 on 2026-09-29 in Ho Chi Minh: still TODAY; one second before the day start. */
@@ -598,20 +599,199 @@ describe('recordOutcome', () => {
     })
   })
 
-  it('records an item in no block of the current plan without a plan (off-plan; 5.4 attaches it)', async () => {
-    const fake = setup({ day_plans: [plan] })
-    await recordOutcome(solved({ itemId: 'dsa:p5' }))
-    const event = learnerCalls(fake)[0]?.p_event
-    expect(event).toMatchObject({ type: 'item.result', item_id: 'dsa:p5', local_day: TODAY })
-    expect(event).not.toHaveProperty('plan_id')
-    expect(event).not.toHaveProperty('block_id')
-    expect(fake.rpcs('apply_system_event')).toEqual([])
-  })
+  describe('off-plan study (task 5.4, decision 21)', () => {
+    const extraId = `${TODAY}:dsa:extra:1`
+    const systemTypes = (fake: FakeSupabase) => systemCalls(fake).map((call) => call.p_event.type)
+    const extraBlock = (fake: FakeSupabase, planId: string) =>
+      (
+        fake.tables.day_plans?.find((row) => row.id === planId)?.blocks as unknown as
+          PlanBlock[] | undefined
+      )?.find((block) => block.kind === 'extra')
 
-  it('records a result without a plan before today’s plan exists', async () => {
-    const fake = setup({})
-    expect((await recordOutcome(solved())).ok).toBe(true)
-    expect(learnerCalls(fake)[0]?.p_event).not.toHaveProperty('plan_id')
+    it('attaches an item in no block of the plan to the extra block, records the result there, then checks the block in', async () => {
+      const fake = setup({ day_plans: [plan] })
+      expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toEqual({
+        ok: true,
+        message: copy.checkIn.outcome.savedAndCheckedIn,
+        autoCheckedIn: [extraId],
+      })
+      // The attachment first (its own key), then the result naming the extra block, then the
+      // extra block's auto check-in.
+      expect(fake.calls.filter((call) => call.kind === 'rpc').map((call) => call.name)).toEqual([
+        'apply_system_event',
+        'apply_event',
+        'apply_system_event',
+      ])
+      expect(systemTypes(fake)).toEqual(['plan.extra_added', 'block.checked_in'])
+      expect(systemCalls(fake)[0]?.p_event).toMatchObject({
+        id: deriveEventId(REQUEST_ID, `offplan:${plan.id}:dsa:p5`),
+        plan_id: plan.id,
+        track_id: 'dsa',
+        local_day: TODAY,
+        payload: { itemIds: ['dsa:p5'] },
+      })
+      expect(extraBlock(fake, plan.id)).toEqual({
+        id: extraId,
+        trackId: 'dsa',
+        kind: 'extra',
+        estMinutes: 20,
+        items: [{ itemId: 'dsa:p5', mode: 'new', minutes: 20 }],
+      })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        type: 'item.result',
+        item_id: 'dsa:p5',
+        plan_id: plan.id,
+        block_id: extraId,
+      })
+      expect(blockRow(fake, plan.id, extraId)).toMatchObject({
+        status: 'done',
+        minutes: 20,
+        auto: true,
+        checked_in_on: TODAY,
+      })
+      // Counted once: the extra block's minutes, one item done.
+      expect(dayRow(fake, TODAY)).toMatchObject({
+        items_done: 1,
+        completed: true,
+        minutes_by_track: { dsa: 20 },
+      })
+    })
+
+    it('attaches a recalled problem in recall mode, with its recall minutes', async () => {
+      const fake = setup({
+        day_plans: [plan],
+        item_state: [handled('dsa:p5', '2026-09-20')],
+      })
+      await recordOutcome(
+        solved({
+          itemId: 'dsa:p5',
+          outcome: { type: 'item.result', result: 'hint', mode: 'recall' },
+        }),
+      )
+      expect(extraBlock(fake, plan.id)?.items).toEqual([
+        { itemId: 'dsa:p5', mode: 'recall', minutes: 5 },
+      ])
+    })
+
+    it('[RF-2] the same off-plan result twice: one attachment, one result, one auto check-in', async () => {
+      const fake = setup({ day_plans: [plan] })
+      const first = await recordOutcome(solved({ itemId: 'dsa:p5' }))
+      const second = await recordOutcome(solved({ itemId: 'dsa:p5' }))
+      expect(first.autoCheckedIn).toEqual([extraId])
+      expect(second).toEqual({ ok: true, message: copy.checkIn.outcome.saved, autoCheckedIn: [] })
+      expect(systemTypes(fake)).toEqual(['plan.extra_added', 'block.checked_in'])
+      expect(fake.tables.events?.map((row) => row.type)).toEqual([
+        'plan.extra_added',
+        'item.result',
+        'block.checked_in',
+      ])
+      expect(extraBlock(fake, plan.id)?.items).toHaveLength(1)
+      expect(dayRow(fake, TODAY)).toMatchObject({ items_done: 1, minutes_by_track: { dsa: 20 } })
+    })
+
+    it('[RF-5] the gate closed: the paused plan gains a done extra block, which reopens the gate — no plan for today', async () => {
+      const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
+      const paused = planRow({ date: YESTERDAY, blocks: [old], seenAt: seen(YESTERDAY) })
+      const fake = setup({ day_plans: [paused] })
+      const pausedExtra = `${YESTERDAY}:dsa:extra:1`
+      expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toMatchObject({
+        ok: true,
+        autoCheckedIn: [pausedExtra],
+      })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        plan_id: paused.id,
+        block_id: pausedExtra,
+        local_day: TODAY,
+      })
+      // Checked in done today: the gate is open, resumed today (§5.9).
+      expect(blockRow(fake, paused.id, pausedExtra)).toMatchObject({
+        status: 'done',
+        auto: true,
+        checked_in_on: TODAY,
+      })
+      expect(fake.tables.day_plans?.map((row) => row.plan_date)).toEqual([YESTERDAY])
+      // The next result finds the extra block through the resumed plan (still current today).
+      await recordOutcome(solved({ itemId: 'dsa:p5', requestId: OTHER_REQUEST_ID }))
+      expect(learnerCalls(fake)[1]?.p_event).toMatchObject({
+        plan_id: paused.id,
+        block_id: pausedExtra,
+      })
+      expect(fake.tables.day_plans?.map((row) => row.plan_date)).toEqual([YESTERDAY])
+    })
+
+    it("builds today's plan first when there is none (ensureToday), then records the result on it", async () => {
+      const fake = setup({})
+      expect((await recordOutcome(solved({ itemId: 'dsa:p5' }))).ok).toBe(true)
+      const today = fake.tables.day_plans?.find((row) => row.plan_date === TODAY)
+      expect(today).toBeDefined()
+      expect(systemTypes(fake).slice(0, 2)).toEqual(['plan.generated', 'plan.extra_added'])
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        plan_id: today?.id,
+        block_id: extraId,
+      })
+    })
+
+    it('an item the built plan lists is recorded on that block, attaching nothing', async () => {
+      const fake = setup({})
+      await recordOutcome(solved())
+      const today = fake.tables.day_plans?.find((row) => row.plan_date === TODAY)
+      const listed = (today?.blocks as unknown as PlanBlock[]).find((block) =>
+        block.items.some((item) => item.itemId === 'dsa:p1'),
+      )
+      expect(listed).toBeDefined()
+      expect(systemTypes(fake)).toEqual(['plan.generated'])
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        plan_id: today?.id,
+        block_id: listed?.id,
+      })
+    })
+
+    it('a skip or a re-add off the plan attaches nothing (not study)', async () => {
+      const fake = setup({ day_plans: [plan] })
+      await recordOutcome(solved({ itemId: 'dsa:p5', outcome: { type: 'item.skipped' } }))
+      expect(fake.rpcs('apply_system_event')).toEqual([])
+      expect(learnerCalls(fake)[0]?.p_event).not.toHaveProperty('plan_id')
+    })
+
+    it('an outcome the item cannot take attaches nothing', async () => {
+      const fake = setup({ day_plans: [plan] })
+      expect(
+        (await recordOutcome(solved({ itemId: 'dsa:p5', outcome: { type: 'lesson.completed' } })))
+          .ok,
+      ).toBe(false)
+      expect(fake.rpcs()).toEqual([])
+    })
+
+    it('records the result without a plan when the attachment fails, and logs it', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        const fake = setup({ day_plans: [plan] }, { plans: ['invalid_event'] })
+        expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toEqual({
+          ok: true,
+          message: copy.checkIn.outcome.saved,
+          autoCheckedIn: [],
+        })
+        expect(learnerCalls(fake)[0]?.p_event).not.toHaveProperty('plan_id')
+        expect(logged).toHaveBeenCalledWith(
+          '[checkin] off-plan attachment failed:',
+          'EventError: invalid_event',
+        )
+      } finally {
+        logged.mockRestore()
+      }
+    })
+
+    it('records a result without a plan when there is none to attach to (no active track)', async () => {
+      const fake = createFakeSupabase({
+        schedule_versions: [scheduleRow()],
+        user_tracks: [trackRow('dsa', { start_date: '2026-09-01', status: 'removed' })],
+      })
+      eventStore(fake, USER_ID)
+      state.fake = fake
+      expect((await recordOutcome(solved())).ok).toBe(true)
+      expect(learnerCalls(fake)[0]?.p_event).not.toHaveProperty('plan_id')
+      expect(fake.rpcs('apply_system_event')).toEqual([])
+    })
   })
 
   it('sends each outcome type as its event and payload', async () => {

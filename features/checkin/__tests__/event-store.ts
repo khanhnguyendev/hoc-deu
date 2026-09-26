@@ -7,11 +7,15 @@
  * update keeps its day, except a `skipped` block checked in `done` / `partial` on a later day,
  * which moves there (M-6 a). The database's local day comes from the fake's `schedule_versions`
  * and the (fake) clock, so a test that moves the clock between two calls sees `day_changed`.
+ * The plan types of `apply_system_event` — `plan.generated` (today's plan built by `ensureToday`)
+ * and `plan.extra_added` (off-plan study, task 5.4) — are answered by `planEvents`
+ * (`lib/plans/__tests__/extra-store.ts`), with their own script.
  */
 import { RULES_VERSION } from '@/lib/domain/rules'
 import { CHECK_IN_STATUSES, type CheckInStatus, isDoneOrPartial } from '@/lib/domain/state'
 import { localDay, scheduleAt, type LocalDay } from '@/lib/domain/time/localDay'
 import type { EventErrorCode } from '@/lib/events/apply'
+import { planEvents, type PlanEventStep } from '@/lib/plans/__tests__/extra-store'
 import { eventRow } from '@/lib/plans/__tests__/fixtures'
 import type { FakeSupabase, RowOf, RpcAnswer } from '@/lib/testing/fake-supabase'
 
@@ -169,14 +173,21 @@ function apply(
   return answer({ outcome: 'applied', versions })
 }
 
+const PLAN_TYPES: ReadonlySet<string> = new Set(['plan.generated', 'plan.extra_added'])
+
 /**
  * Answers `apply_event` (the session user `userId`) and `apply_system_event` in `fake`; the first
- * calls of each take their `script`'s steps in turn.
+ * calls of each take their `script`'s steps in turn — `system` for the auto check-in, `plans` for
+ * the plan types.
  */
 export function eventStore(
   fake: FakeSupabase,
   userId: string,
-  script: { readonly learner?: readonly Step[]; readonly system?: readonly Step[] } = {},
+  script: {
+    readonly learner?: readonly Step[]
+    readonly system?: readonly Step[]
+    readonly plans?: readonly PlanEventStep[]
+  } = {},
 ): void {
   const handler = (steps: Step[], source: 'user' | 'system') => (raw: Record<string, unknown>) => {
     const args = raw as unknown as StoreArgs
@@ -186,6 +197,10 @@ export function eventStore(
     if (answered !== undefined) return answered
     return apply(fake, source === 'system' ? (args.p_user_id ?? '') : userId, args, source)
   }
+  const plans = planEvents(fake, script.plans)
+  const system = handler([...(script.system ?? [])], 'system')
   fake.onRpc('apply_event', handler([...(script.learner ?? [])], 'user'))
-  fake.onRpc('apply_system_event', handler([...(script.system ?? [])], 'system'))
+  fake.onRpc('apply_system_event', (raw) =>
+    PLAN_TYPES.has((raw as unknown as StoreArgs).p_event.type) ? plans(raw) : system(raw),
+  )
 }
