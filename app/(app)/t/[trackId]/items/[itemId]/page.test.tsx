@@ -15,11 +15,9 @@ vi.mock('@/features/roadmap', async (importOriginal) => ({
     state.calls.push(['getItemPage', trackId, itemParam])
     return state.model
   },
-}))
-vi.mock('@/features/items', () => ({
-  renderItemPage: async (item: { title: string }, props: unknown) => {
-    state.calls.push(['renderItemPage', item, props])
-    return <h1>{item.title}</h1>
+  ItemBody: (props: { item: { title: string }; viewer: unknown; resolveItem: unknown }) => {
+    state.calls.push(['ItemBody', props.item, props.viewer, props.resolveItem])
+    return <h1>{props.item.title}</h1>
   },
 }))
 vi.mock('next/navigation', () => ({
@@ -71,13 +69,9 @@ describe('/t/[trackId]/items/[itemId]', () => {
     expect(state.calls[0]).toEqual(['getItemPage', 'english', 'explaining-code%3Adsa%3Alc-0001'])
   })
 
-  it('renders the registry page (renderItemPage) inside ItemView with the back link', async () => {
+  it('renders ItemBody inside ItemView (task 5.1c) with the back link', async () => {
     render(await ItemPage(props('dsa', 'lc-0001')))
-    expect(state.calls).toContainEqual([
-      'renderItemPage',
-      MODEL.item,
-      { state: null, context: {}, viewer: MODEL.viewer, resolveItem },
-    ])
+    expect(state.calls).toContainEqual(['ItemBody', MODEL.item, MODEL.viewer, resolveItem])
     expect(screen.getByRole('heading', { level: 1, name: 'Two Sum' })).toBeTruthy()
     expect(
       screen

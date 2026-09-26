@@ -27,6 +27,12 @@ export async function generateMetadata(props: PageProps<'/t/[trackId]'>): Promis
  * roadmap, week by week. The page renders each row through the registry and hands the slots to
  * RoadmapView (fix 5). A variant without its roadmap file yet shows an empty state (decision 4,
  * RF-4). Progress and weak items arrive with task 5.4 (decision 25).
+ *
+ * Task 5.1c: `load()` (and its `notFound()`) run before anything else, and this segment has no
+ * `loading.tsx` (`(app)`'s group-level one was removed), so an unknown, draft-for-a-learner or
+ * un-followed retired track answers a real HTTP 404 (`app/(app)/not-found.tsx`) instead of a
+ * streamed 200. RoadmapView needs no `<Suspense>` split: its slots are already built by the time
+ * this renders.
  */
 export default async function TrackPage(props: PageProps<'/t/[trackId]'>) {
   const data = await load(props)

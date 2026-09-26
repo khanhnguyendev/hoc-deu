@@ -848,13 +848,15 @@ from `lib/i18n/vi.ts`.
 
 ### Roadmap components (`features/roadmap/components`)
 
-`/tracks`, the track page `/t/[trackId]` and the item route (task 3.4b). They take plain props —
+`/tracks`, the track page `/t/[trackId]` and the item route (task 3.4b). Most take plain props —
 `TrackSummary`, `Enrollment` and `VariantLink` from `features/roadmap/queries.ts` (types only) —
 and ReactNode slots, and **never import the item registry** (fix 5): the track page builds each
 row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: null, mode: mode ??
-undefined }))` and the item page its body with `await renderItemPage(…)`, so every component here
-renders in the client catalog with plain nodes. Server-compatible (no `'use client'`). Copy:
-`vi.roadmap`.
+undefined }))`, so every one of them renders in the client catalog with plain nodes.
+Server-compatible (no `'use client'`). Copy: `vi.roadmap`. **ItemBody is the one exception**
+(task 5.1c): an async server component that loads the item's MDX and code through the item
+registry (`await renderItemPage(…)`), so it renders only inside `ItemView`'s `<Suspense>`
+boundary, never in the client catalog (like the item-type Pages under "Item types" below).
 
 ### TrackList
 
@@ -955,17 +957,40 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/item-view.tsx`
-- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`await
-  renderItemPage(…)`). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the draft /
-  retired notice, so ItemView never renders a second one
+- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`<ItemBody item viewer
+  resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
+  draft / retired notice, so ItemView never renders a second one
 - **Variants:** —
-- **States:** static
-- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={page} />`
+- **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
+  route validates its params and calls `notFound()` before `page` is built, so only this part ever
+  suspends — never the 404 check itself) · ready — `page`
+- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={<ItemBody
+  item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} />} />`
   (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`)
 - **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first
   — "Về danh sách lộ trình" when `backHref` is `TRACKS_HREF` (`/tracks`: the loader's choice for
   a retired track the learner does not follow, whose page is a 404); the page brings its own
   `h1`; a `contents` wrapper keeps the page's spacing
+
+### ItemBody
+
+- **Layer:** feature (`features/roadmap`; **server-only**, not client-catalog-compatible)
+- **File:** `features/roadmap/components/item-body.tsx`
+- **Props:** `item: CatalogItem`, `viewer: ItemViewer`, `resolveItem: (id: string) => ItemLink |
+  null` (`getItemPage()`'s model)
+- **Variants:** —
+- **States:** an async server component — `await renderItemPage(item, { state: null, context: {},
+  viewer, resolveItem })` and renders its result; results (a non-null `state`) arrive with task 5.2
+- **Usage:** `<ItemBody item={model.item} viewer={model.viewer} resolveItem={model.resolveItem}
+  />` as `ItemView`'s `page` prop, inside its `<Suspense>` boundary — never anywhere else
+- **Accessibility:** none of its own — the registry Page it renders owns its `h1` and landmarks
+- Not shown at `/dev/components`: `tools/guards/component-catalog.test.ts` requires every
+  `features/*/components/**` file to be catalogued there, but `ItemBody` imports the item
+  registry (`renderItemPage`, `import 'server-only'`) and cannot be imported into the `'use
+  client'` registry without breaking its bundle — the same reason the item-type Pages under "Item
+  types" render at `/dev/items` instead. `ItemBody` fits neither list (it is not a
+  `features/items/<type>/{Page,Row}.tsx`), so the guard's `renders every component at
+  /dev/components` check needs a matching carve-out; flagged for the controller (task 5.1c report).
 
 ### MDX content components (`features/items/components/mdx`)
 

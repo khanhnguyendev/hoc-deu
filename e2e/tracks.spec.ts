@@ -156,28 +156,9 @@ test('?variant picks a listed roadmap and falls back to the enrolled one', async
   await expect(variants.getByRole('link', { name: '10 tuần' })).not.toHaveAttribute('aria-current')
 })
 
-test.describe('unknown tracks and items', () => {
-  // A soft 404 (Next 16 streaming, accepted in 3.4b): `(app)/loading.tsx` streams these pages, so
-  // the response is already 200 when the loader's null becomes `notFound()`. The Vietnamese 404
-  // renders inside the AppShell (`(app)/not-found.tsx`) and Next marks the page noindex. The status
-  // is pinned: if Next ever sends a real 404 here, this test says so.
-  test('/t/nope and /t/dsa/items/lc-99999 show the Vietnamese 404', async ({ page }) => {
-    await signInLearner(page, '/tracks')
-    for (const path of ['/t/nope', '/t/dsa/items/lc-99999']) {
-      const response = await page.goto(path)
-      expect(response?.status(), path).toBe(200)
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'Không tìm thấy trang' }),
-        path,
-      ).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/')
-      await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached()
-      // One main landmark: the AppShell's.
-      await expect(page.getByRole('main')).toHaveCount(1)
-    }
-    await expectNoAxeViolationsInBothThemes(page)
-  })
-})
+// The real 404 for an unknown track / item / track-mismatched item moved to
+// e2e/not-found.spec.ts (task 5.1c: `(app)/loading.tsx` was removed, so `notFound()` now answers
+// a genuine HTTP 404 instead of streaming a 200 with `noindex`).
 
 test('on a phone the bottom navigation marks "Lộ trình" on /t/dsa', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'the bottom navigation is the mobile layout')
