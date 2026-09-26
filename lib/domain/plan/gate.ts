@@ -3,7 +3,7 @@
  * roadmap may advance today, and the stale-plan "Học tiếp hôm nay" offer. `plan/resume.ts` (4.6)
  * builds the resume plan; this module only reads history.
  */
-import { blockKey, type BlockState } from '../state'
+import { blockKey, type BlockState, isDoneOrPartial } from '../state'
 import { daysBetween, type LocalDay } from '../time/localDay'
 import type { PlanBlock, StoredPlan } from './types'
 
@@ -38,10 +38,6 @@ export function lastSeenPlan(plans: readonly StoredPlan[], today: LocalDay): Sto
   return best
 }
 
-function doneOrPartial(status: BlockState['status']): boolean {
-  return status === 'done' || status === 'partial'
-}
-
 /** The local day of the earliest of `states` (LocalDay strings sort chronologically). */
 function earliestCheckedInOn(states: readonly BlockState[]): LocalDay {
   let earliest = states[0]?.checkedInOn
@@ -68,7 +64,7 @@ export function gateStatus(
   const finishedStates: BlockState[] = []
   for (const block of lastSeen.blocks) {
     const state = blocks[blockKey(lastSeen.id, block.id)]
-    if (state !== undefined && doneOrPartial(state.status)) finishedStates.push(state)
+    if (state !== undefined && isDoneOrPartial(state.status)) finishedStates.push(state)
   }
 
   if (finishedStates.length > 0) {
@@ -90,6 +86,6 @@ export function unfinishedBlocks(
 ): PlanBlock[] {
   return plan.blocks.filter((block) => {
     const state = blocks[blockKey(plan.id, block.id)]
-    return state === undefined || !doneOrPartial(state.status)
+    return state === undefined || !isDoneOrPartial(state.status)
   })
 }

@@ -4,6 +4,7 @@
  * and non-`srs` item types, which only the catalog knows, so this is the one place that rule lives.
  */
 import type { ItemMode, PlanCatalog, PlanItem } from '../catalog'
+import { compareIds } from '../compare'
 import type { ItemState } from '../state'
 import { daysBetween, type LocalDay } from '../time/localDay'
 import { reviewMode } from './reviewMode'
@@ -18,8 +19,6 @@ export type DueEntry = {
   /** item.minutes[mode]. */
   readonly minutes: number
 }
-
-const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 function compareDueEntries(weakTopicIds: ReadonlySet<string>) {
   return (a: DueEntry, b: DueEntry): number => {
@@ -37,7 +36,7 @@ function compareDueEntries(weakTopicIds: ReadonlySet<string>) {
     const levelDiff = a.state.level - b.state.level
     if (levelDiff !== 0) return levelDiff
 
-    return byId(a.itemId, b.itemId)
+    return compareIds(a.itemId, b.itemId)
   }
 }
 

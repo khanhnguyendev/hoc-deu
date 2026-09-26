@@ -4,6 +4,7 @@
  * (a helper for M5's prompt page, Part B-M4 decision 24 — not a second item in the block).
  */
 import type { PlanCatalog, PlanItem } from '../catalog'
+import { compareIds } from '../compare'
 import type { ItemState } from '../state'
 
 /** The tag whose block shows example sentences instead of an item (§5.6). */
@@ -12,8 +13,7 @@ export const SHADOWING_TAG = 'shadowing'
 /** Rank of a last grade for "the worst last grade first" (§5.6): miss, close, pass, anything else. */
 export const GRADE_RANK: Readonly<Record<string, number>> = { miss: 0, close: 1, pass: 2 }
 
-const byIdStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-const byId = (a: PlanItem, b: PlanItem): number => byIdStr(a.id, b.id)
+const byId = (a: PlanItem, b: PlanItem): number => compareIds(a.id, b.id)
 
 function gradeRank(lastResult: string | null): number {
   if (lastResult === null) return Number.POSITIVE_INFINITY
@@ -136,7 +136,7 @@ export function pickShadowing(input: {
       if (stateA.introducedOn !== stateB.introducedOn) {
         return stateA.introducedOn < stateB.introducedOn ? 1 : -1
       }
-      return byIdStr(idA, idB)
+      return compareIds(idA, idB)
     })
     .slice(0, count)
     .map(([itemId]) => itemId)
@@ -164,7 +164,7 @@ export function mockInterviewProblem(input: {
     .sort(([idA, stateA], [idB, stateB]) => {
       const dateDiff = compareLastResultOn(stateA, stateB)
       if (dateDiff !== 0) return dateDiff
-      return byIdStr(idA, idB)
+      return compareIds(idA, idB)
     })
 
   return candidates.length > 0 ? candidates[0]![0] : null

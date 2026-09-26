@@ -6,6 +6,8 @@
  * the simulation builds it from its inputs (4.8), and tests build it by hand
  * (`plan/__tests__/fixtures.ts`).
  */
+import { z } from 'zod'
+import { own } from './compare'
 
 export type ContentStatus = 'draft' | 'active' | 'retired'
 
@@ -76,6 +78,17 @@ export type PlanWeeklyTemplate = Readonly<
 
 export type ThrottleRule = { readonly dueAbove: number; readonly newPerDay: number }
 
+/**
+ * A throttle rule (§5.5): above `dueAbove` due items, at most `newPerDay` new SRS items. The one
+ * schema (M4 final review M-11) — the manifest's `defaults.throttle`, `toEnrollment`'s reading of
+ * `user_tracks.throttle` and the `track.updated` payload all import it.
+ */
+export const throttleRuleSchema: z.ZodType<ThrottleRule> = z.strictObject({
+  dueAbove: z.number().int().min(0),
+  newPerDay: z.number().int().min(0),
+})
+export const throttleRulesSchema: z.ZodType<readonly ThrottleRule[]> = z.array(throttleRuleSchema)
+
 export type RecapMode = 'recall' | 'redo' | 'explain-aloud'
 
 export type PlanRoadmapWeek = {
@@ -116,4 +129,9 @@ export type PlanCatalog = {
   readonly tracks: Readonly<Record<string, PlanTrack>>
   readonly items: Readonly<Record<string, PlanItem>>
   readonly decks: Readonly<Record<string, PlanDeck>>
+}
+
+/** The catalog has an `active` item `itemId` (draft, retired and unknown ones are not). */
+export function isActiveItem(catalog: PlanCatalog, itemId: string): boolean {
+  return own(catalog.items, itemId)?.status === 'active'
 }

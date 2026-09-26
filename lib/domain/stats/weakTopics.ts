@@ -5,6 +5,7 @@
  * only the catalog and the enrollments know, so this is the one place that rule lives.
  */
 import type { PlanCatalog } from '../catalog'
+import { compareIds } from '../compare'
 import type { ItemState } from '../state'
 
 /** A topic is weak with at least this many Weak items (§5.7). */
@@ -17,8 +18,6 @@ export type WeakTopic = {
 }
 
 type Group = { readonly trackId: string; readonly topicId: string; readonly itemIds: string[] }
-
-const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
  * Topics of `trackIds` with ≥ `WEAK_TOPIC_MIN` items whose status is 'weak' and whose catalog item
@@ -49,11 +48,11 @@ export function weakTopics(
 
   return [...groups.values()]
     .filter((group) => group.itemIds.length >= WEAK_TOPIC_MIN)
-    .map((group) => ({ ...group, itemIds: [...group.itemIds].sort(byId) }))
+    .map((group) => ({ ...group, itemIds: [...group.itemIds].sort(compareIds) }))
     .sort(
       (a, b) =>
         b.itemIds.length - a.itemIds.length ||
-        byId(a.trackId, b.trackId) ||
-        byId(a.topicId, b.topicId),
+        compareIds(a.trackId, b.trackId) ||
+        compareIds(a.topicId, b.topicId),
     )
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { throttleRulesSchema } from './catalog'
 import { budgetMinutesSchema, CODE_LANGUAGES, ROADMAP_VARIANT_PATTERN } from './settings'
 import { isDayStart, isLocalDay } from './time/localDay'
 
@@ -128,10 +129,7 @@ export const EVENT_PAYLOADS = {
       budgetMinutes: budgetMinutes.optional(),
       roadmapVariant: roadmapVariant.optional(),
       newPerDay: nonNegativeInt.nullable().optional(),
-      throttle: z
-        .array(z.strictObject({ dueAbove: nonNegativeInt, newPerDay: nonNegativeInt }))
-        .nullable()
-        .optional(),
+      throttle: throttleRulesSchema.nullable().optional(),
       weeklyTemplate: jsonObject.nullable().optional(),
       includeBonus: z.boolean().optional(),
     })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { throttleRulesSchema } from '@/lib/domain/catalog'
 import { budgetMinutesSchema } from '@/lib/domain/settings'
 import {
   CODE_LANGUAGES,
@@ -234,15 +235,11 @@ export const derivedDeckSchema = z.strictObject({
 // The manifest (§3.4)
 // ---------------------------------------------------------------------------------------------
 
-const throttleRuleSchema = z.strictObject({
-  dueAbove: nonNegativeInt,
-  newPerDay: nonNegativeInt,
-})
-
+/** `throttle` is the engine's one throttle-rule schema (M4 final review M-11). */
 const defaultsSchema = z.strictObject({
   budgetMinutes: budgetMinutesSchema(),
   newPerDay: nonNegativeInt.nullable(),
-  throttle: z.array(throttleRuleSchema),
+  throttle: throttleRulesSchema,
 })
 
 /** Roadmap IDs are the database's `roadmap_variant` values (slugs). */

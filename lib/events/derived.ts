@@ -22,6 +22,7 @@
  * partial set silently rewrites the day (and the streak).
  */
 import { z } from 'zod'
+import { own } from '@/lib/domain/compare'
 import {
   blockKey,
   CHECK_IN_STATUSES,
@@ -72,11 +73,6 @@ function sameData(a: unknown, b: unknown): boolean {
         sameData((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
     )
   )
-}
-
-/** `record[key]` for an own key only, so an ID such as `constructor` finds nothing. */
-function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
-  return Object.hasOwn(record, key) ? record[key] : undefined
 }
 
 function itemStateToRow(state: ItemState): { [column: string]: Json } {

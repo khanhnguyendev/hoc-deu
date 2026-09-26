@@ -5,7 +5,7 @@
  * the code learners use, not a model of it. Pure and deterministic for a seed: the learner draws
  * from `mulberry32(seed)`, dates come from `startDate`, nothing reads a clock.
  */
-import type { PlanCatalog, PlanRoadmap } from '../catalog'
+import { isActiveItem, type PlanCatalog, type PlanRoadmap } from '../catalog'
 import type { EventType } from '../events'
 import { type DomainEvent, project } from '../projection/project'
 import { mulberry32 } from '../random'
@@ -165,9 +165,6 @@ function eventFactory(): (day: LocalDay, body: EventBody, keys: EventKeys) => Do
 // The roadmap
 // ---------------------------------------------------------------------------------------------
 
-const isActive = (catalog: PlanCatalog, itemId: string): boolean =>
-  catalog.items[itemId]?.status === 'active'
-
 /** The active items the roadmap introduces, each once: per week the pattern lessons of its topics,
  *  its core items and its recap entries without a mode — no bonus, no extended or derived cards. */
 function roadmapItemIds(roadmap: PlanRoadmap, catalog: PlanCatalog, trackId: string): string[] {
@@ -181,13 +178,13 @@ function roadmapItemIds(roadmap: PlanRoadmap, catalog: PlanCatalog, trackId: str
     ...coreItemsOfWeek(week, catalog),
     ...week.recap.filter((entry) => entry.mode === undefined).map((entry) => entry.item),
   ])
-  return [...new Set(ids)].filter((id) => isActive(catalog, id))
+  return [...new Set(ids)].filter((id) => isActiveItem(catalog, id))
 }
 
 /** The roadmap's active core items (§3.4), each once. */
 function coreItemIds(roadmap: PlanRoadmap, catalog: PlanCatalog): string[] {
   const ids = roadmap.weeks.flatMap((week) => coreItemsOfWeek(week, catalog))
-  return [...new Set(ids)].filter((id) => isActive(catalog, id))
+  return [...new Set(ids)].filter((id) => isActiveItem(catalog, id))
 }
 
 // ---------------------------------------------------------------------------------------------

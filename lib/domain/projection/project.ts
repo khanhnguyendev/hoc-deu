@@ -6,6 +6,7 @@
  */
 import type { z } from 'zod'
 import type { PlanCatalog, PlanItem } from '../catalog'
+import { own } from '../compare'
 import { EVENT_PAYLOADS, type EventPayload, type EventType } from '../events'
 import { applyResult, NOT_STARTED, readd, srsStatus } from '../srs/applyResult'
 import { RESULT_OUTCOMES } from '../srs/outcomes'
@@ -44,11 +45,6 @@ const ignore = (state: DerivedState, reason: IgnoreReason): Projection => ({
   state,
   ignored: reason,
 })
-
-/** `record[key]` for an own key only, so an ID such as `constructor` finds nothing. */
-function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
-  return Object.hasOwn(record, key) ? record[key] : undefined
-}
 
 /** The event's payload checked against its type's schema; a failure ignores the event. */
 function withPayload<T extends EventType>(
