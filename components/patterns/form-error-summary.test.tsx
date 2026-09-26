@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { FormErrorSummary } from './form-error-summary'
@@ -128,5 +128,32 @@ describe('FormErrorSummary', () => {
     )
     await userEvent.setup().click(screen.getByRole('link', { name: 'Chọn số phút hợp lệ.' }))
     expect(document.activeElement).toBe(screen.getByLabelText('Số phút'))
+  })
+
+  it('never leaves the link dead: lets the native jump proceed when onNavigate reports it did not handle the field (M2 minor)', () => {
+    const onNavigate = vi.fn(() => false)
+    render(
+      <FormErrorSummary
+        title="Vui lòng kiểm tra lại các mục sau"
+        errors={[{ fieldId: 'unknown-field', message: 'Lỗi không xác định.' }]}
+        onNavigate={onNavigate}
+      />,
+    )
+    const link = screen.getByRole('link', { name: 'Lỗi không xác định.' })
+    const notPrevented = fireEvent.click(link)
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('unknown-field')
+    expect(notPrevented).toBe(true)
+  })
+
+  it('never leaves the link dead: lets the native jump proceed without onNavigate when the field does not exist', () => {
+    render(
+      <FormErrorSummary
+        title="Vui lòng kiểm tra lại các mục sau"
+        errors={[{ fieldId: 'missing-field', message: 'Lỗi không xác định.' }]}
+      />,
+    )
+    const link = screen.getByRole('link', { name: 'Lỗi không xác định.' })
+    const notPrevented = fireEvent.click(link)
+    expect(notPrevented).toBe(true)
   })
 })

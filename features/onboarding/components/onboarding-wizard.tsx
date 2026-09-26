@@ -283,16 +283,19 @@ function OnboardingSteps({
    * focuses the field; a field on the current step is focused directly — never a native anchor
    * jump, which some browsers (and jsdom) do not reliably focus (M2 minor).
    */
-  function onNavigate(target: string) {
+  function onNavigate(target: string): boolean {
     const key = [...Object.keys(errors), 'form'].find((candidate) => fieldId(candidate) === target)
     const targetStep = key === undefined ? null : stepOfField(key)
-    if (targetStep === null || !steps.includes(targetStep)) return
+    if (targetStep === null || !steps.includes(targetStep)) return false
     if (targetStep === step) {
-      document.getElementById(target)?.focus()
-      return
+      const field = document.getElementById(target)
+      if (!field) return false
+      field.focus()
+      return true
     }
     focusAfterStep.current = target
     setStep(targetStep)
+    return true
   }
 
   const summary = [

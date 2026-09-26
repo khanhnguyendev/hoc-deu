@@ -25,7 +25,9 @@ function FormErrorSummary({
    * following the link natively, so a multi-step form can switch to the field's step first, and a
    * single-section form focuses it directly — jsdom and some browsers do not reliably focus a
    * fragment target on their own. Omit it only when every field is always on screen and a plain
-   * anchor jump is enough.
+   * anchor jump is enough. Return `false` when the id names no field this form knows about (never
+   * leave the link "dead": the default anchor jump — whatever it does — runs instead); a `void`
+   * return counts as handled, for a consumer that always finds its field.
    */
   onNavigate,
   className,
@@ -33,7 +35,7 @@ function FormErrorSummary({
   title: string
   errors: FormErrorSummaryError[]
   submitCount?: number
-  onNavigate?: (fieldId: string) => void
+  onNavigate?: (fieldId: string) => boolean | void
   className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -47,13 +49,21 @@ function FormErrorSummary({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- focus only on content change (errorsKey), not identity.
   }, [errorsKey])
 
+  // Only ever prevents the native anchor jump when something of ours actually takes over — never
+  // leaving the link "dead" for the learner (M2 minor).
   function onClick(event: React.MouseEvent<HTMLUListElement>) {
     const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null
     const fieldId = link?.getAttribute('href')?.slice(1)
     if (fieldId === undefined) return
+    if (onNavigate) {
+      if (onNavigate(fieldId) === false) return
+      event.preventDefault()
+      return
+    }
+    const field = document.getElementById(fieldId)
+    if (!field) return
     event.preventDefault()
-    if (onNavigate) onNavigate(fieldId)
-    else document.getElementById(fieldId)?.focus()
+    field.focus()
   }
 
   if (errors.length === 0) return null

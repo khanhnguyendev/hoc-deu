@@ -317,6 +317,49 @@ function FormFieldDemo() {
   )
 }
 
+/**
+ * `submitCount` and `onNavigate` (M2 minor): "Gửi lại" bumps `submitCount` and re-focuses the
+ * summary even though the errors read exactly the same as last time; each link focuses its own
+ * field directly (no wizard here to switch steps first) and reports which one below.
+ */
+function FormErrorSummaryNavigateDemo() {
+  const [submitCount, setSubmitCount] = useState(1)
+  const [lastNavigated, setLastNavigated] = useState<string | null>(null)
+  const errors = [
+    { fieldId: 'demo-summary-nav-minutes', message: 'Chọn từ 10 đến 240 phút.' },
+    { fieldId: 'demo-summary-nav-timezone', message: 'Chọn một múi giờ hợp lệ.' },
+  ]
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-4">
+      <FormErrorSummary
+        title={vi.forms.errorSummaryTitle}
+        errors={errors}
+        submitCount={submitCount}
+        onNavigate={(fieldId) => {
+          setLastNavigated(fieldId)
+          document.getElementById(fieldId)?.focus()
+        }}
+      />
+      <FormField
+        id="demo-summary-nav-minutes"
+        label="Số phút mỗi ngày"
+        error="Chọn từ 10 đến 240 phút."
+      >
+        {(control) => <Input {...control} inputMode="numeric" />}
+      </FormField>
+      <FormField id="demo-summary-nav-timezone" label="Múi giờ" error="Chọn một múi giờ hợp lệ.">
+        {(control) => <Input {...control} />}
+      </FormField>
+      <Button variant="outline" onClick={() => setSubmitCount((count) => count + 1)}>
+        Gửi lại (submitCount: {submitCount})
+      </Button>
+      {lastNavigated && (
+        <p className="text-sm text-muted-foreground">onNavigate({lastNavigated})</p>
+      )}
+    </div>
+  )
+}
+
 function ChoiceCardDemo() {
   const [checked, setChecked] = useState(true)
   return (
@@ -1331,6 +1374,10 @@ export const CATALOG: Entry[] = [
             />
           </div>
         ),
+      },
+      {
+        title: 'submitCount và onNavigate (M2 minor): "Gửi lại" vẫn tập trung lại',
+        render: () => <FormErrorSummaryNavigateDemo />,
       },
     ],
   },

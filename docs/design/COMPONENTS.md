@@ -421,18 +421,20 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern (client)
 - **File:** `components/patterns/form-error-summary.tsx`
 - **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`,
-  `submitCount?: number` (default `0`), `onNavigate?: (fieldId: string) => void`
+  `submitCount?: number` (default `0`), `onNavigate?: (fieldId: string) => boolean | void`
 - **Variants:** —
 - **States:** empty (renders nothing), has errors
 - **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
   forms, e.g. onboarding) — `submitCount` (incremented once per submission, not per render) makes a
   repeated identical server error re-focus and re-announce the summary (M2 minor); `onNavigate` lets
-  a multi-step form switch to a field's step before focusing it (the onboarding wizard); without it,
-  a link focuses its field directly instead of a native anchor jump, which some browsers (and jsdom)
-  do not reliably focus
+  a multi-step form switch to a field's step before focusing it (the onboarding wizard's catalog
+  demo also shows it, with `submitCount`); without it, a link focuses its field directly instead of
+  a native anchor jump, which some browsers (and jsdom) do not reliably focus
 - **Accessibility:** `role="alert"`, focused when the error set or `submitCount` changes; each
-  message links to `#fieldId` and always moves focus there itself (`onNavigate`, or the field
-  directly), never a bare native anchor jump
+  message links to `#fieldId` and moves focus there itself (`onNavigate`, or the field directly)
+  rather than a bare native anchor jump — but never a dead link either (M2 minor): the native jump
+  runs after all when `onNavigate` returns `false` (it found no field for the id) or, without one,
+  the id names no element on the page
 
 ### FormField
 
