@@ -281,11 +281,14 @@ from `lib/i18n/vi.ts`.
   `label: string`
 - **Variants:** year view (≥ 1024 px with a fine pointer, 12 px cells) · month view (below
   1024 px or on touch screens, 44 px cells)
-- **States:** levels 0–4, active-day dots, today ring, focused/selected day, table open
+- **States:** levels 0–4, active-day dots, today ring, focused/selected day (month view: a
+  `ring-primary` distinct from today's `ring-ring`, M1 #8 — a visible state besides colour), table
+  open, empty (no activity at all, M1 #22 — the heatmap still renders, at level 0 throughout)
 - **Usage:** `<CalendarHeatmap days={activity} today={localDay} label="Lịch học" />`
 - **Accessibility:** roving focus with arrows/Home/End; each day labelled with date + minutes;
   a visible detail line (not a live region — the focused day already announces itself); legend;
-  table view ("Xem dạng bảng"); the year view starts scrolled to today
+  table view ("Xem dạng bảng"); the year view starts scrolled to today; its month labels never sit
+  closer than three columns apart, for any start weekday (M1 #9 — `pickMonthLabels`, `dates.ts`)
 
 ### ChoiceCard
 
@@ -1480,6 +1483,41 @@ Task 5.3 adds these entries below this line (Part B-M5 decision 3).
 ### Progress components (`features/progress/components`)
 
 Task 5.5 adds these entries below this line (Part B-M5 decision 3).
+
+### ProgressView
+
+- **Layer:** features
+- **File:** `features/progress/components/progress-view.tsx`
+- **Props:** `page: ProgressPage`
+- **Variants:** —
+- **States:** with activity (streak, stat cards, heatmap, week nav, weekly summary) · empty (RF-4:
+  no `daily_activity` row at all — an EmptyState, "Chưa có ngày học nào — bắt đầu từ trang Hôm nay")
+- **Usage:** `<ProgressView page={page} />`
+- **Accessibility:** one `h1` (PageHeader); see CalendarHeatmap, WeeklySummary and WeekNav
+
+### WeeklySummary
+
+- **Layer:** features
+- **File:** `features/progress/components/weekly-summary.tsx`
+- **Props:** `week: WeeklySummary` (`lib/domain/stats/weeklySummary`), `tracks: { id, title, accent }[]`
+- **Variants:** —
+- **States:** bars per enrolled track (value label at the bar end, scaled to the busiest track) ·
+  no tracks (a plain message, no bars) · the per-day list (minutes, done/not — icon + label, never
+  colour alone)
+- **Usage:** `<WeeklySummary week={page.week} tracks={page.tracks} />`
+- **Accessibility:** each bar is a labelled `progressbar` (`components/ui/progress.tsx`) in its
+  track accent; the per-day list never relies on colour alone
+
+### WeekNav
+
+- **Layer:** features
+- **File:** `features/progress/components/week-nav.tsx`
+- **Props:** `previousWeek: LocalDay`, `nextWeek: LocalDay | null`
+- **Variants:** —
+- **States:** default · "Tuần sau" disabled (not hidden) at the current week
+- **Usage:** `<WeekNav previousWeek={page.previousWeek} nextWeek={page.nextWeek} />`
+- **Accessibility:** a labelled `nav`; the disabled next-week control stays in the tab order as a
+  real (disabled) button, never a removed link
 
 ### Extra study components (`features/today`, `features/roadmap`)
 

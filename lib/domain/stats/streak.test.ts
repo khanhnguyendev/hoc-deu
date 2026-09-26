@@ -99,4 +99,41 @@ describe('scheduleSkippedDays [RF-1]', () => {
     ]
     expect(scheduleSkippedDays(versions)).toEqual(new Set())
   })
+
+  it('sorts the versions itself: the skipped dates are the same for input given out of order', () => {
+    const effectiveAt = '2026-10-01T15:00:00Z'
+    const sorted: readonly ScheduleVersion[] = [
+      { ...pagoPago, effectiveAt: '2026-01-01T00:00:00Z' },
+      { ...kiritimati, effectiveAt },
+    ]
+    const unsorted: readonly ScheduleVersion[] = [sorted[1]!, sorted[0]!]
+    expect(scheduleSkippedDays(unsorted)).toEqual(scheduleSkippedDays(sorted))
+    expect(scheduleSkippedDays(unsorted)).toEqual(new Set(['2026-10-01']))
+  })
+
+  it('three versions (one east move, one west move) skip only the east jump, given in any order', () => {
+    const sorted: readonly ScheduleVersion[] = [
+      { ...pagoPago, effectiveAt: '2026-01-01T00:00:00Z' },
+      { ...kiritimati, effectiveAt: '2026-03-01T15:00:00Z' }, // east: skips 2026-03-01
+      { ...losAngeles, effectiveAt: '2026-04-01T21:00:00Z' }, // west (Kiritimati → Los Angeles): skips nothing
+    ]
+    const shuffled = [sorted[2]!, sorted[0]!, sorted[1]!]
+    expect(scheduleSkippedDays(shuffled)).toEqual(scheduleSkippedDays(sorted))
+    expect(scheduleSkippedDays(sorted)).toEqual(new Set(['2026-03-01']))
+  })
+
+  it('four versions (two east moves, one west move) skip only the east jumps, given in any order', () => {
+    // A second, later east move from Kiritimati (already UTC+14) to another far-east zone would
+    // need a zone further east than any real one, so this reuses the Pago → Kiritimati jump twice
+    // at different dates, with a Kiritimati → Pago Pago west move (skips nothing) in between.
+    const versions: readonly ScheduleVersion[] = [
+      { ...pagoPago, effectiveAt: '2026-01-01T00:00:00Z' },
+      { ...kiritimati, effectiveAt: '2026-03-01T15:00:00Z' }, // east: skips 2026-03-01
+      { ...pagoPago, effectiveAt: '2026-05-01T00:00:00Z' }, // west: skips nothing
+      { ...kiritimati, effectiveAt: '2026-07-01T15:00:00Z' }, // east again: skips 2026-07-01
+    ]
+    const shuffled = [versions[3]!, versions[1]!, versions[0]!, versions[2]!]
+    expect(scheduleSkippedDays(shuffled)).toEqual(scheduleSkippedDays(versions))
+    expect(scheduleSkippedDays(versions)).toEqual(new Set(['2026-03-01', '2026-07-01']))
+  })
 })
