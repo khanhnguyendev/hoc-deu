@@ -120,7 +120,8 @@ select is_empty(
 );
 
 -- 5. anon may EXECUTE exactly the allowlisted public functions (health() only, task 5.7a),
---    overload for overload (bag_eq, as check 6).
+--    overload for overload (bag_eq, as check 6). Unlike check 6, extension-owned functions are
+--    not excluded: anon may execute none in public, so one that becomes executable must fail.
 select bag_eq(
   $$
   select p.proname
@@ -128,7 +129,6 @@ select bag_eq(
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
     and has_function_privilege('anon', p.oid, 'EXECUTE')
-    and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
   $$,
   $$ select proname from _anon_allowlist $$,
   'anon may EXECUTE exactly the allowlisted public functions, overload for overload'

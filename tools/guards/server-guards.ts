@@ -1,6 +1,6 @@
 import path from 'node:path'
 import ts from 'typescript'
-import { GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
+import { GUARD_NAMES, RESPONSE_GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
 
 const HTTP_METHODS: ReadonlySet<string> = new Set([
   'GET',
@@ -13,13 +13,8 @@ const HTTP_METHODS: ReadonlySet<string> = new Set([
 ])
 const GUARDS: ReadonlySet<string> = new Set(GUARD_NAMES)
 const SYNC_GUARDS: ReadonlySet<string> = new Set(SYNC_GUARD_NAMES)
-/**
- * Guards that answer a denial instead of throwing: they return a `Response` to send, or null
- * (`lib/auth/cron.ts`). Calling one proves nothing unless the denial is returned at once —
- * `const denied = await requireCronSecret(request)` then `if (denied) return denied` — so that is
- * the only form accepted for them (task 5.7a).
- */
-const RESPONSE_GUARDS: ReadonlySet<string> = new Set(['requireCronSecret'])
+/** Guards that return their denial (see `RESPONSE_GUARD_NAMES`): only one form is accepted. */
+const RESPONSE_GUARDS: ReadonlySet<string> = new Set(RESPONSE_GUARD_NAMES)
 
 type ModuleKind = 'server-actions' | 'route-handlers' | 'loaders' | 'other'
 type FunctionNode = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction
@@ -122,8 +117,8 @@ function returnsDenial(statement: ts.Statement | undefined, name: string): boole
 /**
  * A guard call as the first statement after any directives and empty statements (a leading `;`
  * Prettier adds before `(await requireX())`): `await requireX()`, `const user = await …` or
- * `return await requireX()` (M2 carry-over). A response guard (`RESPONSE_GUARDS`) counts only as
- * `const denied = await requireX(…)` directly followed by `if (denied) return denied`.
+ * `return await requireX()` (M2 carry-over). A response guard (`RESPONSE_GUARD_NAMES`) counts
+ * only as `const denied = await requireX(…)` directly followed by `if (denied) return denied`.
  */
 function startsWithGuard(fn: FunctionNode): boolean {
   const body = fn.body

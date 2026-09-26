@@ -1,8 +1,10 @@
 /**
  * Guard vocabulary (platform design §2.2). Every server action, route handler and
  * `features/*\/queries.ts` loader starts with a call to one of these names; the architecture test
- * (`tools/guards/server-guards.ts`) enforces it. The DAL guards live in `lib/auth/dal.ts`;
- * `requireBotToken` (bot API) and `requireCronSecret` (maintenance cron) arrive with their routes.
+ * (`tools/guards/server-guards.ts`) enforces it. The DAL guards live in `lib/auth/dal.ts` and
+ * throw (`redirect()` / `notFound()`); `requireCronSecret` (maintenance cron, task 5.7a) lives in
+ * `lib/auth/cron.ts` and **returns** its denial instead of throwing (`RESPONSE_GUARD_NAMES`);
+ * `requireBotToken` (bot API, v1.1) arrives with its routes.
  */
 
 /**
@@ -30,3 +32,13 @@ export const GUARD_NAMES: readonly string[] = [
  * guard (e.g. a header check) is added here explicitly.
  */
 export const SYNC_GUARD_NAMES: readonly string[] = ['publicRoute']
+
+/**
+ * Guards that answer a denial instead of throwing: they return a `Response` to send, or null to go
+ * on (`requireCronSecret`, `lib/auth/cron.ts`). Calling one proves nothing unless the denial is
+ * returned at once, so the architecture test accepts them only as
+ * `const denied = await requireX(request)` directly followed by `if (denied) return denied`
+ * (task 5.7a). Any guard that returns a `Response` — e.g. a future `requireBotToken` — must be
+ * listed here, or a handler that drops its denial would pass the test.
+ */
+export const RESPONSE_GUARD_NAMES: readonly string[] = ['requireCronSecret']

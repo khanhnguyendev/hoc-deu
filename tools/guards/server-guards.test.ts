@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
+import { GUARD_NAMES, RESPONSE_GUARD_NAMES, SYNC_GUARD_NAMES } from '@/lib/auth/guards'
 import { guardViolations, supabaseClientViolations } from './server-guards'
 
 const ACTIONS = 'features/x/actions.ts'
@@ -564,6 +564,16 @@ describe('SYNC_GUARD_NAMES', () => {
   it('lists the guards that may be called without await: only publicRoute today', () => {
     expect([...SYNC_GUARD_NAMES]).toEqual(['publicRoute'])
     for (const name of SYNC_GUARD_NAMES) expect(GUARD_NAMES).toContain(name)
+  })
+})
+
+describe('RESPONSE_GUARD_NAMES', () => {
+  it('lists the guards that return their denial: only requireCronSecret today (task 5.7a)', () => {
+    expect([...RESPONSE_GUARD_NAMES]).toEqual(['requireCronSecret'])
+    for (const name of RESPONSE_GUARD_NAMES) {
+      expect(GUARD_NAMES).toContain(name)
+      expect(SYNC_GUARD_NAMES).not.toContain(name)
+    }
   })
 })
 
