@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { CheckInStatus } from './check-in-status'
 
+const BLOCK_ID = '2026-09-28:dsa:new:1'
 const EDIT_HREF = '/today?block=2026-09-28%3Adsa%3Anew%3A1'
 const LABEL = 'Bài mới · Cấu trúc dữ liệu & Giải thuật'
 const HINT = 'Đã bỏ qua — bấm Sửa khi bạn làm xong'
@@ -13,6 +14,7 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
       <CheckInStatus
         checkIn={{ status: 'done', minutes: 20, auto: false }}
         editHref={EDIT_HREF}
+        blockId={BLOCK_ID}
         blockLabel={LABEL}
       />,
     )
@@ -26,6 +28,8 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
     expect(row.textContent).not.toContain('tự động')
     const edit = screen.getByRole('link', { name: `Sửa ${LABEL}` })
     expect(edit.getAttribute('href')).toBe(EDIT_HREF)
+    // The sheet and the one-tap find it by block to put focus back (DESIGN_SYSTEM §10).
+    expect(edit.getAttribute('data-check-in-edit')).toBe(BLOCK_ID)
   })
 
   it('an auto check-in says "tự động"; Một phần and Bỏ qua have their own pills', () => {
@@ -33,6 +37,7 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
       <CheckInStatus
         checkIn={{ status: 'partial', minutes: 25, auto: true }}
         editHref={EDIT_HREF}
+        blockId={BLOCK_ID}
         blockLabel={LABEL}
       />,
     )
@@ -42,6 +47,7 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
       <CheckInStatus
         checkIn={{ status: 'skipped', minutes: 0, auto: false }}
         editHref={EDIT_HREF}
+        blockId={BLOCK_ID}
         blockLabel={LABEL}
       />,
     )
@@ -56,6 +62,7 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
       <CheckInStatus
         checkIn={{ status: 'skipped', minutes: 0, auto: false }}
         editHref={EDIT_HREF}
+        blockId={BLOCK_ID}
         blockLabel={LABEL}
         paused
       />,
@@ -70,6 +77,7 @@ describe('CheckInStatus (DESIGN_SYSTEM §3.3, §9)', () => {
       <CheckInStatus
         checkIn={{ status: 'partial', minutes: 5, auto: false }}
         editHref={EDIT_HREF}
+        blockId={BLOCK_ID}
         blockLabel={LABEL}
         paused
       />,

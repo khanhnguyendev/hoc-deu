@@ -119,7 +119,8 @@ test('one-tap: the status row "Xong" and one block.checked_in event with the blo
   // The block's estimate in the card header reads "20 phút" too: the status row's own minutes.
   await expect(statusRow(dsa).getByText('20 phút', { exact: true })).toBeVisible()
   await expect(oneTap(dsa, DSA)).toHaveCount(0)
-  await expect(editLink(dsa, DSA)).toBeVisible()
+  // The button unmounted: focus moves to the block's new "Sửa" link (DESIGN_SYSTEM §10).
+  await expect(editLink(dsa, DSA)).toBeFocused()
   const events = await checkInEventsOf(user.id, planId, block.id)
   expect(events.map((event) => event.payload)).toEqual([{ status: 'done', minutes: 20 }])
   expect(await checkInOf(user.id, planId, block.id)).toMatchObject({
@@ -180,6 +181,7 @@ test('"Sửa": Một phần, 10 minutes and a note typed in NFD — stored in NF
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL((url) => url.pathname === '/today' && !url.searchParams.has('block'))
   const dsa = card(page, DSA)
+  await expect(editLink(dsa, DSA)).toBeFocused()
   await expect(statusPill(dsa, 'partial')).toHaveText('Một phần')
   await expect(statusRow(dsa).getByText('10 phút', { exact: true })).toBeVisible()
   expect(await checkInOf(user.id, planId, block.id)).toMatchObject({
@@ -213,6 +215,8 @@ test('/today?block= opens the sheet; back closes it; Esc replaces the URL; an un
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
   await expect(page).toHaveURL((url) => url.pathname === '/today' && !url.searchParams.has('block'))
+  // Nothing opened it on this page: focus goes to the block's "Sửa" (DESIGN_SYSTEM §10).
+  await expect(editLink(card(page, DSA), DSA)).toBeFocused()
 
   // "Sửa" pushes ?block=; the back button closes the sheet.
   await editLink(card(page, DSA), DSA).click()
@@ -220,7 +224,7 @@ test('/today?block= opens the sheet; back closes it; Esc replaces the URL; an un
   await page.goBack()
   await expect(page).toHaveURL((url) => url.pathname === '/today' && !url.searchParams.has('block'))
   await expect(sheet(page)).toBeHidden()
-  await expect(card(page, DSA)).toBeVisible()
+  await expect(editLink(card(page, DSA), DSA)).toBeFocused()
 
   // The close button, like Esc.
   await editLink(card(page, DSA), DSA).click()
@@ -228,6 +232,7 @@ test('/today?block= opens the sheet; back closes it; Esc replaces the URL; an un
   await sheet(page).getByRole('button', { name: 'Đóng' }).click()
   await expect(sheet(page)).toBeHidden()
   await expect(page).toHaveURL((url) => !url.searchParams.has('block'))
+  await expect(editLink(card(page, DSA), DSA)).toBeFocused()
 
   await page.goto('/today?block=2026-01-01%3Adsa%3Anew%3A9')
   await expect(page.getByRole('heading', { level: 1, name: 'Hôm nay' })).toBeVisible()

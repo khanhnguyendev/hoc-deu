@@ -19,6 +19,8 @@ const REQUEST_ID = 'c0ffee00-1234-4abc-8def-0123456789ab'
 const PLAN_ID = '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f'
 const BLOCK_ID = '2026-09-28:dsa:new:1'
 const TOO_LONG = 'Ghi chú quá dài — tối đa 280 ký tự.'
+/** The error line under a field (FormField); the sr-only live region repeats it. */
+const FIELD_ERROR = '[data-slot="form-field-error"]'
 const SAVE_FAILED = 'Không lưu được thay đổi. Bạn thử lại nhé.'
 
 const BLOCK: CheckInSheetBlock = {
@@ -146,9 +148,11 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
 
   it('counts graphemes live: 280 is fine, 281 disables submit with the error beside the field', () => {
     sheet()
-    // 280 user-perceived characters typed in NFD (e + two combining marks each): the server
+    // 280 user-perceived characters typed in NFD (ệ = e + two combining marks): the server
     // counts graphemes of the NFC note (RF-3).
-    fireEvent.change(note(), { target: { value: 'ệ'.repeat(280) } })
+    const nfd = 'ệ'.normalize('NFD')
+    expect(nfd).toHaveLength(3)
+    fireEvent.change(note(), { target: { value: nfd.repeat(280) } })
     expect(dialog().textContent).toContain('280/280')
     expect(dialog().textContent).not.toContain(TOO_LONG)
     expect(note().getAttribute('aria-invalid')).toBeNull()
@@ -156,9 +160,9 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
 
     fireEvent.change(note(), { target: { value: 'a'.repeat(281) } })
     expect(dialog().textContent).toContain('281/280')
-    const error = screen.getByText(TOO_LONG)
+    const error = screen.getByText(TOO_LONG, { selector: FIELD_ERROR })
     expect(note().getAttribute('aria-invalid')).toBe('true')
-    expect(note().getAttribute('aria-describedby')?.split(' ')).toContain(error.closest('p')!.id)
+    expect(note().getAttribute('aria-describedby')?.split(' ')).toContain(error.id)
     expect(submit()).toHaveProperty('disabled', true)
   })
 
@@ -173,7 +177,7 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     expect(minutes()).toHaveProperty('value', '595')
 
     fireEvent.change(minutes(), { target: { value: '601' } })
-    expect(screen.getByText('Nhập số phút từ 0 đến 600.')).toBeTruthy()
+    expect(screen.getByText('Nhập số phút từ 0 đến 600.', { selector: FIELD_ERROR })).toBeTruthy()
     expect(minutes().getAttribute('aria-invalid')).toBe('true')
     expect(submit()).toHaveProperty('disabled', true)
     fireEvent.change(minutes(), { target: { value: '2' } })
@@ -264,5 +268,89 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     const region = within(dialog()).getByRole('status')
     expect(region.textContent).toContain(SAVE_FAILED)
     expect(within(region).getByRole('button', { name: 'Thử lại' })).toBeTruthy()
+  })
+
+  it('steps from a typed number outside 0–600, clamped first (601 − 5 = 595)', () => {
+    sheet()
+    fireEvent.change(minutes(), { target: { value: '601' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Bớt 5 phút' }))
+    expect(minutes()).toHaveProperty('value', '595')
+    fireEvent.change(minutes(), { target: { value: '700' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm 5 phút' }))
+    expect(minutes()).toHaveProperty('value', '600')
+  })
+
+  it('announces a crossed limit in a polite live region (the disabled submit has a reason)', () => {
+    sheet()
+    const live = dialog().querySelector<HTMLElement>('[data-slot="check-in-sheet-limits"]')!
+    expect(live.getAttribute('aria-live')).toBe('polite')
+    expect(live.className).toContain('sr-only')
+    expect(live.textContent).toBe('')
+    fireEvent.change(note(), { target: { value: 'a'.repeat(281) } })
+    expect(live.textContent).toBe(TOO_LONG)
+    fireEvent.change(note(), { target: { value: 'a'.repeat(280) } })
+    expect(live.textContent).toBe('')
+    fireEvent.change(minutes(), { target: { value: '601' } })
+    expect(live.textContent).toBe('Nhập số phút từ 0 đến 600.')
+  })
+})
+
+/** The page around the sheet: two blocks' "Sửa" links; `open` mounts the sheet of the first. */
+function WithEditLinks({ open }: { open: boolean }) {
+  return (
+    <>
+      <a href="#sua" data-check-in-edit={BLOCK_ID}>
+        Sửa
+      </a>
+      <a href="#other" data-check-in-edit="2026-09-28:english:new:1">
+        Sửa khác
+      </a>
+      {open && (
+        <CheckInSheet
+          action={deferred().action}
+          requestId={REQUEST_ID}
+          planId={PLAN_ID}
+          block={BLOCK}
+        />
+      )}
+    </>
+  )
+}
+
+describe('CheckInSheet — focus and reopening (DESIGN_SYSTEM §10)', () => {
+  it('returns focus to the control that opened it ("Sửa") on close', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<WithEditLinks open={false} />)
+    const edit = screen.getByRole('link', { name: 'Sửa' })
+    edit.focus()
+    rerender(<WithEditLinks open />)
+    expect(document.activeElement).toBe(
+      within(dialog()).getByRole('heading', { name: 'Check-in: Bài mới' }),
+    )
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(edit)
+  })
+
+  it('a deep link (nothing focused when it opened) returns focus to its block’s "Sửa"', async () => {
+    const user = userEvent.setup()
+    render(<WithEditLinks open />)
+    await user.keyboard('{Escape}')
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Sửa' }))
+  })
+
+  it('reopens when its block’s "Sửa" is clicked before the replace to /today lands', async () => {
+    const user = userEvent.setup()
+    render(<WithEditLinks open />)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Another block's link does not reopen this sheet.
+    await user.click(screen.getByRole('link', { name: 'Sửa khác' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await user.click(screen.getByRole('link', { name: 'Sửa' }))
+    expect(dialog()).toBeTruthy()
+    expect(document.activeElement).toBe(
+      within(dialog()).getByRole('heading', { name: 'Check-in: Bài mới' }),
+    )
   })
 })

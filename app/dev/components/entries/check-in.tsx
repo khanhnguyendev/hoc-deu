@@ -124,6 +124,7 @@ export const CHECK_IN_ENTRIES: Entry[] = [
             <CheckInStatus
               checkIn={{ status: 'done', minutes: 20, auto: false }}
               editHref={EDIT_HREF}
+              blockId={BLOCK_ID}
               blockLabel={LABEL}
             />,
           ),
@@ -135,6 +136,7 @@ export const CHECK_IN_ENTRIES: Entry[] = [
             <CheckInStatus
               checkIn={{ status: 'partial', minutes: 25, auto: true }}
               editHref={EDIT_HREF}
+              blockId={BLOCK_ID}
               blockLabel={LABEL}
             />,
           ),
@@ -146,6 +148,7 @@ export const CHECK_IN_ENTRIES: Entry[] = [
             <CheckInStatus
               checkIn={{ status: 'skipped', minutes: 0, auto: false }}
               editHref={EDIT_HREF}
+              blockId={BLOCK_ID}
               blockLabel={LABEL}
               paused
             />,

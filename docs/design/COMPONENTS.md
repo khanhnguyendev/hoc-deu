@@ -1682,8 +1682,9 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Variants:** —
 - **States:** idle · pending (Button `loading`: spinner, `aria-busy`; a second tap sends nothing,
   RF-2) · success (the message + a toast — the action revalidates `/today`, whose re-render
-  collapses the card into CheckInStatus) · refused / failed request (the message beside the
-  button, no toast; tap again)
+  collapses the card into CheckInStatus; focus left on `<body>` by the unmount moves to the
+  block's new "Sửa") · refused / failed request (the message beside the button, no toast; tap
+  again)
 - **Usage:** `<CheckInButton action={checkIn} requestId={page.requestId} planId={plan.id}
   blockId={view.block.id} blockLabel={blockLabel(view)} />` (PlanBlockCard's `actions`)
 - **Accessibility:** a full-width 48 px `primary` Button "Check-in" (the biggest target, one
@@ -1696,14 +1697,15 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Layer:** feature (`features/checkin`, server-compatible)
 - **File:** `features/checkin/components/check-in-status.tsx`
 - **Props:** `checkIn: { status, minutes, auto }`, `editHref: string` (`/today?block=<id>`),
-  `blockLabel: string`, `paused?: boolean`
+  `blockId: string` (marks the link `data-check-in-edit`, where the sheet and the one-tap put
+  focus back), `blockLabel: string`, `paused?: boolean`
 - **Variants:** done / partial / skipped (StatusPill `block-*`: Xong `Check` · Một phần `Clock` ·
   Bỏ qua `SkipForward`) · auto ("· tự động") · paused + skipped ("Đã bỏ qua — bấm Sửa khi bạn làm
   xong" and "Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành.",
   ruling M-6 a)
 - **States:** static
 - **Usage:** `<CheckInStatus checkIn={view.checkIn} editHref={view.editHref}
-  blockLabel={label} paused />` (PlanBlockCard)
+  blockId={view.block.id} blockLabel={label} paused />` (PlanBlockCard)
 - **Accessibility:** status by icon + label, never colour alone; "Sửa" is a 44 px outline link
   named "Sửa {kind} · {track}" (`sr-only`), `scroll={false}` so the page keeps its place
 
@@ -1724,10 +1726,13 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
   planId={plan.id} block={…} />}` (TodayView, from `page.openBlockId`)
 - **Accessibility:** a modal dialog named by its title "Check-in: {kind}"; focus moves to the
   title on open, is trapped, and `Esc` / "Đóng" / "Huỷ" close it (`router.replace`, so the back
-  button never reopens it, §2.4); the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
+  button never reopens it, §2.4); closing returns focus to the control that opened it, else (a
+  deep link) to the block's "Sửa"; a click on that "Sửa" while the replace is still pending
+  reopens it; the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
   labels); the minutes stepper's −/+ are 44 px icon buttons "Bớt 5 phút" / "Thêm 5 phút"; the
-  note's live "n/280" counter and error are in its `aria-describedby`; the save result is in a
-  polite `role="status"` live region (a success is a toast)
+  note's live "n/280" counter and error are in its `aria-describedby`, and a crossed limit (note
+  or minutes) is announced in an `sr-only` polite live region, so the disabled submit always has
+  a reason; the save result is in a polite `role="status"` live region (a success is a toast)
 
 ### Item outcome components (`features/items/components/outcome`)
 

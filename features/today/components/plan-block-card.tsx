@@ -82,6 +82,7 @@ function PlanBlockCard({
           <CheckInStatus
             checkIn={view.checkIn}
             editHref={view.editHref}
+            blockId={view.block.id}
             blockLabel={blockLabel(view)}
             paused={paused}
           />

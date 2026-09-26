@@ -23,7 +23,7 @@ import { CHECK_IN_STATUSES, type BlockState, type CheckInStatus } from '@/lib/do
 import { fill, formatMinutes, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { graphemeCount, normalizeNote, noteError, NOTE_MAX_GRAPHEMES } from '../schema'
-import type { CheckInAction } from './check-in-button'
+import { editLinkOf, focusLost, type CheckInAction } from './check-in-button'
 
 const copy = vi.checkIn.sheet
 
@@ -81,6 +81,12 @@ function parseMinutes(raw: string): number | null {
   return minutes >= SHEET_MINUTES.min && minutes <= SHEET_MINUTES.max ? minutes : null
 }
 
+/** Any typed number, whole (601, -3), else null: where the stepper starts from. */
+function typedNumber(raw: string): number | null {
+  const value = Number(raw.trim())
+  return raw.trim() === '' || !Number.isFinite(value) ? null : Math.trunc(value)
+}
+
 const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINUTES.min, value))
 
 /**
@@ -91,8 +97,12 @@ const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINU
  * pre-filled with the block's check-in minutes, or `checkInMinutes` for a new check-in — "Bỏ
  * qua" sets 0, and Xong / Một phần from 0 restores the pre-filled minutes); the note is optional,
  * with a live "n/280" grapheme counter and the server's own rule (`noteError`, RF-3) beside the
- * field. Submit sends `checkInBlock` with the page's request ID; saving, then a toast and back to
- * `/today` — or the error in a polite live region with "Thử lại", the sheet kept open.
+ * field — a crossed limit is also announced in a polite live region, so a disabled submit always
+ * has a reason. Submit sends `checkInBlock` with the page's request ID; saving, then a toast and
+ * back to `/today` — or the error in a polite live region with "Thử lại", the sheet kept open.
+ * Closing returns focus to the control that opened it, else (a deep link) to the block's "Sửa"
+ * (DESIGN_SYSTEM §10). While closed but still mounted — `router.replace` not landed yet, which a
+ * new navigation discards — a click on the block's "Sửa" opens it again.
  */
 function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInSheetProps) {
   const router = useRouter()
@@ -103,6 +113,8 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   // In flight: `pending` is for display (React entangles every pending async transition).
   const sending = React.useRef(false)
   const [open, setOpen] = React.useState(true)
+  // What had focus when `?block=` mounted the sheet: the "Sửa" link, or <body> for a deep link.
+  const [opener] = React.useState(() => document.activeElement)
   // Idle, saving (`pending`: the action and the re-render it causes), or an error with "Thử lại".
   const [pending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)
@@ -136,8 +148,23 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   }
 
   const step = (by: number) => {
-    setMinutes(String(clamp((parsedMinutes ?? initialMinutes) + by)))
+    setMinutes(String(clamp(clamp(typedNumber(minutes) ?? initialMinutes) + by)))
   }
+
+  // The replace to /today is discarded when "Sửa" starts a new navigation first: reopen here.
+  React.useEffect(() => {
+    if (open) return
+    const reopen = (event: MouseEvent) => {
+      const link =
+        event.target instanceof Element ? event.target.closest('[data-check-in-edit]') : null
+      if (!(link instanceof HTMLElement) || link.dataset.checkInEdit !== block.id) return
+      openRef.current = true
+      setError(null)
+      setOpen(true)
+    }
+    document.addEventListener('click', reopen, true)
+    return () => document.removeEventListener('click', reopen, true)
+  }, [open, block.id])
 
   const submit = () => {
     if (sending.current || parsedMinutes === null || noteMessage !== undefined) return
@@ -176,6 +203,17 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   const focusTitle = (event: Event) => {
     event.preventDefault()
     titleRef.current?.focus()
+  }
+
+  // No DialogTrigger: Radix would leave focus on <body>. The opener while it is still on the
+  // page, else the block's "Sửa" (a deep link; Safari never focuses a clicked link).
+  const returnFocus = (event: Event) => {
+    event.preventDefault()
+    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) {
+      opener.focus()
+    } else if (focusLost()) {
+      editLinkOf(block.id)?.focus()
+    }
   }
 
   const statusLabelId = `${uid}-status`
@@ -273,6 +311,9 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
             />
           )}
         </FormField>
+        <p data-slot="check-in-sheet-limits" aria-live="polite" className="sr-only">
+          {noteMessage ?? minutesError ?? ''}
+        </p>
         <div role="status" aria-live="polite">
           {error !== null && (
             <Banner
@@ -308,9 +349,11 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
       }}
     >
       {desktop ? (
-        <DialogContent onOpenAutoFocus={focusTitle}>{body}</DialogContent>
+        <DialogContent onOpenAutoFocus={focusTitle} onCloseAutoFocus={returnFocus}>
+          {body}
+        </DialogContent>
       ) : (
-        <SheetContent side="bottom" onOpenAutoFocus={focusTitle}>
+        <SheetContent side="bottom" onOpenAutoFocus={focusTitle} onCloseAutoFocus={returnFocus}>
           {body}
         </SheetContent>
       )}

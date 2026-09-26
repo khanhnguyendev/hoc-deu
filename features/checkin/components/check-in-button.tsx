@@ -1,7 +1,7 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
@@ -11,6 +11,19 @@ import type { CheckInInput } from '../schema'
 
 /** `checkInBlock`, passed unbound from the page: the client builds its input. */
 export type CheckInAction = (input: CheckInInput) => Promise<CheckInResult>
+
+/** The block's "Sửa" link (CheckInStatus marks it `data-check-in-edit="<blockId>"`), if shown. */
+export function editLinkOf(blockId: string): HTMLElement | null {
+  for (const element of document.querySelectorAll<HTMLElement>('[data-check-in-edit]')) {
+    if (element.dataset.checkInEdit === blockId) return element
+  }
+  return null
+}
+
+/** Whether nothing holds focus (a removed control leaves it on `<body>`). */
+export function focusLost(): boolean {
+  return document.activeElement === null || document.activeElement === document.body
+}
 
 type CheckInButtonProps = {
   action: CheckInAction
@@ -29,13 +42,23 @@ type CheckInButtonProps = {
  * Pending while the action runs; a second tap meanwhile sends nothing (RF-2 — and the event ID
  * would repeat anyway). The answer goes to a polite live region beside the button; the action
  * revalidates `/today`, whose re-render collapses the button into CheckInStatus, so a success is
- * also a toast, which outlives it. A refusal or a failed request stays beside the button, which
- * can be tapped again (a toast is never the only feedback for a failure).
+ * also a toast, which outlives it — and, when that unmount leaves focus on `<body>`, focus moves
+ * to the block's new "Sửa" link (DESIGN_SYSTEM §10). A refusal or a failed request stays beside
+ * the button, which can be tapped again (a toast is never the only feedback for a failure).
  */
 function CheckInButton({ action, requestId, planId, blockId, blockLabel }: CheckInButtonProps) {
   const [pending, startTransition] = useTransition()
   const [message, setMessage] = useState('')
   const sending = useRef(false)
+  const saved = useRef(false)
+
+  // The cleanup runs after the commit that removed this button, so the new link exists.
+  useEffect(
+    () => () => {
+      if (saved.current && focusLost()) editLinkOf(blockId)?.focus()
+    },
+    [blockId],
+  )
 
   const onClick = () => {
     if (sending.current) return
@@ -43,6 +66,7 @@ function CheckInButton({ action, requestId, planId, blockId, blockLabel }: Check
     startTransition(async () => {
       try {
         const result = await action({ requestId, planId, blockId, status: 'done' })
+        saved.current = result.ok
         setMessage(result.message)
         if (result.ok) toast(result.message)
       } catch {

@@ -1,7 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import { CheckInButton, type CheckInResult } from '@/features/checkin'
 import { block, blockState, blockView, DSA_TITLE, PLAN_ID, TODAY } from '../__tests__/fixtures'
 import { PlanBlockCard } from './plan-block-card'
+
+vi.mock('@/components/ui/toaster', () => ({ toast: () => {} }))
 
 const row = (title: string) => <a href={`/t/dsa/items/${title}`}>{title}</a>
 
@@ -61,6 +65,39 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
     const edit = screen.getByRole('link', { name: `Sửa Bài mới · ${DSA_TITLE}` })
     expect(new URL(edit.getAttribute('href')!, 'http://localhost').searchParams.get('block')).toBe(
       `${TODAY}:dsa:new:1`,
+    )
+  })
+
+  it('a successful one-tap hands focus to the new "Sửa" link (the button unmounts)', async () => {
+    const user = userEvent.setup()
+    let settle: (result: CheckInResult) => void = () => {}
+    const action = vi.fn(
+      () =>
+        new Promise<CheckInResult>((resolve) => {
+          settle = resolve
+        }),
+    )
+    const blockId = `${TODAY}:dsa:new:1`
+    const oneTap = (
+      <CheckInButton
+        action={action}
+        requestId="r-1"
+        planId={PLAN_ID}
+        blockId={blockId}
+        blockLabel={`Bài mới · ${DSA_TITLE}`}
+      />
+    )
+    const { rerender } = render(<PlanBlockCard view={blockView()} actions={oneTap} />)
+    await user.click(screen.getByRole('button', { name: `Check-in: Bài mới · ${DSA_TITLE}` }))
+    await act(async () => settle({ ok: true, message: 'Đã check-in: xong khối học.' }))
+    // The revalidated page: the block is checked in, the actions slot is gone.
+    rerender(
+      <PlanBlockCard
+        view={blockView({ checkIn: blockState(PLAN_ID, blockId, { minutes: 20 }) })}
+      />,
+    )
+    expect(document.activeElement).toBe(
+      screen.getByRole('link', { name: `Sửa Bài mới · ${DSA_TITLE}` }),
     )
   })
 

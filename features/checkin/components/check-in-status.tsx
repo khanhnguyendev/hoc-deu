@@ -12,6 +12,9 @@ type CheckInStatusProps = {
   checkIn: Pick<BlockState, 'status' | 'minutes' | 'auto'>
   /** `/today?block=<id>`: "Sửa" opens the check-in sheet for this block (§2.4). */
   editHref: string
+  /** Marks the "Sửa" link (`data-check-in-edit`): the sheet and the one-tap put focus back on
+   *  it (DESIGN_SYSTEM §10). */
+  blockId: string
   /** "{kind} · {track}": names the "Sửa" link for screen readers (several on one page). */
   blockLabel: string
   /** The paused view (§5.2): a skipped block says how to correct it (M-6 a). */
@@ -27,7 +30,13 @@ type CheckInStatusProps = {
  * check it in again automatically (§5.5) — and the owner's line on when the correction counts
  * (ruling M-6 a). Server-compatible.
  */
-function CheckInStatus({ checkIn, editHref, blockLabel, paused = false }: CheckInStatusProps) {
+function CheckInStatus({
+  checkIn,
+  editHref,
+  blockId,
+  blockLabel,
+  paused = false,
+}: CheckInStatusProps) {
   return (
     <div
       data-slot="check-in-status"
@@ -45,7 +54,12 @@ function CheckInStatus({ checkIn, editHref, blockLabel, paused = false }: CheckI
             </>
           )}
         </p>
-        <Link href={editHref} scroll={false} className={buttonVariants({ variant: 'outline' })}>
+        <Link
+          href={editHref}
+          scroll={false}
+          data-check-in-edit={blockId}
+          className={buttonVariants({ variant: 'outline' })}
+        >
           <Pencil aria-hidden="true" strokeWidth={1.75} />
           {copy.edit} <span className="sr-only">{blockLabel}</span>
         </Link>
