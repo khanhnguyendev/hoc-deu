@@ -18,6 +18,25 @@ import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
 import { initial } from './initial'
 
+/**
+ * A successful `signOut()` still rejects the promise we get back from calling it directly (not
+ * through `useActionState`): Next's client action runtime settles a redirecting action's promise
+ * with a `NEXT_REDIRECT`-digest error so a `RedirectBoundary` can perform the navigation — the
+ * navigation itself already happened by the time this rejection reaches us, regardless of what we
+ * do with it (`server-action-reducer.js`). Recognising that shape here (never `unstable_rethrow`,
+ * which would only turn it into an unhandled rejection with no boundary to catch it) keeps the
+ * ordinary sign-out path silent.
+ */
+function isRedirectError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest: unknown }).digest === 'string' &&
+    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
+  )
+}
+
 /** Name, theme, "Quản trị" (admins only) and "Đăng xuất" (DESIGN_SYSTEM §5). */
 export function AccountMenu({
   name,
@@ -62,10 +81,13 @@ export function AccountMenu({
         <DropdownMenuItem
           disabled={!onSignOut}
           // Radix's onSelect passes a non-serializable Event; onSignOut takes none. Awaited (not
-          // fire-and-forget, M2 minor): a rejection — the redirect never arrived — shows a toast,
-          // since the menu has otherwise already closed with no other sign of failure.
+          // fire-and-forget, M2 minor): a genuine rejection shows a toast, since the menu has
+          // otherwise already closed with no other sign of failure — a redirect-shaped rejection
+          // (the ordinary, successful path) never does.
           onSelect={() => {
-            onSignOut?.().catch(() => toast.error(vi.account.signOutFailed))
+            onSignOut?.().catch((error: unknown) => {
+              if (!isRedirectError(error)) toast.error(vi.account.signOutFailed)
+            })
           }}
         >
           <LogOut aria-hidden="true" strokeWidth={1.75} />

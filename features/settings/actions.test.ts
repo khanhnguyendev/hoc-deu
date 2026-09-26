@@ -651,13 +651,14 @@ describe('deleteAccount — §4.6', () => {
     expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
   })
 
-  it('throws (no redirect) when the local sign-out fails, after the account is already deleted (M2 minor)', async () => {
+  it('still redirects when the local sign-out fails, after the account is already deleted (controller ruling, M2 minor)', async () => {
     fake.deleteAccountSignOutResult = { error: new Error('cookies unavailable') }
-    await expect(run(null, new FormData())).rejects.toThrow('cookies unavailable')
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
     expect(fake.calls).toEqual([
       ['requireUser'],
       ['deleteUser', USER_ID],
       ['signOut', { scope: 'local' }],
+      ['redirect', '/?account=deleted'],
     ])
   })
 })

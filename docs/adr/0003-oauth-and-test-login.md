@@ -69,10 +69,15 @@ test run from production.
 - **Sign-out stays global scope by default** (`signOut`, `features/auth/actions.ts`) — an owner
   decision left open at M2, recorded here as a ruling the owner can overturn. A failed global
   sign-out falls back to a local one (cookies only), so the browser's own session is cleared
-  either way; the account menu awaits the action and shows a toast on a rejection (both signs of
-  the local fallback itself failing, M2 minor). `deleteAccount` (§4.6) has only the local scope to
-  begin with (the account row is already gone) and checks its own error the same way, throwing
-  when it fails — there is nothing more local left to fall back to.
+  either way; a failure there too throws (nothing more local left to fall back to), and the
+  account menu awaits the action and shows a toast on a genuine rejection (M2 minor) — calling a
+  redirecting action directly (not through `useActionState`) still rejects the promise with a
+  `NEXT_REDIRECT`-digest error on the *ordinary, successful* path too (the navigation itself
+  already happened by then), so the handler recognises and ignores that shape rather than
+  toasting it. `deleteAccount` (§4.6) checks its own local sign-out's error too, but never blocks
+  the redirect on it (ruling): the account row is already gone by then, so a thrown error there
+  would be misleading (auth-js has already cleared the session client-side for most error cases
+  regardless) — it redirects to the deleted notice either way.
 
 ## Consequences
 

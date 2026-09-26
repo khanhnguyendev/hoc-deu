@@ -143,16 +143,28 @@ test.describe('signing in with the test login', () => {
     await expectNoAxeViolationsInBothThemes(page)
   })
 
-  test('reads the fresh profile after sign-in: no request to /pending for an active user (M2 minor)', async ({
+  test('reads the fresh profile after sign-in: the action redirects straight to /today (M2 minor)', async ({
     page,
   }) => {
-    // completeSignIn reads the profile through the session client, not the request-cached DAL —
-    // a masked failure there would resolve to /pending, which then forwards an active user on.
-    const requested: string[] = []
-    page.on('request', (request) => requested.push(new URL(request.url()).pathname))
-    await signIn(page, await user({ status: 'active', onboarded: true }), '/today')
+    // No `next` here: unlike the other test-login scenarios, completeSignIn's home-path branch
+    // (not the safeNextPath one) has to run, reading the profile through the session client —
+    // a masked failure there would fall back to /pending, which then forwards an active user on,
+    // reaching /today either way. Reading the action's own `x-action-redirect` response header
+    // (Next's server-action redirect signal) proves the *first* hop the server chose is /today,
+    // not /pending-then-forwarded.
+    const learner = await user({ status: 'active', onboarded: true })
+    await page.goto('/sign-in')
+    const form = testLoginForm(page)
+    await form.getByLabel('Email').fill(learner.email)
+    await form.getByLabel('Mật khẩu').fill(learner.password)
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (candidate) => candidate.request().method() === 'POST' && candidate.status() === 200,
+      ),
+      form.getByRole('button', { name: 'Đăng nhập' }).click(),
+    ])
+    expect(response.headers()['x-action-redirect']?.split(';')[0]).toBe('/today')
     await expectPath(page, '/today')
-    expect(requested).not.toContain('/pending')
   })
 
   test('a hidden next=//evil.test injected into the test-login form lands on the home path (M2 minor)', async ({

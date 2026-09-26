@@ -170,7 +170,7 @@ test.describe('/admin/users', () => {
   })
 })
 
-test.describe('a bootstrapped, not-yet-onboarded admin (M2 minor)', () => {
+test.describe('a not-yet-onboarded admin (M2 minor)', () => {
   test('reaches /onboarding first, and /admin/users needs no onboarding', async ({ page }) => {
     const admin = await user({ role: 'admin', status: 'active', name: uniqueName('Chưa xong') })
     await signIn(page, admin)

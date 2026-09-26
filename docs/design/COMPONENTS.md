@@ -251,9 +251,12 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
   menu with "Quản trị" for admins only; "Đăng xuất" is awaited from `DropdownMenuItem onSelect`
-  (Radix passes a non-serializable Event, and `onSignOut` takes none) — a rejection (the redirect
-  never arrived) shows a toast instead of failing silently (M2 minor); bottom nav 56 px; `main`
-  and the root scroll padding keep content and focus clear of the top bar and bottom nav
+  (Radix passes a non-serializable Event, and `onSignOut` takes none) — a genuine rejection shows a
+  toast instead of failing silently (M2 minor); a successful sign-out also rejects the promise
+  (Next settles a redirecting action called directly, outside `useActionState`, with a
+  `NEXT_REDIRECT`-digest error even though the navigation already happened), and that shape is
+  recognised and never toasted; bottom nav 56 px; `main` and the root scroll padding keep content
+  and focus clear of the top bar and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
 - **Toasts:** mounts the one `Toaster` of the signed-in pages (task 2.8) — layouts and pages may
