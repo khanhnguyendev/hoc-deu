@@ -41,7 +41,7 @@ insert into _authenticated_allowlist (proname) values
 create temporary table _anon_allowlist (proname text) on commit drop;
 insert into _anon_allowlist (proname) values ('health');
 
-select plan(8);
+select plan(11);
 
 -- 1. Every table (relkind r, p) in public has row level security enabled.
 select is_empty(
@@ -194,6 +194,65 @@ select is_empty(
     end
   $$,
   'backup_reader has no write privilege in public and reads every sequence'
+);
+
+-- 9. Schema backup (task 5.7c, ADR-0029) is owned by postgres, the migration role, and closed to
+--    every API role: USAGE for backup_reader only, CREATE for none of them. It is not in
+--    config.toml's [api].schemas either (tools/backup/auth-columns.test.ts).
+select is_empty(
+  $$
+  select r.rolname
+  from (
+    values ('public', false), ('anon', false), ('authenticated', false), ('service_role', false),
+           ('authenticator', false), ('backup_reader', true)
+  ) as r (rolname, usage)
+  where has_schema_privilege(r.rolname, 'backup', 'USAGE') <> r.usage
+     or has_schema_privilege(r.rolname, 'backup', 'CREATE')
+  $$,
+  'schema backup: USAGE for backup_reader only, CREATE for no API role'
+);
+
+-- 10. Every function in schema backup is SECURITY DEFINER, sets search_path, is owned by postgres
+--     (the migration role; its body reads auth as postgres) and is executable by backup_reader
+--     only: an explicit ACL whose EXECUTE grantees are its owner and backup_reader, nobody else.
+select is_empty(
+  $$
+  select p.proname
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'backup'
+    and (
+      not p.prosecdef
+      or not exists (
+        select 1 from unnest(coalesce(p.proconfig, '{}')) as cfg where cfg like 'search_path=%'
+      )
+      or pg_get_userbyid(p.proowner) <> 'postgres'
+      or p.proacl is null
+      or exists (
+        select 1 from aclexplode(p.proacl) a
+        where a.privilege_type = 'EXECUTE'
+          and a.grantee not in (p.proowner, 'backup_reader'::regrole)
+      )
+      or not has_function_privilege('backup_reader', p.oid, 'EXECUTE')
+      or has_function_privilege('anon', p.oid, 'EXECUTE')
+      or has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      or has_function_privilege('service_role', p.oid, 'EXECUTE')
+      or has_function_privilege('authenticator', p.oid, 'EXECUTE')
+    )
+  $$,
+  'every function in backup is a postgres-owned SECURITY DEFINER with search_path set, '
+  'executable by backup_reader only'
+);
+
+-- 11. ... and there are functions to check: check 10 never passes on an empty schema.
+select is(
+  (select pg_get_userbyid(n.nspowner)::text || ':' || count(p.oid)
+   from pg_namespace n
+   left join pg_proc p on p.pronamespace = n.oid
+   where n.nspname = 'backup'
+   group by n.nspowner),
+  'postgres:2',
+  'schema backup is owned by postgres and holds the two auth readers'
 );
 
 select * from finish();

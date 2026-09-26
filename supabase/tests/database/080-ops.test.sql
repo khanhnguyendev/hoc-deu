@@ -293,7 +293,7 @@ select ok(
 );
 select ok(
   not has_schema_privilege('backup_reader', 'auth', 'USAGE'),
-  'the migration grants backup_reader nothing on schema auth (5.7b''s runbook does)'
+  'backup_reader has no USAGE on schema auth: it reads auth only through schema backup (081)'
 );
 
 -- Rows of two users in profiles (created above), events and day_plans. RLS lets `authenticated`
