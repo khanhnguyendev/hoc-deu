@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import type { DayPlan } from '@/lib/domain/plan/types'
 import { blockKey } from '@/lib/domain/state'
+import type { Json } from '@/lib/supabase/database.types'
 import type { FakeRows, FakeSupabase } from '@/lib/testing/fake-supabase'
 import { env, resetEnv } from './__tests__/env'
 import {
@@ -174,6 +175,27 @@ describe('ensureToday', () => {
       expect(fake.rpcs()).toEqual([])
     })
 
+    it("M-5 A: the paused view lists only the active tracks' unfinished blocks", async () => {
+      const dsa = staleBlock('2026-09-25')
+      const english = planBlock('2026-09-25', 'english', 'new', ['english:e1'])
+      const stale = planRow({
+        date: '2026-09-25',
+        blocks: [dsa, english],
+        seenAt: '2026-09-25T03:00:00Z',
+      })
+      const fake = learner({
+        day_plans: [stale],
+        user_tracks: [trackRow('dsa', { status: 'removed' }), trackRow('english')],
+      })
+      expect((await ensureToday(USER_ID, NOW)).state).toMatchObject({
+        kind: 'paused',
+        unfinished: [english],
+        daysSince: 3,
+        offerResume: true,
+      })
+      expect(fake.rpcs()).toEqual([])
+    })
+
     it("decision 32: yesterday's seen plan with a block done today is today's work — no new plan", async () => {
       const block = staleBlock(YESTERDAY)
       const last = planRow({ date: YESTERDAY, blocks: [block], seenAt: '2026-09-27T03:00:00Z' })
@@ -251,6 +273,25 @@ describe('ensureToday', () => {
       })
       expect((await ensureToday(USER_ID, NOW)).state).toEqual({ kind: 'unreadable' })
       expect(storeCalls(fake)).toHaveLength(1)
+    })
+
+    it('re-reads the plan once after a version_conflict (another request rebuilt it)', async () => {
+      const row = unreadable()
+      const fake = learner({ day_plans: [row] })
+      const fixed = planBlock(TODAY, 'dsa', 'new', ['dsa:p1'])
+      fake.onRpc('apply_system_event', () => {
+        const stored = fake.tables.day_plans?.find((plan) => plan.id === row.id)
+        if (stored === undefined) throw new Error('no row')
+        stored.blocks = [fixed] as unknown as Json
+        stored.version = 4
+        return { data: null, error: { message: 'version_conflict' } }
+      })
+      const { state } = await ensureToday(USER_ID, NOW)
+      expect(state).toMatchObject({
+        kind: 'plan',
+        plan: { id: row.id, version: 4, blocks: [fixed] },
+      })
+      expect(fake.rpcs()).toHaveLength(1)
     })
 
     it('shows the unreadable state when the rebuild fails', async () => {

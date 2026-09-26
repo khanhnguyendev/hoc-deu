@@ -9,11 +9,13 @@ import {
   planRow,
   storedOf,
   TODAY,
+  trackRow,
   USER_ID,
   YESTERDAY,
 } from './__tests__/fixtures'
 
 vi.mock('@/lib/auth/dal', async () => (await import('./__tests__/env')).dalMock)
+vi.mock('./catalog', async () => (await import('./__tests__/env')).catalogMock)
 
 const { currentPlan } = await import('./current')
 
@@ -21,9 +23,10 @@ const ACTIVE: ReadonlySet<string> = new Set(['dsa', 'english'])
 const dsaBlock = (date: string) => planBlock(date, 'dsa', 'new', ['dsa:p1'])
 const seen = (date: string) => `${date}T03:00:00.000Z`
 
-/** currentPlan on TODAY through the fake's session client. */
+/** currentPlan on TODAY through the fake's session client; the `active` tracks are enrolled
+ *  (started TODAY) unless `rows` has its own `user_tracks`. */
 async function current(rows: FakeRows, active: ReadonlySet<string> = ACTIVE) {
-  const fake = resetEnv(rows)
+  const fake = resetEnv({ user_tracks: [...active].map((trackId) => trackRow(trackId)), ...rows })
   const result = await currentPlan(fake.client('session'), USER_ID, TODAY, active)
   // It builds nothing: an rpc would throw (no handler).
   expect(fake.rpcs()).toEqual([])
@@ -109,6 +112,51 @@ describe('currentPlan (decision 13)', () => {
       seenAt: seen('2026-09-25'),
     })
     expect(await current({ day_plans: [last] })).toBeNull()
+  })
+
+  describe('§5.4 step 3: a plan /today does not show gets no check-in', () => {
+    const stale = () =>
+      planRow({ date: '2026-09-25', blocks: [dsaBlock('2026-09-25')], seenAt: seen('2026-09-25') })
+
+    it('is null while every active track starts later (notStarted), even with the gate closed', async () => {
+      expect(
+        await current({
+          day_plans: [stale()],
+          user_tracks: [
+            trackRow('dsa', { start_date: '2026-10-01' }),
+            trackRow('english', { start_date: '2026-10-05' }),
+          ],
+        }),
+      ).toBeNull()
+    })
+
+    it('is the paused plan once one active track has started', async () => {
+      expect(
+        await current({
+          day_plans: [stale()],
+          user_tracks: [trackRow('dsa'), trackRow('english', { start_date: '2026-10-05' })],
+        }),
+      ).toMatchObject({ kind: 'paused' })
+    })
+
+    it('is null without an active enrollment (noTracks)', async () => {
+      expect(
+        await current(
+          { day_plans: [stale()], user_tracks: [trackRow('dsa', { status: 'paused' })] },
+          new Set(),
+        ),
+      ).toBeNull()
+    })
+
+    it("is still today's plan when it exists (step 2 comes first, as on /today)", async () => {
+      const today = planRow({ date: TODAY, blocks: [planBlock(TODAY, 'dsa', 'new', ['dsa:p1'])] })
+      expect(
+        await current({
+          day_plans: [today],
+          user_tracks: [trackRow('dsa', { start_date: '2026-10-01' })],
+        }),
+      ).toMatchObject({ kind: 'today', plan: storedOf(today) })
+    })
   })
 
   it('throws, reading nothing, when userId is not the signed-in user (decision 5)', async () => {

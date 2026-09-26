@@ -275,6 +275,48 @@ describe('readRecapHistory', () => {
       { op: 'eq', column: 'user_id', value: USER_ID },
       { op: 'contains', column: 'blocks', value: [{ kind: 'recap' }] },
     ])
+    // Only recap check-ins, by the user, not a growing list of plan ids.
+    const [states] = fake.selects('plan_block_state')
+    expect(states?.filters).toEqual([
+      { op: 'eq', column: 'user_id', value: USER_ID },
+      { op: 'like', column: 'block_id', value: '%:recap:%' },
+    ])
+  })
+
+  it('[RF-4] pages the recap check-ins past max_rows (1000)', async () => {
+    const recap = (n: number) =>
+      planBlock('2026-09-27', 'dsa', 'recap', [], { id: `2026-09-27:dsa:recap:${n}` })
+    const plan = planRow({ date: '2026-09-27', blocks: [recap(1)] })
+    const fake = createFakeSupabase({
+      day_plans: [plan],
+      plan_block_state: [
+        ...Array.from({ length: 1500 }, (_, n) => blockStateRow(plan, recap(n + 1), 'done', TODAY)),
+        blockStateRow(plan, planBlock('2026-09-27', 'dsa', 'new', []), 'done', TODAY),
+        { ...blockStateRow(plan, recap(9999), 'done', TODAY), user_id: OTHER_USER_ID },
+      ],
+    })
+    const history = await readRecapHistory(fake.client(), USER_ID)
+    expect(history.plans).toEqual([storedOf(plan)])
+    expect(Object.keys(history.blocks)).toHaveLength(1500)
+    const pages = fake.selects('plan_block_state')
+    expect(pages.map((page) => page.range)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+    for (const page of pages) {
+      expect(page.order).toEqual([
+        { column: 'plan_id', ascending: true },
+        { column: 'block_id', ascending: true },
+      ])
+    }
+  })
+})
+
+describe('readRecapHistory without a recap plan', () => {
+  it('reads no check-ins', async () => {
+    const fake = createFakeSupabase({ day_plans: [planRow({ date: TODAY })] })
+    expect(await readRecapHistory(fake.client(), USER_ID)).toEqual({ plans: [], blocks: {} })
+    expect(fake.selects('plan_block_state')).toEqual([])
   })
 })
 

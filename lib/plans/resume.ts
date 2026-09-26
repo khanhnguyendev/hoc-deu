@@ -14,8 +14,9 @@ export type ResumeOutcome = 'created' | 'exists' | 'not_offered'
  * steps 1–4, then builds today's plan from the stale plan's unfinished new items and today's due
  * reviews (`buildResumePlan`), validated (decision 10) and stored as `plan.generated { mode:
  * 'resume' }` with a random event id (decision 8): `created`, or `exists` when the date already
- * has a plan (a double tap, another tab). A request that crosses the day start (`day_changed`)
- * runs again with a fresh clock (`withRetry`, RF-1); every other state is `not_offered`.
+ * has a plan — found before the build (a second tap, another tab) or answered `plan_exists` by
+ * the write (a concurrent tap). A request that crosses the day start (`day_changed`) runs again
+ * with a fresh clock (`withRetry`, RF-1); every other state is `not_offered`.
  */
 export async function resumeToday(userId: string, now: Date = new Date()): Promise<ResumeOutcome> {
   await assertSessionUser(userId)
@@ -26,6 +27,8 @@ export async function resumeToday(userId: string, now: Date = new Date()): Promi
     const day = await loadDay(supabase, userId, tries === 0 ? now : new Date())
     tries += 1
     const resolution = await resolveDay(supabase, userId, day)
+    // Today's plan exists: the first tap (or another tab) created it — a second tap is `exists`.
+    if (resolution.kind === 'today') return 'exists'
     if (resolution.kind !== 'paused' || !resolution.offerResume) return 'not_offered'
 
     const ctx = await planContext(supabase, userId, day)

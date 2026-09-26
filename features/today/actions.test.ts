@@ -74,9 +74,19 @@ describe('markPlanSeen (§5.2, ADR-0039)', () => {
     expect(state.fake.rpcs()).toEqual([])
   })
 
-  it('throws when the rpc fails', async () => {
-    state.fake.onRpc('mark_plan_seen', () => ({ data: null, error: { message: 'inactive' } }))
-    await expect(markPlanSeen(PLAN_ID)).rejects.toThrow()
+  it('logs a failed rpc (its code and message only) and returns', async () => {
+    state.fake.onRpc('mark_plan_seen', () => ({
+      data: null,
+      error: { message: 'inactive', code: '42501' },
+    }))
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await expect(markPlanSeen(PLAN_ID)).resolves.toBeUndefined()
+      expect(logged).toHaveBeenCalledWith('[today] mark_plan_seen failed:', '42501 inactive')
+      expect(JSON.stringify(logged.mock.calls)).not.toContain(PLAN_ID)
+    } finally {
+      logged.mockRestore()
+    }
   })
 })
 

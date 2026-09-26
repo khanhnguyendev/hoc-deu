@@ -22,7 +22,8 @@ export type FakeRows = { [T in TableName]?: RowOf<T>[] }
 export const MAX_ROWS = 1000
 
 export type FakeFilter = {
-  readonly op: 'eq' | 'neq' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'is' | 'not.is' | 'contains'
+  readonly op:
+    'eq' | 'neq' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'is' | 'not.is' | 'like' | 'contains'
   readonly column: string
   readonly value: unknown
 }
@@ -111,6 +112,16 @@ function jsonContains(stored: unknown, wanted: unknown): boolean {
   return Object.is(stored, wanted)
 }
 
+/** SQL `LIKE`: `%` matches any run of characters, `_` exactly one, everything else itself. */
+function likePattern(pattern: string): RegExp {
+  const body = [...pattern]
+    .map((char) =>
+      char === '%' ? '.*' : char === '_' ? '.' : char.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'),
+    )
+    .join('')
+  return new RegExp(`^${body}$`, 's')
+}
+
 /** SQL comparison: null never compares. */
 function compare(a: unknown, b: unknown): number | null {
   if (a === null || a === undefined || b === null || b === undefined) return null
@@ -146,6 +157,8 @@ function matches(row: Row, filter: FakeFilter): boolean {
       return value === filter.value
     case 'not.is':
       return value !== filter.value
+    case 'like':
+      return typeof value === 'string' && likePattern(String(filter.value)).test(value)
     case 'contains':
       return jsonContains(value, filter.value)
   }
@@ -259,6 +272,7 @@ export function createFakeSupabase(rows: FakeRows = {}): FakeSupabase {
         gte: filter('gte'),
         in: filter('in'),
         is: filter('is'),
+        like: filter('like'),
         contains: filter('contains'),
         not(column: string, operator: string, value: unknown) {
           if (operator !== 'is' || value !== null) {

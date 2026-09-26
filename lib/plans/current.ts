@@ -4,8 +4,9 @@ import type { StoredPlan } from '@/lib/domain/plan/types'
 import type { BlockState } from '@/lib/domain/state'
 import type { LocalDay } from '@/lib/domain/time/localDay'
 import type { Database } from '@/lib/supabase/database.types'
-import { gateState } from './day'
-import { readBlockStates, readPlan } from './reads'
+import { planCatalog } from './catalog'
+import { gateState, trackState } from './day'
+import { readBlockStates, readEnrollments, readPlan } from './reads'
 import { assertSessionUser } from './session'
 
 type Client = SupabaseClient<Database>
@@ -19,9 +20,10 @@ export type CurrentPlan = {
 /**
  * The plan check-ins and results go to (decision 13): today's plan; else the last seen plan when
  * the gate is closed or resumed today; else null (today's plan is not built yet). Builds nothing.
- * §5.4 steps 1, 2 and 4 with the caller's `today` and active tracks (M-5 A): an unreadable
- * today's plan gives null — check-ins and results are refused as stale while `/today` shows its
- * error state.
+ * `/today`'s steps with the caller's `today` and active tracks (M-5 A), so it never names a plan
+ * `/today` does not show: an unreadable today's plan gives null (check-ins and results are
+ * refused as stale while `/today` shows its error state), and so do no active track or every
+ * active track starting later (`noTracks`, `notStarted`) — even with a closed gate.
  */
 export async function currentPlan(
   supabase: Client,
@@ -39,6 +41,10 @@ export async function currentPlan(
       blocks: await readBlockStates(supabase, [read.plan.id]),
     }
   }
+  if (activeTrackIds.size === 0) return null
+  const enrollments = await readEnrollments(supabase, userId, planCatalog())
+  const active = enrollments.filter((enrollment) => activeTrackIds.has(enrollment.trackId))
+  if (trackState(active, today) !== null) return null
   const gate = await gateState(supabase, userId, today, activeTrackIds)
   return gate === null ? null : { kind: gate.kind, plan: gate.plan, blocks: gate.blocks }
 }

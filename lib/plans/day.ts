@@ -71,16 +71,22 @@ export async function loadDay(supabase: Client, userId: string, clock: Date): Pr
 
 type State<K extends TodayState['kind']> = Extract<TodayState, { readonly kind: K }>
 
-/** §5.4 step 2 (§5.9): no active track, or every active track starts after today. */
-function trackState(day: Day): State<'noTracks'> | State<'notStarted'> | null {
-  const starts = day.enrollments
+/**
+ * §5.4 step 2 (§5.9; the brief's step 3): no active enrollment among `enrollments`, or every
+ * active one starts after `today`. Null when an active track has started.
+ */
+export function trackState(
+  enrollments: readonly Enrollment[],
+  today: LocalDay,
+): State<'noTracks'> | State<'notStarted'> | null {
+  const starts = enrollments
     .filter((enrollment) => enrollment.status === 'active')
     .map((enrollment) => enrollment.startDate)
     // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
     .toSorted()
   const [earliest] = starts
   if (earliest === undefined) return { kind: 'noTracks' }
-  return earliest > day.today ? { kind: 'notStarted', startDate: earliest } : null
+  return earliest > today ? { kind: 'notStarted', startDate: earliest } : null
 }
 
 /**
@@ -125,7 +131,7 @@ export type Resolution =
 export async function resolveDay(supabase: Client, userId: string, day: Day): Promise<Resolution> {
   const read = await readPlan(supabase, userId, day.today)
   if (read !== null) return { kind: 'today', read }
-  const tracks = trackState(day)
+  const tracks = trackState(day.enrollments, day.today)
   if (tracks !== null) return tracks
   return (await gateState(supabase, userId, day.today, day.activeTrackIds)) ?? { kind: 'open' }
 }

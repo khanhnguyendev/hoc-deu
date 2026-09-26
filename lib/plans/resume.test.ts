@@ -85,6 +85,13 @@ describe('resumeToday ("Học tiếp hôm nay", §5.8)', () => {
     expect(await resumeToday(USER_ID, NOW)).toBe('exists')
   })
 
+  it("answers exists on a second, sequential tap (today's plan now exists)", async () => {
+    const fake = learner({ date: STALE, seenAt: '2026-09-25T03:00:00Z' })
+    expect(await resumeToday(USER_ID, NOW)).toBe('created')
+    expect(await resumeToday(USER_ID, NOW)).toBe('exists')
+    expect(storeCalls(fake)).toHaveLength(1)
+  })
+
   it('retries a day_changed with a fresh clock', async () => {
     const fake = learner({ date: STALE, seenAt: '2026-09-25T03:00:00Z' })
     planStore(fake, ['day_changed'])
@@ -117,10 +124,10 @@ describe('resumeToday ("Học tiếp hôm nay", §5.8)', () => {
     expect(fake.rpcs()).toEqual([])
   })
 
-  it("is not offered when today's plan exists", async () => {
+  it("answers exists, writing nothing, when today's plan exists", async () => {
     const fake = learner({ date: STALE, seenAt: '2026-09-25T03:00:00Z' })
     fake.tables.day_plans?.push(planRow({ date: TODAY }))
-    expect(await resumeToday(USER_ID, NOW)).toBe('not_offered')
+    expect(await resumeToday(USER_ID, NOW)).toBe('exists')
     expect(fake.rpcs()).toEqual([])
   })
 

@@ -18,7 +18,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
 import { loadDay, planContext, resolveDay, storable, type Day } from './day'
-import { readBlockStates, readPlanById, type PlanRead } from './reads'
+import { readBlockStates, readPlan, readPlanById, type PlanRead } from './reads'
 import { assertSessionUser } from './session'
 
 type Client = SupabaseClient<Database>
@@ -75,7 +75,9 @@ async function planState(supabase: Client, plan: StoredPlan): Promise<TodayState
 /**
  * Today's stored row (§5.4 step 1). Unreadable (M-4, decision 10): rebuilt at its version — which
  * `apply_system_event` does only while the plan is untouched (no check-in, no event naming it but
- * its generation) — and read again; in use, or the rebuild fails: the `unreadable` state.
+ * its generation) — and read again. A `version_conflict` (another request changed the row) reads
+ * the row once more and shows it when it is readable now. In use, or the rebuild fails: the
+ * `unreadable` state.
  */
 async function fromTodaysRow(
   supabase: Client,
@@ -96,7 +98,13 @@ async function fromTodaysRow(
     })
   } catch (error) {
     if (!(error instanceof EventError)) throw error
-    return isDayChanged(error) ? DAY_CHANGED : { kind: 'unreadable' }
+    if (isDayChanged(error)) return DAY_CHANGED
+    if (error.code === 'version_conflict') {
+      // Another request rebuilt or changed the row meanwhile: show it if it can be read now.
+      const current = (await readPlan(supabase, userId, day.today))?.plan ?? null
+      if (current !== null) return planState(supabase, current)
+    }
+    return { kind: 'unreadable' }
   }
   if (stored.outcome !== 'applied' || stored.planId === null) return { kind: 'unreadable' }
   const rebuilt = (await readPlanById(supabase, userId, stored.planId))?.plan ?? null

@@ -97,6 +97,28 @@ describe('createFakeSupabase', () => {
     ).toEqual(['p3'])
   })
 
+  it('matches like patterns as SQL does (% any run, _ one character, the rest literal)', async () => {
+    const fake = createFakeSupabase({
+      day_plans: [
+        plan('2026-09-27:dsa:recap:1', '2026-09-27', []),
+        plan('2026-09-27:recap:new:1', '2026-09-27', []),
+        plan('2026-09-27:dsa:recapx', '2026-09-27', []),
+        plan('a.b', '2026-09-27', []),
+        plan('axb', '2026-09-27', []),
+      ],
+    })
+    const ids = async (pattern: string) =>
+      ((await fake.client().from('day_plans').select('id').like('id', pattern)).data ?? []).map(
+        (row) => row.id,
+      )
+    expect(await ids('%:recap:%')).toEqual(['2026-09-27:dsa:recap:1', '2026-09-27:recap:new:1'])
+    expect(await ids('a.b')).toEqual(['a.b'])
+    expect(await ids('a_b')).toEqual(['a.b', 'axb'])
+    expect(fake.selects('day_plans')[0]?.filters).toEqual([
+      { op: 'like', column: 'id', value: '%:recap:%' },
+    ])
+  })
+
   it('answers jsonb containment like Postgres @>', async () => {
     const fake = createFakeSupabase({
       day_plans: [
@@ -221,7 +243,7 @@ describe('createFakeSupabase', () => {
     expect(() => client.rpc('mark_plan_seen', { p_plan_id: 'p1' })).toThrow(/no handler/)
     await expect(async () => client.from('day_plans').select('nope')).rejects.toThrow(/nope/)
     expect(() => client.from('day_plans').insert({} as never)).toThrow(/not supported by the fake/)
-    expect(() => client.from('day_plans').select('id').like('id', 'p%')).toThrow(
+    expect(() => client.from('day_plans').select('id').ilike('id', 'p%')).toThrow(
       /not supported by the fake/,
     )
     expect(() => client.from('day_plans').select('id').not('id', 'eq', 'p1')).toThrow(

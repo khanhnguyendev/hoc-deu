@@ -1,7 +1,7 @@
 /**
  * The learner's rows the plan service reads (platform design §4.1, §5.2, §5.4; Part B-M5
  * decision 7): bounded reads only — today's plan, the last seen plan (one row), the plans with a
- * recap block and their block states, every `item_state` row in pages of `max_rows`, the
+ * recap block and the recap check-ins, every `item_state` row in pages of `max_rows`, the
  * enrollments, the schedule versions and a window of `daily_activity`, never every plan.
  *
  * Server-only and unguarded: the caller is guarded and passes the session client, so RLS limits
@@ -23,6 +23,7 @@ import {
   blockStateFromRow,
   dailyActivityFromRow,
   itemStateFromRow,
+  type BlockStateRow,
   type ItemStateRow,
 } from '@/lib/events/derived'
 import { storedPlanFromRow, type DayPlanRow } from '@/lib/events/plans'
@@ -197,8 +198,37 @@ export async function readBlockStates(
 }
 
 /**
- * Plans with a recap block (jsonb containment, about one a week) and their block states — the
- * input of `recapWeeksDone` (§5.6). A plan that cannot be read is left out.
+ * The user's check-ins of recap blocks (block ids `<planDate>:<trackId>:recap:<n>`, §5.4 step 8),
+ * keyed by blockKey(planId, blockId). Paged like `readItemStates` (PostgREST `max_rows`): a year
+ * of history is never cut off at 1000 rows (RF-4), and no growing list of plan ids is sent.
+ */
+async function readRecapBlockStates(
+  supabase: Client,
+  userId: string,
+): Promise<Record<string, BlockState>> {
+  const rows: BlockStateRow[] = []
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await supabase
+      .from('plan_block_state')
+      .select('*')
+      .eq('user_id', userId)
+      .like('block_id', '%:recap:%')
+      .order('plan_id')
+      .order('block_id')
+      .range(from, from + PAGE_ROWS - 1)
+    if (error) throw failed('the recap check-ins', error)
+    rows.push(...data)
+    if (data.length < PAGE_ROWS) break
+  }
+  return Object.fromEntries(
+    rows.map((row) => [blockKey(row.plan_id, row.block_id), blockStateFromRow(row)]),
+  )
+}
+
+/**
+ * Plans with a recap block (jsonb containment, about one a week) and the user's recap check-ins —
+ * the input of `recapWeeksDone` (§5.6). A plan that cannot be read is left out; without a recap
+ * plan no check-in is read.
  */
 export async function readRecapHistory(
   supabase: Client,
@@ -215,13 +245,7 @@ export async function readRecapHistory(
     const plan = storedPlanFromRow(row)
     return plan === null ? [] : [plan]
   })
-  return {
-    plans,
-    blocks: await readBlockStates(
-      supabase,
-      plans.map((plan) => plan.id),
-    ),
-  }
+  return { plans, blocks: plans.length === 0 ? {} : await readRecapBlockStates(supabase, userId) }
 }
 
 /** The user's `daily_activity` rows from `from` on, keyed by local day. */
