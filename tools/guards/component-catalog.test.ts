@@ -51,7 +51,13 @@ const read = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : 
 const docFiles = () => [...read(DOCS).matchAll(/\*\*File:\*\* `([^`]+)`/g)].map((m) => m[1] ?? '')
 const entryFiles = (path: string) =>
   [...read(path).matchAll(/file: '([^']+)'/g)].map((m) => m[1] ?? '')
-const catalogFiles = () => entryFiles(REGISTRY)
+/** The catalog's entry files (Part B-M5 decision 3): registry.tsx and every entries/*.tsx. */
+const ENTRIES_DIR = 'app/dev/components/entries'
+const entriesFiles = () =>
+  list(ENTRIES_DIR)
+    .filter((name) => name.endsWith('.tsx'))
+    .map((name) => `${ENTRIES_DIR}/${name}`)
+const catalogFiles = () => [REGISTRY, ...entriesFiles()].flatMap(entryFiles)
 const galleryFiles = () => entryFiles(ITEMS_GALLERY)
 
 describe('component catalog (platform design §7.7)', () => {
@@ -71,6 +77,15 @@ describe('component catalog (platform design §7.7)', () => {
     const documented = new Set(docFiles())
     const files = [...componentFiles(), ...itemTypeFiles()]
     expect(files.filter((file) => !documented.has(file))).toEqual([])
+  })
+
+  it('includes every entries file in the catalog (Part B-M5 decision 3)', () => {
+    const registry = read(REGISTRY)
+    const names = entriesFiles().map((file) => file.slice(ENTRIES_DIR.length + 1, -'.tsx'.length))
+    expect(names.length).toBeGreaterThanOrEqual(7)
+    for (const name of names) {
+      expect(registry).toContain(`from './entries/${name}'`)
+    }
   })
 
   it('renders every component at /dev/components', () => {

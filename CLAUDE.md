@@ -98,7 +98,8 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
 
 ## Copy and accessibility
 
-- All UI strings are Vietnamese, in `lib/i18n/vi.ts`; technical terms stay English.
+- All UI strings are Vietnamese, in `lib/i18n/vi.ts` and the area files it includes
+  (`lib/i18n/strings/*`); technical terms stay English.
   `<html lang="vi">`; wrap English learning content in `lang="en"`.
 - WCAG 2.1 AA: visible focus, keyboard access, 44 px touch targets, never colour alone,
   `prefers-reduced-motion` respected. axe runs in CI.

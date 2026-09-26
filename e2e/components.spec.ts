@@ -1,13 +1,20 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { expectNoAxeViolations } from './support/axe'
 import { gotoHydrated } from './support/hydration'
 import { expect, test } from './support/test'
 
-// Entry names straight from the registry source, so a new entry is checked without editing this file.
-const NAMES = [
-  ...readFileSync('app/dev/components/registry.tsx', 'utf8').matchAll(/name: '([^']+)'/g),
-].map((m) => m[1] ?? '')
+// Entry names straight from the catalog sources (registry.tsx and entries/*.tsx, Part B-M5
+// decision 3), so a new entry is checked without editing this file.
+const CATALOG_FILES = [
+  'app/dev/components/registry.tsx',
+  ...readdirSync('app/dev/components/entries')
+    .filter((name) => name.endsWith('.tsx'))
+    .map((name) => `app/dev/components/entries/${name}`),
+]
+const NAMES = CATALOG_FILES.flatMap((file) =>
+  [...readFileSync(file, 'utf8').matchAll(/name: '([^']+)'/g)].map((m) => m[1] ?? ''),
+)
 
 // M1 deferred #19: an open overlay hides the rest of the page with aria-hidden (focus trapped
 // inside, not `inert`), which axe reports as aria-hidden-focus — scanned as a full page with only

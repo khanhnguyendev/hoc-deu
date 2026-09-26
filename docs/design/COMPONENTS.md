@@ -1422,3 +1422,31 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **States:** status pill with `showStatus`; draft / retired badge
 - **Usage:** via `renderItemRow`
 - **Accessibility:** LinkRow
+
+### Today components (`features/today/components`)
+
+Task 5.1b (5.2b and 5.4 later) adds these entries below this line (Part B-M5 decision 3).
+
+### Check-in components (`features/checkin/components`)
+
+Task 5.2b adds these entries below this line (Part B-M5 decision 3).
+
+### Item outcome components (`features/items/components/outcome`)
+
+Task 5.2c adds these entries below this line (Part B-M5 decision 3).
+
+### Review components (`features/review/components`)
+
+Task 5.3 adds these entries below this line (Part B-M5 decision 3).
+
+### Progress components (`features/progress/components`)
+
+Task 5.5 adds these entries below this line (Part B-M5 decision 3).
+
+### Extra study components (`features/today`, `features/roadmap`)
+
+Task 5.4 adds these entries below this line (Part B-M5 decision 3).
+
+### Admin overview components (`features/admin/components`)
+
+Task 5.6 adds these entries below this line (Part B-M5 decision 3).

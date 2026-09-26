@@ -2,6 +2,14 @@
  * Vietnamese UI strings (DESIGN_SYSTEM §11). Technical terms stay English; learning content is
  * not here. Keep strings in NFC (tested) and sentence case.
  */
+import { adminOverview } from './strings/admin-overview'
+import { checkIn } from './strings/check-in'
+import { extra } from './strings/extra'
+import { outcomes } from './strings/outcomes'
+import { progress } from './strings/progress'
+import { review } from './strings/review'
+import { today } from './strings/today'
+
 export const vi = {
   common: {
     close: 'Đóng',
@@ -439,11 +447,8 @@ export const vi = {
       failed: 'Không thực hiện được thao tác. Bạn thử lại nhé.',
     },
   },
-  /** /today until the dashboard arrives (task 5.1). */
-  today: {
-    comingSoonTitle: 'Kế hoạch hôm nay sắp có',
-    comingSoonBody: 'Các khối học, check-in và thẻ cần ôn của bạn sẽ hiện ở đây.',
-  },
+  /** `/today` — its own file (Part B-M5 decision 3). */
+  today,
   /**
    * `describeWeeklyTemplate` / `describeThrottle` (`lib/content/weekly-template.ts`, platform
    * design §3.4). `{n}`, `{count}`, `{w}`, `{dueAbove}` are replaced with formatted numbers.
@@ -604,4 +609,11 @@ export const vi = {
     /** An exercise's or prompt's self-check criteria. */
     rubric: 'Tiêu chí',
   },
+  /** M5 areas, one file each (Part B-M5 decision 3): only the task that owns an area edits it. */
+  checkIn,
+  outcomes,
+  review,
+  progress,
+  extra,
+  adminOverview,
 } as const

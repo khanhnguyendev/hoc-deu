@@ -350,7 +350,8 @@ data-driven components render loading / empty / error through the `LoadingState`
   nhất một phần để tiếp tục."
 - Technical terms stay English ("pattern", "Two Pointers", "time complexity"); do not translate
   problem titles.
-- All strings live in `lib/i18n/vi.ts` (platform design §2.3).
+- All strings live in `lib/i18n/vi.ts` (platform design §2.3) and the area files it includes,
+  `lib/i18n/strings/*` (implementation plan Part B-M5 decision 3).
 
 ## 12. Do / Don't
 
