@@ -41,7 +41,12 @@ Options considered:
   decision 11, task 4.9a): for `authenticated` writes, `item_state` holds at most 5000 rows per
   user (`too_many_items`), a new `daily_activity` row must be within one day of the user's local
   day (`invalid_local_day`) and a `plan_block_state` row must name a block of the user's own plan
-  (`unknown_block`); `UPDATE` is granted per column, never on a key column.
+  (`unknown_block`); `UPDATE` is granted per column, never on a key column. Since task 5.0b
+  `plan_block_state.checked_in_on` is granted too, because the invoker `apply_event` moves it for
+  owner ruling M-6 (below); the `check_in_day` trigger lets an `authenticated` write change it only
+  from `skipped` to `done` / `partial`, only forward and only to the learner's local day now
+  (`invalid_event`), and lets an unchanged value pass (`apply_derived_changes` always names the
+  column).
 - **The domain is pure TypeScript** (`lib/domain`: no React, Next, Supabase, date library or
   clock reads). The server loads state, computes the new derived rows in TypeScript and sends
   them with the event.
@@ -110,7 +115,7 @@ builds `before` and the versions with `derivedStateFromRows`, and then calls `pr
 | --- | --- |
 | `item.result`, `lesson.completed`, `exercise.submitted`, `prompt.completed` | the item's `item_state` row; the `daily_activity` row of the event's local day |
 | `item.skipped`, `item.readded` | the item's `item_state` row |
-| `block.checked_in` (learner or auto) | the block's `plan_block_state` row; **every** `plan_block_state` row of the user whose `checked_in_on` is the day the block counts for (its existing `checked_in_on`, else the event's local day), of every plan; that day's `daily_activity` row |
+| `block.checked_in` (learner or auto) | the block's `plan_block_state` row; **every** `plan_block_state` row of the user whose `checked_in_on` is the day the block counts for (its existing `checked_in_on`, else the event's local day), of every plan; that day's `daily_activity` row — and when the edit moves the block to the event's local day (M-6, below), the same rows of **both** days |
 
 - A missing row that exists in the database fails loudly: it is sent as new (expected 0) and
   raises `version_conflict`.
@@ -121,5 +126,13 @@ builds `before` and the versions with `derivedStateFromRows`, and then calls `pr
   `lib/events/derived.test.ts` shows both paths.
 - An edited old check-in keeps counting for its first day (decision 6), so it loads and updates
   that older day's row. `plan_block_state_user_day_idx` serves the per-day query.
+- **One exception since `RULES_VERSION` 3** (owner ruling M-6 (a), task 5.0b): a block checked in
+  `skipped` and corrected to `done` / `partial` on a later local day counts for that later day.
+  `apply_derived_changes` moves its `checked_in_on` to the event's local day itself (the row's own
+  value is ignored, as before), and `project` does the same. So for such an edit the loader
+  (task 5.2a) reads both days — the old day's block states and `daily_activity` row, which is
+  recomputed without the block and stays incomplete, and the event's day's, which gains it — and
+  sends both day rows. Any other edit (another status change, new minutes, a skip kept) keeps the
+  first day.
 - M5 (task 5.2) owns one loader for this (for example `loadDerivedFor(event)` in `lib/events`),
   tested with two plans checked in on the same day.

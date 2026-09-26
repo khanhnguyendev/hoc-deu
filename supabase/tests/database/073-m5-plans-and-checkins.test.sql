@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(39);
+select plan(67);
 
 -- Task 5.0b: SQL for plans and check-ins (platform design §2.3, §4.3–§4.5, §5.5, §5.9;
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2,
@@ -568,6 +568,396 @@ select results_eq(
     where id = '73000000-0000-4000-8000-0000000000e1'$$,
   $$values (4, 4)$$,
   '... and neither changed the plan'
+);
+
+-- ---------------------------------------------------------------------------------------------
+-- 3. Owner ruling M-6 (a), RULES_VERSION 3: a block checked in skipped and later corrected to
+--    done / partial on a later local day counts for that later day. apply_derived_changes moves
+--    checked_in_on itself; every other edit keeps it (decision 6 of M4). The fixture table of task
+--    5.0a (lib/domain/projection), through apply_event as the learner. apply_event always uses
+--    the database's local day, so "a day passes" moves the stored rows one day back (as postgres,
+--    as 071 does): D1, D2, D3 are the days the events were recorded on.
+-- ---------------------------------------------------------------------------------------------
+-- A learner check-in as lib/events/apply.ts sends it (rules_version 1: the trigger stores the
+-- current one), and its derived changes: the block row (its checked_in_on, 2000-01-01, is
+-- ignored — SQL decides the day) and a daily_activity row.
+create function tests.check_in(
+  p_id text, p_plan text, p_block text, p_status text, p_minutes integer, p_local_day text
+) returns jsonb language sql immutable as $$
+  select jsonb_build_object(
+    'id', p_id, 'type', 'block.checked_in', 'track_id', 'dsa', 'plan_id', p_plan,
+    'block_id', p_block, 'local_day', p_local_day,
+    'payload', jsonb_build_object('status', p_status, 'minutes', p_minutes), 'rules_version', 1)
+$$;
+create function tests.block_change(p_plan text, p_block text, p_status text, p_minutes integer)
+returns jsonb language sql immutable as $$
+  select jsonb_build_object('table', 'plan_block_state', 'row', jsonb_build_object(
+    'plan_id', p_plan, 'block_id', p_block, 'track_id', 'dsa', 'status', p_status,
+    'minutes', p_minutes, 'note', null, 'auto', false, 'checked_in_on', '2000-01-01'))
+$$;
+create function tests.day_change(p_day text, p_minutes jsonb, p_completed boolean)
+returns jsonb language sql immutable as $$
+  select jsonb_build_object('table', 'daily_activity', 'row', jsonb_build_object(
+    'local_day', p_day, 'minutes_by_track', p_minutes, 'items_done', 0,
+    'completed', p_completed))
+$$;
+
+grant execute on function
+  tests.check_in(text, text, text, text, integer, text),
+  tests.block_change(text, text, text, integer),
+  tests.day_change(text, jsonb, boolean)
+to authenticated, service_role;
+
+select tests.create_user('m5-m6@hocdeu.test') as m6 \gset
+select tests.create_user('m5-m6-done-skip@hocdeu.test') as m6_done_skip \gset
+select tests.create_user('m5-m6-same-day@hocdeu.test') as m6_same_day \gset
+select tests.create_user('m5-m6-skip-skip@hocdeu.test') as m6_skip_skip \gset
+select tests.create_user('m5-m6-direct@hocdeu.test') as m6_direct \gset
+insert into public.day_plans (id, user_id, plan_date, blocks) values
+  ('73000000-0000-4000-8000-0000000000c1', :'m6', :'two_days_ago',
+   '[{"id": "b1", "trackId": "dsa", "kind": "review", "estMinutes": 20, "items": []}]'),
+  ('73000000-0000-4000-8000-0000000000c2', :'m6_done_skip', :'yesterday',
+   '[{"id": "b1", "trackId": "dsa", "kind": "review", "estMinutes": 20, "items": []}]'),
+  ('73000000-0000-4000-8000-0000000000c3', :'m6_same_day', :'today',
+   '[{"id": "b1", "trackId": "dsa", "kind": "review", "estMinutes": 20, "items": []}]'),
+  ('73000000-0000-4000-8000-0000000000c4', :'m6_skip_skip', :'yesterday',
+   '[{"id": "b1", "trackId": "dsa", "kind": "review", "estMinutes": 20, "items": []}]'),
+  ('73000000-0000-4000-8000-0000000000c5', :'m6_direct', :'two_days_ago',
+   '[{"id": "t1", "trackId": "dsa", "kind": "review", "estMinutes": 20, "items": []},
+     {"id": "t2", "trackId": "dsa", "kind": "new", "estMinutes": 20, "items": []},
+     {"id": "t3", "trackId": "dsa", "kind": "recap", "estMinutes": 20, "items": []},
+     {"id": "t4", "trackId": "dsa", "kind": "practice", "estMinutes": 20, "items": []}]');
+
+-- Step 1 (D1): b1 skipped, 0 minutes → skipped, 0, on D1; D1 {}, not completed.
+select tests.authenticate_as(:'m6');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000301',
+                   '73000000-0000-4000-8000-0000000000c1', 'b1', 'skipped', 0, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c1', 'b1', 'skipped', 0),
+      tests.day_change(:'today', '{}', false)),
+    jsonb_build_object(
+      'plan_block_state:73000000-0000-4000-8000-0000000000c1/b1', 0,
+      'daily_activity:' || :'today', 0)
+  ) ->> 'outcome',
+  'applied',
+  'M-6 step 1: b1 checked in skipped on D1'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select b.status, b.minutes, b.checked_in_on, b.version, b.rules_version,
+             a.local_day, a.minutes_by_track, a.completed
+      from public.plan_block_state b
+      join public.daily_activity a on a.user_id = b.user_id
+      where b.user_id = %L$$,
+    :'m6'
+  ),
+  format(
+    $$values ('skipped'::text, 0, %1$L::date, 1, 3, %1$L::date, '{}'::jsonb, false)$$, :'today'
+  ),
+  '... b1 is skipped, 0, on D1 (rules_version 3); D1 is {}, not completed'
+);
+-- A day passes: D1 is yesterday.
+update public.plan_block_state set checked_in_on = checked_in_on - 1 where user_id = :'m6';
+update public.daily_activity set local_day = local_day - 1 where user_id = :'m6';
+
+-- Step 2 (D2): b1 done, 20 minutes → done, 20, on D2; D1 {}, not completed; D2 {dsa: 20},
+-- completed.
+select tests.authenticate_as(:'m6');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000302',
+                   '73000000-0000-4000-8000-0000000000c1', 'b1', 'done', 20, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c1', 'b1', 'done', 20),
+      tests.day_change(:'yesterday', '{}', false),
+      tests.day_change(:'today', '{"dsa": 20}', true)),
+    jsonb_build_object(
+      'plan_block_state:73000000-0000-4000-8000-0000000000c1/b1', 1,
+      'daily_activity:' || :'yesterday', 1,
+      'daily_activity:' || :'today', 0)
+  ),
+  jsonb_build_object('outcome', 'applied', 'versions', jsonb_build_object(
+    'plan_block_state:73000000-0000-4000-8000-0000000000c1/b1', 2,
+    'daily_activity:' || :'yesterday', 2,
+    'daily_activity:' || :'today', 1)),
+  'M-6 step 2: b1 corrected to done on D2 (both days recomputed)'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select status, minutes, checked_in_on, version from public.plan_block_state
+      where user_id = %L$$,
+    :'m6'
+  ),
+  format($$values ('done'::text, 20, %L::date, 2)$$, :'today'),
+  '... b1 is done, 20, on D2 (checked_in_on moved forward)'
+);
+select results_eq(
+  format(
+    $$select local_day, minutes_by_track, completed from public.daily_activity
+      where user_id = %L order by local_day$$,
+    :'m6'
+  ),
+  format(
+    $$values (%L::date, '{}'::jsonb, false), (%L::date, '{"dsa": 20}'::jsonb, true)$$,
+    :'yesterday', :'today'
+  ),
+  '... D1 stays {}, not completed; D2 is {dsa: 20}, completed'
+);
+-- A day passes: D1 is two days ago, D2 yesterday.
+update public.plan_block_state set checked_in_on = checked_in_on - 1 where user_id = :'m6';
+update public.daily_activity set local_day = local_day - 1
+where user_id = :'m6' and local_day = :'yesterday';
+update public.daily_activity set local_day = local_day - 1
+where user_id = :'m6' and local_day = :'today';
+
+-- Step 3 (D3): b1 partial, 15 minutes → partial, 15, on D2 (not from skipped); D1 unchanged;
+-- D2 {dsa: 15}, completed. The update names checked_in_on (unchanged): the trigger lets it pass.
+select tests.authenticate_as(:'m6');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000303',
+                   '73000000-0000-4000-8000-0000000000c1', 'b1', 'partial', 15, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c1', 'b1', 'partial', 15),
+      tests.day_change(:'yesterday', '{"dsa": 15}', true)),
+    jsonb_build_object(
+      'plan_block_state:73000000-0000-4000-8000-0000000000c1/b1', 2,
+      'daily_activity:' || :'yesterday', 1)
+  ) ->> 'outcome',
+  'applied',
+  'M-6 step 3: a done block edited to partial on D3 passes the check-in-day trigger'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select status, minutes, checked_in_on, version from public.plan_block_state
+      where user_id = %L$$,
+    :'m6'
+  ),
+  format($$values ('partial'::text, 15, %L::date, 3)$$, :'yesterday'),
+  '... b1 is partial, 15, still on D2'
+);
+select results_eq(
+  format(
+    $$select local_day, minutes_by_track, completed, version from public.daily_activity
+      where user_id = %L order by local_day$$,
+    :'m6'
+  ),
+  format(
+    $$values (%L::date, '{}'::jsonb, false, 2), (%L::date, '{"dsa": 15}'::jsonb, true, 2)$$,
+    :'two_days_ago', :'yesterday'
+  ),
+  '... D1 unchanged; D2 is {dsa: 15}, completed'
+);
+
+-- done on D1, then skipped on D2 → stays on D1 (D1 recomputed: not completed).
+select tests.authenticate_as(:'m6_done_skip');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000311',
+                   '73000000-0000-4000-8000-0000000000c2', 'b1', 'done', 20, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c2', 'b1', 'done', 20),
+      tests.day_change(:'today', '{"dsa": 20}', true)),
+    jsonb_build_object(
+      'plan_block_state:73000000-0000-4000-8000-0000000000c2/b1', 0,
+      'daily_activity:' || :'today', 0)
+  ) ->> 'outcome',
+  'applied',
+  'done on D1 ...'
+);
+select tests.clear_authentication();
+update public.plan_block_state set checked_in_on = checked_in_on - 1
+where user_id = :'m6_done_skip';
+update public.daily_activity set local_day = local_day - 1 where user_id = :'m6_done_skip';
+select tests.authenticate_as(:'m6_done_skip');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000312',
+                   '73000000-0000-4000-8000-0000000000c2', 'b1', 'skipped', 0, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c2', 'b1', 'skipped', 0),
+      tests.day_change(:'yesterday', '{}', false)),
+    jsonb_build_object(
+      'plan_block_state:73000000-0000-4000-8000-0000000000c2/b1', 1,
+      'daily_activity:' || :'yesterday', 1)
+  ) ->> 'outcome',
+  'applied',
+  '... then skipped on D2'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select b.status, b.checked_in_on, a.local_day, a.completed
+      from public.plan_block_state b join public.daily_activity a on a.user_id = b.user_id
+      where b.user_id = %L$$,
+    :'m6_done_skip'
+  ),
+  format($$values ('skipped'::text, %1$L::date, %1$L::date, false)$$, :'yesterday'),
+  '... stays on D1, and D1 is recomputed: not completed'
+);
+
+-- skipped on D1, then done on D1 → stays on D1.
+select tests.authenticate_as(:'m6_same_day');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000321',
+                   '73000000-0000-4000-8000-0000000000c3', 'b1', 'skipped', 0, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c3', 'b1', 'skipped', 0)),
+    jsonb_build_object('plan_block_state:73000000-0000-4000-8000-0000000000c3/b1', 0)
+  ) ->> 'outcome',
+  'applied',
+  'skipped on D1 ...'
+);
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000322',
+                   '73000000-0000-4000-8000-0000000000c3', 'b1', 'done', 20, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c3', 'b1', 'done', 20)),
+    jsonb_build_object('plan_block_state:73000000-0000-4000-8000-0000000000c3/b1', 1)
+  ) ->> 'outcome',
+  'applied',
+  '... then done on D1'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select status, checked_in_on from public.plan_block_state where user_id = %L$$,
+    :'m6_same_day'
+  ),
+  format($$values ('done'::text, %L::date)$$, :'today'),
+  '... stays on D1'
+);
+
+-- skipped on D1, then skipped with new minutes on D2 → stays on D1.
+select tests.authenticate_as(:'m6_skip_skip');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000331',
+                   '73000000-0000-4000-8000-0000000000c4', 'b1', 'skipped', 0, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c4', 'b1', 'skipped', 0)),
+    jsonb_build_object('plan_block_state:73000000-0000-4000-8000-0000000000c4/b1', 0)
+  ) ->> 'outcome',
+  'applied',
+  'skipped on D1 ...'
+);
+select tests.clear_authentication();
+update public.plan_block_state set checked_in_on = checked_in_on - 1
+where user_id = :'m6_skip_skip';
+select tests.authenticate_as(:'m6_skip_skip');
+select is(
+  public.apply_event(
+    tests.check_in('73000000-0000-4000-8000-000000000332',
+                   '73000000-0000-4000-8000-0000000000c4', 'b1', 'skipped', 5, :'today'),
+    jsonb_build_array(
+      tests.block_change('73000000-0000-4000-8000-0000000000c4', 'b1', 'skipped', 5)),
+    jsonb_build_object('plan_block_state:73000000-0000-4000-8000-0000000000c4/b1', 1)
+  ) ->> 'outcome',
+  'applied',
+  '... then skipped with new minutes on D2'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select status, minutes, checked_in_on from public.plan_block_state where user_id = %L$$,
+    :'m6_skip_skip'
+  ),
+  format($$values ('skipped'::text, 5, %L::date)$$, :'yesterday'),
+  '... stays on D1'
+);
+
+-- The learner may write checked_in_on directly (the column grant the invoker apply_event
+-- needs); the check_in_day trigger bounds it to the M-6 rule: from skipped to done / partial,
+-- forward, and only to the learner's local day now.
+insert into public.plan_block_state
+  (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on) values
+  ('73000000-0000-4000-8000-0000000000c5', 't1', :'m6_direct', 'dsa', 'skipped', 0,
+   :'two_days_ago'),
+  ('73000000-0000-4000-8000-0000000000c5', 't2', :'m6_direct', 'dsa', 'done', 20, :'yesterday'),
+  ('73000000-0000-4000-8000-0000000000c5', 't3', :'m6_direct', 'dsa', 'skipped', 0, :'today'),
+  ('73000000-0000-4000-8000-0000000000c5', 't4', :'m6_direct', 'dsa', 'skipped', 0, :'yesterday');
+select tests.authenticate_as(:'m6_direct');
+select throws_ok(
+  format(
+    $$update public.plan_block_state set status = 'done', checked_in_on = %L
+      where block_id = 't1'$$,
+    :'yesterday'
+  ),
+  'P0001', 'invalid_event',
+  'a learner moving a skipped block forward to a day that is not today raises invalid_event'
+);
+select throws_ok(
+  format($$update public.plan_block_state set checked_in_on = %L where block_id = 't2'$$, :'today'),
+  'P0001', 'invalid_event', '... and so does moving a block that is not skipped'
+);
+select throws_ok(
+  format(
+    $$update public.plan_block_state set status = 'done', checked_in_on = %L
+      where block_id = 't3'$$,
+    :'yesterday'
+  ),
+  'P0001', 'invalid_event', '... or moving a skipped block backwards'
+);
+select throws_ok(
+  format($$update public.plan_block_state set checked_in_on = %L where block_id = 't4'$$, :'today'),
+  'P0001', 'invalid_event', '... or moving a block that stays skipped'
+);
+select lives_ok(
+  format(
+    $$update public.plan_block_state set status = 'partial', checked_in_on = %L
+      where block_id = 't1'$$,
+    :'today'
+  ),
+  'a learner may move a skipped block corrected to partial forward to today'
+);
+select lives_ok(
+  $$update public.plan_block_state set note = 'x', checked_in_on = checked_in_on
+    where block_id = 't2'$$,
+  '... and may name checked_in_on with its value unchanged'
+);
+select tests.clear_authentication();
+select lives_ok(
+  $$update public.plan_block_state set checked_in_on = checked_in_on - 1 where block_id = 't2'$$,
+  'the same backwards update as the owner (as 071''s fixture) is not blocked'
+);
+select tests.authenticate_as_service_role();
+select lives_ok(
+  $$update public.plan_block_state set checked_in_on = checked_in_on - 1 where block_id = 't3'$$,
+  '... nor as the secret-key role'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select block_id, status, checked_in_on from public.plan_block_state
+      where user_id = %L order by block_id$$,
+    :'m6_direct'
+  ),
+  format(
+    $$values ('t1'::text, 'partial'::text, %1$L::date), ('t2', 'done', %3$L::date - 1),
+             ('t3', 'skipped', %1$L::date - 1), ('t4', 'skipped', %2$L::date)$$,
+    :'today', :'yesterday', :'yesterday'
+  ),
+  '... and the rejected updates changed nothing'
+);
+select trigger_is(
+  'public', 'plan_block_state', 'check_in_day', 'public', 'plan_block_state_check_in_day',
+  'plan_block_state has the check_in_day trigger (plan_block_state_check_in_day)'
+);
+select results_eq(
+  $$select tgtype::int & 1 = 1, tgtype::int & 2 = 2, tgtype::int & 16 = 16,
+           (select array_agg(a.attname::text collate "default") from pg_attribute a
+             where a.attrelid = t.tgrelid and a.attnum = any (t.tgattr::int2[]))
+    from pg_trigger t
+    where t.tgrelid = 'public.plan_block_state'::regclass and t.tgname = 'check_in_day'$$,
+  $$values (true, true, true, array['checked_in_on'])$$,
+  '... which fires before update of checked_in_on, for each row'
 );
 
 select * from finish();

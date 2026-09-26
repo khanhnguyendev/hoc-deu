@@ -10,7 +10,7 @@ select plan(91);
 -- of 040 with its four updated expectations — is 040 itself, run in the same suite.
 
 -- A learner event as lib/events/apply.ts sends it: snake_case keys and rules_version 1 — an older
--- client's. The events trigger stores rules_version() (2), and the derived rows take the stored one.
+-- client's. The events trigger stores rules_version() (3), and the derived rows take the stored one.
 create function tests.event(
   p_id text, p_type text, p_track text default null, p_payload jsonb default '{}'::jsonb,
   p_item text default null, p_plan text default null, p_block text default null,
@@ -180,8 +180,8 @@ select tests.clear_authentication();
 select results_eq(
   $$select user_id, version, rules_version, level, due_on, status, reps
     from public.item_state where item_id = 'dsa:lc-0001'$$,
-  format($$values (%L::uuid, 1, 2, 1, '2026-10-03'::date, 'ok'::text, 1)$$, :'learner'),
-  '... the item_state row is the caller''s (not the row''s user_id), version 1, rules_version 2'
+  format($$values (%L::uuid, 1, 3, 1, '2026-10-03'::date, 'ok'::text, 1)$$, :'learner'),
+  '... the item_state row is the caller''s (not the row''s user_id), version 1, rules_version 3'
 );
 select results_eq(
   format(
@@ -189,7 +189,7 @@ select results_eq(
       from public.daily_activity where user_id in (%L, %L)$$,
     :'learner', :'other'
   ),
-  format($$values (%L::uuid, %L::date, 1, false, 1, 2)$$, :'learner', :'today'),
+  format($$values (%L::uuid, %L::date, 1, false, 1, 3)$$, :'learner', :'today'),
   '... and so is the daily_activity row'
 );
 select is(
@@ -278,7 +278,7 @@ select results_eq(
     $$select user_id, level, due_on, version, rules_version
       from public.item_state where item_id = 'dsa:lc-0001'$$
   ),
-  format($$values (%L::uuid, 2, '2026-10-17'::date, 2, 2)$$, :'learner'),
+  format($$values (%L::uuid, 2, '2026-10-17'::date, 2, 3)$$, :'learner'),
   '... with the row''s new values'
 );
 select is(
@@ -511,7 +511,7 @@ select results_eq(
     from public.plan_block_state
     where plan_id = '71000000-0000-4000-8000-0000000000a1' and block_id = 'b-review'$$,
   format(
-    $$values (%L::uuid, 'done'::text, 20, %L::date, now(), 1, 2)$$, :'learner', :'today'
+    $$values (%L::uuid, 'done'::text, 20, %L::date, now(), 1, 3)$$, :'learner', :'today'
   ),
   '... stored for the caller, checked_in_on the event''s local day (not the row''s), checked_in_at now()'
 );

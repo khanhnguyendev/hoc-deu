@@ -2,6 +2,9 @@
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2).
 -- 1. apply_system_event: plan.generated raises day_changed before it can return plan_exists
 --    (M4-R21), and plan.extra_added ("Học thêm", off-plan study — §5.9, decision 22) is applied.
+-- 2. Owner ruling M-6 (a), RULES_VERSION 3: a block checked in skipped and corrected to done /
+--    partial on a later local day counts for that later day (apply_derived_changes, a column
+--    grant and the check_in_day trigger that bounds it).
 -- Merged migrations are never edited: the functions are replaced here (`create or replace` keeps
 -- their owner, privileges and triggers; the grants are restated below). Every function revokes
 -- EXECUTE from PUBLIC explicitly and grants exactly its callers (see 20260925000100);
@@ -433,3 +436,275 @@ end $$;
 revoke execute on function public.apply_system_event(uuid, jsonb, jsonb, jsonb)
 from public, anon, authenticated, service_role;
 grant execute on function public.apply_system_event(uuid, jsonb, jsonb, jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- 2. Owner ruling M-6 (a) (§4.1, §5.5): a block checked in skipped and later corrected to done /
+--    partial on a later local day counts for that later day — its checked_in_on moves forward to
+--    the event's local day, and the earlier day is recomputed without it (the caller sends both
+--    days' daily_activity rows, ADR-0007 "Loading derived state"). Every other edit keeps
+--    checked_in_on (decision 6 of M4). The engine (lib/domain/projection) applies the same rule:
+--    RULES_VERSION 3 (lib/domain/rules.ts, ruling M4-R11), which tools/db/sql-sync.test.ts and
+--    pgTAP 070 compare with the function below.
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function public.rules_version() returns integer
+language sql immutable set search_path = '' as $$
+  select 3
+$$;
+
+-- apply_derived_changes (§4.3, §4.4, decision 10 of M4): unchanged from 20260926000200 except that
+-- the plan_block_state update applies the M-6 rule to checked_in_on — the row's own
+-- checked_in_on is still ignored: SQL decides the day. The invoker apply_event runs it as the
+-- learner, so the column is granted to authenticated below and bounded by check_in_day.
+create or replace function public.apply_derived_changes(
+  p_user_id uuid, p_event jsonb, p_local_day date, p_changes jsonb, p_expected jsonb
+) returns jsonb
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_type constant text := p_event ->> 'type';
+  v_changes constant jsonb := coalesce(p_changes, '[]'::jsonb);
+  v_expected_map constant jsonb := coalesce(p_expected, '{}'::jsonb);
+  v_allowed text[];
+  v_rules integer;
+  v_change jsonb;
+  v_table text;
+  v_row jsonb;
+  v_key text;
+  v_tables text[] := '{}';
+  v_rows jsonb[] := '{}';
+  v_keys text[] := '{}';
+  v_expected integer[] := '{}';
+  v_version integer;
+  v_versions jsonb := '{}'::jsonb;
+begin
+  if current_user = 'authenticated' and p_user_id is distinct from auth.uid() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if p_user_id is null or p_local_day is null
+    or jsonb_typeof(p_event) is distinct from 'object'
+    or not coalesce(pg_catalog.pg_input_is_valid(p_event ->> 'rules_version', 'integer'), true)
+    or jsonb_typeof(v_changes) <> 'array'
+    or jsonb_typeof(v_expected_map) <> 'object'
+  then
+    raise exception 'invalid_event';
+  end if;
+  if jsonb_array_length(v_changes) > 16 then
+    raise exception 'invalid_event';
+  end if;
+  v_rules := coalesce((p_event ->> 'rules_version')::integer, public.rules_version());
+
+  -- The tables each event type may change (anything else: none).
+  v_allowed := case
+    when v_type in ('item.result', 'lesson.completed', 'exercise.submitted', 'prompt.completed')
+      then array['item_state', 'daily_activity']
+    when v_type in ('item.skipped', 'item.readded', 'item.snapshot') then array['item_state']
+    when v_type = 'block.checked_in' then array['plan_block_state', 'daily_activity']
+    else array[]::text[]
+  end;
+
+  -- 1. Check every change and compute its key; nothing is written yet.
+  for v_change in select c.value from jsonb_array_elements(v_changes) as c loop
+    v_table := case when jsonb_typeof(v_change) = 'object' then v_change ->> 'table' end;
+    v_row := case when jsonb_typeof(v_change) = 'object' then v_change -> 'row' end;
+    if v_table is null or not v_table = any (v_allowed)
+      or jsonb_typeof(v_row) is distinct from 'object'
+    then
+      raise exception 'invalid_event';
+    end if;
+
+    case v_table
+      when 'item_state' then
+        -- Only the event's own item.
+        if v_row ->> 'item_id' is null or v_row ->> 'item_id' is distinct from p_event ->> 'item_id'
+        then
+          raise exception 'invalid_event';
+        end if;
+        v_key := 'item_state:' || (v_row ->> 'item_id');
+      when 'plan_block_state' then
+        -- Only the event's own plan and block.
+        if not coalesce(pg_catalog.pg_input_is_valid(v_row ->> 'plan_id', 'uuid'), false)
+          or not coalesce(pg_catalog.pg_input_is_valid(p_event ->> 'plan_id', 'uuid'), false)
+          or v_row ->> 'block_id' is null
+          or v_row ->> 'block_id' is distinct from p_event ->> 'block_id'
+        then
+          raise exception 'invalid_event';
+        end if;
+        if (v_row ->> 'plan_id')::uuid <> (p_event ->> 'plan_id')::uuid then
+          raise exception 'invalid_event';
+        end if;
+        v_key := 'plan_block_state:' || (v_row ->> 'plan_id')::uuid::text || '/'
+          || (v_row ->> 'block_id');
+      else
+        -- daily_activity: any day (an edited check-in recomputes the day it counts for,
+        -- decision 8; an M-6 move recomputes both days); a new row only near today (the
+        -- daily_activity_window trigger). The key keeps the row's own YYYY-MM-DD text, which no
+        -- DateStyle changes.
+        if not (case when jsonb_typeof(v_row -> 'local_day') = 'string'
+          then (v_row ->> 'local_day') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            and coalesce(pg_catalog.pg_input_is_valid(v_row ->> 'local_day', 'date'), false)
+          else false end)
+        then
+          raise exception 'invalid_event';
+        end if;
+        v_key := 'daily_activity:' || (v_row ->> 'local_day');
+    end case;
+
+    -- One change per row, and its expected version: a non-negative JSON integer.
+    if v_key = any (v_keys)
+      or not (case when jsonb_typeof(v_expected_map -> v_key) = 'number'
+        then coalesce(pg_catalog.pg_input_is_valid(v_expected_map ->> v_key, 'integer'), false)
+        else false end)
+    then
+      raise exception 'invalid_event';
+    end if;
+    if (v_expected_map ->> v_key)::integer < 0 then
+      raise exception 'invalid_event';
+    end if;
+
+    v_tables := array_append(v_tables, v_table);
+    v_rows := array_append(v_rows, v_row);
+    v_keys := array_append(v_keys, v_key);
+    v_expected := array_append(v_expected, (v_expected_map ->> v_key)::integer);
+  end loop;
+
+  -- Every expected version belongs to a change.
+  if exists (
+    select 1 from jsonb_object_keys(v_expected_map) as k (key) where not k.key = any (v_keys)
+  ) then
+    raise exception 'invalid_event';
+  end if;
+
+  -- 2. Write, in the order given. user_id, version and rules_version never come from the row.
+  for i in 1 .. coalesce(array_length(v_keys, 1), 0) loop
+    v_row := v_rows[i];
+    v_version := null;
+    case v_tables[i]
+      when 'item_state' then
+        if v_expected[i] = 0 then
+          insert into public.item_state (
+            user_id, item_id, track_id, topic_id, item_type, level, weak, top_successes, status,
+            due_on, last_result, last_result_on, introduced_on, lapses, reps, version,
+            rules_version
+          )
+          select
+            p_user_id, v_row ->> 'item_id', r.track_id, r.topic_id, r.item_type, r.level, r.weak,
+            r.top_successes, r.status, r.due_on, r.last_result, r.last_result_on, r.introduced_on,
+            r.lapses, r.reps, 1, v_rules
+          from jsonb_populate_record(null::public.item_state, v_row) as r
+          on conflict (user_id, item_id) do nothing
+          returning version into v_version;
+        else
+          update public.item_state s set
+            track_id = r.track_id, topic_id = r.topic_id, item_type = r.item_type,
+            level = r.level, weak = r.weak, top_successes = r.top_successes, status = r.status,
+            due_on = r.due_on, last_result = r.last_result, last_result_on = r.last_result_on,
+            introduced_on = r.introduced_on, lapses = r.lapses, reps = r.reps,
+            version = s.version + 1, rules_version = v_rules
+          from jsonb_populate_record(null::public.item_state, v_row) as r
+          where s.user_id = p_user_id and s.item_id = v_row ->> 'item_id'
+            and s.version = v_expected[i]
+          returning s.version into v_version;
+        end if;
+
+      when 'plan_block_state' then
+        if v_expected[i] = 0 then
+          insert into public.plan_block_state (
+            plan_id, block_id, user_id, track_id, status, minutes, note, auto, checked_in_on,
+            checked_in_at, version, rules_version
+          )
+          select
+            (v_row ->> 'plan_id')::uuid, v_row ->> 'block_id', p_user_id, r.track_id, r.status,
+            r.minutes, r.note, r.auto, p_local_day, now(), 1, v_rules
+          from jsonb_populate_record(null::public.plan_block_state, v_row) as r
+          on conflict (plan_id, block_id) do nothing
+          returning version into v_version;
+        else
+          -- track_id never changes (and has no UPDATE grant). checked_in_on moves only by the
+          -- M-6 rule: a skipped block corrected to done / partial on a later day counts for that
+          -- day (b.status and b.checked_in_on are the stored, old values).
+          update public.plan_block_state b set
+            status = r.status, minutes = r.minutes, note = r.note, auto = r.auto,
+            checked_in_on = case
+              when b.status = 'skipped' and r.status in ('done', 'partial')
+                and p_local_day > b.checked_in_on
+              then p_local_day else b.checked_in_on end,
+            checked_in_at = now(), version = b.version + 1, rules_version = v_rules
+          from jsonb_populate_record(null::public.plan_block_state, v_row) as r
+          where b.plan_id = (v_row ->> 'plan_id')::uuid and b.block_id = v_row ->> 'block_id'
+            and b.user_id = p_user_id and b.version = v_expected[i]
+          returning b.version into v_version;
+        end if;
+
+      else
+        if v_expected[i] = 0 then
+          insert into public.daily_activity (
+            user_id, local_day, minutes_by_track, items_done, completed, version, rules_version
+          )
+          select
+            p_user_id, (v_row ->> 'local_day')::date, r.minutes_by_track, r.items_done,
+            r.completed, 1, v_rules
+          from jsonb_populate_record(null::public.daily_activity, v_row) as r
+          on conflict (user_id, local_day) do nothing
+          returning version into v_version;
+        else
+          update public.daily_activity a set
+            minutes_by_track = r.minutes_by_track, items_done = r.items_done,
+            completed = r.completed, version = a.version + 1, rules_version = v_rules
+          from jsonb_populate_record(null::public.daily_activity, v_row) as r
+          where a.user_id = p_user_id and a.local_day = (v_row ->> 'local_day')::date
+            and a.version = v_expected[i]
+          returning a.version into v_version;
+        end if;
+    end case;
+
+    -- No row inserted (it exists) or updated (another version, or no row): a concurrent writer
+    -- won; the raise rolls the whole call back.
+    if v_version is null then
+      raise exception 'version_conflict';
+    end if;
+    v_versions := v_versions || jsonb_build_object(v_keys[i], v_version);
+  end loop;
+
+  return v_versions;
+end $$;
+
+-- The learner's bound on checked_in_on (the ruling R14 pattern of M2): apply_event runs as the
+-- learner, so authenticated needs the column, and could then write it directly. For
+-- `authenticated` only — owner and secret-key writes are trusted — and only when the value
+-- changes: apply_derived_changes always names the column, so an unchanged value must pass. Such a
+-- change is allowed only from skipped to done / partial, only forward, and only to the learner's
+-- local day now — exactly the M-6 move. RLS's using clause lets a learner's update reach this
+-- trigger only for their own rows.
+create function public.plan_block_state_check_in_day() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if current_user <> 'authenticated'
+    or new.checked_in_on is not distinct from old.checked_in_on
+  then
+    return new;
+  end if;
+  if old.status = 'skipped' and new.status in ('done', 'partial')
+    and new.checked_in_on > old.checked_in_on
+    and new.checked_in_on = public.user_local_day(new.user_id, now())
+  then
+    return new;
+  end if;
+  raise exception 'invalid_event';
+end $$;
+
+create trigger check_in_day before update of checked_in_on on public.plan_block_state
+  for each row execute function public.plan_block_state_check_in_day();
+
+revoke execute on function
+  public.rules_version(),
+  public.apply_derived_changes(uuid, jsonb, date, jsonb, jsonb),
+  public.plan_block_state_check_in_day()
+from public, anon, authenticated, service_role;
+-- The events trigger and the rules_version column defaults run as the inserting user (as
+-- 20260925000200); the invoker apply_event calls apply_derived_changes as the learner, and the
+-- server may call it too (as 20260926000200). Trigger functions get no grants.
+grant execute on function public.rules_version() to authenticated, service_role;
+grant execute on function public.apply_derived_changes(uuid, jsonb, date, jsonb, jsonb)
+to authenticated, service_role;
+
+grant update (checked_in_on) on public.plan_block_state to authenticated;

@@ -77,7 +77,8 @@ select triggers_are(
   'day_plans has the permanence and updated_at triggers'
 );
 select triggers_are(
-  'public', 'plan_block_state', array['known_block'], 'plan_block_state has the known-block trigger'
+  'public', 'plan_block_state', array['check_in_day', 'known_block'],
+  'plan_block_state has the check-in-day (task 5.0b) and known-block triggers'
 );
 select triggers_are('public', 'item_state', array['limit_rows'], 'item_state has the row-cap trigger');
 select triggers_are(
@@ -119,30 +120,32 @@ select results_eq(
     ('item_state', 'status'), ('item_state', 'top_successes'), ('item_state', 'topic_id'),
     ('item_state', 'track_id'), ('item_state', 'version'), ('item_state', 'weak'),
     ('plan_block_state', 'auto'), ('plan_block_state', 'checked_in_at'),
-    ('plan_block_state', 'minutes'), ('plan_block_state', 'note'),
+    ('plan_block_state', 'checked_in_on'), ('plan_block_state', 'minutes'),
+    ('plan_block_state', 'note'),
     ('plan_block_state', 'rules_version'), ('plan_block_state', 'status'),
     ('plan_block_state', 'version')$$,
   'authenticated may UPDATE exactly the non-key columns of the derived tables, and nothing of '
-  'day_plans (decision 11)'
+  'day_plans (decision 11; plan_block_state.checked_in_on since task 5.0b, bounded by its '
+  'check_in_day trigger)'
 );
 
 -- ---------------------------------------------------------------------------------------------
 -- 2. Decision 18: the running database's rules version equals RULES_VERSION (tools/db/sql-sync
 --    reads the literal below and compares it with lib/domain/rules.ts). Learner rows carry it.
 -- ---------------------------------------------------------------------------------------------
-select is(public.rules_version(), 2, 'the running rules_version() equals lib/domain/rules.ts RULES_VERSION');
+select is(public.rules_version(), 3, 'the running rules_version() equals lib/domain/rules.ts RULES_VERSION');
 select is(
   (select rules_version from public.day_plans where id = '70000000-0000-4000-8000-000000000001'),
-  2,
-  'a plan inserted without rules_version gets 2'
+  3,
+  'a plan inserted without rules_version gets 3'
 );
 select tests.authenticate_as(:'learner');
 insert into public.events (id, user_id, type, rules_version)
 values ('70000000-0000-4000-8000-000000000101', auth.uid(), 'item.skipped', 1);
 select is(
   (select rules_version from public.events where id = '70000000-0000-4000-8000-000000000101'),
-  2,
-  'a learner event is stored with rules_version 2 (it sent 1; the events trigger forces it)'
+  3,
+  'a learner event is stored with rules_version 3 (it sent 1; the events trigger forces it)'
 );
 select tests.clear_authentication();
 
@@ -476,8 +479,8 @@ select lives_ok(
 select results_eq(
   $$select version, rules_version, auto from public.plan_block_state
     where block_id = '2026-09-25:dsa:new:1'$$,
-  $$values (1, 2, false)$$,
-  '... with version 1, rules_version 2 and auto false by default'
+  $$values (1, 3, false)$$,
+  '... with version 1, rules_version 3 and auto false by default'
 );
 select throws_ok(
   format(
