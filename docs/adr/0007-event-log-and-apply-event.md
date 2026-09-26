@@ -134,5 +134,12 @@ builds `before` and the versions with `derivedStateFromRows`, and then calls `pr
   recomputed without the block and stays incomplete, and the event's day's, which gains it — and
   sends both day rows. Any other edit (another status change, new minutes, a skip kept) keeps the
   first day.
-- M5 (task 5.2) owns one loader for this (for example `loadDerivedFor(event)` in `lib/events`),
-  tested with two plans checked in on the same day.
+- **The loader is `loadDerivedFor` in `lib/events/load-derived.ts`** (task 5.2a). Every derived
+  write loads its `before` state through it, inside each `withRetry` attempt: the learner's
+  check-in, item results and the server's auto check-in (`features/checkin/actions.ts`). For a
+  check-in it reads the block's row first — its `checked_in_on` decides the day — then that day's
+  check-ins of every plan (in pages of PostgREST's `max_rows`) and the day's `daily_activity`
+  row, for both days when the M-6 rule moves the block. `load-derived.test.ts` pins the exact
+  queries per event type, with two plans checked in on the same day (yesterday's paused plan
+  resumed today beside today's "Học tiếp" plan: `completed` stays true, and a loader that dropped
+  the other plan's block shows `false`), an edited old check-in and the M-6 two-day read.
