@@ -333,7 +333,7 @@ describe('TrackSettings — pause, resume, remove', () => {
     expect(screen.getByText(message)).toBeTruthy()
   })
 
-  it('the orphaned failure is dismissible', async () => {
+  it('the orphaned failure is dismissible, with a distinct accessible name per track, and returns focus to the list', async () => {
     const message = 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.'
     const { view, updateTrack, setTrackStatus, user } = setup(
       {},
@@ -355,8 +355,10 @@ describe('TrackSettings — pause, resume, remove', () => {
       </>,
     )
     await screen.findByText(message)
-    await user.click(screen.getByRole('button', { name: 'Đóng' }))
+    const closeButton = screen.getByRole('button', { name: `Đóng thông báo về ${DSA_TITLE}` })
+    await user.click(closeButton)
     expect(screen.queryByText(message)).toBeNull()
     expect(screen.queryByText(DSA_TITLE)).toBeNull()
+    expect(document.activeElement).toBe(document.querySelector('[data-slot="track-settings"]'))
   })
 })

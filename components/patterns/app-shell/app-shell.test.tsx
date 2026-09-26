@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from '@/components/ui/toaster'
 import { ThemeToggle } from '../theme-toggle'
 import { AppShell } from '.'
 
@@ -14,6 +15,10 @@ vi.mock('next-themes', () => ({
 beforeEach(() => {
   state.pathname = '/today'
   state.setTheme.mockReset()
+  // sonner's toast queue is a module-level singleton, not tied to one Toaster instance: without
+  // this, a toast a test triggers can still read as present in a later test that renders a fresh
+  // Toaster, regardless of the two tests' order.
+  toast.dismiss()
 })
 
 function renderShell(isAdmin = false) {

@@ -427,9 +427,10 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
   forms, e.g. onboarding) — `submitCount` (incremented once per submission, not per render) makes a
   repeated identical server error re-focus and re-announce the summary (M2 minor); `onNavigate` lets
-  a multi-step form switch to a field's step before focusing it (the onboarding wizard's catalog
-  demo also shows it, with `submitCount`); without it, a link focuses its field directly instead of
-  a native anchor jump, which some browsers (and jsdom) do not reliably focus
+  a multi-step form switch to a field's step before focusing it (the onboarding wizard uses this);
+  without it, a link focuses its field directly instead of a native anchor jump, which some
+  browsers (and jsdom) do not reliably focus — its own catalog demo exercises both, with a "Gửi
+  lại" button that bumps `submitCount`
 - **Accessibility:** `role="alert"`, focused when the error set or `submitCount` changes; each
   message links to `#fieldId` and moves focus there itself (`onNavigate`, or the field directly)
   rather than a bare native anchor jump — but never a dead link either (M2 minor): the native jump
@@ -797,7 +798,8 @@ from `lib/i18n/vi.ts`.
   are toasts, failures also stay in the track. A status-change failure is kept by the list itself,
   keyed by track id — not by the row (M2 minor): a stale re-render can drop the track from the
   list before the learner has read why, so the failure (with the track's last known title) still
-  shows as its own line even once the row is gone
+  shows as its own line — a dismissible danger Banner (an icon-only close button, its own
+  accessible name per track) — even once the row is gone
 
 ### TrackBudgetFields
 
@@ -834,11 +836,13 @@ from `lib/i18n/vi.ts`.
   requestId={data.requestId} enrollTrack={enrollTrack} />`
 - **Accessibility:** a `form` named "Thêm lộ trình"; the tracks are ChoiceCard radios in a group
   "Lộ trình"; the start date is a labelled date field (today to 60 days ahead, decision 22); when
-  the last candidate is added and the form goes away, its container takes focus. Its server errors
-  and pending state are shown only while they belong to the currently picked candidate (M2 minor):
-  switching the radio to a different track before the result arrives (or after a failure) hides
-  them at once, so a previous candidate's failure never shows against the next one's fields — the
-  typed minutes and picked variant stay, kept per track id
+  the last candidate is added and the form goes away, its container takes focus. Its server field
+  errors show only while they belong to the currently picked candidate (M2 minor): switching the
+  radio before the result arrives (or after a failure) hides a previous candidate's errors at once,
+  so they never show against the next one's fields — the typed minutes and picked variant stay,
+  kept per track id. The submit button itself stays busy for *any* running submission, not only the
+  current candidate's own (a second race M2 minor): switching candidates mid-submit must not free
+  up a second, real submit for the newly picked one
 
 ### CodeLanguageForm
 

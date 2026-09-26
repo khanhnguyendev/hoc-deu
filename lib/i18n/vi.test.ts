@@ -199,6 +199,7 @@ const USED = [
   'settings.tracks.templateTitle',
   'settings.tracks.save',
   'settings.tracks.actionsFor',
+  'settings.tracks.dismissFailure',
   'settings.tracks.pause',
   'settings.tracks.resume',
   'settings.tracks.remove',

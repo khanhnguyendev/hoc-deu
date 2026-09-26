@@ -67,6 +67,12 @@ function TrackSettings({ tracks, requestId, updateTrack, setTrackStatus }: Track
     if (result.ok) clearFailure(trackId)
     else setFailures((current) => ({ ...current, [trackId]: { title, message: result.message } }))
   }
+  /** Dismissing a failure has no row to return focus to (it may already be gone) — the list
+   *  itself takes it instead, never dropping it to `<body>` (WCAG 2.4.3). */
+  const dismissFailure = (trackId: string) => {
+    clearFailure(trackId)
+    listRef.current?.focus()
+  }
   const orphaned = Object.entries(failures).filter(([trackId]) => !shownIds.has(trackId))
 
   useEffect(() => {
@@ -116,8 +122,8 @@ function TrackSettings({ tracks, requestId, updateTrack, setTrackStatus }: Track
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={vi.common.close}
-                      onClick={() => clearFailure(trackId)}
+                      aria-label={withTitle(copy.dismissFailure, entry.title)}
+                      onClick={() => dismissFailure(trackId)}
                     >
                       <X aria-hidden="true" strokeWidth={1.75} />
                     </Button>

@@ -33,6 +33,8 @@ const fake = vi.hoisted(() => ({
   deleteUserResult: { error: null as { message: string } | null },
   /** `deleteAccount`: what its local `signOut` returns. */
   deleteAccountSignOutResult: { error: null as Error | null },
+  /** Set to make the mocked `signOut` reject instead of returning `{ error }`. */
+  deleteAccountSignOutThrows: null as Error | null,
   calls: [] as unknown[][],
 }))
 
@@ -63,6 +65,7 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signOut: async (options: unknown) => {
         fake.calls.push(['signOut', options])
+        if (fake.deleteAccountSignOutThrows) throw fake.deleteAccountSignOutThrows
         return fake.deleteAccountSignOutResult
       },
     },
@@ -151,6 +154,7 @@ beforeEach(() => {
   fake.failOn = null
   fake.deleteUserResult = { error: null }
   fake.deleteAccountSignOutResult = { error: null }
+  fake.deleteAccountSignOutThrows = null
   fake.calls = []
 })
 afterEach(() => {
@@ -669,8 +673,19 @@ describe('deleteAccount — §4.6', () => {
     expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
   })
 
-  it('still redirects when the local sign-out fails, after the account is already deleted (controller ruling, M2 minor)', async () => {
+  it('still redirects when the local sign-out returns an error, after the account is already deleted (controller ruling, M2 minor)', async () => {
     fake.deleteAccountSignOutResult = { error: new Error('cookies unavailable') }
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    expect(fake.calls).toEqual([
+      ['requireUser'],
+      ['deleteUser', USER_ID],
+      ['signOut', { scope: 'local' }],
+      ['redirect', '/?account=deleted'],
+    ])
+  })
+
+  it('still redirects when the local sign-out rejects (controller ruling, M2 minor)', async () => {
+    fake.deleteAccountSignOutThrows = new Error('network down')
     await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
     expect(fake.calls).toEqual([
       ['requireUser'],

@@ -74,10 +74,10 @@ test run from production.
   redirecting action directly (not through `useActionState`) still rejects the promise with a
   `NEXT_REDIRECT`-digest error on the *ordinary, successful* path too (the navigation itself
   already happened by then), so the handler recognises and ignores that shape rather than
-  toasting it. `deleteAccount` (§4.6) checks its own local sign-out's error too, but never blocks
-  the redirect on it (ruling): the account row is already gone by then, so a thrown error there
-  would be misleading (auth-js has already cleared the session client-side for most error cases
-  regardless) — it redirects to the deleted notice either way.
+  toasting it. `deleteAccount` (§4.6) ignores its own local sign-out's error entirely (a returned
+  `{ error }` or a rejection) and always redirects to the deleted notice: the account row is
+  already gone by then, so a thrown error there would be misleading — auth-js has already cleared
+  the session client-side for most error cases regardless.
 
 ## Consequences
 

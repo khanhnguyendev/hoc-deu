@@ -331,6 +331,8 @@ export const vi = {
       templateTitle: 'Mẫu tuần',
       save: 'Lưu',
       actionsFor: 'Thao tác với {title}',
+      /** The orphaned-failure banner's close button (M2 minor): distinct per track. */
+      dismissFailure: 'Đóng thông báo về {title}',
       pause: 'Tạm dừng',
       resume: 'Tiếp tục',
       remove: 'Gỡ lộ trình',

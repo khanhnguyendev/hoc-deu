@@ -320,11 +320,11 @@ export async function setTrackStatus(
  * exists to revoke a session for) and returns to the landing page with the deleted notice.
  * `redirect()` is the function's last statement, outside any try/catch (it works by throwing).
  * Takes no arguments (assignable to `SettingsAction`: fewer parameters is fine) — there is no
- * form data to read. The account is already gone by the time the local sign-out runs, so its own
- * error never blocks the redirect (controller ruling, M2 minor): auth-js has already cleared the
- * session client-side for most error cases regardless, and throwing here — after the deletion
- * already succeeded — would be misleading (the learner would see a failure for a delete that
- * actually went through).
+ * form data to read. The local sign-out's error is ignored entirely — a returned `{ error }` or a
+ * rejection — and never blocks the redirect (controller ruling, M2 minor): the account row is
+ * already gone by then, so a thrown error here would be misleading (the learner would see a
+ * failure for a delete that actually went through), and auth-js has already cleared the session
+ * client-side for most error cases regardless.
  */
 export async function deleteAccount(): Promise<SettingsResult> {
   const user = await requireUser()
@@ -332,6 +332,10 @@ export async function deleteAccount(): Promise<SettingsResult> {
   if (error) return { ok: false, message: copy.deleteAccount.failed }
 
   const supabase = await createClient()
-  await supabase.auth.signOut({ scope: 'local' })
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // Ignored either way (a returned `{ error }` or a rejection): see the doc comment above.
+  }
   redirect('/?account=deleted')
 }
