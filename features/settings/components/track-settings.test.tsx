@@ -332,4 +332,31 @@ describe('TrackSettings — pause, resume, remove', () => {
     expect(screen.getByText(DSA_TITLE)).toBeTruthy()
     expect(screen.getByText(message)).toBeTruthy()
   })
+
+  it('the orphaned failure is dismissible', async () => {
+    const message = 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.'
+    const { view, updateTrack, setTrackStatus, user } = setup(
+      {},
+      { status: { ok: false, message } },
+    )
+    await user.click(within(actions(DSA_TITLE)).getByRole('button', { name: 'Tạm dừng' }))
+    await waitFor(() => expect(setTrackStatus).toHaveBeenCalledTimes(1))
+    await screen.findByText(message)
+    const [, ...rest] = TRACKS
+    view.rerender(
+      <>
+        <TrackSettings
+          tracks={rest}
+          requestId={REQUEST_ID}
+          updateTrack={updateTrack}
+          setTrackStatus={setTrackStatus}
+        />
+        <Toaster />
+      </>,
+    )
+    await screen.findByText(message)
+    await user.click(screen.getByRole('button', { name: 'Đóng' }))
+    expect(screen.queryByText(message)).toBeNull()
+    expect(screen.queryByText(DSA_TITLE)).toBeNull()
+  })
 })

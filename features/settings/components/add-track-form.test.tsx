@@ -183,6 +183,31 @@ describe('AddTrackForm — the fields', () => {
     expect(screen.getByText('Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.')).toBeTruthy()
   })
 
+  it('keeps the button busy for a still-running submit even after switching candidates, and never lets the switch borrow its result (M2 minor race)', async () => {
+    let finish: (result: SettingsResult) => void = () => {}
+    const enrollTrack = vi.fn<SettingsAction>(
+      () => new Promise<SettingsResult>((resolve) => (finish = resolve)),
+    )
+    const { user } = setup({ enrollTrack })
+    await user.click(submit())
+    await waitFor(() => expect(submit().getAttribute('aria-busy')).toBe('true'))
+
+    // Switching to another candidate mid-submit must not free up a second, real submit.
+    await user.click(trackChoice(SD_TITLE))
+    expect(submit().getAttribute('aria-busy')).toBe('true')
+    await user.click(submit())
+    expect(enrollTrack).toHaveBeenCalledTimes(1)
+
+    finish({
+      ok: false,
+      message: 'Kiểm tra lại các mục được đánh dấu.',
+      fieldErrors: { startDate: 'Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.' },
+    })
+    await waitFor(() => expect(submit().getAttribute('aria-busy')).toBeNull())
+    // The first (DSA) submit's error never shows against the now-selected System Design fields.
+    expect(screen.queryByText('Ngày bắt đầu chỉ được muộn nhất 60 ngày kể từ hôm nay.')).toBeNull()
+  })
+
   it('clears the server errors and pending state when the candidate track changes (M2 minor)', async () => {
     const { user } = setup(
       {},

@@ -73,7 +73,10 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
   const forCurrentTrack = selected !== null && submittedTrackId === selected.option.id
   const errors = forCurrentTrack ? fieldErrorsOf(result) : {}
   const failure = forCurrentTrack ? failureOf(result) : null
-  const isPending = forCurrentTrack && pending
+  // The button stays busy for *any* running submission, not only the current candidate's own
+  // (M2 minor): switching candidates mid-submit must not let a second submit start (the errors
+  // above still only ever show for the candidate they belong to).
+  const isPending = pending
 
   /** A track's fields: as typed or picked, else its last (removed) or default values. */
   function fieldsOf({ option, enrollment }: SettingsTrack) {
@@ -95,8 +98,13 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
         <form
           aria-label={copy.title}
           onSubmit={(event) => {
-            adding.current = selected.option.id
-            setSubmittedTrackId(selected.option.id)
+            // useSettingsAction's own onSubmit silently ignores a submit while one is already
+            // pending — recording the track id here regardless would still let a switch to
+            // another candidate, mid-submit, borrow the *first* one's eventual result (M2 minor).
+            if (!pending) {
+              adding.current = selected.option.id
+              setSubmittedTrackId(selected.option.id)
+            }
             onSubmit(event)
           }}
           noValidate

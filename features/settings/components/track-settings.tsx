@@ -1,21 +1,25 @@
 'use client'
 
-import { Route } from 'lucide-react'
+import { Route, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { Banner } from '@/components/patterns/banner'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { FormActions } from '@/components/patterns/form-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { toast } from '@/components/ui/toaster'
 import { WeeklyTemplatePreview } from '@/features/tracks'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { cn } from '@/lib/utils'
 import type { Enrollment, SettingsAction, SettingsResult, SettingsTrack } from '../schema'
 import { TrackBudgetFields } from './track-budget-fields'
 import { failureOf, fieldErrorsOf, useSettingsAction } from './use-settings-action'
 
 const copy = vi.settings.tracks
+
+/** Every entry in the list — a track's own section or an orphaned failure — shares this rule. */
+const ROW = 'border-t border-border pt-8 first:border-t-0 first:pt-0'
 
 type TrackSettingsProps = {
   /** Every active track with the learner's enrollment; only active and paused ones are shown. */
@@ -52,16 +56,16 @@ function TrackSettings({ tracks, requestId, updateTrack, setTrackStatus }: Track
   const ids = shown.map((track) => track.option.id).join(' ')
 
   const [failures, setFailures] = useState<Record<string, { title: string; message: string }>>({})
-  const reportStatusResult = (trackId: string, title: string, result: SettingsResult) => {
+  const clearFailure = (trackId: string) =>
     setFailures((current) => {
-      if (result.ok) {
-        if (!(trackId in current)) return current
-        const next = { ...current }
-        delete next[trackId]
-        return next
-      }
-      return { ...current, [trackId]: { title, message: result.message } }
+      if (!(trackId in current)) return current
+      const next = { ...current }
+      delete next[trackId]
+      return next
     })
+  const reportStatusResult = (trackId: string, title: string, result: SettingsResult) => {
+    if (result.ok) clearFailure(trackId)
+    else setFailures((current) => ({ ...current, [trackId]: { title, message: result.message } }))
   }
   const orphaned = Object.entries(failures).filter(([trackId]) => !shownIds.has(trackId))
 
@@ -94,7 +98,6 @@ function TrackSettings({ tracks, requestId, updateTrack, setTrackStatus }: Track
               requestId={requestId}
               updateTrack={updateTrack}
               setTrackStatus={setTrackStatus}
-              failure={failures[track.option.id]?.message ?? null}
               onStatusResult={(result) =>
                 reportStatusResult(track.option.id, track.option.title, result)
               }
@@ -104,12 +107,25 @@ function TrackSettings({ tracks, requestId, updateTrack, setTrackStatus }: Track
             />
           ))}
           {orphaned.map(([trackId, entry]) => (
-            <section
-              key={trackId}
-              className="flex flex-col gap-2 border-t border-border pt-8 first:border-t-0 first:pt-0"
-            >
+            <section key={trackId} className={cn(ROW, 'flex flex-col gap-2')}>
               <h3 className="text-lg font-semibold">{entry.title}</h3>
-              <FormActions error={entry.message}>{null}</FormActions>
+              <div role="alert">
+                <Banner
+                  tone="danger"
+                  action={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={vi.common.close}
+                      onClick={() => clearFailure(trackId)}
+                    >
+                      <X aria-hidden="true" strokeWidth={1.75} />
+                    </Button>
+                  }
+                >
+                  {entry.message}
+                </Banner>
+              </div>
             </section>
           ))}
         </>
@@ -123,7 +139,6 @@ function TrackRow({
   requestId,
   updateTrack,
   setTrackStatus,
-  failure,
   onStatusResult,
   onRemove,
 }: {
@@ -131,8 +146,6 @@ function TrackRow({
   requestId: string
   updateTrack: SettingsAction
   setTrackStatus: SettingsAction
-  /** The last status-change failure recorded for this track at the list level, or none. */
-  failure: string | null
   onStatusResult: (result: SettingsResult) => void
   onRemove: () => void
 }) {
@@ -158,7 +171,7 @@ function TrackRow({
     <section
       data-accent={option.accent}
       aria-labelledby={headingId}
-      className="flex flex-col gap-4 border-t border-border pt-8 first:border-t-0 first:pt-0 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6"
+      className={cn(ROW, 'flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6')}
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -198,7 +211,6 @@ function TrackRow({
           status={enrollment.status}
           requestId={requestId}
           setTrackStatus={setTrackStatus}
-          failure={failure}
           onStatusResult={onStatusResult}
           onRemove={onRemove}
         />
@@ -217,10 +229,14 @@ type Slot = 'toggle' | 'remove'
 
 /**
  * "Tạm dừng" / "Tiếp tục" (one button, keyed by its slot, so it stays the same element — and
- * keeps focus — when the status flips) and "Gỡ lộ trình", which asks first. The result of every
- * attempt is reported to the list (`onStatusResult`), which keeps the failure alive even if this
- * row disappears (M2 minor): a stale re-render can remove the track from the list before the
- * learner has read why the change failed.
+ * keeps focus — when the status flips) and "Gỡ lộ trình", which asks first. Runs through
+ * `useSettingsAction` (`useActionState`, same as every other settings form): a plain `async`
+ * `send` with its own `pending` state (an earlier version of this fix used) has no
+ * `try`/`finally`, so a rejected action leaves `pending` stuck `true` forever — the buttons and
+ * the confirm dialog then never recover. The action passed in wraps `setTrackStatus` to also
+ * report its result to the list (`onStatusResult`), which keeps a failure alive even if this row
+ * disappears (M2 minor): a stale re-render can remove the track from the list before the learner
+ * has read why the change failed.
  */
 function TrackStatusActions({
   trackId,
@@ -228,7 +244,6 @@ function TrackStatusActions({
   status,
   requestId,
   setTrackStatus,
-  failure,
   onStatusResult,
   onRemove,
 }: {
@@ -237,28 +252,33 @@ function TrackStatusActions({
   status: 'active' | 'paused'
   requestId: string
   setTrackStatus: SettingsAction
-  /** The list's record of the last failure for this track, or none. */
-  failure: string | null
   onStatusResult: (result: SettingsResult) => void
   onRemove: () => void
 }) {
-  const [pending, setPending] = useState(false)
+  const withResultReported: SettingsAction = async (previous, formData) => {
+    const result = await setTrackStatus(previous, formData)
+    onStatusResult(result)
+    return result
+  }
+  const { result, pending, run } = useSettingsAction(withResultReported)
   const [running, setRunning] = useState<Slot | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [handled, setHandled] = useState(result)
+  // A new result: the removal (if that was it) is over, so the dialog closes.
+  if (result !== handled) {
+    setHandled(result)
+    setConfirming(false)
+  }
+  const failure = failureOf(result)
 
-  const send = async (to: 'paused' | 'active' | 'removed') => {
+  const send = (to: 'paused' | 'active' | 'removed') => {
     const data = new FormData()
     data.set('requestId', requestId)
     data.set('trackId', trackId)
     data.set('to', to)
     setRunning(to === 'removed' ? 'remove' : 'toggle')
     if (to === 'removed') onRemove()
-    setPending(true)
-    const result = await setTrackStatus(null, data)
-    setPending(false)
-    setConfirming(false)
-    if (result.ok) toast(result.message)
-    onStatusResult(result)
+    run(data)
   }
 
   return (
@@ -269,7 +289,7 @@ function TrackStatusActions({
           variant="outline"
           loading={pending && running === 'toggle'}
           disabled={pending && running !== 'toggle'}
-          onClick={() => void send(status === 'active' ? 'paused' : 'active')}
+          onClick={() => send(status === 'active' ? 'paused' : 'active')}
         >
           {status === 'active' ? copy.pause : copy.resume}
         </Button>
@@ -291,7 +311,7 @@ function TrackStatusActions({
         confirmLabel={copy.remove}
         tone="destructive"
         pending={pending}
-        onConfirm={() => void send('removed')}
+        onConfirm={() => send('removed')}
       />
     </>
   )

@@ -449,6 +449,27 @@ const DEMO_ADDABLE_TRACKS: SettingsTrack[] = [
   { option: DEMO_ENGLISH, enrollment: null },
 ]
 
+/**
+ * A status-change failure whose track leaves the list before the learner reads it (a stale
+ * re-render — someone else changed it first, M2 minor): the failure survives as its own,
+ * dismissible line.
+ */
+function TrackSettingsOrphanFailureDemo() {
+  const [tracks, setTracks] = useState(DEMO_SETTINGS_TRACKS)
+  const setTrackStatus: SettingsAction = async () => {
+    setTracks((current) => current.filter((track) => track.option.id !== 'dsa'))
+    return { ok: false, message: vi.errors.invalidTransition }
+  }
+  return (
+    <TrackSettings
+      tracks={tracks}
+      requestId={DEMO_REQUEST_ID}
+      updateTrack={demoSettingsSave}
+      setTrackStatus={setTrackStatus}
+    />
+  )
+}
+
 function TrackBudgetFieldsDemo({ track, minutes }: { track: TrackOption; minutes: string }) {
   const [typed, setTyped] = useState(minutes)
   const [variant, setVariant] = useState(track.roadmaps[0]?.id ?? '')
@@ -1985,6 +2006,14 @@ export const CATALOG: Entry[] = [
               updateTrack={demoSettingsSave}
               setTrackStatus={demoSettingsSave}
             />
+          </div>
+        ),
+      },
+      {
+        title: 'Bấm "Tạm dừng" trên DSA: lộ trình biến mất trước khi lỗi hiển thị (M2 minor)',
+        render: () => (
+          <div className="w-full">
+            <TrackSettingsOrphanFailureDemo />
           </div>
         ),
       },
