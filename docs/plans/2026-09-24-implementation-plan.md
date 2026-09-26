@@ -11580,6 +11580,8 @@ export type OutcomeBinding = {
   /** Set when the item is in the dashboard's current plan (decision 14). */
   readonly plan: { readonly blockId: string; readonly label: string } | null
   readonly state: ItemStateView | null
+  /** The item is introduced and due today — the skip rule needs it (ruling M5-R28). */
+  readonly due: boolean
   /** The page's per-render id (decision 16). */
   readonly requestId: string
   readonly itemId: string
