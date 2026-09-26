@@ -170,6 +170,20 @@ test.describe('/admin/users', () => {
   })
 })
 
+test.describe('a bootstrapped, not-yet-onboarded admin (M2 minor)', () => {
+  test('reaches /onboarding first, and /admin/users needs no onboarding', async ({ page }) => {
+    const admin = await user({ role: 'admin', status: 'active', name: uniqueName('Chưa xong') })
+    await signIn(page, admin)
+    await expectPath(page, '/onboarding')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Chào mừng bạn đến Học Đều')
+
+    await page.goto('/admin/users')
+    await expectPath(page, '/admin/users')
+    await expect(page.getByRole('heading', { level: 1, name: 'Người dùng' })).toBeVisible()
+    await expect(row(page, ACTIVE, admin.name)).toBeVisible()
+  })
+})
+
 test.describe('/admin/users for a learner', () => {
   // The 404 page answers with status 404, which Chromium logs as a failed resource load.
   test.use({ allowedConsoleErrors: [/status of 404/] })

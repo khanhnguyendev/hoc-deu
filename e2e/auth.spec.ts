@@ -143,6 +143,39 @@ test.describe('signing in with the test login', () => {
     await expectNoAxeViolationsInBothThemes(page)
   })
 
+  test('reads the fresh profile after sign-in: no request to /pending for an active user (M2 minor)', async ({
+    page,
+  }) => {
+    // completeSignIn reads the profile through the session client, not the request-cached DAL —
+    // a masked failure there would resolve to /pending, which then forwards an active user on.
+    const requested: string[] = []
+    page.on('request', (request) => requested.push(new URL(request.url()).pathname))
+    await signIn(page, await user({ status: 'active', onboarded: true }), '/today')
+    await expectPath(page, '/today')
+    expect(requested).not.toContain('/pending')
+  })
+
+  test('a hidden next=//evil.test injected into the test-login form lands on the home path (M2 minor)', async ({
+    page,
+  }) => {
+    const learner = await user({ status: 'active', onboarded: true })
+    await page.goto('/sign-in')
+    const form = testLoginForm(page)
+    await form.getByLabel('Email').fill(learner.email)
+    await form.getByLabel('Mật khẩu').fill(learner.password)
+    // The page renders no `next` field at all here (none was given) — a crafted client could
+    // still add one; the server action must refuse it too, not only the page that omits it.
+    await form.evaluate((formEl: HTMLFormElement) => {
+      const next = document.createElement('input')
+      next.type = 'hidden'
+      next.name = 'next'
+      next.value = '//evil.test'
+      formEl.append(next)
+    })
+    await form.getByRole('button', { name: 'Đăng nhập' }).click()
+    await expectPath(page, '/today')
+  })
+
   test('the route groups send a user who may not be there to their home', async ({ page }) => {
     // Pending: (app) and (onboarding) need an active account → /pending.
     await signIn(page, await user({ status: 'pending' }))
