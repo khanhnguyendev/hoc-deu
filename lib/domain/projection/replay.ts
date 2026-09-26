@@ -3,6 +3,7 @@
  * current rules — the drift check's reference and the proof that derived rows are only a cache.
  */
 import type { PlanCatalog } from '../catalog'
+import { compareIds } from '../compare'
 import { RULES_VERSION } from '../rules'
 import { EMPTY_DERIVED_STATE, type DerivedState } from '../state'
 import { projectEvent, type DomainEvent, type IgnoreReason } from './project'
@@ -51,10 +52,7 @@ export function replay(
 
   const ordered = events
     .map((event) => ({ event, instant: instantOf(event) }))
-    .sort(
-      (a, b) =>
-        a.instant - b.instant || (a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : 0),
-    )
+    .sort((a, b) => a.instant - b.instant || compareIds(a.event.id, b.event.id))
 
   let state = EMPTY_DERIVED_STATE
   const ignored: { eventId: string; reason: IgnoreReason }[] = []

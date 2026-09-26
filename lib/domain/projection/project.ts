@@ -406,19 +406,22 @@ function withRows<T>(
 }
 
 /** A derived state whose tables its owner changes in place — the simulation's working copy
- *  (M-8), never a state someone else holds. */
+ *  (M-8), never a state someone else holds. For the simulation and tests only — screens and
+ *  actions use `project` / `projectEvent`. */
 export type MutableDerivedState = {
   items: Record<string, ItemState>
   blocks: Record<string, BlockState>
   days: Record<LocalDay, DailyActivity>
 }
 
-/** A working copy of `state`: new tables holding the same rows (rows are never changed). */
+/** A working copy of `state`: new tables holding the same rows (rows are never changed). For the
+ *  simulation and tests only — screens and actions use `project` / `projectEvent`. */
 export function mutableCopy(state: DerivedState): MutableDerivedState {
   return { items: { ...state.items }, blocks: { ...state.blocks }, days: { ...state.days } }
 }
 
-/** Stores `changes` in `target` — the batch fold's applier (M-8): no table is copied. */
+/** Stores `changes` in `target` — the batch fold's applier (M-8): no table is copied. For the
+ *  simulation and tests only — screens and actions use `project` / `projectEvent`. */
 export function applyChangesInPlace(target: MutableDerivedState, changes: RowChanges): void {
   for (const key of changes.removedItems) Reflect.deleteProperty(target.items, key)
   for (const row of changes.items) put(target.items, itemKey(row), row)

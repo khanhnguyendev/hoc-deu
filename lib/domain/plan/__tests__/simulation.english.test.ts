@@ -87,10 +87,6 @@ describe.runIf(FULL)(
       )
       expect(observed, `observed ${observed}`).toBeLessThanOrEqual(25)
     })
-
-    it('realistic: every core card introduced by day 125 in every run', () => {
-      expectEveryCoreCard('realistic')
-    })
   },
 )
 
@@ -100,9 +96,12 @@ describe(`English simulation (§5.10), ${RUNS} seeds: every run`, { timeout: 180
     expect(runsOf('realistic')).toHaveLength(RUNS)
   })
 
-  it('ideal: every core card introduced by day 125', () => {
-    expectEveryCoreCard('ideal')
-  })
+  it.each(['ideal', 'realistic'] as const)(
+    '%s: every core card introduced by day 125 in every run',
+    (profile) => {
+      expectEveryCoreCard(profile)
+    },
+  )
 
   it.each(['ideal', 'realistic'] as const)(
     '%s: every simulated day of every run: planned ≤ budget + the largest item (§5.4)',
