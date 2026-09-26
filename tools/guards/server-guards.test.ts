@@ -226,16 +226,83 @@ describe('guardViolations — route handlers', () => {
 
   it('accepts publicRoute() and other guards', () => {
     const source = `import { publicRoute } from '@/lib/auth/guards'
-import { requireCronSecret } from '@/lib/auth/cron'
+import { requireAdmin } from '@/lib/auth/dal'
 export async function GET() {
   publicRoute()
   return Response.json({ ok: true })
 }
-export const POST = async (request: Request) => {
-  await requireCronSecret(request)
+export const POST = async () => {
+  await requireAdmin()
   return Response.json({ ok: true })
 }`
     expect(guardViolations(ROUTE, source)).toEqual([])
+  })
+
+  it('accepts requireCronSecret with its denial returned first (task 5.7a)', () => {
+    const source = `import { requireCronSecret } from '@/lib/auth/cron'
+export async function GET(request: Request) {
+  const denied = await requireCronSecret(request)
+  if (denied) return denied
+  return Response.json({ ok: true })
+}
+export const POST = async (request: Request) => {
+  const denied = (await requireCronSecret(request))
+  if ((denied)) {
+    return denied
+  }
+  return Response.json({ ok: true })
+}`
+    expect(guardViolations(ROUTE, source)).toEqual([])
+  })
+
+  it('flags requireCronSecret whose denial is not returned at once: it returns, never throws', () => {
+    const source = `import { requireCronSecret } from '@/lib/auth/cron'
+export async function discarded(request: Request) {
+  await requireCronSecret(request)
+  return Response.json({ ok: true })
+}
+export async function unchecked(request: Request) {
+  const denied = await requireCronSecret(request)
+  return Response.json({ ok: true, denied })
+}
+export async function later(request: Request) {
+  const denied = await requireCronSecret(request)
+  const work = Response.json({ ok: true })
+  if (denied) return denied
+  return work
+}
+export async function otherName(request: Request) {
+  const denied = await requireCronSecret(request)
+  const other = null
+  if (other) return denied
+  return Response.json({ ok: true })
+}
+export async function withElse(request: Request) {
+  const denied = await requireCronSecret(request)
+  if (denied) return denied
+  else return Response.json({ ok: true })
+}
+export async function readField(request: Request) {
+  const status = (await requireCronSecret(request))?.status
+  if (status) return status
+}
+export async function returned(request: Request) {
+  return await requireCronSecret(request)
+}
+export const arrow = async (request: Request) => await requireCronSecret(request)`
+    const flagged = guardViolations(ACTIONS, `'use server'\n${source}`).map(
+      (v) => /`(\w+)`/.exec(v)?.[1],
+    )
+    expect(flagged).toEqual([
+      'discarded',
+      'unchecked',
+      'later',
+      'otherName',
+      'withElse',
+      'readField',
+      'returned',
+      'arrow',
+    ])
   })
 
   it('checks every HTTP method and only those', () => {
@@ -497,6 +564,26 @@ describe('SYNC_GUARD_NAMES', () => {
   it('lists the guards that may be called without await: only publicRoute today', () => {
     expect([...SYNC_GUARD_NAMES]).toEqual(['publicRoute'])
     for (const name of SYNC_GUARD_NAMES) expect(GUARD_NAMES).toContain(name)
+  })
+})
+
+describe('the ops routes (task 5.7a)', () => {
+  const read = (file: string) => readFileSync(join(process.cwd(), file), 'utf8')
+
+  it('guards /api/cron/maintenance with requireCronSecret, its denial returned first', () => {
+    const file = 'app/api/cron/maintenance/route.ts'
+    const source = read(file)
+    expect(guardViolations(file, source)).toEqual([])
+    expect(source).toMatch(
+      /export async function GET\(request: Request\)[^{]*\{\s*const denied = await requireCronSecret\(request\)\s*if \(denied\) return denied\n/,
+    )
+  })
+
+  it('marks /api/health public on purpose with publicRoute()', () => {
+    const file = 'app/api/health/route.ts'
+    const source = read(file)
+    expect(guardViolations(file, source)).toEqual([])
+    expect(source).toMatch(/export async function GET\(\)[^{]*\{\s*publicRoute\(\)\n/)
   })
 })
 

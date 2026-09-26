@@ -13,6 +13,13 @@ const HTTP_METHODS: ReadonlySet<string> = new Set([
 ])
 const GUARDS: ReadonlySet<string> = new Set(GUARD_NAMES)
 const SYNC_GUARDS: ReadonlySet<string> = new Set(SYNC_GUARD_NAMES)
+/**
+ * Guards that answer a denial instead of throwing: they return a `Response` to send, or null
+ * (`lib/auth/cron.ts`). Calling one proves nothing unless the denial is returned at once —
+ * `const denied = await requireCronSecret(request)` then `if (denied) return denied` — so that is
+ * the only form accepted for them (task 5.7a).
+ */
+const RESPONSE_GUARDS: ReadonlySet<string> = new Set(['requireCronSecret'])
 
 type ModuleKind = 'server-actions' | 'route-handlers' | 'loaders' | 'other'
 type FunctionNode = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction
@@ -79,27 +86,65 @@ function isGuardCall(expression: ts.Expression | undefined): boolean {
   const call = awaited ? unparenthesized(guard.expression) : guard
   if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) return false
   const name = call.expression.text
+  if (RESPONSE_GUARDS.has(name)) return false // only with its denial returned: startsWithGuard
   return awaited ? GUARDS.has(name) : SYNC_GUARDS.has(name)
+}
+
+/** Exactly `await requireX(…)` for a response guard (parentheses aside): nothing read from it. */
+function isResponseGuardCall(expression: ts.Expression | undefined): boolean {
+  if (expression === undefined) return false
+  const awaited = unparenthesized(expression)
+  if (!ts.isAwaitExpression(awaited)) return false
+  const call = unparenthesized(awaited.expression)
+  return (
+    ts.isCallExpression(call) &&
+    ts.isIdentifier(call.expression) &&
+    RESPONSE_GUARDS.has(call.expression.text)
+  )
+}
+
+/** `if (name) return name` or `if (name) { return name }`, with no `else`. */
+function returnsDenial(statement: ts.Statement | undefined, name: string): boolean {
+  if (statement === undefined || !ts.isIfStatement(statement) || statement.elseStatement) {
+    return false
+  }
+  const isName = (expression: ts.Expression | undefined) => {
+    const inner = expression && unparenthesized(expression)
+    return inner !== undefined && ts.isIdentifier(inner) && inner.text === name
+  }
+  const then = statement.thenStatement
+  const only = ts.isBlock(then) && then.statements.length === 1 ? then.statements[0] : then
+  return isName(statement.expression) && only !== undefined && ts.isReturnStatement(only)
+    ? isName(only.expression)
+    : false
 }
 
 /**
  * A guard call as the first statement after any directives and empty statements (a leading `;`
  * Prettier adds before `(await requireX())`): `await requireX()`, `const user = await …` or
- * `return await requireX()` (M2 carry-over).
+ * `return await requireX()` (M2 carry-over). A response guard (`RESPONSE_GUARDS`) counts only as
+ * `const denied = await requireX(…)` directly followed by `if (denied) return denied`.
  */
 function startsWithGuard(fn: FunctionNode): boolean {
   const body = fn.body
   if (body === undefined) return false
   if (!ts.isBlock(body)) return isGuardCall(body)
-  const first = body.statements
+  const [first, second] = body.statements
     .slice(directives(body.statements).length)
-    .find((statement) => !ts.isEmptyStatement(statement))
+    .filter((statement) => !ts.isEmptyStatement(statement))
   if (first === undefined) return false
   if (ts.isExpressionStatement(first)) return isGuardCall(first.expression)
   if (ts.isReturnStatement(first)) return isGuardCall(first.expression)
   if (ts.isVariableStatement(first)) {
     const declarations = first.declarationList.declarations
-    return declarations.length === 1 && isGuardCall(declarations[0]?.initializer)
+    const declaration = declarations.length === 1 ? declarations[0] : undefined
+    if (declaration === undefined) return false
+    if (isGuardCall(declaration.initializer)) return true
+    return (
+      ts.isIdentifier(declaration.name) &&
+      isResponseGuardCall(declaration.initializer) &&
+      returnsDenial(second, declaration.name.text)
+    )
   }
   return false
 }
@@ -146,6 +191,8 @@ function importsReactCache(sourceFile: ts.SourceFile): boolean {
  *
  * Each must start with an awaited call to a name in `GUARD_NAMES` (optionally assigned:
  * `const user = await requireActive()`), or a bare call to a synchronous guard (`publicRoute()`).
+ * A guard that returns its denial (`requireCronSecret`) must be followed at once by
+ * `if (denied) return denied`.
  * The only wrapper it looks through is `cache(…)` imported as `cache` from `react`. Any other
  * export it cannot see into — a re-export, `export *`, an imported name, another wrapper
  * (`React.cache`, a renamed `cache`, `unstable_cache`) — is a violation wherever a guard is

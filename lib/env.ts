@@ -16,6 +16,11 @@ export type ServerEnv = {
   adminEmails: readonly string[]
   authTestLogin: boolean
   vercelEnv: VercelEnv | undefined
+  /**
+   * `CRON_SECRET` (task 5.7a, ADR-0034): the maintenance cron's bearer secret, at least 32
+   * characters. Required in production; elsewhere optional (unset or empty), and the cron route
+   * then answers 401 to everyone.
+   */
   cronSecret: string | undefined
 }
 
@@ -33,7 +38,11 @@ const RawEnvSchema = z.object({
   AUTH_TEST_LOGIN: z.enum(['true', 'false']).optional(),
   VERCEL_ENV: z.enum(VERCEL_ENVS).optional(),
   VERCEL_BRANCH_URL: z.string().optional(),
-  CRON_SECRET: z.string().min(32).optional(),
+  // Empty means unset: `.env.example` ships the line as `CRON_SECRET=`.
+  CRON_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(32).optional(),
+  ),
 })
 
 function parseAdminEmails(value: string | undefined): readonly string[] {
@@ -70,6 +79,12 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     throw new EnvError('Invalid environment variables: NEXT_PUBLIC_SITE_URL')
   }
   siteUrl = siteUrl.replace(/\/+$/, '')
+
+  // Production must be able to run its maintenance cron (§2.3, §2.5); a missing secret would make
+  // the route answer 401 to Vercel every day, silently.
+  if (vercelEnv === 'production' && raw.CRON_SECRET === undefined) {
+    throw new EnvError('Invalid environment variables: CRON_SECRET')
+  }
 
   return {
     supabaseUrl: raw.NEXT_PUBLIC_SUPABASE_URL,

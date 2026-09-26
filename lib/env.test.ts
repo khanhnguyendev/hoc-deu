@@ -73,7 +73,12 @@ describe('parseServerEnv', () => {
 
   it('rejects AUTH_TEST_LOGIN=true combined with VERCEL_ENV=production', () => {
     expect(() =>
-      parseServerEnv({ ...validSource, AUTH_TEST_LOGIN: 'true', VERCEL_ENV: 'production' }),
+      parseServerEnv({
+        ...validSource,
+        AUTH_TEST_LOGIN: 'true',
+        VERCEL_ENV: 'production',
+        CRON_SECRET: 'a'.repeat(32),
+      }),
     ).toThrow(new EnvError('AUTH_TEST_LOGIN must not be enabled in production'))
   })
 
@@ -102,7 +107,9 @@ describe('parseServerEnv', () => {
 
   it('throws when VERCEL_ENV=production and NEXT_PUBLIC_SITE_URL is unset', () => {
     const rest = omit(validSource, 'NEXT_PUBLIC_SITE_URL')
-    expect(() => parseServerEnv({ ...rest, VERCEL_ENV: 'production' })).toThrow(EnvError)
+    expect(() =>
+      parseServerEnv({ ...rest, VERCEL_ENV: 'production', CRON_SECRET: 'a'.repeat(32) }),
+    ).toThrow(new EnvError('Invalid environment variables: NEXT_PUBLIC_SITE_URL'))
   })
 
   it('rejects a CRON_SECRET shorter than 32 characters', () => {
@@ -118,6 +125,51 @@ describe('parseServerEnv', () => {
     const cronSecret = 'a'.repeat(32)
     const env = parseServerEnv({ ...validSource, CRON_SECRET: cronSecret })
     expect(env.cronSecret).toBe(cronSecret)
+  })
+
+  it("treats an empty CRON_SECRET (.env.example's placeholder) as unset outside production", () => {
+    expect(parseServerEnv({ ...validSource, CRON_SECRET: '' }).cronSecret).toBeUndefined()
+    expect(
+      parseServerEnv({ ...validSource, CRON_SECRET: '', VERCEL_ENV: 'preview' }).cronSecret,
+    ).toBeUndefined()
+  })
+
+  it.each([
+    ['unset', {}],
+    ['empty', { CRON_SECRET: '' }],
+  ])(
+    'requires CRON_SECRET when VERCEL_ENV=production (%s), naming only the variable',
+    (_, extra) => {
+      expect(() => parseServerEnv({ ...validSource, ...extra, VERCEL_ENV: 'production' })).toThrow(
+        new EnvError('Invalid environment variables: CRON_SECRET'),
+      )
+    },
+  )
+
+  it('still rejects a short CRON_SECRET in production without printing it', () => {
+    try {
+      parseServerEnv({
+        ...validSource,
+        CRON_SECRET: SENTINEL.slice(0, 20),
+        VERCEL_ENV: 'production',
+      })
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(EnvError)
+      expect((error as EnvError).message).toContain('CRON_SECRET')
+      expect((error as EnvError).message).not.toContain(SENTINEL.slice(0, 20))
+    }
+  })
+
+  it('accepts production with a CRON_SECRET of 32 or more characters', () => {
+    const cronSecret = 'b'.repeat(64)
+    const env = parseServerEnv({
+      ...validSource,
+      CRON_SECRET: cronSecret,
+      VERCEL_ENV: 'production',
+    })
+    expect(env.cronSecret).toBe(cronSecret)
+    expect(env.vercelEnv).toBe('production')
   })
 })
 
