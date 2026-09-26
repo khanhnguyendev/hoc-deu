@@ -23,7 +23,17 @@ function github(answers: { backup?: string | number; restore?: string | number |
     const answer = url.includes('/backup.yml/') ? backup : restore
     if (answer instanceof Error) throw answer
     if (typeof answer === 'number') return Response.json({ message: 'x' }, { status: answer })
-    return Response.json({ total_count: 1, workflow_runs: [{ updated_at: answer }] })
+    return Response.json({
+      total_count: 1,
+      workflow_runs: [
+        {
+          updated_at: answer,
+          event: 'schedule',
+          head_branch: 'main',
+          head_repository: { full_name: 'khanhnguyendev/hoc-deu' },
+        },
+      ],
+    })
   })
 }
 

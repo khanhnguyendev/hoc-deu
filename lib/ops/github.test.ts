@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { lastSuccessfulRun } from './github'
 
 const RUNS_URL = (file: string) =>
-  `https://api.github.com/repos/khanhnguyendev/hoc-deu/actions/workflows/${file}/runs?branch=main&status=success&per_page=1`
+  `https://api.github.com/repos/khanhnguyendev/hoc-deu/actions/workflows/${file}/runs?branch=main&status=success&per_page=50`
 
 function fakeFetch(response: Response | (() => Promise<Response>)) {
   return vi.fn<typeof fetch>(async () =>
@@ -10,10 +10,29 @@ function fakeFetch(response: Response | (() => Promise<Response>)) {
   )
 }
 
-const runs = (...updatedAt: string[]) =>
+type Run = {
+  updated_at: string
+  event: string
+  head_branch: string | null
+  head_repository: { full_name: string } | null
+}
+
+/** A run of this repository's own workflow on main, started by its schedule (or by hand). */
+const trusted = (updatedAt: string, event = 'schedule'): Run => ({
+  updated_at: updatedAt,
+  event,
+  head_branch: 'main',
+  head_repository: { full_name: 'khanhnguyendev/hoc-deu' },
+})
+
+/** The API's answer, newest run first. */
+const runs = (...list: (Run | string)[]) =>
   Response.json({
-    total_count: updatedAt.length,
-    workflow_runs: updatedAt.map((at, index) => ({ id: index + 1, updated_at: at })),
+    total_count: list.length,
+    workflow_runs: list.map((run, index) => ({
+      id: index + 1,
+      ...(typeof run === 'string' ? trusted(run) : run),
+    })),
   })
 
 describe('lastSuccessfulRun (decision 26: the public GitHub API, once a day)', () => {
@@ -24,7 +43,7 @@ describe('lastSuccessfulRun (decision 26: the public GitHub API, once a day)', (
   })
 
   it.each(['backup.yml', 'restore-test.yml'] as const)(
-    'asks only the fixed repository, main, successful runs, one per page (%s)',
+    'asks only the fixed repository, main, successful runs, 50 per page (%s)',
     async (file) => {
       const fetchImpl = fakeFetch(runs('2026-09-26T22:07:41Z'))
       await lastSuccessfulRun(file, fetchImpl)
@@ -50,6 +69,56 @@ describe('lastSuccessfulRun (decision 26: the public GitHub API, once a day)', (
   it.each([403, 404, 500])('returns null for a %i', async (status) => {
     const fetchImpl = fakeFetch(Response.json({ message: 'nope' }, { status }))
     expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toBeNull()
+  })
+
+  it('skips a newer pull_request run from a fork’s main and returns the older scheduled run', async () => {
+    // A fork PR from its own `main` that adds a pull_request trigger to backup.yml shows up in
+    // this list with head_branch "main": it must never refresh /admin's backup age.
+    const fetchImpl = fakeFetch(
+      runs(
+        {
+          ...trusted('2026-09-27T09:00:00Z'),
+          event: 'pull_request',
+          head_repository: { full_name: 'evil/hoc-deu' },
+        },
+        trusted('2026-09-26T22:07:41Z'),
+      ),
+    )
+    expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toEqual(
+      new Date('2026-09-26T22:07:41Z'),
+    )
+  })
+
+  it('trusts a run started by hand (workflow_dispatch)', async () => {
+    const fetchImpl = fakeFetch(runs(trusted('2026-09-26T08:00:00Z', 'workflow_dispatch')))
+    expect(await lastSuccessfulRun('restore-test.yml', fetchImpl)).toEqual(
+      new Date('2026-09-26T08:00:00Z'),
+    )
+  })
+
+  it('returns null when every run is untrusted', async () => {
+    const at = '2026-09-27T09:00:00Z'
+    const fetchImpl = fakeFetch(
+      runs(
+        { ...trusted(at), event: 'pull_request' },
+        { ...trusted(at), event: 'push' },
+        { ...trusted(at), head_repository: { full_name: 'evil/hoc-deu' } },
+        { ...trusted(at), head_repository: null },
+        { ...trusted(at), head_branch: 'feature' },
+        { ...trusted(at), head_branch: null },
+      ),
+    )
+    expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toBeNull()
+  })
+
+  it('skips a run it cannot read and keeps looking', async () => {
+    const noEvent = Object.fromEntries(
+      Object.entries(trusted('2026-09-27T09:00:00Z')).filter(([key]) => key !== 'event'),
+    ) as Run
+    const fetchImpl = fakeFetch(runs(noEvent, trusted('2026-09-26T22:07:41Z')))
+    expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toEqual(
+      new Date('2026-09-26T22:07:41Z'),
+    )
   })
 
   it('returns null when the workflow has no successful run yet', async () => {
