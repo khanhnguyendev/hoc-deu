@@ -10691,7 +10691,7 @@ shared fixture 5.0b's pgTAP runs too:
 
 | Step | Event (local day) | Block b1 (dsa) after | Day D1 after | Day D2 after |
 | --- | --- | --- | --- | --- |
-| 1 | b1 `skipped`, 0 min (D1) | skipped, 0, on D1 | `{}`, not completed | — |
+| 1 | b1 `skipped`, 0 min (D1) | skipped, 0, on D1 | `{ dsa: 0 }`, not completed (ruling M5-R9) | — |
 | 2 | b1 `done`, 20 min (D2) | done, 20, **on D2** | `{}`, not completed | `{ dsa: 20 }`, completed |
 | 3 | b1 `partial`, 15 min (D3) | partial, 15, on D2 (not from skipped) | unchanged | `{ dsa: 15 }`, completed |
 
