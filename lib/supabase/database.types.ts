@@ -502,13 +502,23 @@ export type Database = {
           status: string
         }[]
       }
+      admin_overview: { Args: never; Returns: Json }
       admin_set_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: Json
       }
       admin_set_status: {
-        Args: { p_status: string; p_user_id: string }
+        Args: { p_expected_from?: string; p_status: string; p_user_id: string }
         Returns: Json
+      }
+      admin_track_positions: {
+        Args: never
+        Returns: {
+          learners: number
+          track_id: string
+          variant: string
+          week: number
+        }[]
       }
       apply_derived_changes: {
         Args: {

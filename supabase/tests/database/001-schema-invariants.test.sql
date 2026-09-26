@@ -21,7 +21,9 @@ create extension if not exists pgtap with schema extensions;
 -- none: plan.extra_added goes through apply_system_event, and its two trigger functions
 -- (plan_block_state_check_in_day, schedule_versions_lock_user) get no grants (073). 5.7a adds
 -- health (SECURITY INVOKER, `select true`: /api/health's cheap query); the ops_* functions are
--- service_role only (080).
+-- service_role only (080). 5.6 adds admin_overview and admin_track_positions (aggregate readers,
+-- each checks is_admin() itself) and replaces admin_set_status(uuid, text) with
+-- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -30,7 +32,8 @@ insert into _authenticated_allowlist (proname) values
   ('admin_list_users'),
   ('mark_plan_seen'), ('plan_lock_key'),
   ('apply_derived_changes'),
-  ('health');
+  ('health'),
+  ('admin_overview'), ('admin_track_positions');
 
 -- Allowlist of `public` functions `anon` may EXECUTE (check 5), overload for overload like the
 -- one above. Only 5.7a's health(): /api/health calls it with the publishable key and no session.

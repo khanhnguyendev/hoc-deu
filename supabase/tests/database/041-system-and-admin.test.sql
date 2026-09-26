@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(72);
+select plan(74);
 
 select tests.create_user('system-onboarding@hocdeu.test') as onboarding \gset
 select tests.create_user('system-other@hocdeu.test') as sys_other \gset
@@ -25,7 +25,9 @@ where id in (:'boot_demoted', :'boot_processed');
 
 -- 1. Grants: every function of this task states them explicitly (R5). anon executes none;
 --    authenticated only apply_event and the two admin_set_* functions; service_role only
---    apply_system_event and admin_bootstrap.
+--    apply_system_event and admin_bootstrap. Task 5.6 replaced admin_set_status(uuid, text) with
+--    admin_set_status(uuid, text, text) (p_expected_from, 051); the calls below pass two
+--    arguments, which is the old behaviour.
 select ok(
   not has_function_privilege(
     'authenticated', 'public.apply_system_event(uuid, jsonb, jsonb, jsonb)', 'EXECUTE'
@@ -51,6 +53,20 @@ select ok(
 select ok(
   has_function_privilege('service_role', 'public.admin_bootstrap(uuid)', 'EXECUTE'),
   'service_role can execute admin_bootstrap'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.admin_set_status(uuid, text, text)', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.admin_set_status(uuid, text, text)', 'EXECUTE')
+    and not has_function_privilege(
+      'service_role', 'public.admin_set_status(uuid, text, text)', 'EXECUTE'
+    ),
+  'admin_set_status(uuid, text, text): authenticated only'
+);
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'admin_set_status'),
+  1,
+  '... and it is the only admin_set_status (the two-argument function is gone)'
 );
 select results_eq(
   $$select p.proname::text collate "default", r.rolname
