@@ -518,10 +518,12 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/stat-card.tsx`
 - **Props:** `label`, `value: number | string`, `hint?`, `icon?`
-- **Variants:** —
+- **Variants:** a number value (vi-VN digits, `tracking-tight`) · a text value such as "12,4 tuần"
+  (normal tracking: `tracking-tight` is for numerals only, DESIGN_SYSTEM §4.3, M1 #15)
 - **States:** static
 - **Usage:** `<StatCard label="Phút tuần này" value={245} icon={Clock} />`
-- **Accessibility:** numbers in vi-VN format, mono with tabular figures
+- **Accessibility:** numbers in vi-VN format, mono with tabular figures; never tightened
+  Vietnamese text, so diacritics do not collide
 
 ### StatusPill
 
@@ -1467,6 +1469,171 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 ### Today components (`features/today/components`)
 
 Task 5.1b (5.2b and 5.4 later) adds these entries below this line (Part B-M5 decision 3).
+
+`/today` (task 5.1b). The page builds each block's rows through the registry and hands them over
+as slots — `todaySlots(page)` (`features/today/rows.tsx`, server-only: each item's type's `Row`
+with the learner's state, the block's mode and the `?block=&mode=` href, since `renderItemRow`
+links to the plain item page) — so every component here takes plain props and ReactNodes and
+renders in the client catalog. Server-compatible unless marked client; the client leaves take the
+server actions as unbound props from the page. Data: `TodayPage` / `BlockView` /
+`TrackProgressView` / `WeakTopicView` (`features/today/view-model.ts`), `TodaySlots`
+(`features/today/slots.ts`). Loading is the route's `loading.tsx` (LoadingState `variant="page"`),
+a thrown load the route's `error.tsx` (ErrorState "Không tải được kế hoạch hôm nay" + "Thử lại").
+Copy: `vi.today`.
+
+### TodayView
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-view.tsx`
+- **Props:** `page: TodayPage` (`getToday()`), `slots: TodaySlots` (`todaySlots(page)`),
+  `markPlanSeen: (planId) => Promise<void>`, `resumeToday: () => Promise<ResumeResult>` (the
+  server actions, unbound)
+- **Variants:** by `page.data.state.kind` — `plan` (throttle notices, "Kế hoạch hôm nay" with "{n}
+  khối · {minutes}", PlanBlockCards, TodayStats + WeakAreas; marks the plan seen) · `resumed` (an
+  info Banner "Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.", "Kế hoạch ngày
+  {date}" with its check-ins) · `paused` (PausedBanner above "Phần còn dang dở": the active
+  tracks' unfinished blocks) · `notStarted` / `noTracks` (TodayEmpty) · `unreadable` (ErrorState
+  "Không đọc được kế hoạch hôm nay"). No mode badge in v1.0 (decision 12)
+- **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
+  error (`unreadable`; `error.tsx`) · ready
+- **Usage:** `<TodayView page={page} slots={todaySlots(page)} markPlanSeen={markPlanSeen}
+  resumeToday={resumeTodayAction} />` (`app/(app)/today/page.tsx`)
+- **Accessibility:** PageHeader `h1` "Hôm nay" with the long date; each column part is a Section
+  (a region named by its `h2`); blocks are a `role="list"`; DESIGN_SYSTEM §5 order — banners →
+  blocks (2/3 column from 1024 px) → stats and weak areas (1/3 column)
+
+### PlanBlockCard
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/plan-block-card.tsx`
+- **Props:** `view: BlockView`, `slots?: BlockSlots` (`{ items: BlockItemSlot[], sentences:
+  ShadowingSentence[] }`), `actions?: ReactNode` (task 5.2b puts the one-tap check-in here)
+- **Variants:** item rows (BlockItemList) · shadowing block (`block.shadowing` set:
+  ShadowingSentences instead) · over budget (a warning Badge "Dài hơn thời gian dự kiến": a new
+  item flagged `overBudget`, or a practice block longer than the track budget, M4-R10) · checked
+  in (a plain status row "Đã check-in" + StatusPill `block-done|partial|skipped` + minutes +
+  "tự động" for an auto check-in — 5.2b replaces it with CheckInStatus and "Sửa")
+- **States:** with rows · empty ("Khối này chưa có bài nào.")
+- **Usage:** `<PlanBlockCard view={view} slots={slots[view.block.id]} />`
+- **Accessibility:** an `article` named by its `h3` (the kind label) and the track chip (Badge
+  `tone="track"` in `data-accent`, the Vietnamese track title — the track is never colour alone);
+  the 4 px `bg-track` stripe is decorative; minutes with a decorative clock icon
+
+### BlockItemList
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/block-item-list.tsx`
+- **Props:** `items: BlockItemSlot[]` (`{ itemId, row, noNote }`: the registry row, and whether
+  it is a problem without a visible note)
+- **Variants:** a note-less problem gets "Chưa có ghi chú" under its row (§5.9, RF-4)
+- **States:** with rows · empty ("Khối này chưa có bài nào.")
+- **Usage:** `<BlockItemList items={slots.items} />` (PlanBlockCard)
+- **Accessibility:** a `role="list"`; each row is its type's LinkRow (44 px, one link); the
+  no-note line has a decorative icon and text
+
+### ShadowingSentences
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/shadowing-sentences.tsx`
+- **Props:** `sentences: ShadowingSentence[]` (`{ itemId, text }`: the block's cards' example
+  sentences, §5.6)
+- **Variants:** —
+- **States:** with sentences · empty ("Chưa có câu mẫu cho khối này.")
+- **Usage:** `<ShadowingSentences sentences={slots.sentences} />` (PlanBlockCard)
+- **Accessibility:** an ordered `role="list"` named by "Đọc to các câu sau"; each sentence is
+  `lang="en"`
+
+### PausedBanner
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/paused-banner.tsx`
+- **Props:** `planDate: LocalDay`, `offerResume: boolean`, `resume: () => Promise<ResumeResult>`
+- **Variants:** with / without ResumeButton ("Học tiếp hôm nay" only when the last seen plan is
+  more than 2 local days old, §5.8)
+- **States:** static
+- **Usage:** `<PausedBanner planDate={state.plan.planDate} offerResume={state.offerResume}
+  resume={resumeToday} />` (TodayView)
+- **Accessibility:** a `warning` Banner — icon + "Lộ trình đang tạm dừng — hoàn thành ít nhất một
+  phần để tiếp tục." + "Kế hoạch ngày {date}" + one action
+
+### ResumeButton
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/resume-button.tsx`
+- **Props:** `resume: () => Promise<ResumeResult>` (`resumeTodayAction`, unbound)
+- **Variants:** —
+- **States:** idle · pending (Button `loading`: spinner, `aria-busy`, a second click ignored) ·
+  success (message + toast — the action revalidates `/today`, so the button usually unmounts) ·
+  failure (the message beside the button, no toast)
+- **Usage:** `<ResumeButton resume={resume} />` (PausedBanner)
+- **Accessibility:** a 44 px primary Button "Học tiếp hôm nay"; the result in a polite
+  `role="status"` live region
+
+### MarkPlanSeen
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/mark-plan-seen.tsx`
+- **Props:** `planId: string`, `markPlanSeen: (planId) => Promise<void>` (the server action,
+  unbound)
+- **Variants:** —
+- **States:** renders nothing; calls the action once per plan id in `useEffect` after mount
+  (never in a render or a prefetch, ADR-0039); a failed call is swallowed and retried on the next
+  effect run or visit
+- **Usage:** `<MarkPlanSeen planId={page.markSeenPlanId} markPlanSeen={markPlanSeen} />`
+  (TodayView, `plan` state only)
+- **Accessibility:** —
+
+### TodayStats
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-stats.tsx`
+- **Props:** `streak: number`, `tracks: TrackProgressView[]`
+- **Variants:** a ProgressRing card per active track ("Tuần {w}/{weeks} · {n} mục cần ôn"; the
+  week left out without a roadmap)
+- **States:** ready · a new learner (0 streak, 0 due, 0 % rings — never NaN) · no active track
+  (streak and due only)
+- **Usage:** `<TodayStats streak={page.streak} tracks={page.tracks} />`
+- **Accessibility:** a Section "Tiến độ"; StreakBadge reads "{n} ngày liên tiếp"; the due
+  reviews are a StatCard inside one link to `/review` (a clickable card: hover shadow, global
+  focus ring); each ring is a labelled `progressbar` "Tiến độ {title}" with its percentage printed
+
+### WeakAreas
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/weak-areas.tsx`
+- **Props:** `topics: WeakTopicView[]` (`{ trackId, title, trackTitle, count }`, §5.7: ≥ 2 Weak
+  items, active tracks only, most first)
+- **Variants:** —
+- **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
+- **Usage:** `<WeakAreas topics={page.weakTopics} />`
+- **Accessibility:** a Section "Chủ đề cần củng cố"; each topic is a LinkRow to `/t/<track>`
+  with "{track} · {n} bài yếu" and the "Yếu" StatusPill (icon + label)
+
+### ThrottleNotice
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/throttle-notice.tsx`
+- **Props:** `track: TrackProgressView`
+- **Variants:** throttled (a `warning` Banner with `throttleMessage` — "Đang có 52 thẻ cần ôn —
+  tạm giảm thẻ mới." from the plan's snapshot, §5.5 — and "Ôn tập" to `/review?track=<id>`) · not
+  throttled (renders nothing)
+- **States:** static
+- **Usage:** `{page.tracks.map((track) => <ThrottleNotice key={track.trackId} track={track} />)}`
+- **Accessibility:** icon + one sentence + one action; the link's name carries the track title
+  (`sr-only`), so several notices stay distinct
+
+### TodayEmpty
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-empty.tsx`
+- **Props:** `{ kind: 'notStarted'; startDate: LocalDay } | { kind: 'noTracks' } | { kind:
+  'noBlocks' }`
+- **Variants:** notStarted ("Bắt đầu vào {date}", "Xem lộ trình" → `/tracks`) · noTracks ("Bạn
+  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào",
+  `h3` inside the plan Section)
+- **States:** empty (RF-4)
+- **Usage:** `<TodayEmpty kind="notStarted" startDate={state.startDate} />`
+- **Accessibility:** EmptyState — decorative icon, a heading, one action link
 
 ### Check-in components (`features/checkin/components`)
 

@@ -1,21 +1,23 @@
-import { CalendarCheck } from 'lucide-react'
 import type { Metadata } from 'next'
-import { EmptyState } from '@/components/patterns/empty-state'
-import { PageHeader } from '@/components/patterns/page-header'
+import { getToday, markPlanSeen, resumeTodayAction, todaySlots, TodayView } from '@/features/today'
 import { vi } from '@/lib/i18n/vi'
 
 export const metadata: Metadata = { title: `${vi.nav.today} — Học Đều` }
 
-/** Placeholder (decision 13) until task 5.1's dashboard. */
-export default function TodayPage() {
+/**
+ * `/today` (§2.4; task 5.1b): `getToday()` builds today's plan on the first visit while the gate
+ * is open (decision 6) — a default prefetch stops at `loading.tsx` and never runs it — and the
+ * page renders each block's rows through the registry (`todaySlots`). The server actions go to
+ * the client leaves unbound (`<MarkPlanSeen>` marks the plan seen in the browser, ADR-0039).
+ */
+export default async function TodayPage() {
+  const page = await getToday()
   return (
-    <>
-      <PageHeader title={vi.nav.today} />
-      <EmptyState
-        icon={CalendarCheck}
-        title={vi.today.comingSoonTitle}
-        description={vi.today.comingSoonBody}
-      />
-    </>
+    <TodayView
+      page={page}
+      slots={todaySlots(page)}
+      markPlanSeen={markPlanSeen}
+      resumeToday={resumeTodayAction}
+    />
   )
 }

@@ -275,8 +275,6 @@ const USED = [
   'admin.errors.changed',
   'admin.errors.noChange',
   'admin.errors.failed',
-  'today.comingSoonTitle',
-  'today.comingSoonBody',
   'template.days.mon-fri',
   'template.days.mon',
   'template.days.tue',
