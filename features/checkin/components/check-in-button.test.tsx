@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Section } from '@/components/patterns/section'
 import type { CheckInResult } from '../actions'
 import type { CheckInInput } from '../schema'
 import { CheckInButton } from './check-in-button'
@@ -19,6 +20,10 @@ const REQUEST_ID = 'c0ffee00-1234-4abc-8def-0123456789ab'
 const PLAN_ID = '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f'
 const BLOCK_ID = '2026-09-28:dsa:new:1'
 const LABEL = 'Bài mới · Cấu trúc dữ liệu & Giải thuật'
+const STALE = 'Kế hoạch vừa thay đổi. Trang đã được làm mới.'
+
+/** Lets the transition's continuation after the action run inside the same act batch. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 /** An action the test settles by hand. */
 function deferred() {
@@ -47,6 +52,35 @@ function button(action: (input: CheckInInput) => Promise<CheckInResult>) {
       blockId={BLOCK_ID}
       blockLabel={LABEL}
     />,
+  )
+}
+
+/** The plan around the button: `/today`'s re-render collapses it, or swaps the plan (`gone`). */
+function Block({
+  action,
+  checkedIn,
+  gone = false,
+}: {
+  action: (input: CheckInInput) => Promise<CheckInResult>
+  checkedIn: boolean
+  gone?: boolean
+}) {
+  return (
+    <Section title="Kế hoạch hôm nay" focusFallback>
+      {gone ? null : checkedIn ? (
+        <a href="#sua" data-check-in-edit={BLOCK_ID}>
+          Sửa
+        </a>
+      ) : (
+        <CheckInButton
+          action={action}
+          requestId={REQUEST_ID}
+          planId={PLAN_ID}
+          blockId={BLOCK_ID}
+          blockLabel={LABEL}
+        />
+      )}
+    </Section>
   )
 }
 
@@ -81,7 +115,7 @@ describe('CheckInButton (DESIGN_SYSTEM §9: one-tap)', () => {
     expect(tap.getAttribute('aria-busy')).toBeNull()
   })
 
-  it('announces the result in a polite live region; a success is also a toast', async () => {
+  it('a success while the button is still shown: its polite region, not also a toast (m-4)', async () => {
     const { action, settle } = deferred()
     button(action)
     const region = screen.getByRole('status')
@@ -90,21 +124,48 @@ describe('CheckInButton (DESIGN_SYSTEM §9: one-tap)', () => {
     fireEvent.click(screen.getByRole('button'))
     await act(async () => settle({ ok: true, message: 'Đã check-in: xong khối học.' }))
     expect(region.textContent).toBe('Đã check-in: xong khối học.')
-    expect(toasts).toEqual(['Đã check-in: xong khối học.'])
+    expect(toasts).toEqual([])
   })
 
-  it('keeps a refusal next to the button (never a toast alone), and can be tapped again', async () => {
+  it('the re-render collapses the button: a toast instead, focus on the block’s new "Sửa"', async () => {
+    const { action, settle } = deferred()
+    const { rerender } = render(<Block action={action} checkedIn={false} />)
+    fireEvent.click(screen.getByRole('button', { name: `Check-in: ${LABEL}` }))
+    await act(async () => {
+      settle({ ok: true, message: 'Đã check-in: xong khối học.' })
+      await tick()
+      rerender(<Block action={action} checkedIn />)
+    })
+    expect(toasts).toEqual(['Đã check-in: xong khối học.'])
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Sửa' }))
+  })
+
+  it('a stale plan swapped by the re-render (RF-2): the toast says so, focus on the plan heading', async () => {
+    const { action, settle } = deferred()
+    const { rerender } = render(<Block action={action} checkedIn={false} />)
+    fireEvent.click(screen.getByRole('button', { name: `Check-in: ${LABEL}` }))
+    await act(async () => {
+      settle({ ok: false, message: STALE })
+      await tick()
+      rerender(<Block action={action} checkedIn={false} gone />)
+    })
+    expect(toasts).toEqual([STALE])
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Kế hoạch hôm nay' }))
+  })
+
+  it('keeps a refusal next to the button while it stays, and can be tapped again', async () => {
     const { action, settle } = deferred()
     button(action)
     fireEvent.click(screen.getByRole('button'))
-    await act(async () => settle({ ok: false, message: 'Kế hoạch đã thay đổi — tải lại trang.' }))
-    expect(screen.getByRole('status').textContent).toBe('Kế hoạch đã thay đổi — tải lại trang.')
+    await act(async () => settle({ ok: false, message: 'Dữ liệu gửi lên không hợp lệ.' }))
+    expect(screen.getByRole('status').textContent).toBe('Dữ liệu gửi lên không hợp lệ.')
     expect(toasts).toEqual([])
     fireEvent.click(screen.getByRole('button'))
     expect(action).toHaveBeenCalledTimes(2)
+    await act(async () => settle({ ok: true, message: 'Đã check-in: xong khối học.' }))
   })
 
-  it('a failed request (the network) says the save failed', async () => {
+  it('a failed request (the network) says the save failed — never the error boundary', async () => {
     const { action, fail } = deferred()
     button(action)
     fireEvent.click(screen.getByRole('button'))

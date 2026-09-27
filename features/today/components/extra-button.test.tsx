@@ -48,7 +48,7 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
     expect(button.getAttribute('aria-busy')).toBeNull()
   })
 
-  it('announces a success in its polite live region and as a toast', async () => {
+  it('announces a success in its polite live region only — the button stays, so no toast (m-4)', async () => {
     const { action, settle } = deferred()
     render(<ExtraButton view={DSA} requestId={REQUEST_ID} action={action} />)
     const region = screen.getByRole('status')
@@ -56,7 +56,15 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
     fireEvent.click(screen.getByRole('button'))
     await act(async () => settle({ ok: true, message: 'Đã thêm bài mới vào kế hoạch.' }))
     expect(region.textContent).toBe('Đã thêm bài mới vào kế hoạch.')
-    expect(toasts).toEqual(['Đã thêm bài mới vào kế hoạch.'])
+    expect(toasts).toEqual([])
+  })
+
+  it('a failed request (a flaky network) stays beside the button — never the error boundary', async () => {
+    const action = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')))
+    render(<ExtraButton view={DSA} requestId={REQUEST_ID} action={action} />)
+    await act(async () => fireEvent.click(screen.getByRole('button')))
+    expect(screen.getByRole('status').textContent).toBe('Không lưu được thay đổi. Bạn thử lại nhé.')
+    expect(toasts).toEqual([])
   })
 
   it('keeps "nothing to add" next to the button, never a toast alone', async () => {

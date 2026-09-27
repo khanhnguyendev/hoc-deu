@@ -240,6 +240,33 @@ from `lib/i18n/vi.ts`.
 
 ## patterns
 
+### ActionFeedback
+
+- **Layer:** pattern (**client**)
+- **File:** `components/patterns/action-feedback.tsx` (`useActionFeedback` + `ActionStatus`;
+  `components/patterns/focus-fallback.ts` holds the focus helpers)
+- **Props:** `useActionFeedback({ focusTarget?: () => HTMLElement | null })` → `{ pending, answer,
+  run(send, onAnswer?), reset() }`; `<ActionStatus feedback={…} spacing?="below" | "none" />`
+- **Variants:** ActionStatus `spacing` (cva): `below` (default: `mt-2` only while it says
+  something, under a control in a gapless column) · `none` (inside a container that spaces its
+  children)
+- **States:** idle · pending (the action and the re-render it causes; a second `run` sends
+  nothing) · success · refused (the server's reason; the control can be pressed again) · thrown (a
+  rejected request — offline, a 5xx — answers "Không lưu được thay đổi. Bạn thử lại nhé." and never
+  reaches the route's error boundary)
+- **Usage:** `const feedback = useActionFeedback({ focusTarget: () => checkInControlOf(id) })`;
+  `feedback.run(() => action(input))`; `<Button loading={feedback.pending}>…</Button>
+  <ActionStatus feedback={feedback} />`. `run(send, (answer) => (answer.ok ? 'toast' : undefined))`
+  delivers an answer as a toast now (a control that closes itself, CheckInSheet). Used by
+  ResumeButton, CheckInButton, CheckInSheet, ExtraButton and ResetTrackButton (UI I-3)
+- **Accessibility:** the answer goes to **one** place: the control's own polite `role="status"`
+  region (`ActionStatus`, keyed per answer so a repeat is re-announced) once the page's re-render
+  is over — or, when that re-render removed the control (a check-in collapsing its button, a stale
+  plan swapped, the paused view ending), a toast; an answer already shown is never toasted too.
+  When a control that has had an answer disappears with focus on `<body>`, focus moves to
+  `focusTarget()` (the block's new "Sửa"), else to the page's focus fallback — the heading a
+  `Section` marks with `focusFallback` (DESIGN_SYSTEM §10); focus that is still somewhere stays
+
 ### AppShell
 
 - **Layer:** pattern
@@ -521,11 +548,14 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/section.tsx`
-- **Props:** `title`, `description?`, `actions?`, `children`
-- **Variants:** —
+- **Props:** `title`, `description?`, `actions?`, `focusFallback?: boolean`, `children`
+- **Variants:** `focusFallback` — the heading is the page's focus fallback (`tabIndex={-1}`,
+  `data-focus-fallback`): where `useActionFeedback` moves focus when its control disappears with
+  it. One per page (`/today`: the plan section)
 - **States:** static
 - **Usage:** `<Section title="Ôn tập đến hạn">…</Section>`
-- **Accessibility:** a region named by its `h2`
+- **Accessibility:** a region named by its `h2`; a `focusFallback` heading is focusable by script
+  only (never in the tab order)
 
 ### StatCard
 
@@ -1643,12 +1673,15 @@ Copy: `vi.today`.
 - **File:** `features/today/components/resume-button.tsx`
 - **Props:** `resume: () => Promise<ResumeResult>` (`resumeTodayAction`, unbound)
 - **Variants:** —
-- **States:** idle · pending (Button `loading`: spinner, `aria-busy`, a second click ignored) ·
-  success (message + toast — the action revalidates `/today`, so the button usually unmounts) ·
-  failure (the message beside the button, no toast)
+- **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
+  `aria-busy`, a second click sends nothing) · answered — the action revalidates `/today`, so a
+  success or "not offered" (the one "Kế hoạch vừa thay đổi. Trang đã được làm mới.") usually
+  replaces the paused view and the button: a toast, focus on the plan's heading; while the button
+  stays, its own region · failed request ("Không lưu được thay đổi…" beside the button, never the
+  error boundary)
 - **Usage:** `<ResumeButton resume={resume} />` (PausedBanner)
-- **Accessibility:** a 44 px primary Button "Học tiếp hôm nay"; the result in a polite
-  `role="status"` live region
+- **Accessibility:** a 44 px Button "Học tiếp hôm nay"; the answer in a polite `role="status"`
+  region (ActionStatus) or a toast, never both
 
 ### MarkPlanSeen
 
@@ -1749,17 +1782,19 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Props:** `action: CheckInAction` (`checkInBlock`, unbound), `requestId: string`, `planId:
   string`, `blockId: string`, `blockLabel: string` ("{kind} · {track}")
 - **Variants:** —
-- **States:** idle · pending (Button `loading`: spinner, `aria-busy`; a second tap sends nothing,
-  RF-2) · success (the message + a toast — the action revalidates `/today`, whose re-render
-  collapses the card into CheckInStatus; focus left on `<body>` by the unmount moves to the
-  block's new "Sửa") · refused / failed request (the message beside the button, no toast; tap
-  again)
+- **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
+  `aria-busy`; a second tap sends nothing, RF-2) · answered — the action revalidates `/today`: a
+  success collapses the card into CheckInStatus and a stale answer ("Kế hoạch vừa thay đổi. Trang
+  đã được làm mới.") swaps the plan, so the answer is a toast and focus moves to the block's "Sửa"
+  / one-tap on the new page, else the plan's heading; while the button stays, its own region ·
+  refused / failed request (the message beside the button, never the error boundary; tap again).
+  The button carries `data-check-in-button="<blockId>"` (`checkInControlOf`)
 - **Usage:** `<CheckInButton action={checkIn} requestId={page.requestId} planId={plan.id}
   blockId={view.block.id} blockLabel={blockLabel(view)} />` (PlanBlockCard's `actions`)
 - **Accessibility:** a full-width 48 px `primary` Button "Check-in" (the biggest target, one
   primary per card) named "Check-in: {kind} · {track}" (`aria-label` starting with the visible
-  label, WCAG 2.5.3, so several stay distinct); the answer in a polite `role="status"` live
-  region
+  label, WCAG 2.5.3, so several stay distinct); the answer in a polite `role="status"` region
+  (ActionStatus) or a toast, never both
 
 ### CheckInStatus
 
@@ -1789,16 +1824,17 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
   check-in (Xong, the block's `checkInMinutes`) · edit (pre-filled with the block's check-in).
   It renders on the server too (`/today?block=<id>` loaded as a new page): nothing in its render
   reads `document` (UI I-1)
-- **States:** idle · saving (submit `loading`) · error (a danger Banner with the message —
-  "stale", "Không lưu được thay đổi. Bạn thử lại nhé." for a failed request — and "Thử lại",
-  the sheet kept open) · invalid (minutes outside 0–600, or a note over 280 graphemes / the
+- **States:** through ActionFeedback (UI I-3): idle · saving (submit `loading`) · error (a danger
+  Banner with the message — "Không lưu được thay đổi. Bạn thử lại nhé." for a failed request — and
+  "Thử lại", the sheet kept open) · stale (the re-render drops the sheet: the answer is a toast) ·
+  invalid (minutes outside 0–600, or a note over 280 graphemes / the
   payload bound: the error under the field, submit disabled) · success (toast, back to `/today`)
 - **Usage:** `{open && <CheckInSheet key={open.block.id} action={checkIn} requestId={…}
   planId={plan.id} block={…} />}` (TodayView, from `page.openBlockId`)
 - **Accessibility:** a modal dialog named by its title "Check-in: {kind}"; focus moves to the
   title on open, is trapped, and `Esc` / "Đóng" / "Huỷ" close it (`router.replace`, so the back
   button never reopens it, §2.4); closing returns focus to the control that opened it, else (a
-  deep link) to the block's "Sửa"; a click on that "Sửa" while the replace is still pending
+  deep link) to the block's "Sửa" or one-tap, else the plan's heading; a click on that "Sửa" while the replace is still pending
   reopens it; the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
   labels); the minutes stepper's −/+ are 44 px icon buttons "Bớt 5 phút" / "Thêm 5 phút"; the
   note's live "n/280" counter and error are in its `aria-describedby`, and a crossed limit (note
@@ -2120,9 +2156,11 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập." (the plan-time count; no promise
   that reviewing unlocks it — ruling M5-R33) and an "Ôn tập" link to `/review?track=<id>`, no
   button
-- **States:** default, pending (the button busy; a second click is ignored), answered (the
-  message in its live region; a success also a toast — "Đã thêm bài mới vào kế hoạch.";
-  "Bạn đã học hết bài mới của lộ trình này." stays beside the button)
+- **States:** through ActionFeedback (UI I-3): default, pending (the button busy; a second click
+  sends nothing), answered — the button stays, so the answer is in its own region only (m-4):
+  "Đã thêm bài mới vào kế hoạch.", "Bạn đã học hết bài mới của lộ trình này."; a stale answer whose
+  re-render removes "Học thêm" is a toast; a failed request is said beside the button, never the
+  error boundary
 - **Usage:** `<ExtraButton view={extra} requestId={page.requestId} action={addExtra} />`
   (TodayView's Section "Học thêm", plan and resumed states: one per track `extraTrackIds` gives —
   the plan engine's eligibility, the same the server applies). The surface is `Card`
@@ -2188,7 +2226,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **Variants:** —
 - **States:** default · asking (a destructive ConfirmDialog "Xoá tiến độ của lộ trình này?" /
   "Lịch sử học và chuỗi ngày vẫn được giữ." / "Bắt đầu lại") · pending (the dialog busy, it cannot
-  close) · answered (the dialog closes; the message in its live region, a success also a toast)
+  close) · answered, through ActionFeedback (UI I-3): the dialog closes; the button stays, so the
+  message is in its own region only, not also a toast (m-4); a failed request is said there too,
+  never the error boundary
 - **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
   trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
 - **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps

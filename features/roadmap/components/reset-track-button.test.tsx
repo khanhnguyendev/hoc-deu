@@ -62,7 +62,22 @@ describe('ResetTrackButton ("Bắt đầu lại", §5.9)', () => {
     const status = screen.getByRole('status')
     expect(status.getAttribute('aria-live')).toBe('polite')
     expect(status.textContent).toBe(message)
-    expect(toasts).toEqual([message])
+    // The button stays: its own region says it, not also a toast (m-4).
+    expect(toasts).toEqual([])
+  })
+
+  it('a failed request closes the dialog and says so beside the button — never the error boundary', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')))
+    render(<ResetTrackButton action={action} requestId={REQUEST_ID} trackId="dsa" />)
+    await user.click(screen.getByRole('button', { name: 'Bắt đầu lại' }))
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(
+      [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Bắt đầu lại')!,
+    )
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Không lưu được thay đổi. Bạn thử lại nhé.')
+    expect(toasts).toEqual([])
   })
 
   it('keeps a failure next to the button (never a toast alone)', async () => {

@@ -30,7 +30,8 @@ describe('lib/i18n/strings/check-in.ts (tasks 5.2a, 5.2b)', () => {
   it('has the write path messages of the brief (RF-3, decision 13)', () => {
     expect(checkIn.errors.noteTooLong).toMatch(/^Ghi chú quá dài/)
     expect(checkIn.errors.noteTooLong).toContain('280')
-    expect(checkIn.errors.stale).toBe('Kế hoạch đã thay đổi — tải lại trang.')
+    // UI I-3: the one "page refreshed" message, true when it is read — the action revalidated.
+    expect(checkIn.errors.stale).toBe('Kế hoạch vừa thay đổi. Trang đã được làm mới.')
     expect(checkIn.outcome.saved).toBe('Đã lưu kết quả.')
     expect(checkIn.outcome.savedAutoCheckInFailed).toBe('Đã lưu kết quả; chưa tự check-in được.')
   })

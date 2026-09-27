@@ -150,6 +150,7 @@ import { REVIEW_ENTRIES } from './entries/review'
 import { PROGRESS_ENTRIES } from './entries/progress'
 import { EXTRA_ENTRIES } from './entries/extra'
 import { ADMIN_ENTRIES } from './entries/admin'
+import { PATTERN_ENTRIES } from './entries/patterns'
 import type { Entry } from './types'
 
 const DEMO_TODAY = '2026-02-04'
@@ -2758,4 +2759,5 @@ export const CATALOG: Entry[] = [
   ...PROGRESS_ENTRIES,
   ...EXTRA_ENTRIES,
   ...ADMIN_ENTRIES,
+  ...PATTERN_ENTRIES,
 ]

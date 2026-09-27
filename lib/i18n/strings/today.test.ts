@@ -44,6 +44,19 @@ describe('lib/i18n/strings/today.ts', () => {
     expect(today.block.overBudget).toBe('Dài hơn thời gian dự kiến')
   })
 
+  it('has one "page refreshed" message for every refused action that re-rendered /today (UI I-3)', () => {
+    const refreshed = 'Kế hoạch vừa thay đổi. Trang đã được làm mới.'
+    expect(vi.checkIn.errors.stale).toBe(refreshed)
+    expect(vi.extra.add.stale).toBe(refreshed)
+    expect(today.resumeResult.notOffered).toBe(refreshed)
+    const all = [today, vi.checkIn, vi.extra].flatMap((area) => strings(area))
+    expect(all.filter(([, value]) => value.includes('làm mới')).map(([, value]) => value)).toEqual([
+      refreshed,
+      refreshed,
+      refreshed,
+    ])
+  })
+
   it('labels every block kind, and the practice tags of the default templates', () => {
     expect(today.kind).toEqual({
       review: 'Ôn tập',

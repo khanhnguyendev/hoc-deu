@@ -250,8 +250,8 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     const region = within(dialog()).getByRole('status')
     expect(region.getAttribute('aria-live')).toBe('polite')
     await user.click(submit())
-    await act(async () => settle({ ok: false, message: 'Kế hoạch đã thay đổi — tải lại trang.' }))
-    expect(region.textContent).toContain('Kế hoạch đã thay đổi — tải lại trang.')
+    await act(async () => settle({ ok: false, message: TOO_LONG }))
+    expect(region.textContent).toContain(TOO_LONG)
     expect(toasts).toEqual([])
     expect(nav.replace).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -259,6 +259,25 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     await user.click(within(region).getByRole('button', { name: 'Thử lại' }))
     expect(action).toHaveBeenCalledTimes(2)
     expect(action.mock.calls[1]).toEqual(action.mock.calls[0])
+    // React entangles every pending async transition: settle it before the next test.
+    await act(async () => settle({ ok: false, message: TOO_LONG }))
+  })
+
+  it('a stale plan: the re-render drops the sheet, so the answer is a toast (UI I-3)', async () => {
+    const user = userEvent.setup()
+    const { action, settle } = deferred()
+    const { rerender } = render(
+      <CheckInSheet action={action} requestId={REQUEST_ID} planId={PLAN_ID} block={BLOCK} />,
+    )
+    await user.click(submit())
+    const STALE = 'Kế hoạch vừa thay đổi. Trang đã được làm mới.'
+    await act(async () => {
+      settle({ ok: false, message: STALE })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      rerender(<p>Kế hoạch mới</p>)
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(toasts).toEqual([STALE])
   })
 
   it('a failed request (the network) says the save failed, with "Thử lại"', async () => {

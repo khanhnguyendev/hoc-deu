@@ -64,7 +64,9 @@ function summary(blocks: readonly BlockView[]): string {
  * column (one column below 1024 px). Each block without a check-in gets the one-tap button;
  * check-ins go to the plan shown (decision 13 — the paused plan while the gate is closed). A
  * card-only block grades its cards inline (CardBlock, decision 19). `?block=` opens that block's
- * check-in sheet (§2.4).
+ * check-in sheet (§2.4). The plan section's heading is the page's focus fallback: an action
+ * control whose answer re-renders it away (a check-in, "Học tiếp hôm nay", a stale plan) moves
+ * focus there (UI I-3, DESIGN_SYSTEM §10).
  */
 function Dashboard({
   page,
@@ -95,6 +97,7 @@ function Dashboard({
           <Section
             title={sectionTitle(state)}
             description={page.blocks.length > 0 ? summary(page.blocks) : undefined}
+            focusFallback
           >
             {page.blocks.length === 0 ? (
               <TodayEmpty kind="noBlocks" />

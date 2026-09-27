@@ -209,6 +209,36 @@ test('[RF-5] paused 3 days: "Học tiếp hôm nay" builds one plan for today, a
   expect((await plansOf(user.id)).map((row) => row.plan_date)).toEqual([stale, today])
 })
 
+test('[UI I-3, RF-2] tab B resumes; tab A’s check-in on the paused plan is refused — a toast, today’s plan, focus on its heading', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa'], (day) => addDays(day, -30))
+  const stale = addDays(today, -3)
+  const planId = await seenDsaPlan(user.id, stale)
+  await openToday(page, user)
+  await expect(page.getByText(PAUSED)).toBeVisible()
+
+  // Tab B (same session) takes "Học tiếp hôm nay": today now has its own plan.
+  const tabB = await page.context().newPage()
+  await tabB.goto('/today')
+  await tabB.getByRole('button', { name: RESUME }).click()
+  await expect(planRegion(tabB, 'Kế hoạch hôm nay')).toBeVisible()
+  await tabB.close()
+
+  // Tab A still shows the paused plan: its check-in is stale. The re-render swaps in today's plan
+  // and removes the button, so the answer is a toast — never silence — and focus is not lost.
+  await page.getByRole('button', { name: `Check-in: Bài mới · ${DSA}` }).click()
+  await expect(
+    page
+      .locator('[data-sonner-toast]')
+      .filter({ hasText: 'Kế hoạch vừa thay đổi. Trang đã được làm mới.' }),
+  ).toBeVisible()
+  await expect(planRegion(page, 'Kế hoạch hôm nay')).toBeVisible()
+  await expect(page.getByText(PAUSED)).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 2, name: 'Kế hoạch hôm nay' })).toBeFocused()
+  expect(await blockCheckIn(user.id, planId, `${stale}:dsa:new:1`)).toBeNull()
+})
+
 test('[RF-5] paused 2 days: the banner, no "Học tiếp hôm nay"', async ({ page }) => {
   const { user, today } = await learner(['dsa'], (day) => addDays(day, -30))
   const stale = addDays(today, -2)

@@ -1,41 +1,28 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { ActionStatus, useActionFeedback } from '@/components/patterns/action-feedback'
 import { Button } from '@/components/ui/button'
-import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
 import type { ResumeResult } from '../actions'
 
 export type ResumeAction = () => Promise<ResumeResult>
 
 /**
- * "Học tiếp hôm nay" (§5.8): calls `resumeTodayAction` (an unbound prop from the page), pending
- * while it runs (a second click is ignored), and puts the answer in a polite live region beside
- * the button. The action revalidates `/today`, so a success usually replaces the paused view — and
- * this button — with today's plan: a success is also a toast, which outlives the re-render. A
- * failure stays next to the button (a toast is never the only feedback for a failure).
+ * "Học tiếp hôm nay" (§5.8): calls `resumeTodayAction` (an unbound prop from the page) through
+ * `useActionFeedback` (UI I-3) — pending while the action and the re-render run (a second click
+ * sends nothing), a failed request said beside the button, never the error boundary. The action
+ * revalidates `/today`, so a success — or "not offered", when another tab changed the plan —
+ * usually replaces the paused view and this button: the answer is then a toast, and focus moves to
+ * the plan's heading; while the button stays, the answer is in its own polite region.
  */
 function ResumeButton({ resume }: { resume: ResumeAction }) {
-  const [pending, startTransition] = useTransition()
-  const [message, setMessage] = useState('')
-
-  const onClick = () => {
-    if (pending) return
-    startTransition(async () => {
-      const result = await resume()
-      setMessage(result.message)
-      if (result.ok) toast(result.message)
-    })
-  }
-
+  const feedback = useActionFeedback()
   return (
-    <div data-slot="resume-button" className="flex flex-col items-start gap-2">
-      <Button onClick={onClick} loading={pending}>
+    <div data-slot="resume-button" className="flex flex-col items-start">
+      <Button onClick={() => feedback.run(resume)} loading={feedback.pending}>
         {vi.today.paused.resume}
       </Button>
-      <p role="status" aria-live="polite" className="text-sm">
-        {message}
-      </p>
+      <ActionStatus feedback={feedback} />
     </div>
   )
 }

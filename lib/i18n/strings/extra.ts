@@ -1,3 +1,5 @@
+import { checkIn } from './check-in'
+
 /**
  * "Học thêm", off-plan study, track progress and "Bắt đầu lại" (task 5.4; Part B-M5 decision 3).
  * `{n}`, `{week}`, `{weeks}`, `{introduced}` and `{total}` are formatted numbers, `{title}` a track
@@ -19,8 +21,9 @@ export const extra = {
     throttled:
       'Kế hoạch này được lập khi bạn có {n} thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
     review: 'Ôn tập',
-    /** The plan changed since the page was rendered (paused, rebuilt, or now throttled). */
-    stale: 'Kế hoạch vừa thay đổi. Trang đã được làm mới.',
+    /** The plan changed since the page was rendered (paused, rebuilt, or now throttled): the
+     *  one "page refreshed" message (UI I-3). */
+    stale: checkIn.errors.stale,
     invalid: 'Không thể học thêm lúc này. Bạn tải lại trang rồi thử lại.',
   },
   /** The track page (§2.4; Part B-M3 decision 25): the learner's progress on the track. */

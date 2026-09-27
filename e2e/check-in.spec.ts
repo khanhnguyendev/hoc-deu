@@ -269,8 +269,9 @@ test('[UI I-1] /today?block=<id> loaded as a new page (a reload, a new tab): ren
   await expect(sheet(page).getByRole('heading', { name: 'Check-in: Bài mới' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
+  // No check-in yet, so no "Sửa": focus goes to the block's one-tap (DESIGN_SYSTEM §10).
   await expect(editLink(card(page, DSA), DSA)).toHaveCount(0)
-  await expect(oneTap(card(page, DSA), DSA)).toBeVisible()
+  await expect(oneTap(card(page, DSA), DSA)).toBeFocused()
 })
 
 test.describe('a save that fails', () => {

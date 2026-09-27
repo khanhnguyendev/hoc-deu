@@ -3,7 +3,9 @@
 import { Check, Clock, Minus, Plus, RotateCcw, SkipForward, type LucideIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import * as React from 'react'
+import { useActionFeedback } from '@/components/patterns/action-feedback'
 import { Banner } from '@/components/patterns/banner'
+import { focusFallbackElement, focusLost } from '@/components/patterns/focus-fallback'
 import { FormField } from '@/components/patterns/form-field'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,13 +20,12 @@ import { Input } from '@/components/ui/input'
 import { SheetContent } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { toast } from '@/components/ui/toaster'
 import { MEDIA, useMediaQuery } from '@/components/ui/use-media-query'
 import { CHECK_IN_STATUSES, type BlockState, type CheckInStatus } from '@/lib/domain/state'
 import { fill, formatMinutes, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { graphemeCount, normalizeNote, noteError, NOTE_MAX_GRAPHEMES } from '../schema'
-import { editLinkOf, focusLost, type CheckInAction } from './check-in-button'
+import { checkInControlOf, type CheckInAction } from './check-in-button'
 
 const copy = vi.checkIn.sheet
 
@@ -86,9 +87,12 @@ const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINU
  * qua" sets 0, and Xong / Một phần from 0 restores the pre-filled minutes); the note is optional,
  * with a live "n/280" grapheme counter and the server's own rule (`noteError`, RF-3) beside the
  * field — a crossed limit is also announced in a polite live region, so a disabled submit always
- * has a reason. Submit sends `checkInBlock` with the page's request ID; saving, then a toast and
- * back to `/today` — or the error in a polite live region with "Thử lại", the sheet kept open.
- * Closing returns focus to the control that opened it, else (a deep link) to the block's "Sửa"
+ * has a reason. Submit sends `checkInBlock` with the page's request ID through
+ * `useActionFeedback` (UI I-3): saving, then a toast and back to `/today` — or the error in a
+ * polite live region with "Thử lại", the sheet kept open; a failed request never reaches the
+ * error boundary. A refusal whose re-render removes the sheet (a stale plan: `?block=` names a
+ * block the new plan does not show) is a toast instead. Closing returns focus to the control that
+ * opened it, else (a deep link) to the block's "Sửa" or one-tap, else the plan's heading
  * (DESIGN_SYSTEM §10). While closed but still mounted — `router.replace` not landed yet, which a
  * new navigation discards — a click on the block's "Sửa" opens it again.
  */
@@ -98,8 +102,6 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   const uid = React.useId()
   const titleRef = React.useRef<HTMLHeadingElement>(null)
   const openRef = React.useRef(true)
-  // In flight: `pending` is for display (React entangles every pending async transition).
-  const sending = React.useRef(false)
   const [open, setOpen] = React.useState(true)
   // What had focus when `?block=` mounted the sheet: the "Sửa" link, or <body> for a deep link.
   // Read in the browser only: `/today?block=<id>` renders this sheet on the server too, where
@@ -108,8 +110,9 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
     typeof document === 'undefined' ? null : document.activeElement,
   )
   // Idle, saving (`pending`: the action and the re-render it causes), or an error with "Thử lại".
-  const [pending, startTransition] = React.useTransition()
-  const [error, setError] = React.useState<string | null>(null)
+  const feedback = useActionFeedback({ focusTarget: () => checkInControlOf(block.id) })
+  const error = feedback.answer !== null && !feedback.answer.ok ? feedback.answer.message : null
+  const { reset } = feedback
 
   const initialMinutes = block.checkIn?.minutes ?? block.defaultMinutes
   const [status, setStatus] = React.useState<CheckInStatus>(block.checkIn?.status ?? 'done')
@@ -151,15 +154,15 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
         event.target instanceof Element ? event.target.closest('[data-check-in-edit]') : null
       if (!(link instanceof HTMLElement) || link.dataset.checkInEdit !== block.id) return
       openRef.current = true
-      setError(null)
+      reset()
       setOpen(true)
     }
     document.addEventListener('click', reopen, true)
     return () => document.removeEventListener('click', reopen, true)
-  }, [open, block.id])
+  }, [open, block.id, reset])
 
   const submit = () => {
-    if (sending.current || parsedMinutes === null || noteMessage !== undefined) return
+    if (parsedMinutes === null || noteMessage !== undefined) return
     const input = {
       requestId,
       planId,
@@ -168,23 +171,15 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
       minutes: parsedMinutes,
       ...(normalizeNote(note) === undefined ? {} : { note }),
     }
-    sending.current = true
-    setError(null)
-    startTransition(async () => {
-      try {
-        const result = await action(input)
-        if (!result.ok) {
-          setError(result.message)
-          return
-        }
-        toast(result.message)
+    // A saved check-in closes the sheet: its answer is a toast.
+    feedback.run(
+      () => action(input),
+      (answer) => {
+        if (!answer.ok) return
         close()
-      } catch {
-        setError(vi.errors.saveFailed)
-      } finally {
-        sending.current = false
-      }
-    })
+        return 'toast'
+      },
+    )
   }
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -198,13 +193,14 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   }
 
   // No DialogTrigger: Radix would leave focus on <body>. The opener while it is still on the
-  // page, else the block's "Sửa" (a deep link; Safari never focuses a clicked link).
+  // page, else the block's "Sửa" or one-tap (a deep link; Safari never focuses a clicked link),
+  // else — the block is gone from a re-rendered plan — the plan's heading.
   const returnFocus = (event: Event) => {
     event.preventDefault()
     if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) {
       opener.focus()
     } else if (focusLost()) {
-      editLinkOf(block.id)?.focus()
+      ;(checkInControlOf(block.id) ?? focusFallbackElement())?.focus()
     }
   }
 
@@ -325,7 +321,7 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
           <Button variant="ghost" onClick={close}>
             {vi.common.cancel}
           </Button>
-          <Button type="submit" loading={pending} disabled={invalid}>
+          <Button type="submit" loading={feedback.pending} disabled={invalid}>
             {copy.submit}
           </Button>
         </DialogFooter>

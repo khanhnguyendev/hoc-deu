@@ -21,8 +21,12 @@ export const checkIn = {
   errors: {
     /** RF-3: more than 280 graphemes, or more than the event payload holds — one message. */
     noteTooLong: 'Ghi chú quá dài — tối đa 280 ký tự.',
-    /** Decision 13: the plan named is no longer the one `/today` shows. */
-    stale: 'Kế hoạch đã thay đổi — tải lại trang.',
+    /**
+     * Decision 13: the plan named is no longer the one `/today` shows. The one "page refreshed"
+     * message (UI I-3): every action that answers it has already revalidated `/today`, so the page
+     * the learner reads it on is the new one ("Học thêm" and "Học tiếp hôm nay" reuse it).
+     */
+    stale: 'Kế hoạch vừa thay đổi. Trang đã được làm mới.',
     invalid: 'Dữ liệu gửi lên không hợp lệ. Bạn tải lại trang nhé.',
     unknownItem: 'Không tìm thấy mục học này.',
   },

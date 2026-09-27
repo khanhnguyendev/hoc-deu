@@ -1,3 +1,5 @@
+import { checkIn } from './check-in'
+
 /**
  * `/today` (Part B-M5 decision 3): only 5.1a, 5.1b and 5.4 edit this file, in their waves.
  * `{date}` is a formatted local day, `{minutes}` a formatted duration, `{n}` / `{week}` /
@@ -8,7 +10,9 @@ export const today = {
   resumeResult: {
     created: 'Đã tạo kế hoạch hôm nay từ phần học còn dang dở.',
     exists: 'Kế hoạch hôm nay đã được tạo.',
-    notOffered: 'Lựa chọn này không còn khả dụng. Trang đã được làm mới.',
+    /** The gate opened, or the plan changed, since the page rendered: the one "page refreshed"
+     *  message (UI I-3). */
+    notOffered: checkIn.errors.stale,
   },
   /** The plan's section (§2.4): today's plan, or the resumed / paused plan of its own date. */
   plan: {

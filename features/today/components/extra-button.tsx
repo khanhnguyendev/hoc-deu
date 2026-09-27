@@ -2,11 +2,10 @@
 
 import { Plus } from 'lucide-react'
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { ActionStatus, useActionFeedback } from '@/components/patterns/action-feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { toast } from '@/components/ui/toaster'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { ExtraResult } from '../actions'
@@ -20,9 +19,11 @@ export type AddExtraAction = (input: { requestId: string; trackId: string }) => 
 /**
  * "Học thêm" for one track (decision 20, §5.9): the track chip and an outline button (the one
  * primary on `/today` stays check-in) that sends `{ requestId, trackId }` — the render's request
- * id, so a double tap adds once (decision 16) — pending while it runs (a second click is ignored).
- * The answer goes to a polite live region beside the button; a success is also a toast, which
- * outlives the re-render that shows the new extra block. When the plan's snapshot caps the track
+ * id, so a double tap adds once (decision 16) — through `useActionFeedback` (UI I-3): pending while
+ * the action and the re-render run, a failed request said beside the button (never the error
+ * boundary). The button stays after a success (the new extra block appears above it), so the
+ * answer is in its own polite region — not also a toast (m-4); a stale answer whose re-render
+ * removes "Học thêm" (the plan is now paused) is a toast, focus on the plan's heading. When the plan's snapshot caps the track
  * at 0 new items (§5.5) there is no button: it says why, truthfully — the plan-time due count, and
  * no new items for this plan (ruling M5-R33 M-5) — and links to the track's review queue. The
  * surface is the `Card` primitive.
@@ -36,16 +37,10 @@ function ExtraButton({
   requestId: string
   action: AddExtraAction
 }) {
-  const [pending, startTransition] = useTransition()
-  const [message, setMessage] = useState('')
+  const feedback = useActionFeedback()
 
   const onClick = () => {
-    if (pending) return
-    startTransition(async () => {
-      const result = await action({ requestId, trackId: view.trackId })
-      setMessage(result.message)
-      if (result.ok) toast(result.message)
-    })
+    feedback.run(() => action({ requestId, trackId: view.trackId }))
   }
 
   return (
@@ -53,16 +48,14 @@ function ExtraButton({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Badge tone="track">{view.trackTitle}</Badge>
         {view.throttledDue === null && (
-          <Button variant="outline" loading={pending} onClick={onClick}>
+          <Button variant="outline" loading={feedback.pending} onClick={onClick}>
             <Plus aria-hidden="true" strokeWidth={1.75} />
             {copy.action} <span className="sr-only">{view.trackTitle}</span>
           </Button>
         )}
       </div>
       {view.throttledDue === null ? (
-        <p role="status" aria-live="polite" className="text-sm">
-          {message}
-        </p>
+        <ActionStatus feedback={feedback} spacing="none" />
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm">{fill(copy.throttled, { n: formatNumber(view.throttledDue) })}</p>
