@@ -328,7 +328,7 @@ describe('buildTodayPage — tracks', () => {
     )
     expect(page.tracks.map((track) => track.throttleMessage)).toEqual([
       null,
-      'Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
     ])
   })
 
@@ -617,13 +617,13 @@ describe('buildTodayPage — "Học thêm" (task 5.4, decision 20)', () => {
     const plan = storedPlan({ tracks: { dsa: SNAPSHOT, english: { ...SNAPSHOT, variant: '10w' } } })
     for (const state of [planState(plan), { kind: 'resumed', plan, blocks: {} } as const]) {
       expect(buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID).extra).toEqual([
-        { trackId: 'dsa', trackTitle: DSA_TITLE, accent: 'track-1', throttledDue: null },
-        { trackId: 'english', trackTitle: ENGLISH_TITLE, accent: 'track-2', throttledDue: null },
+        { trackId: 'dsa', trackTitle: DSA_TITLE, accent: 'track-1', newPaused: false },
+        { trackId: 'english', trackTitle: ENGLISH_TITLE, accent: 'track-2', newPaused: false },
       ])
     }
   })
 
-  it("carries the snapshot's due count when the plan caps the track at 0 new items (§5.5)", () => {
+  it('marks new items paused when the plan caps the track at 0 new items (§5.5, UI I-5)', () => {
     const plan = storedPlan({
       tracks: {
         dsa: SNAPSHOT,
@@ -631,9 +631,9 @@ describe('buildTodayPage — "Học thêm" (task 5.4, decision 20)', () => {
       },
     })
     const page = buildTodayPage(todayData(planState(plan)), NO_ACTIVITY, REQUEST_ID)
-    expect(page.extra.map((view) => [view.trackId, view.throttledDue])).toEqual([
-      ['dsa', null],
-      ['english', 61],
+    expect(page.extra.map((view) => [view.trackId, view.newPaused])).toEqual([
+      ['dsa', false],
+      ['english', true],
     ])
   })
 

@@ -33,8 +33,9 @@ describe('lib/i18n/strings/today.ts', () => {
       'Lộ trình đang tạm dừng — hoàn thành ít nhất một phần để tiếp tục.',
     )
     expect(today.paused.resume).toBe('Học tiếp hôm nay')
+    // UI I-5 (the M5-R33 rule): the plan's own count, in the past — never "Đang có".
     expect(fill(today.throttle.message, { n: 52 })).toBe(
-      'Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
     )
     expect(today.resumed).toBe('Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.')
     expect(fill(today.empty.notStarted.title, { date: '3 tháng 10, 2026' })).toBe(

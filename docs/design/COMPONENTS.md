@@ -1732,9 +1732,11 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/throttle-notice.tsx`
 - **Props:** `track: TrackProgressView`
-- **Variants:** throttled (a `warning` Banner with `throttleMessage` — "Đang có 52 thẻ cần ôn —
-  tạm giảm thẻ mới." from the plan's snapshot, §5.5 — and "Ôn tập" to `/review?track=<id>`) · not
-  throttled (renders nothing)
+- **Variants:** throttled (a `warning` Banner with `throttleMessage` — "Kế hoạch này được lập khi
+  bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.", the plan snapshot's own count in the past tense, §5.5;
+  the live count is TodayStats' — and "Ôn tập" to `reviewHref(trackId)`) · not throttled (renders
+  nothing). The one place `/today` explains the throttle (UI I-5): ExtraButton only says "Hôm nay
+  tạm dừng bài mới."
 - **States:** static
 - **Usage:** `{page.tracks.map((track) => <ThrottleNotice key={track.trackId} track={track} />)}`
 - **Accessibility:** icon + one sentence + one action; the link's name carries the track title
@@ -2160,13 +2162,12 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 
 - **Layer:** feature (`features/today`, client)
 - **File:** `features/today/components/extra-button.tsx`
-- **Props:** `view: ExtraView` (`{ trackId, trackTitle, accent, throttledDue: number | null }`),
+- **Props:** `view: ExtraView` (`{ trackId, trackTitle, accent, newPaused: boolean }`),
   `requestId: string` (the page's), `action: AddExtraAction` (`addExtraAction`, unbound)
-- **Variants:** available (the track chip and an outline "Học thêm" button) · throttled — the
-  plan's snapshot caps the track at 0 new items (§5.5): "Kế hoạch này được lập khi bạn có {n} thẻ
-  cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập." (the plan-time count; no promise
-  that reviewing unlocks it — ruling M5-R33) and an "Ôn tập" link to `/review?track=<id>`, no
-  button
+- **Variants:** available (the track chip and an outline "Học thêm" button) · new items paused —
+  the plan's snapshot caps the track at 0 new items (§5.5): one line, "Hôm nay tạm dừng bài mới.",
+  no button and no link — the ThrottleNotice banner above says why, with the plan-time count and
+  the track's "Ôn tập" link, so the throttle is shown once (UI I-5)
 - **States:** through ActionFeedback (UI I-3): default, pending (the button busy; a second click
   sends nothing), answered — the button stays, so the answer is in its own region only (m-4):
   "Đã thêm bài mới vào kế hoạch.", "Bạn đã học hết bài mới của lộ trình này."; a stale answer whose

@@ -145,13 +145,13 @@ describe('TodayView (§2.4, DESIGN_SYSTEM §5 dashboard order)', () => {
           trackView({
             trackId: 'english',
             title: ENGLISH_TITLE,
-            throttleMessage: 'Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+            throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
           }),
         ],
       },
     )
     const text = document.body.textContent ?? ''
-    expect(text).toContain('Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.')
+    expect(text).toContain('Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.')
     expect(text.indexOf('tạm giảm thẻ mới')).toBeLessThan(text.indexOf('Kế hoạch hôm nay'))
   })
 
@@ -293,13 +293,13 @@ describe('TodayView — check-in (5.2b)', () => {
       trackId: 'dsa',
       trackTitle: DSA_TITLE,
       accent: 'track-1',
-      throttledDue: null,
+      newPaused: false,
     } as const
     const ENGLISH_EXTRA = {
       trackId: 'english',
       trackTitle: ENGLISH_TITLE,
       accent: 'track-2',
-      throttledDue: 61,
+      newPaused: true,
     } as const
 
     it('offers "Học thêm" per track under the plan; a tap sends the track with the page’s request id', async () => {
@@ -308,13 +308,33 @@ describe('TodayView — check-in (5.2b)', () => {
       const extra = screen.getByRole('region', { name: 'Học thêm' })
       await user.click(within(extra).getByRole('button', { name: `Học thêm ${DSA_TITLE}` }))
       expect(addExtra).toHaveBeenCalledExactlyOnceWith({ requestId: REQUEST_ID, trackId: 'dsa' })
-      // English is throttled to 0 new cards: why, and the way to its reviews.
-      expect(
-        within(extra).getByText(
-          'Kế hoạch này được lập khi bạn có 61 thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
-        ),
-      ).toBeTruthy()
+      // English is throttled to 0 new cards: the card says only that (UI I-5).
+      expect(within(extra).getByText('Hôm nay tạm dừng bài mới.')).toBeTruthy()
       expect(within(extra).getAllByRole('button')).toHaveLength(1)
+      expect(within(extra).queryByRole('link')).toBeNull()
+    })
+
+    it('shows the throttle once: one reason, the plan-time count, one "Ôn tập" link (UI I-5)', () => {
+      view(
+        { kind: 'plan', plan, blocks: {} },
+        {
+          blocks,
+          extra: [DSA_EXTRA, ENGLISH_EXTRA],
+          tracks: [
+            trackView(),
+            trackView({
+              trackId: 'english',
+              title: ENGLISH_TITLE,
+              dueCount: 32,
+              throttleMessage: 'Kế hoạch này được lập khi bạn có 62 thẻ cần ôn — tạm giảm thẻ mới.',
+            }),
+          ],
+        },
+      )
+      const text = document.body.textContent ?? ''
+      expect(text.match(/thẻ cần ôn/g)).toHaveLength(1)
+      expect(text).not.toContain('Đang có')
+      expect(screen.getAllByRole('link', { name: `Ôn tập ${ENGLISH_TITLE}` })).toHaveLength(1)
     })
 
     it('shows no "Học thêm" section without tracks to offer (the paused view)', () => {

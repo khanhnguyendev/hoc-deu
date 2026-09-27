@@ -1207,7 +1207,9 @@ export const CATALOG: Entry[] = [
             <Banner tone="danger">
               Tuần 4 (DSA) chưa có ghi chú — 1 học viên sẽ tới trong 9 ngày.
             </Banner>
-            <Banner tone="info">Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.</Banner>
+            <Banner tone="info">
+              Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.
+            </Banner>
           </div>
         ),
       },

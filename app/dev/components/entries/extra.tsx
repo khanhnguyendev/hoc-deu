@@ -51,13 +51,13 @@ const DSA_EXTRA: ExtraView = {
   trackId: 'dsa',
   trackTitle: DSA,
   accent: 'track-1',
-  throttledDue: null,
+  newPaused: false,
 }
 const ENGLISH_THROTTLED: ExtraView = {
   trackId: 'english',
   trackTitle: ENGLISH,
   accent: 'track-2',
-  throttledDue: 61,
+  newPaused: true,
 }
 
 const CARDS: CardSessionCard[] = [
@@ -140,7 +140,8 @@ export const EXTRA_ENTRIES: Entry[] = [
           narrow(<ExtraButton view={DSA_EXTRA} requestId={REQUEST_ID} action={demoNothingToAdd} />),
       },
       {
-        title: 'Đang giảm thẻ mới về 0: lý do và "Ôn tập", không có nút (§5.5)',
+        title:
+          'Tạm dừng bài mới (giảm về 0, §5.5): một dòng, không có nút — lý do ở cảnh báo phía trên (UI I-5)',
         render: () =>
           narrow(
             <ExtraButton view={ENGLISH_THROTTLED} requestId={REQUEST_ID} action={demoAddExtra} />,

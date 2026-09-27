@@ -1,12 +1,10 @@
 'use client'
 
 import { Plus } from 'lucide-react'
-import Link from 'next/link'
 import { ActionStatus, useActionFeedback } from '@/components/patterns/action-feedback'
 import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { ExtraResult } from '../actions'
 import type { ExtraView } from '../view-model'
@@ -23,10 +21,11 @@ export type AddExtraAction = (input: { requestId: string; trackId: string }) => 
  * the action and the re-render run, a failed request said beside the button (never the error
  * boundary). The button stays after a success (the new extra block appears above it), so the
  * answer is in its own polite region — not also a toast (m-4); a stale answer whose re-render
- * removes "Học thêm" (the plan is now paused) is a toast, focus on the plan's heading. When the plan's snapshot caps the track
- * at 0 new items (§5.5) there is no button: it says why, truthfully — the plan-time due count, and
- * no new items for this plan (ruling M5-R33 M-5) — and links to the track's review queue. The
- * surface is the `Card` primitive.
+ * removes "Học thêm" (the plan is now paused) is a toast, focus on the plan's heading. When the
+ * plan's snapshot caps the track at 0 new items (§5.5) there is no button, only "Hôm nay tạm dừng
+ * bài mới." — the throttle banner above already says why, with the plan-time count and the
+ * track's "Ôn tập" link, so the card never repeats them (UI I-5). The surface is the `Card`
+ * primitive.
  */
 function ExtraButton({
   view,
@@ -47,25 +46,17 @@ function ExtraButton({
     <Card data-slot="extra-button" data-accent={view.accent} className="gap-2 md:gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Badge tone="track">{view.trackTitle}</Badge>
-        {view.throttledDue === null && (
+        {!view.newPaused && (
           <Button variant="outline" loading={feedback.pending} onClick={onClick}>
             <Plus aria-hidden="true" strokeWidth={1.75} />
             {copy.action} <span className="sr-only">{view.trackTitle}</span>
           </Button>
         )}
       </div>
-      {view.throttledDue === null ? (
-        <ActionStatus feedback={feedback} spacing="none" />
+      {view.newPaused ? (
+        <p className="text-sm">{copy.newPaused}</p>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm">{fill(copy.throttled, { n: formatNumber(view.throttledDue) })}</p>
-          <Link
-            href={`/review?${new URLSearchParams({ track: view.trackId }).toString()}`}
-            className={buttonVariants({ variant: 'outline' })}
-          >
-            {copy.review} <span className="sr-only">{view.trackTitle}</span>
-          </Link>
-        </div>
+        <ActionStatus feedback={feedback} spacing="none" />
       )}
     </Card>
   )

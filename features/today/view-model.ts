@@ -59,7 +59,8 @@ export type TrackProgressView = {
   readonly dueCount: number
   /** The enrollment's start date while it is after today ("Bắt đầu vào {date}"), else null. */
   readonly startsOn: LocalDay | null
-  /** "Đang có {n} thẻ cần ôn — tạm giảm thẻ mới." when the plan's snapshot says throttled. */
+  /** "Kế hoạch này được lập khi bạn có {n} thẻ cần ôn — tạm giảm thẻ mới." — the snapshot's own
+   *  count — when the plan's snapshot says throttled (UI I-5); else null. */
   readonly throttleMessage: string | null
 }
 
@@ -68,8 +69,8 @@ export type ExtraView = {
   readonly trackId: string
   readonly trackTitle: string
   readonly accent: string
-  /** The shown plan's snapshot caps the track at 0 new items (§5.5): its due count, else null. */
-  readonly throttledDue: number | null
+  /** The shown plan's snapshot caps the track at 0 new items (§5.5): no "Học thêm" today. */
+  readonly newPaused: boolean
 }
 
 export type WeakTopicView = {
@@ -278,8 +279,8 @@ function trackViews(data: TodayData, counted: ReadonlySet<string>): TrackProgres
 /**
  * "Học thêm" (decision 20): one per track the engine would plan today (`extraTrackIds` — the
  * same eligibility the server applies, ruling M5-R33 M-4), on the plan the dashboard shows as
- * today's work (the plan and resumed states — never the paused view), with the snapshot's due
- * count when it caps the track at 0 new items.
+ * today's work (the plan and resumed states — never the paused view), paused when the snapshot
+ * caps the track at 0 new items (the throttle banner says why, UI I-5).
  */
 function extraViews(data: TodayData): ExtraView[] {
   const plan = shownPlan(data)
@@ -292,7 +293,7 @@ function extraViews(data: TodayData): ExtraView[] {
       trackId,
       trackTitle: title,
       accent,
-      throttledDue: snapshot?.newPerDay === 0 ? snapshot.dueCount : null,
+      newPaused: snapshot?.newPerDay === 0,
     }
   })
 }

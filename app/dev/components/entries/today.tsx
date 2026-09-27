@@ -189,8 +189,8 @@ const DEMO_SLOTS: TodaySlots = {
 }
 
 const EXTRA_VIEWS: ExtraView[] = [
-  { trackId: 'dsa', trackTitle: DSA, accent: 'track-1', throttledDue: null },
-  { trackId: 'english', trackTitle: ENGLISH, accent: 'track-2', throttledDue: 61 },
+  { trackId: 'dsa', trackTitle: DSA, accent: 'track-1', newPaused: false },
+  { trackId: 'english', trackTitle: ENGLISH, accent: 'track-2', newPaused: true },
 ]
 
 const DSA_TRACK: TrackProgressView = {
@@ -213,7 +213,7 @@ const ENGLISH_TRACK: TrackProgressView = {
   progress: 0.31,
   dueCount: 52,
   startsOn: null,
-  throttleMessage: 'Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+  throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
 }
 const NEW_TRACK: TrackProgressView = { ...DSA_TRACK, week: 1, progress: 0, dueCount: 0 }
 

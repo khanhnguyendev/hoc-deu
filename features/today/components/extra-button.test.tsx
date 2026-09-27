@@ -20,7 +20,7 @@ const DSA: ExtraView = {
   trackId: 'dsa',
   trackTitle: DSA_TITLE,
   accent: 'track-1',
-  throttledDue: null,
+  newPaused: false,
 }
 
 /** An action the test settles by hand. */
@@ -77,7 +77,7 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
     expect(toasts).toEqual([])
   })
 
-  it('throttled to 0 new items: says why, links to /review, and offers no button (§5.5)', () => {
+  it('new items paused (throttled to 0, §5.5): one line, no button, no second reason or link (UI I-5)', () => {
     const action = vi.fn()
     render(
       <ExtraButton
@@ -85,20 +85,17 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
           trackId: 'english',
           trackTitle: ENGLISH_TITLE,
           accent: 'track-2',
-          throttledDue: 61,
+          newPaused: true,
         }}
         requestId={REQUEST_ID}
         action={action}
       />,
     )
     expect(screen.queryByRole('button')).toBeNull()
-    expect(
-      screen.getByText(
-        'Kế hoạch này được lập khi bạn có 61 thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
-      ),
-    ).toBeTruthy()
-    const link = screen.getByRole('link', { name: `Ôn tập ${ENGLISH_TITLE}` })
-    expect(link.getAttribute('href')).toBe('/review?track=english')
+    // The throttle banner above says why and links the reviews: the card never repeats them.
+    expect(screen.getByText('Hôm nay tạm dừng bài mới.')).toBeTruthy()
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/thẻ cần ôn/)
     expect(action).not.toHaveBeenCalled()
   })
 

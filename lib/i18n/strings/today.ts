@@ -66,9 +66,13 @@ export const today = {
     startsOn: 'Bắt đầu vào {date}',
     progress: 'Tiến độ {title}',
   },
-  /** §5.5 throttle: why fewer new cards today. */
+  /**
+   * §5.5 throttle: why fewer new cards today — shown once on `/today` (UI I-5). `{n}` is the plan's
+   * own due count when it was built: said in the past, since the live count moves as the learner
+   * reviews, and nothing promises that reviewing now unlocks new cards (the M5-R33 rule).
+   */
   throttle: {
-    message: 'Đang có {n} thẻ cần ôn — tạm giảm thẻ mới.',
+    message: 'Kế hoạch này được lập khi bạn có {n} thẻ cần ôn — tạm giảm thẻ mới.',
     action: 'Ôn tập',
   },
   /** §5.7 weak topics: ≥ 2 Weak items. */

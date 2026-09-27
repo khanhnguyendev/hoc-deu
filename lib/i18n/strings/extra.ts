@@ -14,13 +14,11 @@ export const extra = {
     added: 'Đã thêm bài mới vào kế hoạch.',
     nothingToAdd: 'Bạn đã học hết bài mới của lộ trình này.',
     /**
-     * §5.5: the plan's snapshot caps the track at 0 new items — `{n}` is the plan-time due count,
-     * and the cap holds for the whole plan, so nothing promises that reviewing unlocks it
-     * (ruling M5-R33 M-5). The "Ôn tập" link follows.
+     * §5.5: the plan's snapshot caps the track at 0 new items for the whole plan. The throttle
+     * banner above says why, with the plan-time count and the "Ôn tập" link, so the card says
+     * only this (UI I-5: the throttle is shown once).
      */
-    throttled:
-      'Kế hoạch này được lập khi bạn có {n} thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
-    review: 'Ôn tập',
+    newPaused: 'Hôm nay tạm dừng bài mới.',
     /** The plan changed since the page was rendered (paused, rebuilt, or now throttled): the
      *  one "page refreshed" message (UI I-3). */
     stale: checkIn.errors.stale,
