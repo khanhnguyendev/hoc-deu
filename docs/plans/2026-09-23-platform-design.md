@@ -1248,7 +1248,8 @@ from the next plan.
 
 ### 5.5 Check-in, review modes, throttle, auto check-in
 
-- **One-tap check-in:** tapping a block marks it `done` with `est_minutes` pre-filled. The sheet
+- **One-tap check-in:** tapping a block marks it `done` with `est_minutes` pre-filled, less the
+  items the learner skipped for that plan, rounded up (owner, 2026-09-27: `oneTapMinutes`). The sheet
   allows `partial` / `skipped`, actual minutes and an optional note.
 - **Item results are recorded as they happen**, independent of block check-in.
 - **Problem review modes** (stored as `mode` in the `item.result` payload):

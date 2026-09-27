@@ -10380,7 +10380,10 @@ its section of `COMPONENTS.md` (plus the existing entries of components it chang
     ruling M5-R36):** a skip is not a result (§4.1) — the auto check-in fires only when at least
     one of the block's items has a result on or after the plan date; its `minutes` are the ceiling
     of the minutes of the items with a result (skipped items credit nothing); a block whose items
-    were all skipped gets no auto check-in (the learner checks it in, e.g. `skipped` in the sheet). For the
+    were all skipped gets no auto check-in (the learner checks it in, e.g. `skipped` in the sheet).
+    **Owner, 2026-09-27 (M5-R39 #3):** the one-tap and the sheet pre-fill `oneTapMinutes` — the
+    block's estimate less its items skipped for the plan, rounded up (decision 34 of M4 otherwise
+    unchanged; `checkInMinutes` is that value when nothing was skipped). For the
     `extra` block the auto check-in is sent again whenever items are added while its check-in is
     still `auto` and its studied minutes change (a learner's edit is kept). Which blocks to check in
     is decided **inside each retry attempt, on the reloaded rows**: a block that meanwhile got a
