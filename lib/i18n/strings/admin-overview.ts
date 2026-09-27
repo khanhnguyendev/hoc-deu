@@ -19,6 +19,9 @@ export const adminOverview = {
     /** The cron has run (ADR-0034), yet no successful run was ever read. */
     backupNever: 'Chưa có lần sao lưu thành công nào, dù cron bảo trì đã chạy.',
     restoreNever: 'Chưa có lần kiểm tra khôi phục thành công nào, dù cron bảo trì đã chạy.',
+    /** I2: `cron.last_run_at` itself unrefreshed for 36 hours — never shown together with a
+     * backup/restore-test staleness warning caused only by the same dead cron. */
+    cronStale: 'Cron bảo trì chưa chạy lại kể từ {when}.',
     coverage:
       '{track} ({variant}): tuần {weeks} thiếu bài học hoặc ghi chú, mà học viên sẽ học tới trong 14 ngày.',
     actions: {
@@ -26,6 +29,7 @@ export const adminOverview = {
       compaction: 'Xem ADR-0031',
       backupRuns: 'Xem các lần sao lưu',
       restoreRuns: 'Xem các lần kiểm tra',
+      maintenanceCron: 'Xem ADR-0034',
       content: 'Xem độ phủ nội dung',
     },
   },

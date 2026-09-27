@@ -82,11 +82,12 @@ work before there is anything in production worth losing. The steps live in
    `workflow_dispatch` on `main`. **Both must go green before step 4 (production) starts.**
 4. **[owner] Once: the re-link drill** (`docs/ops/backups.md` §8): a fresh backup and its green
    restore test, the owner key's decrypt and verify, and a read-only preflight on the target —
-   all before anything is emptied; then an emptied staging (or a throwaway project) is loaded at
-   once, with nobody signing in between; sign in with Google and with GitHub, and confirm the same
-   `profiles.id` and the same history (events, plans, streak, the number of accounts) — before and
-   after written down. The weekly restore test proves every account loads in GoTrue, not an OAuth
-   sign-in. Any difference stops the launch until the owner decides.
+   all before anything is emptied; then staging (or a throwaway project) is emptied and loaded **in
+   one transaction, by the owner**, who alone holds the decrypted files — no separate step by
+   another actor, and nobody signs in between; sign in with Google and with GitHub, and confirm the
+   same `profiles.id` and the same history (events, plans, streak, the number of accounts) — before
+   and after written down. The weekly restore test proves every account loads in GoTrue, not an
+   OAuth sign-in. Any difference stops the launch until the owner decides.
 
 ## 3. Required check: `sim` **[controller]**
 
@@ -167,9 +168,18 @@ because a required check `main` does not run yet would block every other open pu
    - A check-in completes.
    - `/admin` shows no red warning **except** week coverage (expected until more content ships —
      the release-boundary week-4 constraint, ADR-0038, covers this).
-10. **Backup environment → production:** point the `backup` GitHub environment's variables at the
+10. **The first maintenance cron (I2)** — after the first 21:00 UTC following step 8: Vercel →
+    Settings → Cron Jobs lists `/api/cron/maintenance`; its last invocation is `200` with `ok`
+    (before step 11, `backups: failed` is expected — no backup workflow points at production yet).
+    `/admin`'s cron card shows that run, with no "Cron bảo trì chưa chạy lại kể từ …" warning
+    (ADR-0034, I2). This is the first proof the cron is registered on production at all — nothing
+    else in this runbook checks it.
+11. **Backup environment → production:** point the `backup` GitHub environment's variables at the
     production project (following `docs/ops/backups.md`), then dispatch `backup.yml` and
     `restore-test.yml` once more via `workflow_dispatch` on `main`; both green.
+12. **The next maintenance cron, after step 11** — the following 21:00 UTC: `/admin`'s backup and
+    restore-test cards show the runs step 11 dispatched (not "chưa có dữ liệu" or a stale hint),
+    and `ok: true` in the cron's last invocation.
 
 ## 5. Dogfooding **[owner]**
 

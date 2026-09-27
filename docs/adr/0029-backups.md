@@ -141,9 +141,13 @@ listed, the owner chose (b) — keep the accounts in the backup — **through fu
 - **The re-link drill:** so the owner proves that once, on staging (5.8b step 2,
   docs/ops/backups.md §8): a fresh backup, its green restore test, the owner key's decrypt and
   verify and a read-only preflight of the target (the `postgres` privileges, `session_replication_role
-  = replica`) first; only then an emptied staging (or a throwaway project with its own OAuth
-  clients) loaded at once; then a Google and a GitHub sign-in land on the same `profiles.id` with
-  the same history — before and after written down.
+  = replica`) first; only then staging (or a throwaway project with its own OAuth clients) is
+  emptied and loaded **in one `psql --single-transaction`**, by the owner alone (the only holder of
+  the decrypted `backup/*.sql` files) — the deletes before `set session_replication_role =
+  replica`, since that setting would otherwise switch off the very foreign-key cascades the deletes
+  rely on; a failure anywhere rolls the whole thing back to the untouched target, never a
+  half-emptied one. Then a Google and a GitHub sign-in land on the same `profiles.id` with the same
+  history — before and after written down.
 - **The hosted checks** (docs/ops/backups.md §2 step 4) are read-only Management API queries as
   `postgres`, booleans only: `backup_reader` may call both functions; no API role nor `public` may
   use schema `backup` or call them (what pgTAP proves locally, proven on the hosted project too);

@@ -54,6 +54,14 @@ Constraints:
   Then `cron.last_run_at` records the run itself, so `/admin` can tell a silent cron from a quiet
   one. Running twice records the same values twice; skipping a day only leaves one more day of
   quota rows and a staler timestamp, which `/admin` shows as its age.
+- **I2 (M5 fix pass):** `features/admin/overview.ts` also warns on its own when `cron.last_run_at`
+  itself has gone unrefreshed for `READING_MAX_AGE_HOURS` (36 h) — "Cron bảo trì chưa chạy lại kể
+  từ …" — instead of silently letting the backup and restore-test readings' own staleness (also
+  36 h / 8 days) speak for it. A dead or unregistered cron would otherwise surface only as a
+  *backup-stale* warning, the wrong cause: a reading that was already old *when the cron last
+  checked it* still warns as a genuine backup or restore-test problem regardless, but a reading
+  that has merely gone unrefreshed while the cron itself has too stays silent under `backup` /
+  `restore-test` and is folded into this one cron warning.
 - **`ops_metrics`** (§4.2): `key` (checked against the four keys above), `value numeric`,
   `recorded_at`; timestamps as Unix epoch seconds, sizes in bytes; indexed by `(key, recorded_at
   desc)` so a reader takes the latest row per key. RLS on; admins read it (`is_admin()`); nobody

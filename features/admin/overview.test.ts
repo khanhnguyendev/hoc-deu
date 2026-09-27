@@ -131,6 +131,50 @@ describe('buildAdminOverview — backup and restore-test age (decision 26)', () 
     ).toEqual(['backup', 'restore-test'])
   })
 
+  it.each([
+    [35, []],
+    [37, ['cron']],
+  ] as const)(
+    'the maintenance cron itself unrun for %i hours → %j (I2)',
+    (hours, expected) => {
+      expect(kinds({ 'cron.last_run_at': instant(0, hours * HOUR) })).toEqual(expected)
+    },
+  )
+
+  it('names the cron’s last run and links to ADR-0034 (I2)', () => {
+    // 2026-09-25T23:00Z is 06:00 on 26 September in Asia/Ho_Chi_Minh (37 hours before NOW).
+    const warning = build({ 'cron.last_run_at': instant(0, 37 * HOUR) }).warnings[0]!
+    expect(warning).toEqual({
+      key: 'cron',
+      kind: 'cron',
+      tone: 'warning',
+      message: 'Cron bảo trì chưa chạy lại kể từ 06:00, 26 tháng 9, 2026.',
+      action: {
+        label: 'Xem ADR-0034',
+        href: 'https://github.com/khanhnguyendev/hoc-deu/blob/main/docs/adr/0034-maintenance-cron.md',
+      },
+    })
+  })
+
+  it('a stale cron suppresses the misleading backup/restore-test staleness warnings, and warns about itself instead (I2)', () => {
+    // The backup and restore-test readings were themselves fresh the last time the cron checked
+    // (1 hour and 1 day old respectively) — only the check itself (37 hours ago) has gone stale.
+    // Read as "backup" / "restore-test" stale, this would blame the wrong thing: the cron, not
+    // either workflow, has stopped.
+    const page = build({
+      'backup.last_success_at': instant(HOUR, 37 * HOUR),
+      'restore_test.last_success_at': instant(DAY, 37 * HOUR),
+      'cron.last_run_at': instant(0, 37 * HOUR),
+    })
+    expect(page.warnings.map((w) => w.kind)).toEqual(['cron'])
+  })
+
+  it('still warns about a genuinely stale backup even while the cron itself is fresh', () => {
+    // The cron ran recently, but the last confirmed backup was already 40 hours old when it did:
+    // a real backup problem, not the cron's.
+    expect(kinds({ 'backup.last_success_at': instant(40 * HOUR) })).toEqual(['backup'])
+  })
+
   it('names the last success in Vietnam time and links to the workflow runs', () => {
     // 2026-09-25T22:17Z is 05:17 on 26 September in Asia/Ho_Chi_Minh.
     const at = Date.parse('2026-09-25T22:17:00Z') / 1000
@@ -325,22 +369,11 @@ describe('buildAdminOverview — the cron ran, but no backup or restore test eve
     ])
   })
 
-  it('also warns when that cron run is more than 36 hours old', () => {
+  it('also warns about the cron itself when that run is more than 36 hours old (I2)', () => {
     expect(noRuns(instant(0, 37 * HOUR)).warnings.map((w) => w.kind)).toEqual([
+      'cron',
       'backup',
       'restore-test',
-    ])
-  })
-
-  it('a stale cron with old readings warns through the readings’ age', () => {
-    const page = build({
-      'backup.last_success_at': instant(HOUR, 37 * HOUR),
-      'restore_test.last_success_at': instant(DAY, 37 * HOUR),
-      'cron.last_run_at': instant(0, 37 * HOUR),
-    })
-    expect(page.warnings.map((w) => w.message)).toEqual([
-      expect.stringContaining('Không có bản sao lưu thành công nào được xác nhận trong 36 giờ qua'),
-      expect.stringContaining('Không có lần kiểm tra khôi phục thành công nào được xác nhận'),
     ])
   })
 })

@@ -35,6 +35,7 @@ const LINKS = {
   compaction: `${REPOSITORY_URL}/blob/main/docs/adr/0031-event-compaction-deferred.md`,
   backupRuns: `${REPOSITORY_URL}/actions/workflows/backup.yml`,
   restoreRuns: `${REPOSITORY_URL}/actions/workflows/restore-test.yml`,
+  maintenanceCron: `${REPOSITORY_URL}/blob/main/docs/adr/0034-maintenance-cron.md`,
 } as const
 
 /** The `ops_metrics` keys (20260927000200_ops.sql). */
@@ -63,7 +64,7 @@ export type AdminCounts = {
 
 export type AdminWarning = {
   readonly key: string
-  readonly kind: 'db-size' | 'backup' | 'restore-test' | 'coverage'
+  readonly kind: 'db-size' | 'backup' | 'restore-test' | 'cron' | 'coverage'
   /** `danger`: red (coverage) and critical; `warning`: the rest (DESIGN_SYSTEM §9 Banners). */
   readonly tone: 'danger' | 'warning'
   readonly message: string
@@ -129,17 +130,11 @@ function dbSizeWarning(reading: MetricReading | null): AdminWarning | null {
 }
 
 /**
- * Decision 26 with the daily read (ADR-0034): stale when the last success was already older than
- * `maxAgeMs` when the cron checked it, or when no check has happened for 36 hours. Measuring at
- * the check, not now, matters: the cron runs about an hour before the 22:17 UTC backup, so a
- * healthy backup is ~23 hours old when read and ~47 hours old just before the next read.
+ * No reading for 36 hours: the daily cron (or its read) has missed a day. Measuring `runWarning`'s
+ * own staleness at the check, not now, matters too (decision 26, ADR-0034): the cron runs about an
+ * hour before the 22:17 UTC backup, so a healthy backup is ~23 hours old when read and ~47 hours
+ * old just before the next read.
  */
-function isStale(reading: MetricReading, maxAgeMs: number, now: Date): boolean {
-  const checkedAt = Date.parse(reading.recordedAt)
-  return checkedAt - reading.value * 1000 > maxAgeMs || isOldReading(reading, now)
-}
-
-/** No reading for 36 hours: the daily cron (or its read) has missed a day. */
 const isOldReading = (reading: MetricReading, now: Date) =>
   now.getTime() - Date.parse(reading.recordedAt) > READING_MAX_AGE_HOURS * HOUR_MS
 
@@ -152,11 +147,19 @@ function whenText(seconds: number): string {
  * The backup or restore-test warning: its last success is stale (above), or — once the cron has
  * run at all (`cron.last_run_at`, fresh or not) — no success was ever read. Only before the first
  * cron run does a missing reading stay silent ("chưa có dữ liệu", the first-run hint).
+ *
+ * A reading that was already old *when the cron last checked it* (`wasAlreadyStale`) is a genuine
+ * backup or restore-test problem, shown regardless of the cron's own freshness. A reading that has
+ * merely gone unrefreshed for 36 hours, while the cron itself has also gone unrefreshed that long
+ * (`cronIsStale`), is not this run's fault — it means the cron has not run to check it, so it stays
+ * silent here and surfaces once, through `cronWarning` (I2): a dead cron must never be read as a
+ * failed backup.
  */
 function runWarning(
   kind: 'backup' | 'restore-test',
   reading: MetricReading | null,
   cron: MetricReading | null,
+  cronIsStale: boolean,
   now: Date,
 ): AdminWarning | null {
   const maxAgeMs =
@@ -174,12 +177,32 @@ function runWarning(
     if (cron === null) return null
     return { ...base, message: backup ? copy.warnings.backupNever : copy.warnings.restoreNever }
   }
-  if (!isStale(reading, maxAgeMs, now)) return null
+  const checkedAt = Date.parse(reading.recordedAt)
+  const wasAlreadyStale = checkedAt - reading.value * 1000 > maxAgeMs
+  const stale = wasAlreadyStale || (isOldReading(reading, now) && !cronIsStale)
+  if (!stale) return null
   return {
     ...base,
     message: fill(backup ? copy.warnings.backupStale : copy.warnings.restoreStale, {
       when: whenText(reading.value),
     }),
+  }
+}
+
+/**
+ * ADR-0034, I2: `cron.last_run_at` itself going unrefreshed for 36 hours means the maintenance
+ * cron has not run — a registration lost, a runtime error, `CRON_SECRET` on the wrong scope — so
+ * nothing has confirmed a recent backup or restore test either. Surfaced on its own so a dead cron
+ * is never read as a failed backup (`runWarning` above suppresses that misreading).
+ */
+function cronWarning(cron: MetricReading | null, now: Date): AdminWarning | null {
+  if (cron === null || !isOldReading(cron, now)) return null
+  return {
+    key: 'cron',
+    kind: 'cron',
+    tone: 'warning',
+    message: fill(copy.warnings.cronStale, { when: whenText(cron.value) }),
+    action: { label: copy.warnings.actions.maintenanceCron, href: LINKS.maintenanceCron },
   }
 }
 
@@ -254,17 +277,15 @@ export function buildAdminOverview(input: {
   now: Date
 }): AdminOverviewPage {
   const { counts, metrics, now } = input
+  const cron = metrics['cron.last_run_at']
+  const cronIsStale = cron !== null && isOldReading(cron, now)
   const redWeeks = input.coverage.reduce((sum, warning) => sum + warning.weeks.length, 0)
   const warnings = [
     ...input.coverage.map(coverageWarning),
     dbSizeWarning(metrics['db.size_bytes']),
-    runWarning('backup', metrics['backup.last_success_at'], metrics['cron.last_run_at'], now),
-    runWarning(
-      'restore-test',
-      metrics['restore_test.last_success_at'],
-      metrics['cron.last_run_at'],
-      now,
-    ),
+    cronWarning(cron, now),
+    runWarning('backup', metrics['backup.last_success_at'], cron, cronIsStale, now),
+    runWarning('restore-test', metrics['restore_test.last_success_at'], cron, cronIsStale, now),
   ].filter((warning) => warning !== null)
   return {
     // A stable sort: red and critical first, each group in the order above.

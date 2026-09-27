@@ -47,7 +47,15 @@ export async function lastSuccessfulRun(
     cache: 'no-store',
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
-  if (response.status !== 200) return null
+  if (response.status !== 200) {
+    // M8: no body (it may hold GitHub's rate-limit message) — the status and the remaining quota
+    // only, so a 403 from the shared-egress rate limit is visible without ever printing a row.
+    const remaining = response.headers.get('x-ratelimit-remaining') ?? 'unknown'
+    console.error(
+      `[maintenance] ${file}: GitHub API responded ${response.status} (x-ratelimit-remaining=${remaining})`,
+    )
+    return null
+  }
   let body: unknown
   try {
     body = await response.json()

@@ -71,6 +71,38 @@ describe('lastSuccessfulRun (decision 26: the public GitHub API, once a day)', (
     expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toBeNull()
   })
 
+  it('logs the HTTP status and the rate-limit remaining for a non-200 (M8), never a body', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const fetchImpl = fakeFetch(
+        new Response(JSON.stringify({ message: 'nope' }), {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '0' },
+        }),
+      )
+      expect(await lastSuccessfulRun('backup.yml', fetchImpl)).toBeNull()
+      expect(spy).toHaveBeenCalledTimes(1)
+      const [message] = spy.mock.calls[0] ?? []
+      expect(message).toContain('backup.yml')
+      expect(message).toContain('403')
+      expect(message).toContain('0')
+      expect(message).not.toContain('nope')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('logs "unknown" when GitHub sends no rate-limit header', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const fetchImpl = fakeFetch(Response.json({ message: 'nope' }, { status: 500 }))
+      await lastSuccessfulRun('restore-test.yml', fetchImpl)
+      expect(spy.mock.calls[0]?.[0]).toContain('unknown')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('skips a newer pull_request run from a fork’s main and returns the older scheduled run', async () => {
     // A fork PR from its own `main` that adds a pull_request trigger to backup.yml shows up in
     // this list with head_branch "main": it must never refresh /admin's backup age.

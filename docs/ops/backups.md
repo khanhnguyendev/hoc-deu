@@ -449,20 +449,28 @@ both green there (`docs/ops/production.md` §2) and before any production step.
    and ask the owner. (One privilege per `has_table_privilege` call: a comma list is true when
    *any* of them is held. `set_config()` is no substitute for `set`: Supabase allows `postgres`
    the statement, not the function.)
-6. **Empty and load at once** — **nobody signs in to the target between the two** (close every
-   staging tab first): a sign-in creates a new account, and the load then fails on it (`23505`,
-   the e-mail's unique index) and rolls back — delete the stray account the same way and load
-   again. For (A), the controller empties staging, as `postgres`, **on staging only — never
+6. **Empty and load at once, in one transaction** — **nobody signs in to the target between the
+   delete and the load** (close every staging tab first): a sign-in creates a new account, and the
+   load then fails on it (`23505`, the e-mail's unique index) and rolls back — delete the stray
+   account the same way and start again from the delete. The person who holds the decrypted
+   `backup/*.sql` files (step 4 — today, the owner; there is no separate "empties staging" step
+   for someone else to run) runs this single command, for (A) **on staging only — never
    production**:
 
-   ```sql
-   begin;
-   delete from auth.users;          -- cascades to identities, sessions, profiles and every per-user table
-   delete from public.ops_metrics;  -- the backup brings its own rows, under the same ids
-   commit;
+   ```bash
+   psql "<postgres session-pooler URL of the target>" -X -v ON_ERROR_STOP=1 --single-transaction \
+     -c 'delete from auth.users' -c 'delete from public.ops_metrics' \
+     -c 'set session_replication_role = replica' \
+     -f backup/auth.sql -f tools/backup/normalise-auth.sql -f backup/public.sql
    ```
 
-   and loads right away: §7 steps 4–5 (the load, normalised; the counts must match).
+   The deletes cascade to identities, sessions, profiles and every per-user table through their
+   normal foreign-key triggers (`auth.users`), plus `public.ops_metrics` (the backup brings its own
+   rows, under the same ids) — both **before** `set session_replication_role = replica`, which
+   would otherwise switch those cascade triggers off along with everything else. Any error in the
+   command rolls back the whole thing to the untouched, unemptied target: the delete and the load
+   are one transaction, so staging is never left empty with nothing loaded. Continue straight to
+   §7 step 5 (the counts must match).
 7. **Sign in with Google.** Run the query of step 1 again: the **same `profiles.id`**, the same
    `events` and `plans` counts, and `accounts` equal to step 1's (no new account). `/progress` and
    `/today` show the same history as before.
