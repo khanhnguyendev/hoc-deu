@@ -2109,13 +2109,16 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **Props:** `view: ExtraView` (`{ trackId, trackTitle, accent, throttledDue: number | null }`),
   `requestId: string` (the page's), `action: AddExtraAction` (`addExtraAction`, unbound)
 - **Variants:** available (the track chip and an outline "Học thêm" button) · throttled — the
-  plan's snapshot caps the track at 0 new items (§5.5): "Đang có {n} thẻ cần ôn — hãy ôn trước
-  khi học thêm." and an "Ôn tập" link to `/review?track=<id>`, no button
+  plan's snapshot caps the track at 0 new items (§5.5): "Kế hoạch này được lập khi bạn có {n} thẻ
+  cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập." (the plan-time count; no promise
+  that reviewing unlocks it — ruling M5-R33) and an "Ôn tập" link to `/review?track=<id>`, no
+  button
 - **States:** default, pending (the button busy; a second click is ignored), answered (the
   message in its live region; a success also a toast — "Đã thêm bài mới vào kế hoạch.";
   "Bạn đã học hết bài mới của lộ trình này." stays beside the button)
 - **Usage:** `<ExtraButton view={extra} requestId={page.requestId} action={addExtra} />`
-  (TodayView's Section "Học thêm", plan and resumed states)
+  (TodayView's Section "Học thêm", plan and resumed states: one per track `extraTrackIds` gives —
+  the plan engine's eligibility, the same the server applies). The surface is `Card`
 - **Accessibility:** in the track's `data-accent`, the track named by its chip (never colour
   alone); the button's and the link's accessible names carry the track title (`sr-only`), so
   several are distinct; a polite `role="status"` for the answer; 44 px targets
@@ -2131,7 +2134,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   (every card was handled before the page rendered: BlockItemList)
 - **States:** grading · saving · error (CardSession's ErrorState + "Thử lại") · end ("Đã ôn xong":
   a session keeps its deck to the end while the revalidated page drops the graded cards) ·
-  handled (the rows)
+  handled (the rows) · grown (the block's items changed — "Học thêm", an off-plan result: the deck
+  starts again from the cards not handled yet, the current card first, then the appended ones;
+  ruling M5-R33 I-1)
 - **Usage:** `<PlanBlockCard … cards={slots.cards && <CardBlock cards={slots.cards}
   items={slots.items} requestId={page.requestId} record={record} />} />` (TodayView)
 - **Accessibility:** CardSession's (focus to the next card's "Xem nghĩa", the polite "Đã lưu thẻ
@@ -2150,9 +2155,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **States:** new learner (0 %) · in progress
 - **Usage:** `<TrackProgress title={track.title} progress={data.progress} actions={<ResetTrackButton
   … />} />` (TrackOverview's `learner` slot)
-- **Accessibility:** a Section (region "Tiến độ của bạn"); ProgressRing `tone="track"`,
-  `size="lg"`, a `progressbar` named "Tiến độ {title}" with the percentage printed (never colour
-  alone); needs TrackOverview's `data-accent`
+- **Accessibility:** a Section (region "Tiến độ của bạn") holding a `Card`; ProgressRing
+  `tone="track"`, `size="lg"`, a `progressbar` named "Tiến độ {title}" with the percentage printed
+  (never colour alone); needs TrackOverview's `data-accent`
 
 ### WeakItems
 

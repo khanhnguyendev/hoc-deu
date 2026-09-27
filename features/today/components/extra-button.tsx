@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { toast } from '@/components/ui/toaster'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -22,8 +23,9 @@ export type AddExtraAction = (input: { requestId: string; trackId: string }) => 
  * id, so a double tap adds once (decision 16) — pending while it runs (a second click is ignored).
  * The answer goes to a polite live region beside the button; a success is also a toast, which
  * outlives the re-render that shows the new extra block. When the plan's snapshot caps the track
- * at 0 new items (§5.5) there is no button: it says why ("Đang có {n} thẻ cần ôn — hãy ôn trước
- * khi học thêm.") and links to the track's review queue.
+ * at 0 new items (§5.5) there is no button: it says why, truthfully — the plan-time due count, and
+ * no new items for this plan (ruling M5-R33 M-5) — and links to the track's review queue. The
+ * surface is the `Card` primitive.
  */
 function ExtraButton({
   view,
@@ -47,11 +49,7 @@ function ExtraButton({
   }
 
   return (
-    <div
-      data-slot="extra-button"
-      data-accent={view.accent}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
-    >
+    <Card data-slot="extra-button" data-accent={view.accent} className="gap-2 md:gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Badge tone="track">{view.trackTitle}</Badge>
         {view.throttledDue === null && (
@@ -76,7 +74,7 @@ function ExtraButton({
           </Link>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 

@@ -12,6 +12,7 @@ import type { LocalDay } from '../time/localDay'
 import { reviewMode } from './reviewMode'
 import { newQueue } from './roadmap'
 import { planBlockId } from './template'
+import { eligibleTracks } from './track'
 import {
   MAX_BLOCK_MINUTES,
   type PlanBlock,
@@ -40,14 +41,26 @@ function extraBlockOf(plan: StoredPlan, trackId: string): PlanBlock | undefined 
 }
 
 /**
+ * The tracks "Học thêm" is offered for on `ctx.planDate` (decision 20): the plan engine's own
+ * eligibility (`eligibleTracks` — an active enrollment that has started, of an active catalog
+ * track), in `trackId` order. `/today` offers the button exactly for these (ruling M5-R33 M-4),
+ * and `extraCandidates` adds nothing for any other track.
+ */
+export function extraTrackIds(
+  ctx: Pick<PlanContext, 'planDate' | 'catalog' | 'enrollments'>,
+): string[] {
+  return eligibleTracks(ctx).map((entry) => entry.enrollment.trackId)
+}
+
+/**
  * "Học thêm" (decision 20): the track's next not-introduced new items that are not in `plan`, in
  * queue order (`newQueue`, §5.3 — the enrollment's variant and `includeBonus`), at least one, then
  * while their minutes stay below EXTRA_MIN_MINUTES. None when the plan's snapshot for the track has
- * newPerDay 0 (throttled to zero, §5.5), for a track that is not an active enrollment of an active
- * catalog track, or when the queue is empty. Bounded by one addition (EXTRA_MAX_ITEMS) and by what
- * the stored extra block may hold (MAX_BLOCK_MINUTES, 500 items): the queue is read in order and
- * stops at the first item that no longer fits. Items are added in mode `new` with their new
- * minutes.
+ * newPerDay 0 (throttled to zero, §5.5), for a track `extraTrackIds` leaves out (the engine's
+ * eligibility on `ctx.planDate`), or when the queue is empty. Bounded by one addition
+ * (EXTRA_MAX_ITEMS) and by what the stored extra block may hold (MAX_BLOCK_MINUTES, 500 items): the
+ * queue is read in order and stops at the first item that no longer fits. Items are added in mode
+ * `new` with their new minutes.
  */
 export function extraCandidates(
   ctx: PlanContext,
@@ -55,11 +68,9 @@ export function extraCandidates(
   trackId: string,
 ): PlanBlockItem[] {
   if (own(plan.tracks, trackId)?.newPerDay === 0) return []
-  const enrollment = ctx.enrollments.find(
-    (candidate) => candidate.trackId === trackId && candidate.status === 'active',
-  )
-  const track = own(ctx.catalog.tracks, trackId)
-  if (enrollment === undefined || track?.status !== 'active') return []
+  const entry = eligibleTracks(ctx).find((candidate) => candidate.enrollment.trackId === trackId)
+  if (entry === undefined) return []
+  const { enrollment, track } = entry
 
   const queue = newQueue({
     trackId,

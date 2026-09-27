@@ -310,7 +310,9 @@ describe('TodayView — check-in (5.2b)', () => {
       expect(addExtra).toHaveBeenCalledExactlyOnceWith({ requestId: REQUEST_ID, trackId: 'dsa' })
       // English is throttled to 0 new cards: why, and the way to its reviews.
       expect(
-        within(extra).getByText('Đang có 61 thẻ cần ôn — hãy ôn trước khi học thêm.'),
+        within(extra).getByText(
+          'Kế hoạch này được lập khi bạn có 61 thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
+        ),
       ).toBeTruthy()
       expect(within(extra).getAllByRole('button')).toHaveLength(1)
     })

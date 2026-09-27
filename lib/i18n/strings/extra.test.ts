@@ -23,10 +23,11 @@ describe('lib/i18n/strings/extra.ts', () => {
     }
   })
 
-  it('says the brief’s sentences word for word (decision 20, §5.9)', () => {
+  it('says the brief’s sentences word for word (decision 20, §5.9; the throttle line: M5-R33)', () => {
     expect(extra.add.action).toBe('Học thêm')
+    // Ruling M5-R33 M-5: the plan-time count, and no promise that reviewing now unlocks it.
     expect(fill(extra.add.throttled, { n: 52 })).toBe(
-      'Đang có 52 thẻ cần ôn — hãy ôn trước khi học thêm.',
+      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
     )
     expect(extra.add.nothingToAdd).toBe('Bạn đã học hết bài mới của lộ trình này.')
     expect(extra.reset.action).toBe('Bắt đầu lại')

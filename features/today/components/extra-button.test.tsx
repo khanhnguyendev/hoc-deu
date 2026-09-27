@@ -84,7 +84,11 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
       />,
     )
     expect(screen.queryByRole('button')).toBeNull()
-    expect(screen.getByText('Đang có 61 thẻ cần ôn — hãy ôn trước khi học thêm.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Kế hoạch này được lập khi bạn có 61 thẻ cần ôn, nên hôm nay tạm dừng bài mới. Bạn vẫn có thể ôn tập.',
+      ),
+    ).toBeTruthy()
     const link = screen.getByRole('link', { name: `Ôn tập ${ENGLISH_TITLE}` })
     expect(link.getAttribute('href')).toBe('/review?track=english')
     expect(action).not.toHaveBeenCalled()

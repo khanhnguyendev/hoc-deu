@@ -590,6 +590,19 @@ describe('buildTodayPage — "Học thêm" (task 5.4, decision 20)', () => {
     ).toEqual(['english'])
   })
 
+  it('leaves out a track whose catalog track is not active (the engine’s eligibility, M-4)', () => {
+    const catalog = todayData(planState()).catalog
+    const data = todayData(planState(), {
+      catalog: {
+        ...catalog,
+        tracks: { ...catalog.tracks, dsa: { ...catalog.tracks.dsa!, status: 'retired' } },
+      },
+    })
+    expect(buildTodayPage(data, NO_ACTIVITY, REQUEST_ID).extra.map((view) => view.trackId)).toEqual(
+      ['english'],
+    )
+  })
+
   it('offers nothing in the paused view and the states without a plan', () => {
     const plan = storedPlan()
     const states: TodayState[] = [

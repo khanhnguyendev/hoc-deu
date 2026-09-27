@@ -27,11 +27,15 @@ test.afterEach(async () => {
 })
 
 const DSA = 'Cấu trúc dữ liệu & Giải thuật'
+const ENGLISH = 'Tiếng Anh cho môi trường IT'
 const RESUMED = 'Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.'
 const AUTO_SAVED = 'Đã lưu kết quả. Khối học đã được tự động check-in.'
 
-/** An onboarded DSA (8w) learner who started `startDaysAgo` days ago. */
-async function learner(startDaysAgo = 10): Promise<{ user: TestUser; today: string }> {
+/** An onboarded learner of `track` (DSA 8w or English 10w) who started `startDaysAgo` days ago. */
+async function learner(
+  startDaysAgo = 10,
+  track: 'dsa' | 'english' = 'dsa',
+): Promise<{ user: TestUser; today: string }> {
   const schedule = stableSchedule()
   const user = await createTestUser({ onboarded: true })
   created.push(user.id)
@@ -39,9 +43,9 @@ async function learner(startDaysAgo = 10): Promise<{ user: TestUser; today: stri
     schedule,
     tracks: [
       {
-        trackId: 'dsa',
-        roadmapVariant: '8w',
-        budgetMinutes: 60,
+        trackId: track,
+        roadmapVariant: track === 'dsa' ? '8w' : '10w',
+        budgetMinutes: track === 'dsa' ? 60 : 25,
         startDate: addDays(schedule.today, -startDaysAgo),
       },
     ],
@@ -111,6 +115,59 @@ test('"Học thêm" adds the next problem to an extra block; solving it on its p
   await expect(status).toHaveAttribute('data-status', 'done')
   await expect(status).toContainText('Xong')
   await expect(status).toContainText('tự động')
+})
+
+test('[M5-R33 I-1] "Học thêm" on English: the new cards are graded in the block, and a second tap adds more to it — no reload', async ({
+  page,
+}) => {
+  const { user, today } = await learner(10, 'english')
+  // Today's plan holds the queue's first two cards; "Học thêm" continues with the next ones.
+  const planId = await seedPlan(user.id, {
+    planDate: today,
+    blocks: [
+      newBlock(today, 'english', [
+        { itemId: 'english:w01-blocker', minutes: 1.5 },
+        { itemId: 'english:w01-unblock', minutes: 1.5 },
+      ]),
+    ],
+    tracks: { english: snapshot('10w') },
+  })
+  await signIn(page, user, '/today')
+  const offer = page.getByRole('region', { name: 'Học thêm', exact: true })
+  const addMore = offer.getByRole('button', { name: `Học thêm ${ENGLISH}` })
+  const extra = page.getByRole('article', { name: `Học thêm ${ENGLISH}` })
+  const extraId = `${today}:english:extra:1`
+
+  // Seven cards (10.5 minutes), graded where they are listed (decision 19).
+  await addMore.click()
+  await expect(extra.getByText('Còn 7 thẻ')).toBeVisible()
+  await extra.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await extra.getByRole('button', { name: /^Biết/ }).click()
+  await expect(extra.getByText('Còn 6 thẻ')).toBeVisible()
+
+  // A second tap grows the block on screen: its session takes the new cards at once.
+  await addMore.click()
+  await expect(extra.getByText('Còn 13 thẻ')).toBeVisible()
+  const plan = await planOf(user.id, today)
+  expect(plan?.id).toBe(planId)
+  const items = plan?.blocks.find((block) => block.id === extraId)?.items ?? []
+  expect(items).toHaveLength(14)
+  await extra.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await extra.getByRole('button', { name: /^Chưa chắc/ }).click()
+  await expect(extra.getByText('Còn 12 thẻ')).toBeVisible()
+
+  // Both grades named the extra block: the first card, then the next of the first batch.
+  const [first, second] = items
+  expect((await itemEvents(user.id, first!.itemId, 'item.result'))[0]).toMatchObject({
+    payload: { result: 'know' },
+    plan_id: planId,
+    block_id: extraId,
+  })
+  expect((await itemEvents(user.id, second!.itemId, 'item.result'))[0]).toMatchObject({
+    payload: { result: 'unsure' },
+    plan_id: planId,
+    block_id: extraId,
+  })
 })
 
 test('a week-3 problem opened from the track page and solved: attached to today’s extra block, checked in, counted once', async ({

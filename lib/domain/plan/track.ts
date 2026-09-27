@@ -1,9 +1,10 @@
 /**
  * The per-track internals of plan building (platform design §5.4, §5.5; Part B-M4 decisions 13–15):
  * a track's setup (steps 1–2), its running budget and placed items, review and new-item selection,
- * block numbering (step 9) and plan assembly. **Imported only by `buildPlan.ts` (today's plan) and
- * `resume.ts` (the stale-plan resume, §5.8)** — everything else uses those two modules' public
- * functions (M4 final review M-11: `buildPlan.ts` no longer exports its internals).
+ * block numbering (step 9) and plan assembly. **Imported only by `buildPlan.ts` (today's plan),
+ * `resume.ts` (the stale-plan resume, §5.8) and `extra.ts` ("Học thêm" reuses `eligibleTracks`,
+ * ruling M5-R33)** — everything else uses those modules' public functions (M4 final review M-11:
+ * `buildPlan.ts` no longer exports its internals).
  */
 import type { PlanRoadmap, PlanTemplateBlock, PlanTrack } from '../catalog'
 import { compareIds, own } from '../compare'
@@ -95,7 +96,9 @@ export type TrackPlan = {
 
 /** Active enrollments that have started (`planDate ≥ startDate`) and whose track is active in the
  *  catalog, in `trackId` order. */
-export function eligibleTracks(ctx: PlanContext): TrackEntry[] {
+export function eligibleTracks(
+  ctx: Pick<PlanContext, 'planDate' | 'catalog' | 'enrollments'>,
+): TrackEntry[] {
   return ctx.enrollments
     .filter(
       // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.

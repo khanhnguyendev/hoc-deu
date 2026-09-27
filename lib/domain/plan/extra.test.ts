@@ -15,6 +15,7 @@ import {
   EXTRA_MIN_MINUTES,
   extraBlockId,
   extraCandidates,
+  extraTrackIds,
   offPlanMode,
   withExtraItems,
 } from './extra'
@@ -159,6 +160,20 @@ describe('extraCandidates ("Học thêm", decision 20)', () => {
     expect(extraCandidates(ctx, plan([]), 'english')).toEqual([])
   })
 
+  it('adds nothing for a track that has not started, or whose catalog track is not active', () => {
+    const later = planContext({
+      enrollments: [enrollment('dsa', { startDate: '2026-10-01' }), enrollment('english')],
+    })
+    expect(extraCandidates(later, plan([]), 'dsa')).toEqual([])
+    const retired = planContext({
+      catalog: {
+        ...CATALOG,
+        tracks: { ...CATALOG.tracks, dsa: { ...CATALOG.tracks.dsa!, status: 'retired' } },
+      },
+    })
+    expect(extraCandidates(retired, plan([]), 'dsa')).toEqual([])
+  })
+
   it('adds nothing for a track that is not active, not enrolled or unknown', () => {
     const paused = planContext({
       enrollments: [enrollment('dsa', { status: 'paused' }), enrollment('english')],
@@ -223,6 +238,39 @@ describe('extraCandidates ("Học thêm", decision 20)', () => {
   it('never modifies its inputs', () => {
     const ctx = deepFreeze(planContext())
     expect(() => extraCandidates(ctx, plan([]), 'english')).not.toThrow()
+  })
+})
+
+describe('extraTrackIds (the engine’s eligibility, M5-R33 M-4)', () => {
+  it('the active, started enrollments of active catalog tracks, in trackId order', () => {
+    const ctx = planContext({ enrollments: [enrollment('english'), enrollment('dsa')] })
+    expect(extraTrackIds(ctx)).toEqual(['dsa', 'english'])
+  })
+
+  it('leaves out paused, removed and not-started enrollments, and retired catalog tracks', () => {
+    expect(
+      extraTrackIds(
+        planContext({
+          enrollments: [
+            enrollment('dsa', { status: 'paused' }),
+            enrollment('english', { startDate: '2026-10-01' }),
+          ],
+        }),
+      ),
+    ).toEqual([])
+    const retired = planContext({
+      catalog: {
+        ...CATALOG,
+        tracks: { ...CATALOG.tracks, english: { ...CATALOG.tracks.english!, status: 'retired' } },
+      },
+    })
+    expect(extraTrackIds(retired)).toEqual(['dsa'])
+  })
+
+  it('agrees with extraCandidates: a track it leaves out gets no candidates', () => {
+    const ctx = planContext({ enrollments: [enrollment('dsa', { startDate: '2026-10-05' })] })
+    expect(extraTrackIds(ctx)).toEqual([])
+    expect(extraCandidates(ctx, plan([]), 'dsa')).toEqual([])
   })
 })
 

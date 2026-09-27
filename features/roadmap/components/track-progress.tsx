@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import { ProgressRing } from '@/components/patterns/progress-ring'
 import { Section } from '@/components/patterns/section'
+import { Card } from '@/components/ui/card'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { TrackProgressData } from '../view-model'
@@ -12,7 +13,8 @@ const copy = vi.extra.progress
  * in the track accent (the percentage printed — never colour alone) of the introduced core items
  * of the enrolled variant, "Tuần {x}/{N}" and "{introduced}/{total} bài chính đã học" — each only
  * when the variant's roadmap has them (a missing roadmap file shows the ring at 0 %) — and the
- * `actions` slot ("Bắt đầu lại"). Server-compatible; needs the TrackOverview's `data-accent`.
+ * `actions` slot ("Bắt đầu lại"), on the `Card` primitive. Server-compatible; needs the
+ * TrackOverview's `data-accent`.
  */
 function TrackProgress({
   title,
@@ -27,9 +29,9 @@ function TrackProgress({
   const percent = progress.total === 0 ? 0 : (progress.introduced / progress.total) * 100
   return (
     <Section title={copy.title}>
-      <div
+      <Card
         data-slot="track-progress"
-        className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-surface p-4 md:p-5"
+        className="flex-row flex-wrap items-center justify-between gap-4 md:gap-4"
       >
         <div className="flex items-center gap-4">
           <ProgressRing value={percent} label={fill(copy.ring, { title })} tone="track" size="lg" />
@@ -53,7 +55,7 @@ function TrackProgress({
           </div>
         </div>
         {actions}
-      </div>
+      </Card>
     </Section>
   )
 }

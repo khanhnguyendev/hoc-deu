@@ -9,6 +9,7 @@ import { itemHref } from '@/features/items/href'
 import { getTrack } from '@/lib/content/catalog'
 import { isActiveItem, type ItemMode, type PlanCatalog } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
+import { extraTrackIds } from '@/lib/domain/plan/extra'
 import { dueQueue } from '@/lib/domain/plan/queues'
 import { coreItemsOfWeek, roadmapWeek, weekSizes } from '@/lib/domain/plan/roadmap'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
@@ -247,28 +248,25 @@ function trackViews(data: TodayData): TrackProgressView[] {
 }
 
 /**
- * "Học thêm" (decision 20): one per active enrollment that has started, on the plan the dashboard
- * shows as today's work (the plan and resumed states — never the paused view), with the snapshot's
- * due count when it caps the track at 0 new items.
+ * "Học thêm" (decision 20): one per track the engine would plan today (`extraTrackIds` — the
+ * same eligibility the server applies, ruling M5-R33 M-4), on the plan the dashboard shows as
+ * today's work (the plan and resumed states — never the paused view), with the snapshot's due
+ * count when it caps the track at 0 new items.
  */
 function extraViews(data: TodayData): ExtraView[] {
   const plan = shownPlan(data)
   if (plan === null) return []
-  return data.enrollments
-    .filter(
-      // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
-      (enrollment) => enrollment.status === 'active' && enrollment.startDate <= data.today,
-    )
-    .map(({ trackId }) => {
-      const snapshot = Object.hasOwn(plan.tracks, trackId) ? plan.tracks[trackId] : undefined
-      const { title, accent } = trackInfo(trackId)
-      return {
-        trackId,
-        trackTitle: title,
-        accent,
-        throttledDue: snapshot?.newPerDay === 0 ? snapshot.dueCount : null,
-      }
-    })
+  const { catalog, enrollments, today } = data
+  return extraTrackIds({ planDate: today, catalog, enrollments }).map((trackId) => {
+    const snapshot = Object.hasOwn(plan.tracks, trackId) ? plan.tracks[trackId] : undefined
+    const { title, accent } = trackInfo(trackId)
+    return {
+      trackId,
+      trackTitle: title,
+      accent,
+      throttledDue: snapshot?.newPerDay === 0 ? snapshot.dueCount : null,
+    }
+  })
 }
 
 function weakTopicViews(data: TodayData): WeakTopicView[] {
