@@ -1810,7 +1810,8 @@ Copy: `vi.today`.
 - **File:** `features/today/components/throttle-notice.tsx`
 - **Props:** `track: TrackProgressView`
 - **Variants:** throttled (a `warning` Banner with `throttleMessage` — "Kế hoạch này được lập khi
-  bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.", the plan snapshot's own count in the past tense, §5.5;
+  bạn có 52 mục cần ôn — tạm giảm bài mới.", the plan snapshot's own count in the past tense, §5.5
+  — "mục" (the count is the whole due queue), "bài mới" (as "Học thêm"), re-review M3;
   the live count is TodayStats' — and "Ôn tập" to `reviewHref(trackId)`) · not throttled (renders
   nothing). The one place `/today` explains the throttle (UI I-5): ExtraButton only says "Hôm nay
   tạm dừng bài mới."

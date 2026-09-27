@@ -1208,7 +1208,7 @@ export const CATALOG: Entry[] = [
               Tuần 4 (DSA) chưa có ghi chú — 1 học viên sẽ tới trong 9 ngày.
             </Banner>
             <Banner tone="info">
-              Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.
+              Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.
             </Banner>
           </div>
         ),

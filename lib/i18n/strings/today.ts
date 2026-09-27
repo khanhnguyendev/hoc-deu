@@ -65,12 +65,14 @@ export const today = {
     startsOn: 'Bắt đầu vào {date}',
   },
   /**
-   * §5.5 throttle: why fewer new cards today — shown once on `/today` (UI I-5). `{n}` is the plan's
+   * §5.5 throttle: why fewer new items today — shown once on `/today` (UI I-5). `{n}` is the plan's
    * own due count when it was built: said in the past, since the live count moves as the learner
-   * reviews, and nothing promises that reviewing now unlocks new cards (the M5-R33 rule).
+   * reviews, and nothing promises that reviewing now unlocks new items (the M5-R33 rule). The count
+   * is the track's whole due queue — cards, exercises, prompts — so "mục"; what is reduced is its
+   * new items, "bài mới" as the "Học thêm" card and the block kind say (re-review M3).
    */
   throttle: {
-    message: 'Kế hoạch này được lập khi bạn có {n} thẻ cần ôn — tạm giảm thẻ mới.',
+    message: 'Kế hoạch này được lập khi bạn có {n} mục cần ôn — tạm giảm bài mới.',
     action: 'Ôn tập',
   },
   /** §5.7 weak topics: ≥ 2 Weak items ("mục", cards among them — m-6). */

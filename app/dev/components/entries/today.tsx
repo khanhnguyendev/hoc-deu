@@ -210,7 +210,7 @@ const ENGLISH_TRACK: TrackProgressView = {
   progress: { week: 3, weeks: 10, introduced: 31, total: 100 },
   dueCount: 52,
   startsOn: null,
-  throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+  throttleMessage: 'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
 }
 const NEW_TRACK: TrackProgressView = {
   ...DSA_TRACK,

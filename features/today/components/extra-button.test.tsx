@@ -95,7 +95,7 @@ describe('ExtraButton ("Học thêm", decision 20)', () => {
     // The throttle banner above says why and links the reviews: the card never repeats them.
     expect(screen.getByText('Hôm nay tạm dừng bài mới.')).toBeTruthy()
     expect(screen.queryByRole('link')).toBeNull()
-    expect(document.body.textContent).not.toMatch(/thẻ cần ôn/)
+    expect(document.body.textContent).not.toMatch(/cần ôn/)
     expect(action).not.toHaveBeenCalled()
   })
 

@@ -34,8 +34,10 @@ describe('lib/i18n/strings/today.ts', () => {
     )
     expect(today.paused.resume).toBe('Học tiếp hôm nay')
     // UI I-5 (the M5-R33 rule): the plan's own count, in the past — never "Đang có".
+    // M3: the count is the track's whole due queue (cards, exercises, prompts): "mục"; what is
+    // reduced is the new items — "bài mới", as the "Học thêm" card and the block kind say.
     expect(fill(today.throttle.message, { n: 52 })).toBe(
-      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+      'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
     )
     expect(today.resumed).toBe('Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.')
     expect(fill(today.empty.notStarted.title, { date: '3 tháng 10, 2026' })).toBe(

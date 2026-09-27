@@ -145,13 +145,13 @@ describe('TodayView (§2.4, DESIGN_SYSTEM §5 dashboard order)', () => {
           trackView({
             trackId: 'english',
             title: ENGLISH_TITLE,
-            throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+            throttleMessage: 'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
           }),
         ],
       },
     )
     const text = document.body.textContent ?? ''
-    expect(text).toContain('Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.')
+    expect(text).toContain('Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.')
     expect(text.indexOf('tạm giảm thẻ mới')).toBeLessThan(text.indexOf('Kế hoạch hôm nay'))
   })
 
@@ -326,13 +326,13 @@ describe('TodayView — check-in (5.2b)', () => {
               trackId: 'english',
               title: ENGLISH_TITLE,
               dueCount: 32,
-              throttleMessage: 'Kế hoạch này được lập khi bạn có 62 thẻ cần ôn — tạm giảm thẻ mới.',
+              throttleMessage: 'Kế hoạch này được lập khi bạn có 62 mục cần ôn — tạm giảm bài mới.',
             }),
           ],
         },
       )
       const text = document.body.textContent ?? ''
-      expect(text.match(/thẻ cần ôn/g)).toHaveLength(1)
+      expect(text.match(/mục cần ôn — tạm giảm/g)).toHaveLength(1)
       expect(text).not.toContain('Đang có')
       expect(screen.getAllByRole('link', { name: `Ôn tập ${ENGLISH_TITLE}` })).toHaveLength(1)
     })

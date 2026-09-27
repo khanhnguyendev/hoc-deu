@@ -1272,7 +1272,8 @@ from the next plan.
   `dueCount` exceeds; otherwise `newPerDay`. English defaults: > 40 due → 4 new; > 60 due → 0 new.
   Thresholds are track defaults; per-user overrides exist in the data model, with the editing UI
   later (release scope, §0). When throttled, the dashboard says
-  why, e.g. "Đang có 52 thẻ cần ôn — tạm giảm thẻ mới." DSA has no count throttle; its review
+  why, with the plan-time count, e.g. "Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm
+  bài mới." DSA has no count throttle; its review
   load is controlled by the review cap, review debt rule, intervals and mastery (§5.7, §5.10).
 
 ### 5.6 Recap day and mock interview

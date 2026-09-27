@@ -10,7 +10,7 @@ const copy = vi.today.throttle
 /**
  * §5.5 throttle, explained (DESIGN_SYSTEM §11 "explain why") — the one place `/today` says it (UI
  * I-5): a `warning` banner with the plan snapshot's message in the past tense — "Kế hoạch này được
- * lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới." (the plan-time count; the live one is in
+ * lập khi bạn có 52 mục cần ôn — tạm giảm bài mới." (the plan-time count; the live one is in
  * TodayStats) — and one action, the track's review queue. Nothing when the track is not throttled.
  */
 function ThrottleNotice({ track }: { track: TrackProgressView }) {

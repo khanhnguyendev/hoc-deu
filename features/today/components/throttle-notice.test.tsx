@@ -10,14 +10,14 @@ describe('ThrottleNotice (§5.5)', () => {
         track={trackView({
           trackId: 'english',
           title: ENGLISH_TITLE,
-          throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+          throttleMessage: 'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
         })}
       />,
     )
     const banner = container.querySelector('[data-slot="banner"]')!
     expect(banner.getAttribute('data-tone')).toBe('warning')
     expect(banner.textContent).toContain(
-      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+      'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
     )
     const link = screen.getByRole('link', { name: `Ôn tập ${ENGLISH_TITLE}` })
     expect(link.getAttribute('href')).toBe('/review?track=english')

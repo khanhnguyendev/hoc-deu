@@ -58,7 +58,7 @@ export type TrackProgressView = {
   readonly dueCount: number
   /** The enrollment's start date while it is after today ("Bắt đầu vào {date}"), else null. */
   readonly startsOn: LocalDay | null
-  /** "Kế hoạch này được lập khi bạn có {n} thẻ cần ôn — tạm giảm thẻ mới." — the snapshot's own
+  /** "Kế hoạch này được lập khi bạn có {n} mục cần ôn — tạm giảm bài mới." — the snapshot's own
    *  count — when the plan's snapshot says throttled (UI I-5); else null. */
   readonly throttleMessage: string | null
 }

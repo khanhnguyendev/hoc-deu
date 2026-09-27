@@ -333,7 +333,7 @@ describe('buildTodayPage — tracks', () => {
     )
     expect(page.tracks.map((track) => track.throttleMessage)).toEqual([
       null,
-      'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
+      'Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.',
     ])
   })
 
