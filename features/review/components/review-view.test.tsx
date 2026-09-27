@@ -40,7 +40,7 @@ describe('ReviewView (task 5.3)', () => {
 
   it('RF-4: nothing due — the empty state', () => {
     render(<ReviewView page={BASE} rows={[]} record={record} />)
-    expect(screen.getByText('Không có bài nào cần ôn hôm nay')).toBeTruthy()
+    expect(screen.getByText('Không có mục nào cần ôn hôm nay')).toBeTruthy()
   })
 
   it('keys the session by `page.track`: a genuine filter change starts a fresh session (I2)', () => {
@@ -71,6 +71,6 @@ describe('ReviewView (task 5.3)', () => {
       />,
     )
     expect(screen.queryByRole('heading', { level: 2, name: 'Thẻ' })).toBeNull()
-    expect(screen.getByRole('heading', { level: 2, name: 'Bài cần ôn' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Mục cần ôn' })).toBeTruthy()
   })
 })

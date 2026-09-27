@@ -43,6 +43,8 @@ describe('lib/i18n/strings/today.ts', () => {
     )
     expect(today.empty.noBlocks.title).toBe('Hôm nay không có bài nào')
     expect(today.block.overBudget).toBe('Dài hơn thời gian dự kiến')
+    // m-6: a weak topic counts items ("mục"), cards among them.
+    expect(fill(today.weakAreas.count, { n: 3 })).toBe('3 mục yếu')
   })
 
   it('has one "page refreshed" message for every refused action that re-rendered /today (UI I-3)', () => {

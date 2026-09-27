@@ -269,7 +269,7 @@ test('task 5.4: the track page shows the learner’s week, progress and a Weak i
     'aria-valuenow',
     String(Math.round((3 / CORE_TOTAL) * 100)),
   )
-  const weak = page.getByRole('region', { name: 'Bài yếu' })
+  const weak = page.getByRole('region', { name: 'Mục yếu' })
   const twoSum = weak.getByRole('link', { name: /Two Sum/ })
   await expect(twoSum).toBeVisible()
   await expect(twoSum.getByText('Yếu', { exact: true })).toBeVisible()
@@ -330,7 +330,7 @@ test('task 5.4: "Bắt đầu lại" → confirm — item states gone, events an
   await expect(progressRegion(page).getByText(`0/${CORE_TOTAL} bài chính đã học`)).toBeVisible()
   await expect(
     page
-      .getByRole('region', { name: 'Bài yếu' })
-      .getByText('Chưa có bài yếu nào trong lộ trình này.'),
+      .getByRole('region', { name: 'Mục yếu' })
+      .getByText('Chưa có mục yếu nào trong lộ trình này.'),
   ).toBeVisible()
 })

@@ -34,7 +34,7 @@ describe('WeakAreas (§5.7)', () => {
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/t/dsa', '/t/dsa'])
     expect(links[0]!.textContent).toContain('Arrays & Hashing')
     expect(links[0]!.textContent).toContain(DSA_TITLE)
-    expect(links[0]!.textContent).toContain('3 bài yếu')
+    expect(links[0]!.textContent).toContain('3 mục yếu')
     // Status by icon + label, never colour alone.
     expect(within(links[0]!).getByText('Yếu')).toBeTruthy()
   })

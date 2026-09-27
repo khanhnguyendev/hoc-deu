@@ -16,7 +16,7 @@ describe('WeakItems (§5.7, track page)', () => {
         ]}
       />,
     )
-    const region = screen.getByRole('region', { name: 'Bài yếu' })
+    const region = screen.getByRole('region', { name: 'Mục yếu' })
     expect(
       within(region)
         .getAllByRole('link')
@@ -27,8 +27,8 @@ describe('WeakItems (§5.7, track page)', () => {
 
   it('says so when there is none (empty)', () => {
     render(<WeakItems rows={[]} />)
-    const region = screen.getByRole('region', { name: 'Bài yếu' })
-    expect(within(region).getByText('Chưa có bài yếu nào trong lộ trình này.')).toBeTruthy()
+    const region = screen.getByRole('region', { name: 'Mục yếu' })
+    expect(within(region).getByText('Chưa có mục yếu nào trong lộ trình này.')).toBeTruthy()
     expect(within(region).queryByRole('list')).toBeNull()
   })
 })

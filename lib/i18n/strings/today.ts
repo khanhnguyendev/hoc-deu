@@ -73,10 +73,10 @@ export const today = {
     message: 'Kế hoạch này được lập khi bạn có {n} thẻ cần ôn — tạm giảm thẻ mới.',
     action: 'Ôn tập',
   },
-  /** §5.7 weak topics: ≥ 2 Weak items. */
+  /** §5.7 weak topics: ≥ 2 Weak items ("mục", cards among them — m-6). */
   weakAreas: {
     title: 'Chủ đề cần củng cố',
-    count: '{n} bài yếu',
+    count: '{n} mục yếu',
     empty: 'Chưa có chủ đề nào cần củng cố.',
   },
   /** The states without a plan to show (RF-4). */

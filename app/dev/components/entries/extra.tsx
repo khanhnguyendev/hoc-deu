@@ -227,7 +227,7 @@ export const EXTRA_ENTRIES: Entry[] = [
     layer: 'features',
     file: 'features/roadmap/components/weak-items.tsx',
     demos: [
-      { title: 'Các bài yếu', render: () => inDsa(<WeakItems rows={WEAK_ROWS} />) },
+      { title: 'Các mục yếu', render: () => inDsa(<WeakItems rows={WEAK_ROWS} />) },
       { title: 'Trống', render: () => inDsa(<WeakItems rows={[]} />) },
     ],
   },
@@ -251,7 +251,7 @@ export const EXTRA_ENTRIES: Entry[] = [
     file: 'features/roadmap/components/track-overview.tsx',
     demos: [
       {
-        title: 'Người học đang theo: tiến độ, "Bắt đầu lại" và bài yếu (task 5.4)',
+        title: 'Người học đang theo: tiến độ, "Bắt đầu lại" và mục yếu (task 5.4)',
         render: () => (
           <div className="flex w-full flex-col gap-6">
             <TrackOverview

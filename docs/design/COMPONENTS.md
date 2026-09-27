@@ -1766,7 +1766,7 @@ Copy: `vi.today`.
 - **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
 - **Usage:** `<WeakAreas topics={page.weakTopics} />`
 - **Accessibility:** a Section "Chủ đề cần củng cố"; a LinkList, each topic a LinkRow to `/t/<track>`
-  with "{track} · {n} bài yếu" and the "Yếu" StatusPill (icon + label)
+  with "{track} · {n} mục yếu" and the "Yếu" StatusPill (icon + label)
 
 ### ThrottleNotice
 
@@ -2118,11 +2118,11 @@ already show the grand-total-vs-per-track breakdown).
 - **States:** decided once at mount, from that render's `page` (task 5.3 review, findings I2/I3/M2):
   the filter chips show only when some eligible track has something due (unfiltered) · "Thẻ" shows
   only when mounted with due flashcards · with nothing at all due (unfiltered), the RF-4 EmptyState
-  "Không có bài nào cần ôn hôm nay" linking to `/today` · with the current filter's own due items at
-  0 while another track still has some, the filter-specific line "Lộ trình này không có bài nào cần
+  "Không có mục nào cần ôn hôm nay" linking to `/today` · with the current filter's own due items at
+  0 while another track still has some, the filter-specific line "Lộ trình này không có mục nào cần
   ôn hôm nay" instead (finding M3) · otherwise "Thẻ" (CardSession, `headingLevel={3}` under this
   section's own `h2`, task 5.3 review finding M8) and, while `rows` has entries (a live check, not
-  frozen — the row list has no session state to lose), a "Bài cần ôn" Section with ReviewList
+  frozen — the row list has no session state to lose), a "Mục cần ôn" Section with ReviewList
 - **Usage:** `<ReviewSession key={page.track ?? 'all'} page={page} rows={rows} record={record} />`
   (`review-view.tsx`, keyed so a filter change remounts fresh)
 - **Accessibility:** each shown part is a Section (a region named by its `h2`) or the labelled
@@ -2272,10 +2272,10 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **Props:** `rows: ReactNode[]` (the track's Weak items' registry rows with the learner's state
   and status pill, built by the page)
 - **Variants:** —
-- **States:** with rows · empty ("Chưa có bài yếu nào trong lộ trình này.")
+- **States:** with rows · empty ("Chưa có mục yếu nào trong lộ trình này.")
 - **Usage:** `<WeakItems rows={data.weakItems.map((item) => row(item))} />` (TrackOverview's
   `learner` slot)
-- **Accessibility:** a Section (region "Bài yếu"); the rows in WeekSection's bordered
+- **Accessibility:** a Section (region "Mục yếu"); the rows in WeekSection's divided LinkList
   `role="list"` (`RowList`), each one link (44 px); the status pill carries icon and label
 
 ### ResetTrackButton

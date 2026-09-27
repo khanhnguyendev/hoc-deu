@@ -55,7 +55,7 @@ async function openReview(page: Page, user: TestUser): Promise<void> {
 }
 
 const filterChip = (page: Page, name: string) => page.getByRole('link', { name })
-const itemsSection = (page: Page) => page.getByRole('region', { name: 'Bài cần ôn' })
+const itemsSection = (page: Page) => page.getByRole('region', { name: 'Mục cần ôn' })
 const cardsSection = (page: Page) => page.getByRole('region', { name: 'Thẻ' })
 
 test('the due queue: Weak first within a track, cross-track chip counts, a due card in "Thẻ"', async ({
@@ -249,7 +249,7 @@ test('grading the only (last) due card keeps the session’s end state and its f
   // was ever due and would drop the save announcement and focus.
   const done = page.getByRole('heading', { level: 3, name: 'Đã ôn xong' })
   await expect(done).toBeVisible()
-  await expect(page.getByText('Không có bài nào cần ôn hôm nay')).toHaveCount(0)
+  await expect(page.getByText('Không có mục nào cần ôn hôm nay')).toHaveCount(0)
   const endState = page.locator('div[tabindex="-1"]').filter({ has: done })
   await expect(endState).toBeFocused()
 })
@@ -257,7 +257,7 @@ test('grading the only (last) due card keeps the session’s end state and its f
 test('[RF-4] nothing due today: the empty state, linking to /today', async ({ page }) => {
   const { user } = await learner(['dsa', 'english'])
   await openReview(page, user)
-  await expect(page.getByText('Không có bài nào cần ôn hôm nay')).toBeVisible()
+  await expect(page.getByText('Không có mục nào cần ôn hôm nay')).toBeVisible()
   const link = page.locator('#main').getByRole('link', { name: 'Hôm nay' })
   await expect(link).toHaveAttribute('href', '/today')
   await expectNoAxeViolationsInBothThemes(page)

@@ -11,7 +11,7 @@ import type { ReviewItemSlot } from './slots'
 import type { ReviewEntry } from './view-model'
 
 /**
- * The "Bài cần ôn" list's slots: every due entry the card session does not show (a flashcard is
+ * The "Mục cần ôn" list's slots: every due entry the card session does not show (a flashcard is
  * its, `getReview`'s `cards`), through `renderItemRow` (task 5.3 review, finding M4 — no local
  * registry cast) with its mode and href (no plan block: the plain item page, `?mode=`) and
  * `showNoteHint` (a problem without a visible note says so in its row, as `/today`). The "Yếu"

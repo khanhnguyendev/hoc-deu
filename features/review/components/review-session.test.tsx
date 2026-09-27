@@ -53,7 +53,7 @@ describe('ReviewSession (task 5.3 review, findings I2/I3/M2/M3)', () => {
 
   it('RF-4: nothing due at all — the generic empty state, linking to /today', () => {
     render(<ReviewSession page={BASE} rows={[]} record={record} />)
-    expect(screen.getByText('Không có bài nào cần ôn hôm nay')).toBeTruthy()
+    expect(screen.getByText('Không có mục nào cần ôn hôm nay')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Hôm nay' }).getAttribute('href')).toBe('/today')
   })
 
@@ -73,8 +73,8 @@ describe('ReviewSession (task 5.3 review, findings I2/I3/M2/M3)', () => {
         record={record}
       />,
     )
-    expect(screen.getByText('Lộ trình này không có bài nào cần ôn hôm nay')).toBeTruthy()
-    expect(screen.queryByText('Không có bài nào cần ôn hôm nay')).toBeNull()
+    expect(screen.getByText('Lộ trình này không có mục nào cần ôn hôm nay')).toBeTruthy()
+    expect(screen.queryByText('Không có mục nào cần ôn hôm nay')).toBeNull()
   })
 
   it('shows "Thẻ" only when mounted with cards; a revalidation dropping cards to 0 does not hide it (I3/M2)', () => {
@@ -129,18 +129,18 @@ describe('ReviewSession (task 5.3 review, findings I2/I3/M2/M3)', () => {
     const { rerender } = render(
       <ReviewSession page={page} rows={[row('dsa:p1')]} record={record} />,
     )
-    expect(screen.queryByText('Không có bài nào cần ôn hôm nay')).toBeNull()
+    expect(screen.queryByText('Không có mục nào cần ôn hôm nay')).toBeNull()
     rerender(<ReviewSession page={{ ...page, entries: [] }} rows={[]} record={record} />)
-    expect(screen.queryByText('Không có bài nào cần ôn hôm nay')).toBeNull()
+    expect(screen.queryByText('Không có mục nào cần ôn hôm nay')).toBeNull()
   })
 
-  it('shows "Bài cần ôn" only while there are rows (a live check, not frozen)', () => {
+  it('shows "Mục cần ôn" only while there are rows (a live check, not frozen)', () => {
     const page: ReviewPage = { ...BASE, entries: [entry('dsa:p1', 'dsa')] }
     const { rerender } = render(
       <ReviewSession page={page} rows={[row('dsa:p1')]} record={record} />,
     )
-    expect(screen.getByRole('heading', { level: 2, name: 'Bài cần ôn' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Mục cần ôn' })).toBeTruthy()
     rerender(<ReviewSession page={page} rows={[]} record={record} />)
-    expect(screen.queryByRole('heading', { level: 2, name: 'Bài cần ôn' })).toBeNull()
+    expect(screen.queryByRole('heading', { level: 2, name: 'Mục cần ôn' })).toBeNull()
   })
 })

@@ -30,11 +30,11 @@ export const extra = {
     /** The week and the ring's name are `vi.trackProgress` (TrackProgressCard, m-1). */
     core: '{introduced}/{total} bài chính đã học',
   },
-  /** The track's items with status Weak (§5.7). */
+  /** The track's items with status Weak (§5.7): "mục", cards among them (m-6). */
   weak: {
-    title: 'Bài yếu',
-    description: 'Những bài bạn chưa nắm chắc — chúng được ưu tiên khi ôn tập.',
-    empty: 'Chưa có bài yếu nào trong lộ trình này.',
+    title: 'Mục yếu',
+    description: 'Những mục bạn chưa nắm chắc — chúng được ưu tiên khi ôn tập.',
+    empty: 'Chưa có mục yếu nào trong lộ trình này.',
   },
   /** "Bắt đầu lại" (§5.9 "Removing a track"; Part B-M2 decision 18): `track.reset`. */
   reset: {

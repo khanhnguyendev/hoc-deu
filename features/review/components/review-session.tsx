@@ -51,7 +51,7 @@ function ReviewSession({
       hasCards: page.cards.length > 0,
       isEmpty,
       /** A filter with nothing due while another track still has some (M3): a different empty
-       *  line, since "Không có bài nào cần ôn hôm nay" would be false. */
+       *  line, since "Không có mục nào cần ôn hôm nay" would be false. */
       filteredEmpty: isEmpty && page.track !== null && unfilteredTotal > 0,
     }
   })

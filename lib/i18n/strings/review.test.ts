@@ -21,6 +21,9 @@ describe('lib/i18n/strings/review.ts', () => {
   })
 
   it('names the empty state exactly as RF-4 requires', () => {
-    expect(review.emptyTitle).toBe('Không có bài nào cần ôn hôm nay')
+    // m-6: "mục" for any item, "thẻ" only for cards — as the header's "{n} mục cần ôn hôm nay".
+    expect(review.emptyTitle).toBe('Không có mục nào cần ôn hôm nay')
+    expect(review.itemsTitle).toBe('Mục cần ôn')
+    expect(review.emptyFilteredTitle).toBe('Lộ trình này không có mục nào cần ôn hôm nay')
   })
 })

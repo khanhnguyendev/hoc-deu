@@ -149,7 +149,7 @@ export const REVIEW_ENTRIES: Entry[] = [
         render: () => <ReviewSession page={DEMO_PAGE} rows={DEMO_ROWS} record={saves} />,
       },
       {
-        title: 'Trống (RF-4): không có bài nào cần ôn hôm nay',
+        title: 'Trống (RF-4): không có mục nào cần ôn hôm nay',
         render: () => <ReviewSession page={DEMO_EMPTY_PAGE} rows={[]} record={saves} />,
       },
       {
@@ -168,7 +168,7 @@ export const REVIEW_ENTRIES: Entry[] = [
         render: () => <ReviewView page={DEMO_PAGE} rows={DEMO_ROWS} record={saves} />,
       },
       {
-        title: 'Trống (RF-4): không có bài nào cần ôn hôm nay',
+        title: 'Trống (RF-4): không có mục nào cần ôn hôm nay',
         render: () => <ReviewView page={DEMO_EMPTY_PAGE} rows={[]} record={saves} />,
       },
       {

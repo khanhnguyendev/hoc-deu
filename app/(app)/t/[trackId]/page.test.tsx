@@ -147,7 +147,7 @@ describe('/t/[trackId]', () => {
     expect(within(progress).getByText('Tuần 2/8')).toBeTruthy()
     expect(within(progress).getByText('20/64 bài chính đã học')).toBeTruthy()
     expect(within(progress).getByRole('button', { name: 'Bắt đầu lại' })).toBeTruthy()
-    const weak = screen.getByRole('region', { name: 'Bài yếu' })
+    const weak = screen.getByRole('region', { name: 'Mục yếu' })
     expect(within(weak).getByRole('link', { name: 'Two Sum' })).toBeTruthy()
   })
 
@@ -155,7 +155,7 @@ describe('/t/[trackId]', () => {
     state.data = { ...DATA, enrollment: null, progress: null, weakItems: [] }
     render(await TrackPage(props('dsa')))
     expect(screen.queryByRole('region', { name: 'Tiến độ của bạn' })).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Bài yếu' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Mục yếu' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Bắt đầu lại' })).toBeNull()
     const rows = state.calls.filter((call) => call[0] === 'renderItemRow')
     expect(rows.every((call) => (call[2] as { showStatus: boolean }).showStatus === false)).toBe(
