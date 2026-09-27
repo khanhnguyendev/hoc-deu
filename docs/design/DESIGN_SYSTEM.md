@@ -345,7 +345,7 @@ data-driven components render loading / empty / error through the `LoadingState`
 
 - Address the learner as "bạn"; friendly, calm, short. No exclamation marks in errors.
 - Sentence case; buttons are verbs: "Bắt đầu", "Check-in", "Xem lời giải", "Học thêm".
-- Explain *why* when the system decides something: "Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới." (say when a number was true: the plan-time count, not a live one)
+- Explain *why* when the system decides something: "Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới." (say when a number was true: the plan-time count, not a live one)
 - Paused roadmap copy is encouraging, never guilt-driven: "Lộ trình đang tạm dừng — hoàn thành ít
   nhất một phần để tiếp tục."
 - Technical terms stay English ("pattern", "Two Pointers", "time complexity"); do not translate
