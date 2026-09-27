@@ -1,32 +1,51 @@
-import { Check, Circle } from 'lucide-react'
+import { CalendarCheck, Check, Circle, Clock, ListChecks } from 'lucide-react'
+import type * as React from 'react'
 import { Section } from '@/components/patterns/section'
+import { StatCard } from '@/components/patterns/stat-card'
 import { Progress } from '@/components/ui/progress'
-import { formatMinutes } from '@/lib/i18n/format'
+import { formatMinutes, formatWeekdayShort } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { WeeklySummary as WeekSummaryData } from '@/lib/domain/stats/weeklySummary'
-import { weekRangeLabel } from '../view-model'
 
 const copy = vi.progress
 
 type Track = { readonly id: string; readonly title: string; readonly accent: string }
 
-function dayOfMonth(localDay: string): string {
-  return localDay.slice(8, 10)
-}
-
 /**
- * The requested week (DESIGN_SYSTEM §3.4): one horizontal bar per enrolled track in its accent,
- * scaled to the week's busiest track, a value label at the bar end, a baseline only (`Progress`'s
- * own track), then a per-day list (minutes, done / not — never colour alone).
+ * The week shown on `/progress` (DESIGN_SYSTEM §3.4; UI I-4): a Section titled by the week — "Tuần
+ * này · {range}" only for the current one — with the week navigation (`nav`) above everything, the
+ * week's stat cards under neutral labels ("Phút", "Ngày hoàn thành", "Mục đã học"), one horizontal
+ * bar per enrolled track in its accent, scaled to the week's busiest track, a value label at the
+ * bar end, a baseline only (`Progress`'s own track), then each day by its weekday: its minutes and
+ * whether its plan was completed ("Hoàn thành" / "Chưa hoàn thành", icon + label — never colour
+ * alone; never "Chưa học" beside minutes studied).
  */
-function WeeklySummary({ week, tracks }: { week: WeekSummaryData; tracks: readonly Track[] }) {
+function WeeklySummary({
+  week,
+  tracks,
+  title,
+  nav,
+}: {
+  week: WeekSummaryData
+  tracks: readonly Track[]
+  /** The week's name (`ProgressView`: "Tuần này · 28/09 – 04/10", "Tuần trước · …", "Tuần …"). */
+  title: string
+  /** WeekNav, above the cards. */
+  nav?: React.ReactNode
+}) {
   const maxMinutes = Math.max(1, ...tracks.map((track) => week.minutesByTrack[track.id] ?? 0))
   return (
-    <Section title={copy.weekSummaryTitle} description={weekRangeLabel(week.weekStart)}>
+    <Section title={title}>
+      {nav}
+      <div className="grid gap-3 md:grid-cols-3">
+        <StatCard label={copy.minutes} value={Math.round(week.totalMinutes)} icon={Clock} />
+        <StatCard label={copy.completedDays} value={week.completedDays} icon={CalendarCheck} />
+        <StatCard label={copy.itemsDone} value={week.itemsDone} icon={ListChecks} />
+      </div>
       {tracks.length === 0 ? (
         <p className="text-sm text-muted-foreground">{copy.noTracksTitle}</p>
       ) : (
-        <ul aria-label={copy.weekSummaryTitle} className="flex flex-col gap-3">
+        <ul aria-label={copy.byTrack} className="flex flex-col gap-3">
           {tracks.map((track) => {
             const minutes = week.minutesByTrack[track.id] ?? 0
             const pct = (minutes / maxMinutes) * 100
@@ -52,14 +71,16 @@ function WeeklySummary({ week, tracks }: { week: WeekSummaryData; tracks: readon
           })}
         </ul>
       )}
-      <ul className="flex flex-col gap-1">
+      <ul aria-label={copy.byDay} className="flex flex-col gap-1">
         {week.days.map((day) => (
           <li
             key={day.localDay}
             className="flex items-center justify-between gap-2 border-b border-border py-1.5 text-sm last:border-b-0"
           >
-            <span className="font-mono tabular-nums">{dayOfMonth(day.localDay)}</span>
-            <span className="flex-1 text-muted-foreground">{formatMinutes(day.minutes)}</span>
+            <span className="w-32 shrink-0">{formatWeekdayShort(day.localDay)}</span>
+            <span className="flex-1 font-mono text-muted-foreground tabular-nums">
+              {formatMinutes(day.minutes)}
+            </span>
             <span className="flex items-center gap-1.5">
               {day.completed ? (
                 <Check aria-hidden="true" strokeWidth={1.75} className="size-4 text-success" />

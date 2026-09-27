@@ -17,6 +17,12 @@ describe('WeekNav', () => {
     expect(screen.queryByRole('link', { name: 'Tuần sau' })).toBeNull()
   })
 
+  it('disables — never hides — "Tuần trước" at the first week of the history read (m-7)', () => {
+    render(<WeekNav previousWeek={null} nextWeek="2025-09-01" />)
+    expect(screen.getByRole('button', { name: 'Tuần trước' })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('link', { name: 'Tuần trước' })).toBeNull()
+  })
+
   it('gives every control a 44 px touch target (h-11, size="md"), not the 36 px desktop-only size', () => {
     const { rerender } = render(<WeekNav previousWeek="2026-09-07" nextWeek="2026-09-21" />)
     for (const name of ['Tuần trước', 'Tuần sau']) {

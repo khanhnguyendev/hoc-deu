@@ -67,7 +67,7 @@ beforeEach(() => {
 })
 
 describe('getProgress', () => {
-  it('guards first, then reads the schedule, enrollments and a 53-week window of daily activity', async () => {
+  it('guards first, then reads the schedule, enrollments and the streak window of daily activity', async () => {
     await getProgress(undefined)
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(fake.calls[1]).toEqual(['createClient'])
@@ -75,8 +75,8 @@ describe('getProgress', () => {
       expect.arrayContaining(['readScheduleVersions', 'readEnrollments', 'readDailyActivity']),
     )
     const dailyActivityCall = fake.calls.find((call) => call[0] === 'readDailyActivity')
-    // 53 weeks back from today, today included: 371 days total.
-    expect(dailyActivityCall?.[1]).toBe('2025-09-23')
+    // The streak window /today reads too (m-7): today 2026-09-28 − 400 days.
+    expect(dailyActivityCall?.[1]).toBe('2025-08-24')
   })
 
   it('resolves enrolled tracks to their catalog title and accent, dropping unknown catalog ids', async () => {

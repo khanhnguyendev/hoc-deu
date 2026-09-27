@@ -5,3 +5,4 @@
 export { ProgressView } from './components/progress-view'
 export { getProgress } from './queries'
 export type { ProgressPage } from './view-model'
+export { activityWindowStart, STREAK_WINDOW_DAYS } from './window'

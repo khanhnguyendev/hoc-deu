@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { weeklySummary } from '@/lib/domain/stats/weeklySummary'
 import type { ProgressPage } from '../view-model'
@@ -11,6 +11,7 @@ const BASE_PAGE: ProgressPage = {
   heatmap: [],
   streak: 0,
   week: EMPTY_WEEK,
+  relation: 'current',
   previousWeek: '2026-09-21',
   nextWeek: null,
   tracks: [],
@@ -46,9 +47,25 @@ describe('ProgressView', () => {
     }
     const { container } = render(<ProgressView page={page} />)
     expect(container.querySelector('[data-slot="streak-badge"]')?.textContent).toContain('5')
-    expect(screen.getByText('Phút tuần này')).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: 'Điều hướng tuần' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Tổng kết tuần' })).toBeTruthy()
+    const week = screen.getByRole('region', { name: 'Tuần này · 28/09 – 04/10' })
+    expect(within(week).getByText('Phút')).toBeTruthy()
+    expect(within(week).getByRole('navigation', { name: 'Điều hướng tuần' })).toBeTruthy()
     expect(screen.queryByText('Chưa có ngày học nào — bắt đầu từ trang Hôm nay')).toBeNull()
+  })
+
+  it('names the week it shows: "tuần này" only for the current one (UI I-4)', () => {
+    const page = (relation: ProgressPage['relation'], weekOf: string): ProgressPage => ({
+      ...BASE_PAGE,
+      heatmap: [{ day: '2026-09-28', minutes: 45 }],
+      week: weeklySummary({}, weekOf, new Set()),
+      relation,
+    })
+    const { rerender } = render(<ProgressView page={page('previous', '2026-09-21')} />)
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Tuần trước · 21/09 – 27/09' }),
+    ).toBeTruthy()
+    rerender(<ProgressView page={page('earlier', '2026-09-07')} />)
+    expect(screen.getByRole('heading', { level: 2, name: 'Tuần 07/09 – 13/09' })).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/tuần này/i)
   })
 })

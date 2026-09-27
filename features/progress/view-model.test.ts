@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { DailyActivity } from '@/lib/domain/state'
-import type { LocalDay, ScheduleVersion } from '@/lib/domain/time/localDay'
+import { addDays, type LocalDay, type ScheduleVersion } from '@/lib/domain/time/localDay'
 import { buildProgressPage, weekRangeLabel, type ProgressEnrollment } from './view-model'
+import { activityWindowStart } from './window'
 
 const hoChiMinh = { timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' }
 
@@ -131,6 +132,55 @@ describe('buildProgressPage (§2.4, §5.7, §5.9, decision 24)', () => {
       weekOf: '2026-09-28',
     })
     expect(page.streak).toBe(3)
+  })
+
+  it('says which week it shows: this week, last week, or an earlier one (UI I-4)', () => {
+    const at = (weekOf: string) =>
+      buildProgressPage({ today: '2026-09-30', days: {}, versions, enrollments: [], weekOf })
+        .relation
+    expect(at('2026-09-30')).toBe('current')
+    expect(at('2026-09-21')).toBe('previous')
+    expect(at('2026-09-14')).toBe('earlier')
+  })
+
+  it('reads the streak over the shared window, the heatmap over its last 53 weeks (m-7)', () => {
+    // 380 completed days in a row, ending today: longer than the heatmap's 371 days.
+    const today = '2026-09-28'
+    const days = Object.fromEntries(
+      Array.from({ length: 380 }, (_, back) =>
+        activity(addDays(today, -back), { minutesByTrack: { dsa: 10 }, completed: true }),
+      ),
+    )
+    const page = buildProgressPage({ today, days, versions, enrollments: [DSA], weekOf: today })
+    expect(page.streak).toBe(380)
+    expect(page.heatmap).toHaveLength(53 * 7)
+    expect(page.heatmap.every((day) => day.day >= addDays(today, -(53 * 7 - 1)))).toBe(true)
+  })
+
+  it('never navigates before the history read: previousWeek stops at its first whole week (m-7)', () => {
+    const today = '2026-09-28' // a Monday; the window starts 400 days back, 2025-08-24 (a Sunday)
+    const first = activityWindowStart(today)
+    expect(first).toBe('2025-08-24')
+    const earliest = buildProgressPage({
+      today,
+      days: {},
+      versions,
+      enrollments: [],
+      weekOf: '2025-08-25',
+    })
+    expect(earliest.week.weekStart).toBe('2025-08-25')
+    expect(earliest.previousWeek).toBeNull()
+    expect(earliest.nextWeek).toBe('2025-09-01')
+    // A ?week= before the window reads as its first whole week, never all-zero weeks.
+    const before = buildProgressPage({
+      today,
+      days: {},
+      versions,
+      enrollments: [],
+      weekOf: '2024-01-01',
+    })
+    expect(before.week.weekStart).toBe('2025-08-25')
+    expect(before.previousWeek).toBeNull()
   })
 
   it('reports today, unaltered', () => {

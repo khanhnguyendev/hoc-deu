@@ -78,6 +78,11 @@ export function formatDayLong(isoDay: string): string {
   return format(isoDay, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+/** `Thứ Hai, 28/09` — a day in a week's list (`/progress`): its weekday and day of the month. */
+export function formatWeekdayShort(isoDay: string): string {
+  return format(isoDay, { weekday: 'long', day: '2-digit', month: '2-digit' })
+}
+
 /** `Tháng 2 năm 2026` */
 export function formatMonth(isoDay: string): string {
   return capitalize(format(isoDay, { month: 'long', year: 'numeric' }))

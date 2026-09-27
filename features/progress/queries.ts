@@ -6,7 +6,7 @@
 import 'server-only'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { getCatalog } from '@/lib/content/catalog'
-import { addDays, isLocalDay, type LocalDay } from '@/lib/domain/time/localDay'
+import { isLocalDay, type LocalDay } from '@/lib/domain/time/localDay'
 import { planCatalog } from '@/lib/plans/catalog'
 import {
   readDailyActivity,
@@ -16,9 +16,7 @@ import {
 } from '@/lib/plans/reads'
 import { createClient } from '@/lib/supabase/server'
 import { buildProgressPage, type ProgressEnrollment, type ProgressPage } from './view-model'
-
-/** The heatmap's window (decision 24): 53 weeks, today included. */
-const HEATMAP_DAYS = 53 * 7
+import { activityWindowStart } from './window'
 
 /** A real `LocalDay`, else null — an invalid or missing `?week=` falls back to this week. */
 function parseWeekParam(value: string | undefined): LocalDay | null {
@@ -35,7 +33,8 @@ export async function getProgress(week: string | undefined): Promise<ProgressPag
 
   const [enrollments, days] = await Promise.all([
     readEnrollments(supabase, user.id, planCatalog()),
-    readDailyActivity(supabase, user.id, addDays(today, -(HEATMAP_DAYS - 1))),
+    // The streak's window, as /today reads it (m-7); the heatmap shows its last 53 weeks.
+    readDailyActivity(supabase, user.id, activityWindowStart(today)),
   ])
 
   const trackInfo = new Map(getCatalog().tracks.map((track) => [track.id, track]))

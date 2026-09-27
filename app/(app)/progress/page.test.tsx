@@ -22,6 +22,7 @@ const BASE: ProgressPageData = {
   heatmap: [],
   streak: 0,
   week: weeklySummary({}, '2026-09-28', new Set()),
+  relation: 'current',
   previousWeek: '2026-09-21',
   nextWeek: null,
   tracks: [],

@@ -2102,37 +2102,48 @@ Task 5.5 adds these entries below this line (Part B-M5 decision 3).
 
 - **Layer:** features
 - **File:** `features/progress/components/progress-view.tsx`
-- **Props:** `page: ProgressPage`
+- **Props:** `page: ProgressPage` (`relation: 'current' | 'previous' | 'earlier'` names the week
+  shown; `previousWeek` is null at the first whole week of the history read, m-7)
 - **Variants:** —
-- **States:** with activity (streak, stat cards, heatmap, week nav, weekly summary) · empty (RF-4:
-  no `daily_activity` row at all — an EmptyState, "Chưa có ngày học nào — bắt đầu từ trang Hôm nay")
+- **States:** with activity (streak, the heatmap of the last 53 weeks, then the week shown —
+  WeeklySummary titled "Tuần này · {range}" only for the current week, "Tuần trước · {range}" or
+  "Tuần {range}" otherwise (UI I-4), WeekNav above its cards) · empty (RF-4: no `daily_activity`
+  row at all — an EmptyState, "Chưa có ngày học nào — bắt đầu từ trang Hôm nay") · loading
+  (`app/(app)/progress/loading.tsx`: LoadingState `page`) · error (`error.tsx`: ErrorState `h1`,
+  "Thử lại") — all four in the catalog
 - **Usage:** `<ProgressView page={page} />`
-- **Accessibility:** one `h1` (PageHeader); see CalendarHeatmap, WeeklySummary and WeekNav
+- **Accessibility:** one `h1` (PageHeader); the week is an `h2` region named by the week; see
+  CalendarHeatmap, WeeklySummary and WeekNav
 
 ### WeeklySummary
 
 - **Layer:** features
 - **File:** `features/progress/components/weekly-summary.tsx`
-- **Props:** `week: WeeklySummary` (`lib/domain/stats/weeklySummary`), `tracks: { id, title, accent }[]`
+- **Props:** `week: WeeklySummary` (`lib/domain/stats/weeklySummary`), `tracks: { id, title, accent
+  }[]`, `title: string` (the week's name, from ProgressView), `nav?: ReactNode` (WeekNav)
 - **Variants:** —
-- **States:** bars per enrolled track (value label at the bar end, scaled to the busiest track) ·
-  no tracks (a plain message, no bars) · the per-day list (minutes, done/not — icon + label, never
-  colour alone)
-- **Usage:** `<WeeklySummary week={page.week} tracks={page.tracks} />`
-- **Accessibility:** each bar is a labelled `progressbar` (`components/ui/progress.tsx`) in its
-  track accent; the per-day list never relies on colour alone
+- **States:** the week's Section: `nav` first, the stat cards under neutral labels ("Phút", "Ngày
+  hoàn thành", "Mục đã học" — the section names the week, UI I-4), bars per enrolled track (value
+  label at the bar end, scaled to the busiest track) · no tracks (a plain message, no bars) · the
+  per-day list: "Thứ Hai, 28/09", the minutes and "Hoàn thành" / "Chưa hoàn thành" (the day's plan
+  completed — the stat card's count; never "Chưa học" beside minutes studied), icon + label
+- **Usage:** `<WeeklySummary week={page.week} tracks={page.tracks} title={…} nav={<WeekNav … />} />`
+- **Accessibility:** a region named by its `h2` (the week); the bars' list "Phút theo lộ trình",
+  each a labelled `progressbar` (`components/ui/progress.tsx`) in its track accent; the days' list
+  "Theo ngày" never relies on colour alone
 
 ### WeekNav
 
 - **Layer:** features
 - **File:** `features/progress/components/week-nav.tsx`
-- **Props:** `previousWeek: LocalDay`, `nextWeek: LocalDay | null`
+- **Props:** `previousWeek: LocalDay | null`, `nextWeek: LocalDay | null`
 - **Variants:** —
-- **States:** default · "Tuần sau" disabled (not hidden) at the current week
+- **States:** default · "Tuần sau" disabled (not hidden) at the current week · "Tuần trước"
+  disabled at the first whole week of the history read (m-7)
 - **Usage:** `<WeekNav previousWeek={page.previousWeek} nextWeek={page.nextWeek} />`
-- **Accessibility:** a labelled `nav`; the disabled next-week control stays in the tab order as a
-  real (disabled) button, never a removed link; all three controls are Button `size="md"`
-  (44 px) — never `sm` (36 px, desktop-only), because this row renders on mobile too
+- **Accessibility:** a labelled `nav`; a disabled control stays a real (disabled) button, never a
+  removed link; both controls are Button `size="md"` (44 px) — never `sm` (36 px, desktop-only),
+  because this row renders on mobile too
 
 ### Extra study components (`features/today`, `features/roadmap`)
 

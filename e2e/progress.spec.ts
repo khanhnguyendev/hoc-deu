@@ -41,6 +41,12 @@ function addDays(day: string, delta: number): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** `28/09 – 04/10`: the Monday–Sunday range that names a week on /progress. */
+function range(monday: string): string {
+  const short = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`
+  return `${short(monday)} – ${short(addDays(monday, 6))}`
+}
+
 const TODAY = localDay(Date.now())
 const THIS_WEEK = mondayOf(TODAY)
 const LAST_WEEK = addDays(THIS_WEEK, -7)
@@ -105,7 +111,7 @@ test('shows the seeded heatmap days (the table view lists their minutes) and the
   await expectNoAxeViolationsInBothThemes(page)
 })
 
-test('the weekly bars show values per track, and week navigation moves between weeks', async ({
+test('the week section: named by the week (UI I-4), bars per track, days completed or not, navigation', async ({
   page,
 }) => {
   const learner = await signInLearner(page)
@@ -116,19 +122,29 @@ test('the weekly bars show values per track, and week navigation moves between w
   ])
   await page.reload()
 
-  const summary = page.getByRole('region', { name: 'Tổng kết tuần' })
-  await expect(summary.getByText('45 phút', { exact: true })).toBeVisible()
-  await expect(summary.getByText('15 phút', { exact: true })).toBeVisible()
+  const thisWeek = page.getByRole('region', { name: `Tuần này · ${range(THIS_WEEK)}` })
+  await expect(thisWeek.getByText('45 phút', { exact: true })).toBeVisible()
+  await expect(thisWeek.getByText('15 phút', { exact: true })).toBeVisible()
 
   const nav = page.getByRole('navigation', { name: 'Điều hướng tuần' })
   await nav.getByRole('link', { name: 'Tuần trước' }).click()
   await expect(page).toHaveURL((url) => url.searchParams.get('week') === LAST_WEEK)
-  await expect(summary.getByText('50 phút', { exact: true })).toBeVisible() // 30 + 20
-  await expect(summary.getByText('10 phút', { exact: true })).toBeVisible()
+  // Last week is never labelled "tuần này".
+  const lastWeek = page.getByRole('region', { name: `Tuần trước · ${range(LAST_WEEK)}` })
+  await expect(lastWeek.getByText('50 phút', { exact: true })).toBeVisible() // 30 + 20
+  await expect(lastWeek.getByText('10 phút', { exact: true })).toBeVisible()
+  await expect(page.getByText(/tuần này/i)).toHaveCount(0)
+  // Tuesday: 20 minutes studied, no block finished — "Chưa hoàn thành", never "Chưa học".
+  const days = lastWeek.getByRole('list', { name: 'Theo ngày' })
+  await expect(days.getByRole('listitem').nth(0)).toContainText('Hoàn thành')
+  await expect(days.getByRole('listitem').nth(1)).toContainText('20 phút')
+  await expect(days.getByRole('listitem').nth(1)).toContainText('Chưa hoàn thành')
+  await expect(days.getByText('Chưa học')).toHaveCount(0)
+  await expectNoAxeViolationsInBothThemes(page)
 
   await nav.getByRole('link', { name: 'Tuần sau' }).click()
   await expect(page).toHaveURL((url) => url.searchParams.get('week') === THIS_WEEK)
-  await expect(summary.getByText('45 phút', { exact: true })).toBeVisible()
+  await expect(thisWeek.getByText('45 phút', { exact: true })).toBeVisible()
   await expect(nav.getByRole('button', { name: 'Tuần sau' })).toBeDisabled()
 })
 
