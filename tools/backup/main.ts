@@ -17,8 +17,8 @@
  *   as the manifest's `auth.users`) loads in the local stack's GoTrue under that id (task 5.7c,
  *   `gotrue.ts`); the API URL and key come from `supabase status`, never from the command line.
  *
- * Output names files and tables, never a row or a count — except check-gotrue's user counts.
- * Exit codes: 0 fine · 1 the check failed or a file is unreadable · 2 bad arguments.
+ * Output names files, tables and kinds of failure, never a row or a count. Exit codes: 0 fine ·
+ * 1 the check failed or a file is unreadable · 2 bad arguments.
  */
 import { access, chmod, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -27,13 +27,7 @@ import { localSupabaseEnv } from '../db/local-env'
 import { checkArtifactDir, type AuthExpectation } from './artifact'
 import { compareCounts, describeDifferences, parseCounts } from './counts'
 import { scanDump } from './dump'
-import {
-  checkUsersLoad,
-  describeProblems,
-  parseUserIds,
-  type GoTrueCheck,
-  type LocalAuthApi,
-} from './gotrue'
+import { checkUsersLoad, describeProblems, parseUserIds, type LocalAuthApi } from './gotrue'
 import {
   AUTH_FILE,
   MANIFEST_FILE,
@@ -210,16 +204,15 @@ async function checkGoTrueCommand(argv: readonly string[], io: Io, deps: Deps): 
     io.err('the restored auth.users ids and the manifest’s auth.users count differ')
     return 1
   }
-  const check: GoTrueCheck = await checkUsersLoad(ids, deps.localAuthApi(), deps.fetch)
-  const failed = check.total - check.loaded
-  if (failed > 0) {
+  // The counts decide the exit code only: the log is public and never shows how many learners.
+  const check = await checkUsersLoad(ids, deps.localAuthApi(), deps.fetch)
+  if (check.loaded !== check.total) {
     io.err(
-      `${failed} of ${check.total} restored users do not load in GoTrue under their own id ` +
-        `(${describeProblems(check.problems)})`,
+      `some restored users do not load in GoTrue under their own id: ${describeProblems(check.problems)}`,
     )
     return 1
   }
-  io.out(`${check.loaded} of ${check.total} restored users load in GoTrue, each under its own id`)
+  io.out('every restored user loads in GoTrue under its own id')
   return 0
 }
 

@@ -88,7 +88,9 @@ listed, the owner chose (b) — keep the accounts in the backup — **through fu
   `postgres`, `EXECUTE` revoked from `public`, `anon`, `authenticated` and `service_role` and
   granted to `backup_reader` only. Each returns a `returns table (…)` **allow-list** — never
   `select *`, so a column GoTrue adds never leaks in — each column cast to its declared type (a
-  compatible retype keeps the backup working). A dropped or renamed column fails the backup loudly;
+  compatible retype keeps the backup working), named as `pg_catalog`'s (`::pg_catalog.uuid`,
+  `jsonb`, `text`: with `search_path = ''` the caller's `pg_temp` is still searched first for type
+  names; keyword types always mean `pg_catalog`'s). A dropped or renamed column fails the backup loudly;
   the fix is a new migration re-creating the function (docs/ops/backups.md §2 step 5).
 - **The allow-list** (`tools/backup/auth-columns.ts`, written once; a Vitest compares the
   migration, `auth-dump.sql`, `normalise-auth.sql` and pgTAP `081` with it; the types are the
@@ -107,9 +109,12 @@ listed, the owner chose (b) — keep the accounts in the backup — **through fu
   checks none comes out).
 - **The dump** runs in the backup's snapshot session: `COPY (SELECT <the allow-list> FROM
   backup.auth_users() ORDER BY id) TO STDOUT` (the same for identities), written as
-  `COPY auth.users (<the allow-list>) FROM stdin;` … `\.` blocks between a random `\restrict` /
+  `COPY auth.users (<the allow-list>) FROM stdin;` … `\.` blocks between a `\restrict` /
   `\unrestrict` pair — what pg_dump would write — so `tools/backup/dump.ts` counts the rows and the
-  restore loads those columns only. The job counts the auth rows through the same functions
+  restore loads those columns only. The `\restrict` key is random and made on the runner (`openssl
+  rand`), as pg_dump makes its key on the client: the server being dumped never learns it. The
+  snapshot session reads the accounts, so its errors reach the public log as SQLSTATE codes only
+  (`VERBOSITY=sqlstate`, no context): a server message could otherwise quote a value. The job counts the auth rows through the same functions
   (reported as `auth.users` / `auth.identities`); the restore counts the tables. Before dumping,
   the job checks that `backup_reader` can call both functions (the error names the migration, not
   a grant); any error from either function stops the snapshot session and fails the job before
@@ -129,13 +134,21 @@ listed, the owner chose (b) — keep the accounts in the backup — **through fu
 - **The weekly GoTrue check:** the restore test restores into the local Supabase stack, GoTrue
   included, so after the counts it asks the local GoTrue's admin API for every restored user by id
   (`tools/backup/cli.ts check-gotrue`, loopback only, with the local key from `supabase status`)
-  and fails unless each comes back under the same id; it prints counts and kinds of failure only.
+  and fails unless each comes back under the same id. It prints the kinds of failure only — no
+  id, and no count: the weekly public log never tracks how many learners there are.
   A GoTrue or CLI change that breaks loading restored accounts fails the weekly test before a real
   restore needs it. It cannot prove a Google or GitHub sign-in.
 - **The re-link drill:** so the owner proves that once, on staging (5.8b step 2,
-  docs/ops/backups.md §8): restore a backup into an emptied staging (or a throwaway project with
-  its own OAuth callback URLs), sign in with Google and with GitHub, and confirm the same
-  `profiles.id` and the same history — before and after written down.
+  docs/ops/backups.md §8): a fresh backup, its green restore test, the owner key's decrypt and
+  verify and a read-only preflight of the target (the `postgres` privileges, `session_replication_role
+  = replica`) first; only then an emptied staging (or a throwaway project with its own OAuth
+  clients) loaded at once; then a Google and a GitHub sign-in land on the same `profiles.id` with
+  the same history — before and after written down.
+- **The hosted checks** (docs/ops/backups.md §2 step 4) are read-only Management API queries as
+  `postgres`, booleans only: `backup_reader` may call both functions; no API role nor `public` may
+  use schema `backup` or call them (what pgTAP proves locally, proven on the hosted project too);
+  the functions return every account; the exposed schemas do not list `backup`. Nobody signs in as
+  `backup_reader` from a workstation: the first dispatched backup proves its login.
 - **The local round trip** (task 5.7c's report): accounts created through the local GoTrue's admin
   API, each with a profile and history; a backup as `backup_reader` through the functions (no
   planted secret reached the files); `supabase db reset --no-seed`; load and normalise; every

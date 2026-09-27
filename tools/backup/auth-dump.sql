@@ -16,13 +16,14 @@
 --   \unrestrict <the same key>
 --
 -- so tools/backup/dump.ts counts its rows like any pg_dump file, and the restore loads those
--- columns only. `\restrict` keeps psql from running a meta-command while it loads the file (the
--- key is random, as pg_dump's is). An error in either function stops the session (ON_ERROR_STOP),
--- and the backup job then fails before anything is encrypted or uploaded.
+-- columns only. `\restrict` keeps psql from running a meta-command while it loads the file; its
+-- key is psql's variable `auth_restrict_key`, random, made by the dump step on the runner — as
+-- pg_dump makes its key on the client — so the server being dumped never learns it. An error in
+-- either function stops the session (ON_ERROR_STOP), and the backup job then fails before
+-- anything is encrypted or uploaded.
 --
--- Only \gset and \qecho: the dump step runs this with the database URL in its environment.
+-- Only \qecho: the dump step runs this with the database URL in its environment.
 -- auth-columns.test.ts checks every line.
-select replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') as auth_restrict_key \gset
 set client_encoding = 'UTF8';
 \qecho '\\restrict' :auth_restrict_key
 \qecho 'SET client_encoding = ''UTF8'';'

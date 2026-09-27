@@ -124,7 +124,7 @@ describe('checkUsersLoad', () => {
 })
 
 describe('describeProblems', () => {
-  it('lists each kind with how many users it hit, sorted — never an id', () => {
-    expect(describeProblems({ 'another id': 1, 'HTTP 500': 3 })).toBe('HTTP 500: 3, another id: 1')
+  it('lists the kinds, sorted — never how many users, never an id', () => {
+    expect(describeProblems({ 'another id': 1, 'HTTP 500': 3 })).toBe('HTTP 500, another id')
   })
 })

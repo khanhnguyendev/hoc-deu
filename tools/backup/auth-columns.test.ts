@@ -12,6 +12,7 @@ import {
   AUTH_FUNCTIONS,
   NEVER_COLUMN,
   NORMALISED_COLUMNS,
+  castType,
   columnNames,
   functionResult,
 } from './auth-columns'
@@ -105,6 +106,15 @@ describe('the allow-list (auth-columns.ts)', () => {
     expect(name).toMatch(NEVER_COLUMN)
   })
 
+  it('casts to pg_catalog’s types: name-resolved ones qualified, keyword types as they are', () => {
+    expect(castType('uuid')).toBe('pg_catalog.uuid')
+    expect(castType('jsonb')).toBe('pg_catalog.jsonb')
+    expect(castType('text')).toBe('pg_catalog.text')
+    expect(castType('character varying')).toBe('character varying')
+    expect(castType('timestamp with time zone')).toBe('timestamp with time zone')
+    expect(castType('boolean')).toBe('boolean')
+  })
+
   it('prints each function’s result the way pg_get_function_result does', () => {
     expect(functionResult('auth.identities')).toBe(
       'TABLE(id uuid, user_id uuid, provider text, provider_id text, identity_data jsonb, ' +
@@ -163,9 +173,9 @@ describe(`the migration (${MIGRATION})`, () => {
       expect(declared).toEqual(AUTH_COLUMNS[table].map(([name, type]) => [name, type]))
     })
 
-    it(`selects those columns from ${table}, each cast to its declared type`, () => {
+    it(`selects those columns from ${table}, each cast to its declared (pg_catalog) type`, () => {
       expect(match?.[2]).toBe(
-        AUTH_COLUMNS[table].map(([name, type]) => `${alias}.${name}::${type}`).join(', '),
+        AUTH_COLUMNS[table].map(([name, type]) => `${alias}.${name}::${castType(type)}`).join(', '),
       )
     })
 
@@ -189,7 +199,6 @@ describe('auth-dump.sql (the backup’s snapshot session writes auth.sql with it
       "\\qecho '\\\\.'",
     ])
     expect(lines).toEqual([
-      "select replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') as auth_restrict_key \\gset",
       "set client_encoding = 'UTF8';",
       "\\qecho '\\\\restrict' :auth_restrict_key",
       "\\qecho 'SET client_encoding = ''UTF8'';'",

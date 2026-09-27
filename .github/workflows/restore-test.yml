@@ -6,7 +6,7 @@ name: restore-test
 # the backup's own commit, and every table's row count is compared with the manifest; then the
 # local auth server (GoTrue) is asked for every restored account by id (ADR-0029). The repository
 # is public, so the job never prints a row: psql's output is discarded or goes to 0600 files, its
-# errors are shown as SQLSTATE codes only, and the GoTrue check prints counts only.
+# errors are shown as SQLSTATE codes only, and the GoTrue check prints no id and no count.
 
 on:
   schedule:

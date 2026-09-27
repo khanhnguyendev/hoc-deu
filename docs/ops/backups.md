@@ -83,14 +83,12 @@ The migrations create `backup_reader` as `NOLOGIN` (read-only, `BYPASSRLS`, `SEL
 `public` table but `event_quota`, `EXECUTE` on the two auth functions of step 4); its login and
 password are set out of band, with one SQL statement on the target project through the Management
 API's database query endpoint. The password is generated locally, sent to Postgres only as its
-SCRAM-SHA-256 verifier (so no query log or history ever holds it), tried once as `backup_reader`
-through the session pooler, and written straight into the environment secret — never printed,
-never in git or the chat:
+SCRAM-SHA-256 verifier (so no query log or history ever holds it), and written straight into the
+environment secret — never printed, never in git or the chat:
 
 ```bash
 (
 set -euo pipefail
-umask 077             # the pgpass file below must be 0600, or psql ignores it
 ref=<project ref>
 pooler_host=<the Session pooler host: dashboard → Connect → Session pooler, aws-…pooler.supabase.com>
 : "${SUPABASE_ACCESS_TOKEN:?export a Management API token first}"
@@ -115,20 +113,13 @@ PY
 curl -fsS -X POST "https://api.supabase.com/v1/projects/$ref/database/query" \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
   --data-binary @"$work/body.json" > /dev/null
-# 2. The way the job will connect, as backup_reader: both auth functions (step 4), counts only.
-printf '%s:5432:postgres:backup_reader.%s:%s\n' "$pooler_host" "$ref" "$(< "$work/password")" \
-  > "$work/pgpass"
-PGPASSFILE="$work/pgpass" psql \
-  "host=$pooler_host port=5432 dbname=postgres user=backup_reader.$ref sslmode=require" \
-  -X -A -t -v ON_ERROR_STOP=1 -c 'select current_user,
-    (select count(*) from backup.auth_users()), (select count(*) from backup.auth_identities())'
-# 3. Only then the secret, with the password the role now has.
+# 2. Only then the secret, with the password the role now has.
 printf 'postgresql://backup_reader.%s:%s@%s:5432/postgres?sslmode=require' \
   "$ref" "$(< "$work/password")" "$pooler_host" \
   | gh secret set SUPABASE_BACKUP_DB_URL --env backup --repo khanhnguyendev/hoc-deu
-# 4. Only after all three: the local copy goes.
+# 3. Only after both: the local copy goes.
 rm -rf "$work"
-echo "backup_reader signs in and calls both auth functions; SUPABASE_BACKUP_DB_URL is set"
+echo "backup_reader can sign in; SUPABASE_BACKUP_DB_URL is set"
 )
 ```
 
@@ -137,19 +128,10 @@ password the role did not, and the password file is never deleted before the sec
 
 - **`curl` failed** (token, ref, or the statement): nothing changed. Delete the printed work dir
   and run the block again.
-- **`psql` failed** after `curl` succeeded: the role has the new password, the secret does not.
-  A connection error means the pooler host or the user format; `permission denied for schema
-  backup` or `function backup.auth_users() does not exist` means the project lacks migration
-  `20260927000400_backup_auth.sql` — push it (`docs/ops/production.md` §1), never grant anything
-  by hand. Then delete the work dir and run the block again.
-- **`gh secret set` failed** after `psql` succeeded: the role already has the new password, and
+- **`gh secret set` failed** after `curl` succeeded: the role already has the new password, and
   the work dir still holds it. Either run the block again (a fresh password replaces it), or fix
   `gh` and re-run only its `printf … | gh secret set` pipeline with the same values; then delete
   the work dir.
-
-`psql` prints one line, `backup_reader|<users>|<identities>` — counts only; step 4 compares them.
-It needs a local `psql` (`brew install libpq`); the password reaches it through the `0600`
-`pgpass` file in the work dir, never the command line.
 
 - The URL is the pooler's **session mode** (port **5432**, user `backup_reader.<ref>`): pg_dump
   does not work through transaction mode (6543, which the job refuses), and the direct host
@@ -158,6 +140,9 @@ It needs a local `psql` (`brew install libpq`); the password reaches it through 
 - The same verifier computation set the local password in the task's dry run (2026-09-26): psql
   then signed in as `backup_reader` with it, and `postgres` could alter the role as the
   migration's creator — as on the hosted project, where `supabase db push` ran that migration.
+- Nobody signs in as `backup_reader` from a workstation — it reads every account's e-mail and
+  bypasses RLS. The first backup (step 5) is what proves the login, the URL and the pooler's user
+  format; if it fails, it fails before anything is uploaded, and the fix is this step again.
 
 ### Step 4 — the auth accounts: nothing to grant, two checks **[controller]**
 
@@ -171,29 +156,68 @@ none is needed: migration `20260927000400_backup_auth.sql`, pushed with M5's mig
 never a password, a token or a pending change (ADR-0029, which also says why functions and not
 views or grants). The job copies the accounts out of them in its snapshot.
 
-1. **The functions, as `backup_reader`:** step 3's block called both through the job's own URL
-   and printed `backup_reader|<users>|<identities>`. Compare those counts with the tables, as
-   `postgres` (the SQL editor, or the query endpoint as in step 3):
+Two read-only checks, through the Management API (never a database connection from a
+workstation), printing booleans and schema names only:
 
-   ```sql
-   select (select count(*) from auth.users) as users,
-          (select count(*) from auth.identities) as identities;
-   ```
+```bash
+(
+set -euo pipefail
+ref=<project ref>
+: "${SUPABASE_ACCESS_TOKEN:?export a Management API token first}"
+query="$(cat <<'SQL'
+select
+  has_schema_privilege('backup_reader', 'backup', 'usage')
+    and has_function_privilege('backup_reader', 'backup.auth_users()', 'execute')
+    and has_function_privilege('backup_reader', 'backup.auth_identities()', 'execute')
+    as reader_can_call,
+  not exists (
+    select from unnest(array['public', 'anon', 'authenticated', 'service_role', 'authenticator'])
+      as r (name)
+    where has_schema_privilege(r.name, 'backup', 'usage')
+       or has_schema_privilege(r.name, 'backup', 'create')
+       or has_function_privilege(r.name, 'backup.auth_users()', 'execute')
+       or has_function_privilege(r.name, 'backup.auth_identities()', 'execute')
+  ) as api_roles_shut_out,
+  (select count(*) from backup.auth_users()) = (select count(*) from auth.users) as users_complete,
+  (select count(*) from backup.auth_identities()) = (select count(*) from auth.identities)
+    as identities_complete;
+SQL
+)"
+# 1. The functions and who may call them: four booleans.
+jq -n --arg query "$query" '{query: $query}' \
+  | curl -fsS -X POST "https://api.supabase.com/v1/projects/$ref/database/query" \
+      -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
+      --data-binary @- \
+  | jq -ec '.[0] | {reader_can_call, api_roles_shut_out, users_complete, identities_complete}'
+# 2. The Data API's exposed schemas. This response also holds the project's JWT secret: never
+#    print it whole — only .db_schema.
+curl -fsS "https://api.supabase.com/v1/projects/$ref/postgrest" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | jq -er .db_schema
+)
+```
 
-   Equal (give or take a sign-up in between): the functions return every account. If step 3's
-   `psql` failed on the functions, the migration is missing — push it; never grant `auth` by hand.
-2. **Schema `backup` is not exposed:** the Data API must never serve it. Read-only:
+`pipefail` makes a failed `curl` fail the block rather than read as an empty answer.
 
-   ```bash
-   curl -fsS "https://api.supabase.com/v1/projects/<project ref>/postgrest" \
-     -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | jq -r .db_schema
-   ```
+1. **All four booleans must be `true`.** The functions are `SECURITY DEFINER`, so calling them as
+   `postgres` (the owner) runs the same body with the same rights the job gets: `users_complete` /
+   `identities_complete` prove they work on this project and return every account (rerun once if
+   someone signed up between the two counts). `reader_can_call` is what the job's own check
+   tests; `api_roles_shut_out` proves on the hosted project what pgTAP `001` / `081` prove locally —
+   no API role (nor `public`) can use schema `backup` or call either function, whatever a
+   dashboard click or a platform default did.
+   - `reader_can_call` false, or an error that `backup.auth_users()` does not exist: the migration
+     is missing or its grants changed — push it (`docs/ops/production.md` §1); never grant `auth`
+     by hand.
+   - `api_roles_shut_out` false: stop and ask the owner before the first backup; the fix is the
+     migration's `revoke` statements, run again.
+2. **The exposed schemas** (by default `public, graphql_public`) must not name `backup` (nor
+   `auth`). If they do, remove it (dashboard → Project Settings → Data API → Exposed schemas)
+   before the first backup. Locally, `supabase/config.toml`'s `[api].schemas` is checked by
+   `tools/backup/auth-columns.test.ts`.
 
-   The list (by default `public, graphql_public`) must not name `backup` (nor `auth`). If it does,
-   remove it (dashboard → Project Settings → Data API → Exposed schemas) before the first backup:
-   the functions answer only `backup_reader` either way (`anon` and `authenticated` get `42501`,
-   pgTAP `081`), but nothing may be served from that schema. Locally, `supabase/config.toml`'s
-   `[api].schemas` is checked by `tools/backup/auth-columns.test.ts`.
+Whether `backup_reader` itself can sign in and call both functions is proven by step 5's first
+backup: its callable check and the dump run as `backup_reader`, and it fails before anything is
+uploaded otherwise.
 
 **The owner-only fallback, `BACKUP_INCLUDE_AUTH=false`.** Only the owner sets this environment
 variable, and only if the functions cannot be made to work on a project. Every backup then holds
@@ -215,17 +239,21 @@ every per-user table.
 On `main`: Actions → **backup** → Run workflow; when it is green, Actions → **restore-test** → Run
 workflow. **Both must be green before any production step** (`docs/ops/production.md` §2).
 
-On the first staging run, check the one thing the local round trip (task 5.7c) could not: the
-hosted auth server's columns against the local stack's (the Supabase CLI version pinned in
-`package.json`). The backup selects the allow-listed columns by name, so a column the hosted
-tables have and the local ones lack never reaches the dump. Two mismatches still fail — loudly,
-never with a partial backup:
+The first backup is also the proof that `backup_reader` signs in through the session pooler and
+calls both auth functions (step 4 checked everything else read-only). On the first staging run,
+check the one thing the local round trip (task 5.7c) could not: the hosted auth server's columns
+against the local stack's (the Supabase CLI version pinned in `package.json`). The backup selects
+the allow-listed columns by name, so a column the hosted tables have and the local ones lack never
+reaches the dump. Two mismatches still fail — loudly, never with a partial backup:
 
-- **The backup fails** with `column u.<name> does not exist` (or `structure of query does not
-  match function result type`): the hosted GoTrue dropped, renamed or retyped an allow-listed
-  column. Fix: a new migration re-creating the function for the new columns (a function's result
-  type cannot be replaced in place: `drop function` + `create function`, then the grants), with
-  `tools/backup/auth-columns.ts`, `auth-dump.sql`, pgTAP `081` and ADR-0029 in the same change.
+- **The backup fails** in its snapshot session, whose errors the public log shows as SQLSTATE
+  codes only (`ERROR:  42703` — an allow-listed column was dropped or renamed; `ERROR:  42804` —
+  retyped beyond what the casts absorb, "structure of query does not match function result
+  type"), followed by `dumping auth or counting the rows in the snapshot failed`. Confirm with the
+  column comparison below (hosted vs `pnpm db:start`). Fix: a new migration re-creating the
+  function for the new columns (a function's result type cannot be replaced in place: `drop
+  function` + `create function`, then the grants), with `tools/backup/auth-columns.ts`,
+  `auth-dump.sql`, pgTAP `081` and ADR-0029 in the same change.
 - **The restore test fails** loading `auth.sql` with `ERROR: 42703` (the local stack lacks a
   column), or its GoTrue check reports `HTTP 404` / `HTTP 500` for the restored users: the local
   GoTrue reads the accounts differently from the backup's. Compare the column lists
@@ -239,13 +267,14 @@ never with a partial backup:
 - **backup:** the log shows the kind (daily / weekly), `pg_dump` and server versions, the
   snapshot time, `manifest.json: N tables in M files`, `Encrypted …`, the file check and the
   artifact id. A failure names its reason (URL, role, the auth functions, the snapshot session —
-  `dumping auth or counting the rows in the snapshot failed`, after the `psql` error — or a count
+  `dumping auth or counting the rows in the snapshot failed`, after its SQLSTATE line — or a count
   that disagrees with the dump, named by table, never with numbers). Nothing else is printed.
 - **restore-test:** the artifact and run it restored, the checks, `Loaded.`,
-  `row counts match the manifest for N tables` and `N of N restored users load in GoTrue, each
-  under its own id`. A load failure shows only `psql` SQLSTATE lines (`ERROR:  23505`); a count
-  failure names the tables and whether each is missing, unexpected or different — never a row or
-  a count; a GoTrue failure gives how many users failed and how (`HTTP 500: 3`) — never an id.
+  `row counts match the manifest for N tables` and `every restored user loads in GoTrue under its
+  own id`. A load failure shows only `psql` SQLSTATE lines (`ERROR:  23505`); a count failure
+  names the tables and whether each is missing, unexpected or different; a GoTrue failure names
+  the kinds (`some restored users do not load in GoTrue under their own id: HTTP 500, another
+  id`) — never a row, an id or a count (not even of learners).
 
 ## 4. Retention and storage
 
@@ -280,9 +309,9 @@ never with a partial backup:
 ## 6. Switching the target (staging → production)
 
 `docs/ops/production.md` §4 step 10: run §2 steps 3–4 on the **production** project (the
-functions come with its migrations; step 3 calls them as `backup_reader`, step 4 checks the counts
-and that `backup` is not exposed), which replaces `SUPABASE_BACKUP_DB_URL`; then run backup and
-restore-test once more, both green.
+functions come with its migrations; step 4 checks who may call them, that they return every
+account and that `backup` is not exposed), which replaces `SUPABASE_BACKUP_DB_URL`; then run
+backup (it proves `backup_reader`'s login on production) and restore-test once more, both green.
 Staging's remaining artifacts expire by retention; the restore test always takes the newest.
 
 ## 7. Restoring by hand
@@ -356,25 +385,23 @@ both green there (`docs/ops/production.md` §2) and before any production step.
 
 - **(A) Staging itself, emptied** (the default). What is lost: every staging row written after the
   backup's snapshot (take the backup right before the drill and write nothing in between) and all
-  sessions; Storage is untouched. The controller empties it, as `postgres` (SQL editor or the
-  query endpoint), **on staging only — never production**:
-
-  ```sql
-  begin;
-  delete from auth.users;          -- cascades to identities, sessions, profiles and every per-user table
-  delete from public.ops_metrics;  -- the backup brings its own rows, under the same ids
-  commit;
-  ```
-
+  sessions; Storage is untouched. Staging already has the manifest commit's migrations, so §7
+  step 3 (`db push` to a fresh project) is skipped — but `supabase migration list` against staging
+  must show exactly the migrations of the manifest's commit.
 - **(B) A throwaway project.** A new Supabase project (Free plan: at most two active — before
-  production exists this fits), `supabase db push` of the backup's commit, and its own OAuth
-  callback URLs: add `https://<throwaway ref>.supabase.co/auth/v1/callback` to the Google OAuth
-  client's redirect URIs and create a second GitHub OAuth app for it (a GitHub app has one
-  callback), plus the Site URL / redirect allow-list for a local app (`pnpm dev` with the
-  throwaway project's URL and keys). Nothing on staging is lost; the project, the extra GitHub app
-  and the extra redirect URI are deleted afterwards.
+  production exists this fits), `supabase db push` of the manifest's commit (§7 step 3), and its
+  own OAuth set-up: in the throwaway project's Auth → Providers, **enable Google and GitHub** with
+  the client id and secret of the Google OAuth client (add `https://<throwaway
+  ref>.supabase.co/auth/v1/callback` to its redirect URIs) and of a second GitHub OAuth app
+  created for it (a GitHub app has one callback URL); plus the Site URL / redirect allow-list for a
+  local app (`pnpm dev` with the throwaway project's URL and keys). The accounts still match:
+  an identity's `provider_id` is Google's `sub` or GitHub's user id, which belong to the person's
+  Google or GitHub account, not to the OAuth app, so a sign-in through the new clients finds the
+  restored identity. Nothing on staging is lost; the project, the second GitHub app and the extra
+  redirect URI are deleted afterwards.
 
-**Steps:**
+**Nothing is emptied until everything that can be checked without writing has passed** (steps
+1–5); then the target is emptied and loaded at once (step 6).
 
 1. **Before — write it down.** On staging, for the owner's account (and one other learner's if
    there is one): the `profiles.id`, and the history the app shows — `/progress` (the streak, the
@@ -385,21 +412,64 @@ both green there (`docs/ops/production.md` §2) and before any production step.
           (select count(*) from public.events e where e.user_id = p.id) as events,
           (select count(*) from public.day_plans d where d.user_id = p.id) as plans,
           (select string_agg(i.provider, ', ' order by i.provider)
-             from auth.identities i where i.user_id = p.id) as providers
+             from auth.identities i where i.user_id = p.id) as providers,
+          (select count(*) from auth.users) as accounts
    from public.profiles p join auth.users u on u.id = p.id
    where u.email = '<the owner''s e-mail>';
    ```
 
 2. **Back up:** dispatch `backup.yml` on `main`; wait for green.
-3. **Empty** the target (A), or create it (B).
-4. **Restore by hand** (§7 steps 1–5) from that run's artifact, into the target. The counts must
-   match.
-5. **Sign in with Google.** Run the query of step 1 again: the **same `profiles.id`**, the same
-   `events` and `plans` counts, and `select count(*) from auth.users` unchanged (no new account).
-   `/progress` and `/today` show the same history as before.
-6. **Sign out; sign in with GitHub.** The same checks. (Each provider lands on the account its
+3. **Restore-test that backup:** dispatch `restore-test.yml` on `main`; wait for green, and check
+   its log names the artifact of step 2's run (it takes the newest). The backup now decrypts,
+   loads, counts and loads in GoTrue.
+4. **Download, decrypt and verify it** with the owner key (§7 steps 1–2) — the owner key, `age`
+   and `psql` ≥ 17.6 (`psql --version`; pg_dump's `\restrict` lines) at hand before anything is
+   emptied.
+5. **Preflight on the target, read-only**, through the very connection §7 step 4 will load
+   through (as `postgres`, the target's session pooler):
+
+   ```bash
+   psql "<postgres session-pooler URL of the target>" -X -v ON_ERROR_STOP=1 -q -A -t \
+     -c 'begin' -c 'set local session_replication_role = replica' -c 'rollback' \
+     -c "select current_user,
+           has_table_privilege('postgres', 'auth.users', 'insert')
+             and has_table_privilege('postgres', 'auth.users', 'update')
+             and has_table_privilege('postgres', 'auth.users', 'delete')
+             and has_table_privilege('postgres', 'auth.identities', 'insert') as auth_writable,
+           not exists (
+             select from pg_catalog.pg_tables t
+             where t.schemaname = 'public'
+               and not (has_table_privilege('postgres', format('%I.%I', t.schemaname, t.tablename), 'insert')
+                        and has_table_privilege('postgres', format('%I.%I', t.schemaname, t.tablename), 'delete'))
+           ) as public_writable"
+   ```
+
+   It must print `postgres|t|t` and no error: `permission denied to set parameter
+   "session_replication_role"` means the load cannot switch triggers and foreign keys off — stop
+   and ask the owner. (One privilege per `has_table_privilege` call: a comma list is true when
+   *any* of them is held. `set_config()` is no substitute for `set`: Supabase allows `postgres`
+   the statement, not the function.)
+6. **Empty and load at once** — **nobody signs in to the target between the two** (close every
+   staging tab first): a sign-in creates a new account, and the load then fails on it (`23505`,
+   the e-mail's unique index) and rolls back — delete the stray account the same way and load
+   again. For (A), the controller empties staging, as `postgres`, **on staging only — never
+   production**:
+
+   ```sql
+   begin;
+   delete from auth.users;          -- cascades to identities, sessions, profiles and every per-user table
+   delete from public.ops_metrics;  -- the backup brings its own rows, under the same ids
+   commit;
+   ```
+
+   and loads right away: §7 steps 4–5 (the load, normalised; the counts must match).
+7. **Sign in with Google.** Run the query of step 1 again: the **same `profiles.id`**, the same
+   `events` and `plans` counts, and `accounts` equal to step 1's (no new account). `/progress` and
+   `/today` show the same history as before.
+8. **Sign out; sign in with GitHub.** The same checks. (Each provider lands on the account its
    identity belongs to: when the owner's Google and GitHub e-mails differ, they are two accounts,
    and each must come back as its own old id.)
-7. **Write down after**, next to before, in the 5.8b notes. Any difference — a new id, a pending
-   profile, a missing plan — stops the launch: the owner decides before any production step.
-8. (B) Delete the throwaway project, the second GitHub OAuth app and the extra Google redirect URI.
+9. **Write down after**, next to before, in the 5.8b notes. Any difference — a new id, a pending
+   profile, a missing plan, another `accounts` count — stops the launch: the owner decides before
+   any production step.
+10. (B) Delete the throwaway project, the second GitHub OAuth app and the extra Google redirect URI.

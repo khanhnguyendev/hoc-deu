@@ -12,7 +12,9 @@
 -- Why functions, not views: a view pins the columns it names, so a GoTrue migration that drops or
 -- retypes one would fail on hosted. A plpgsql body is not dependency-tracked (a `begin atomic` SQL
 -- body would be); a dropped column fails the backup loudly instead, and each column is cast to its
--- declared type, so a compatible retype (varchar → text) keeps the backup working.
+-- declared type, so a compatible retype (varchar → text) keeps the backup working. The casts name
+-- pg_catalog's types: with search_path '' the caller's pg_temp is still searched first for type
+-- names (keyword types such as character varying always mean pg_catalog's).
 -- `row_security = off`: postgres bypasses RLS (auth.users has it on); should it ever stop, the
 -- functions fail instead of silently returning fewer rows.
 -- Schema backup is not exposed through the Data API (supabase/config.toml [api].schemas; on
@@ -48,18 +50,18 @@ as $$
 begin
   return query
   select
-    u.id::uuid,
+    u.id::pg_catalog.uuid,
     u.aud::character varying,
     u.role::character varying,
     u.email::character varying,
     u.email_confirmed_at::timestamp with time zone,
-    u.raw_app_meta_data::jsonb,
-    u.raw_user_meta_data::jsonb,
+    u.raw_app_meta_data::pg_catalog.jsonb,
+    u.raw_user_meta_data::pg_catalog.jsonb,
     u.created_at::timestamp with time zone,
     u.updated_at::timestamp with time zone,
     u.last_sign_in_at::timestamp with time zone,
     u.is_anonymous::boolean,
-    u.instance_id::uuid
+    u.instance_id::pg_catalog.uuid
   from auth.users as u;
 end
 $$;
@@ -86,11 +88,11 @@ as $$
 begin
   return query
   select
-    i.id::uuid,
-    i.user_id::uuid,
-    i.provider::text,
-    i.provider_id::text,
-    i.identity_data::jsonb,
+    i.id::pg_catalog.uuid,
+    i.user_id::pg_catalog.uuid,
+    i.provider::pg_catalog.text,
+    i.provider_id::pg_catalog.text,
+    i.identity_data::pg_catalog.jsonb,
     i.created_at::timestamp with time zone,
     i.updated_at::timestamp with time zone,
     i.last_sign_in_at::timestamp with time zone

@@ -7,7 +7,8 @@
  *
  * It asks GoTrue's admin API (`GET /auth/v1/admin/users/<id>`) with the local stack's secret key,
  * and only a loopback API: never a hosted project. The repository and its logs are public, so the
- * result is counts and kinds of failure only — never an id, and never anything GoTrue returned.
+ * result it prints is the kinds of failure only — never an id, a count of users or anything GoTrue
+ * returned; the counts only decide the exit code.
  */
 
 export type LocalAuthApi = { url: string; key: string }
@@ -94,10 +95,9 @@ async function askFor(
   return body.id === id ? null : 'another id'
 }
 
-/** `HTTP 500: 2, another id: 1` — each kind with how many users it hit, sorted by kind. */
+/** `HTTP 500, another id` — the kinds of failure, sorted, without how many users each hit. */
 export function describeProblems(problems: Readonly<Record<string, number>>): string {
-  return Object.entries(problems)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([kind, count]) => `${kind}: ${count}`)
+  return Object.keys(problems)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .join(', ')
 }

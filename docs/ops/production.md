@@ -69,20 +69,24 @@ work before there is anything in production worth losing. The steps live in
 1. **[owner]** Creates the GitHub environment `backup` and its variables/secrets
    (`SUPABASE_BACKUP_DB_URL`, `BACKUP_RESTORE_KEY`, `BACKUP_AGE_RECIPIENTS`) — `docs/ops/backups.md`
    §2 steps 1–2.
-2. **[controller]** Sets `backup_reader`'s password (§2 step 3 — its block also signs in as
-   `backup_reader` through the session pooler and calls both auth functions), then §2 step 4's
-   checks: the function counts equal the auth tables' and the project's exposed schemas
-   (`GET /v1/projects/{ref}/postgrest`, read-only) do not list `backup`. **No `auth` grants:** the
-   accounts are read through the functions migration `20260927000400_backup_auth.sql` created
-   (step 1 above pushed it; ADR-0029). If a function check fails, the migration is missing —
-   push it; never grant anything on `auth` by hand.
+2. **[controller]** Sets `backup_reader`'s password (§2 step 3), then runs §2 step 4's read-only
+   checks through the Management API, as `postgres`, booleans only: `backup_reader` may call both
+   auth functions, no API role (nor `public`) may use schema `backup` or call them, the functions
+   return every account, and the project's exposed schemas (`GET /v1/projects/{ref}/postgrest`,
+   printing `.db_schema` only — the response also holds the JWT secret) do not list `backup`.
+   **No `auth` grants:** the accounts are read through the functions migration
+   `20260927000400_backup_auth.sql` created (§1 pushed it; ADR-0029). If a check fails, the
+   migration is missing or changed — push it; never grant anything on `auth` by hand. Nobody signs
+   in as `backup_reader` from a workstation: the first backup (item 3) proves its login.
 3. **[owner or controller]** Dispatch `backup.yml`, then `restore-test.yml`, once each via
    `workflow_dispatch` on `main`. **Both must go green before step 4 (production) starts.**
-4. **[owner] Once: the re-link drill** (`docs/ops/backups.md` §8): restore that backup into an
-   emptied staging (or a throwaway project), sign in with Google and with GitHub, and confirm the
-   same `profiles.id` and the same history (events, plans, streak) — before and after written
-   down. The weekly restore test proves every account loads in GoTrue, not an OAuth sign-in. Any
-   difference stops the launch until the owner decides.
+4. **[owner] Once: the re-link drill** (`docs/ops/backups.md` §8): a fresh backup and its green
+   restore test, the owner key's decrypt and verify, and a read-only preflight on the target —
+   all before anything is emptied; then an emptied staging (or a throwaway project) is loaded at
+   once, with nobody signing in between; sign in with Google and with GitHub, and confirm the same
+   `profiles.id` and the same history (events, plans, streak, the number of accounts) — before and
+   after written down. The weekly restore test proves every account loads in GoTrue, not an OAuth
+   sign-in. Any difference stops the launch until the owner decides.
 
 ## 3. Required check: `sim` **[controller]**
 

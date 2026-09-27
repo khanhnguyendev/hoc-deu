@@ -82,6 +82,18 @@ export const NORMALISED_COLUMNS: readonly string[] = [
   'reauthentication_token',
 ]
 
+/** SQL keyword types: they always mean pg_catalog's type, whatever the search path. */
+const KEYWORD_TYPES = new Set(['character varying', 'timestamp with time zone', 'boolean'])
+
+/**
+ * The type a column is cast to in the function bodies. With `search_path = ''` PostgreSQL still
+ * looks type names up in the caller's `pg_temp` first, so a name-resolved type (uuid, jsonb,
+ * text) is qualified with pg_catalog; keyword types need no qualifier.
+ */
+export function castType(type: string): string {
+  return KEYWORD_TYPES.has(type) ? type : `pg_catalog.${type}`
+}
+
 export function columnNames(table: AuthTable): string[] {
   return AUTH_COLUMNS[table].map(([name]) => name)
 }

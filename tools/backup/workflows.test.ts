@@ -341,8 +341,10 @@ describe('backup.yml', () => {
     // The snapshot session reads its SQL from a FIFO this shell holds open; it must not inherit
     // that descriptor, or it never sees the end of its input and the job hangs (dry run, 5.7b).
     expect(lines).toContain('exec 3<> "$work/holder.sql"')
+    // It reads the accounts: errors as SQLSTATE codes only, no context (a message could quote a
+    // value); auth.sql's \restrict key comes from the runner.
     expect(lines).toContain(
-      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v with_auth="$with_auth" -v auth_from=functions -f "$work/holder.sql" > /dev/null 3>&- &',
+      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate -v SHOW_CONTEXT=never -v with_auth="$with_auth" -v auth_from=functions -v auth_restrict_key="$restrict_key" -f "$work/holder.sql" > /dev/null 3>&- &',
     )
     expect(lines).toContain('exec 3>&-')
     // The same session that exported the snapshot runs counts.sql, then commits.
@@ -378,6 +380,17 @@ describe('backup.yml', () => {
     expect(authDump).toContain('from backup.auth_users() order by id) to stdout;')
     expect(authDump).toContain('from backup.auth_identities() order by id) to stdout;')
     expect(authDump).not.toMatch(/\bfrom auth\./)
+  })
+
+  it('makes auth.sql’s \\restrict key on the runner, never on the server being dumped', () => {
+    const lines = commands(step(B.dump))
+    const keyAt = lines.indexOf('restrict_key="$(openssl rand -hex 32)"')
+    expect(keyAt).toBeGreaterThan(-1)
+    expect(lines[keyAt + 1]).toBe('if [[ ! "$restrict_key" =~ ^[0-9a-f]{64}$ ]]; then')
+    expect(keyAt).toBeLessThan(lines.findIndex((line) => line.includes('-f "$work/holder.sql"')))
+    const authDump = readFileSync(join(ROOT, 'tools', 'backup', 'auth-dump.sql'), 'utf8')
+    expect(authDump).toContain("\\qecho '\\\\restrict' :auth_restrict_key")
+    expect(authDump).not.toMatch(/gen_random|\\gset/)
   })
 
   it('fails the job when the snapshot session fails — auth dump or counts — before anything is encrypted', () => {

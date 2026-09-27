@@ -255,21 +255,24 @@ describe('main check-gotrue (the restore test, after the counts)', () => {
     const result = await check(await inputs(`${A}\n${B}\n`), loads)
     expect(result).toMatchObject({
       code: 0,
-      out: '2 of 2 restored users load in GoTrue, each under its own id',
+      out: 'every restored user loads in GoTrue under its own id',
       err: '',
     })
     expect(result.asked).toHaveLength(2)
   })
 
-  it('fails naming counts and kinds only — never an id or anything GoTrue returned', async () => {
+  it('fails naming the kinds only — no count, no id, nothing GoTrue returned', async () => {
     const result = await check(await inputs(`${A}\n${B}\n`), (id) =>
       id === A ? Response.json({ msg: 'Database error finding user' }, { status: 500 }) : loads(id),
     )
     expect(result.code).toBe(1)
     expect(result.err).toBe(
-      '1 of 2 restored users do not load in GoTrue under their own id (HTTP 500: 1)',
+      'some restored users do not load in GoTrue under their own id: HTTP 500',
     )
-    expect(`${result.out}${result.err}`).not.toMatch(/1111|someone|Database error/)
+    // No number but the status code, no id, nothing GoTrue said.
+    expect(`${result.out}${result.err}`.replace('HTTP 500', '')).not.toMatch(
+      /\d|someone|Database error/,
+    )
   })
 
   it('fails when the restored database lists another number of users than the manifest', async () => {

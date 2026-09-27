@@ -151,11 +151,22 @@ jobs:
           # the two functions (tools/backup/auth-dump.sql) and counts every dumped table.
           # This shell holds the FIFO open read-write (so opening it never blocks); psql must not
           # inherit that descriptor (3>&-), or it would never see the end of its input. Its query
-          # output goes to \o files only; stdout is discarded all the same.
+          # output goes to \o files only; stdout is discarded all the same. It reads the accounts,
+          # so its errors are SQLSTATE codes only, without context: a server message could quote a
+          # value (a failed cast, a JSON error) into this public log.
+          # auth.sql's \restrict key comes from this runner, as pg_dump's comes from its client:
+          # the server being dumped never learns it, so its COPY data cannot end the restriction.
+          restrict_key="$(openssl rand -hex 32)"
+          if [[ ! "$restrict_key" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::no key for auth.sql's \\restrict line could be generated"
+            exit 1
+          fi
           mkfifo "$work/holder.sql"
           exec 3<> "$work/holder.sql"
           "$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $'\t' -v ON_ERROR_STOP=1 \
-            -v with_auth="$with_auth" -v auth_from=functions -f "$work/holder.sql" > /dev/null 3>&- &
+            -v VERBOSITY=sqlstate -v SHOW_CONTEXT=never -v with_auth="$with_auth" \
+            -v auth_from=functions -v auth_restrict_key="$restrict_key" \
+            -f "$work/holder.sql" > /dev/null 3>&- &
           holder=$!
           trap 'kill "$holder" 2> /dev/null || true' EXIT
           printf '%s\n' \
