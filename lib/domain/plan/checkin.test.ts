@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { blockKey, type BlockState, type ItemState } from '../state'
 import type { LocalDay } from '../time/localDay'
 import { itemState, statesOf } from './__tests__/fixtures'
-import { blocksToAutoCheckIn, blocksWithItem, itemHandled } from './checkin'
+import {
+  autoCheckInMinutes,
+  blocksToAutoCheckIn,
+  blocksWithItem,
+  itemHandled,
+  itemStudied,
+} from './checkin'
 import type { PlanBlock, StoredPlan } from './types'
 
 const PLAN_DATE: LocalDay = '2026-09-28'
@@ -59,6 +65,14 @@ function checkIn(target: PlanBlock, change: Partial<BlockState> = {}): Record<st
 
 const done = (itemId: string, day: LocalDay = PLAN_DATE): ItemState => itemState(itemId, day)
 const items = (...states: readonly ItemState[]) => deepFreeze(statesOf(...states))
+/** Skipped without a result (a new item the learner skipped: "Bỏ qua mục này"). */
+const skipped = (itemId: string): ItemState =>
+  itemState(itemId, PLAN_DATE, {
+    status: 'skipped',
+    level: 0,
+    lastResult: null,
+    lastResultOn: null,
+  })
 
 describe('itemHandled (§5.5, decision 15)', () => {
   it('is true for a result on the plan date', () => {
@@ -86,6 +100,59 @@ describe('itemHandled (§5.5, decision 15)', () => {
   it('is false without a row, and reads own keys only', () => {
     expect(itemHandled('dsa:p1', PLAN_DATE, items())).toBe(false)
     expect(itemHandled('constructor', PLAN_DATE, items())).toBe(false)
+  })
+})
+
+describe('itemStudied (decision 15, ruling M5-R36: a skip is not a result)', () => {
+  it('is true for a result on or after the plan date', () => {
+    expect(itemStudied('dsa:p1', PLAN_DATE, items(done('dsa:p1')))).toBe(true)
+    expect(itemStudied('dsa:p1', PLAN_DATE, items(done('dsa:p1', DAY_AFTER)))).toBe(true)
+  })
+
+  it('is false for a result before the plan date, and without a row (own keys only)', () => {
+    expect(itemStudied('dsa:p1', PLAN_DATE, items(done('dsa:p1', DAY_BEFORE)))).toBe(false)
+    expect(itemStudied('dsa:p1', PLAN_DATE, items())).toBe(false)
+    expect(itemStudied('constructor', PLAN_DATE, items())).toBe(false)
+  })
+
+  it('is false for an item skipped without a result: handled, never studied', () => {
+    const state = items(skipped('dsa:p1'))
+    expect(itemHandled('dsa:p1', PLAN_DATE, state)).toBe(true)
+    expect(itemStudied('dsa:p1', PLAN_DATE, state)).toBe(false)
+  })
+
+  it('is true for an item skipped after a result on the plan date: the result was study', () => {
+    const later = itemState('dsa:p1', PLAN_DATE, { status: 'skipped', dueOn: null })
+    expect(itemStudied('dsa:p1', PLAN_DATE, items(later))).toBe(true)
+  })
+})
+
+describe('autoCheckInMinutes (decision 15, ruling M5-R36)', () => {
+  const pair = block('new:1', ['dsa:p1', 'dsa:p2'])
+
+  it('every item studied: the block estimate, checkInMinutes(block)', () => {
+    expect(autoCheckInMinutes(pair, PLAN_DATE, items(done('dsa:p1'), done('dsa:p2')))).toBe(20)
+  })
+
+  it('a mixed block credits only the studied items: a skipped item credits nothing', () => {
+    expect(autoCheckInMinutes(pair, PLAN_DATE, items(skipped('dsa:p1'), done('dsa:p2')))).toBe(10)
+  })
+
+  it('an older result credits nothing, and neither does a block with nothing studied', () => {
+    expect(autoCheckInMinutes(pair, PLAN_DATE, items(done('dsa:p1', DAY_BEFORE)))).toBe(0)
+    expect(autoCheckInMinutes(pair, PLAN_DATE, items(skipped('dsa:p1'), skipped('dsa:p2')))).toBe(0)
+  })
+
+  it('is the ceiling of the studied minutes: 7.5 + a skipped 7.5 gives 8', () => {
+    const halves = block('review:1', ['dsa:p1', 'dsa:p2'], {
+      kind: 'review',
+      estMinutes: 15,
+      items: [
+        { itemId: 'dsa:p1', mode: 'review', minutes: 7.5 },
+        { itemId: 'dsa:p2', mode: 'review', minutes: 7.5 },
+      ],
+    })
+    expect(autoCheckInMinutes(halves, PLAN_DATE, items(done('dsa:p1'), skipped('dsa:p2')))).toBe(8)
   })
 })
 
@@ -118,6 +185,13 @@ describe('blocksToAutoCheckIn (§5.5, decision 15)', () => {
     expect(blocksToAutoCheckIn(plan([pair]), {}, items(skipped, done('dsa:p2')), 'dsa:p2')).toEqual(
       [pair],
     )
+  })
+
+  it('checks in nothing when every item of the block is skipped: a skip is not a result (M5-R36)', () => {
+    const all = items(skipped('dsa:p1'), skipped('dsa:p2'))
+    expect(blocksToAutoCheckIn(plan([pair]), {}, all, 'dsa:p2')).toEqual([])
+    const one = block('new:1', ['dsa:p1'])
+    expect(blocksToAutoCheckIn(plan([one]), {}, items(skipped('dsa:p1')), 'dsa:p1')).toEqual([])
   })
 
   it('does not count a result from before the plan date', () => {
@@ -166,8 +240,12 @@ describe('blocksToAutoCheckIn (§5.5, decision 15)', () => {
       expect(blocksToAutoCheckIn(plan([extra]), edited, all, 'dsa:p2')).toEqual([])
     })
 
-    it('uses checkInMinutes: a 7.5-minute extra block expects 8', () => {
-      const short = block('extra:1', ['dsa:p1'], { kind: 'extra', estMinutes: 7.5 })
+    it('rounds up like checkInMinutes: a 7.5-minute extra block expects 8', () => {
+      const short = block('extra:1', ['dsa:p1'], {
+        kind: 'extra',
+        estMinutes: 7.5,
+        items: [{ itemId: 'dsa:p1', mode: 'new', minutes: 7.5 }],
+      })
       const one = items(done('dsa:p1'))
       expect(
         blocksToAutoCheckIn(
@@ -185,6 +263,15 @@ describe('blocksToAutoCheckIn (§5.5, decision 15)', () => {
           'dsa:p1',
         ),
       ).toEqual([short])
+    })
+
+    it('follows the studied minutes (M5-R36): an added item skipped changes nothing', () => {
+      const mixed = items(done('dsa:p1'), skipped('dsa:p2'))
+      const studiedOnly = checkIn(extra, { auto: true, minutes: 10 })
+      expect(blocksToAutoCheckIn(plan([extra]), studiedOnly, mixed, 'dsa:p2')).toEqual([])
+      // Checked in with the full estimate before the rule: re-sent with the studied minutes.
+      const full = checkIn(extra, { auto: true, minutes: 20 })
+      expect(blocksToAutoCheckIn(plan([extra]), full, mixed, 'dsa:p2')).toEqual([extra])
     })
   })
 })

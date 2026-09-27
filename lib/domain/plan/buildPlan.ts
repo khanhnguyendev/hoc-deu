@@ -368,8 +368,10 @@ export function largestItemMinutes(plan: Pick<DayPlan, 'blocks'>, trackId: strin
     .reduce((largest, minutes) => Math.max(largest, minutes), 0)
 }
 
-/** The minutes a one-tap or auto check-in pre-fills (decision 34): Math.ceil(block.estMinutes),
- *  so any non-empty block gives at least 1 (`block.checked_in.minutes` is an integer). */
+/** The minutes a one-tap check-in pre-fills (decision 34): Math.ceil(block.estMinutes), so any
+ *  non-empty block gives at least 1 (`block.checked_in.minutes` is an integer). The auto check-in
+ *  records its studied items' minutes only (`autoCheckInMinutes`, ruling M5-R36) — this value
+ *  when every item was studied. */
 export function checkInMinutes(block: PlanBlock): number {
   return Math.ceil(block.estMinutes)
 }

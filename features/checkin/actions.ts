@@ -8,7 +8,7 @@ import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
 import type { PlanItem } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
-import { blocksToAutoCheckIn, blocksWithItem } from '@/lib/domain/plan/checkin'
+import { autoCheckInMinutes, blocksToAutoCheckIn, blocksWithItem } from '@/lib/domain/plan/checkin'
 import { offPlanMode } from '@/lib/domain/plan/extra'
 import type { PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { projectEvent, type DomainEvent } from '@/lib/domain/projection/project'
@@ -264,11 +264,13 @@ async function outcomeAttempt(
  * The auto check-in after a result on `planId` (§5.5, decision 15), in its own `withRetry`: each
  * attempt re-derives the current plan (it must still be `planId`, decision 13 — a day start in
  * between may have replaced it) with its block states, reloads the item states of the blocks
- * listing the item, and picks `blocksToAutoCheckIn` of those rows. Each pick is decided again on
- * the rows its write is computed from (`loadDerivedFor`, whose versions the write expects): a
- * learner's check-in that landed after the plan's block states were read — the sheet racing the
- * auto check-in — is seen there and left alone, and one that lands later makes the write conflict
- * and the attempt run again. Written through `apply_system_event` with `auto: true` and the key
+ * listing the item, and picks `blocksToAutoCheckIn` of those rows: a block needs at least one
+ * studied item and records only its studied items' minutes (`autoCheckInMinutes` — a skip is not
+ * a result, ruling M5-R36). Each pick is decided again on the rows its write is computed from
+ * (`loadDerivedFor`, whose versions the write expects): a learner's check-in that landed after the
+ * plan's block states were read — the sheet racing the auto check-in — is seen there and left
+ * alone, and one that lands later makes the write conflict and the attempt run again. Written
+ * through `apply_system_event` with `auto: true` and the key
  * `auto:<planId>:<blockId>:<minutes>:<itemCount>` (decision 16). The result is already saved: a
  * failure here is logged (its name and message only) and reported with the blocks checked in so
  * far.
@@ -301,7 +303,7 @@ async function autoCheckIn(
         const due = blocksToAutoCheckIn(plan, loaded.state.blocks, items, request.itemId)
         if (!due.some((candidate) => candidate.id === block.id)) continue
 
-        const minutes = checkInMinutes(block)
+        const minutes = autoCheckInMinutes(block, plan.planDate, items)
         const payload = { status: 'done', minutes, auto: true } as const
         const id = deriveEventId(request.requestId, autoCheckInKey(plan.id, block, minutes))
         const keys = { planId: plan.id, blockId: block.id, trackId: block.trackId }

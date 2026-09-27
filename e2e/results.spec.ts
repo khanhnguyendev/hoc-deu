@@ -22,6 +22,8 @@ import { createTestUser, deleteTestUser, seedLearnerSetup, type TestUser } from 
  * dashboard's "Xong · tự động" is 5.2b's, asserted in 5.4). Cleanup deletes users, never rows.
  */
 
+const DSA = 'Cấu trúc dữ liệu & Giải thuật'
+
 const created: string[] = []
 test.afterEach(async () => {
   await Promise.all(created.splice(0).map((id) => deleteTestUser(id)))
@@ -224,14 +226,20 @@ test('the mock interview: its Medium problem, then "Đã làm xong" with rating 
   expect(done.map((event) => event.payload)).toEqual([{ selfRating: 3 }])
 })
 
-test('"Bỏ qua mục này" asks first, then records item.skipped', async ({ page }) => {
-  const { user } = await learner(['dsa'])
-  await openItem(
-    page,
-    user,
-    '/t/dsa/items/lc-0003',
-    'Longest Substring Without Repeating Characters',
-  )
+test('"Bỏ qua mục này" asks first, then records item.skipped — a skip is not a result: no auto check-in', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa'])
+  // The block's only item: the skip handles it, but nothing was studied, so the server checks
+  // nothing in (decision 15 as amended, ruling M5-R36) — the learner checks the block in.
+  const block = newBlock(today, 'dsa', [{ itemId: 'dsa:lc-0003', minutes: 35 }])
+  const planId = await seedPlan(user.id, {
+    planDate: today,
+    blocks: [block],
+    tracks: { dsa: snapshot('8w') },
+  })
+  const path = `/t/dsa/items/lc-0003?${new URLSearchParams({ block: block.id, mode: 'new' })}`
+  await openItem(page, user, path, 'Longest Substring Without Repeating Characters')
   await page.getByRole('button', { name: 'Bỏ qua mục này' }).click()
   const dialog = page.getByRole('alertdialog', { name: 'Bỏ qua mục này?' })
   await expect(dialog).toBeVisible()
@@ -239,7 +247,20 @@ test('"Bỏ qua mục này" asks first, then records item.skipped', async ({ pag
   await dialog.getByRole('button', { name: 'Bỏ qua' }).click()
   await expect(dialog).toBeHidden()
   await saved(page)
+  await expect(
+    page.locator('[data-slot="outcome-message"]').filter({ hasText: 'tự động' }),
+  ).toHaveCount(0)
   const skipped = await itemEvents(user.id, 'dsa:lc-0003', 'item.skipped')
-  expect(skipped.map((event) => event.payload)).toEqual([{}])
+  expect(skipped).toEqual([
+    { type: 'item.skipped', payload: {}, plan_id: planId, block_id: block.id, source: 'learner' },
+  ])
+  expect(await blockCheckIn(user.id, planId, block.id)).toBeNull()
   await expect(page.locator('[data-slot="item-meta"]').getByText('Đã bỏ qua')).toBeVisible()
+
+  // /today: the block is not checked in — no "Xong · tự động"; its one-tap check-in is offered.
+  await page.goto('/today')
+  const card = page.getByRole('article', { name: `Bài mới ${DSA}` })
+  await expect(card.getByRole('button', { name: `Check-in: Bài mới · ${DSA}` })).toBeVisible()
+  await expect(card.locator('[data-slot="check-in-status"]')).toHaveCount(0)
+  await expect(card.getByText('tự động')).toHaveCount(0)
 })

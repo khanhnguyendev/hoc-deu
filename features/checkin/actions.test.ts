@@ -6,6 +6,7 @@ import { RULES_VERSION } from '@/lib/domain/rules'
 import type { LocalDay } from '@/lib/domain/time/localDay'
 import { deriveEventId } from '@/lib/events/ids'
 import { vi as copy } from '@/lib/i18n/vi'
+import { gateState } from '@/lib/plans/day'
 import {
   blockStateRow,
   itemStateRow,
@@ -126,6 +127,11 @@ const dayRow = (fake: FakeSupabase, day: LocalDay) =>
 
 /** A result on `day` for `itemId`: the item is handled for plans dated up to `day`. */
 const handled = (itemId: string, day: LocalDay = TODAY) => itemStateRow(itemState(itemId, day))
+/** `itemId` skipped without a result ("Bỏ qua mục này" on a new item): handled, not studied. */
+const skippedRow = (itemId: string) =>
+  itemStateRow(
+    itemState(itemId, TODAY, { status: 'skipped', level: 0, lastResult: null, lastResultOn: null }),
+  )
 
 beforeEach(() => {
   state.log = []
@@ -523,13 +529,50 @@ describe('recordOutcome', () => {
     expect(fake.rpcs('apply_system_event')).toEqual([])
   })
 
-  it('a skip that finishes the block checks it in too (a skipped item is handled)', async () => {
+  it('a skip that finishes a mixed block checks it in with the studied minutes only (M5-R36)', async () => {
     const fake = setup({ day_plans: [plan], item_state: [handled('dsa:p2')] })
     const result = await recordOutcome(solved({ outcome: { type: 'item.skipped' } }))
     expect(result.autoCheckedIn).toEqual([pair.id])
     expect(learnerCalls(fake)[0]?.p_event).toMatchObject({ type: 'item.skipped', payload: {} })
     // A skip is not an outcome: it reads and writes no day row itself.
     expect(learnerCalls(fake)[0]?.p_expected).toEqual({ 'item_state:dsa:p1': 0 })
+    // p1 was skipped: only p2's 10 minutes are credited, not the block's 20.
+    expect(systemCalls(fake)[0]?.p_event).toMatchObject({
+      id: autoId(plan.id, pair, 10),
+      payload: { status: 'done', minutes: 10, auto: true },
+    })
+    expect(blockRow(fake, plan.id, pair.id)).toMatchObject({ minutes: 10, auto: true })
+    expect(dayRow(fake, TODAY)).toMatchObject({ completed: true, minutes_by_track: { dsa: 10 } })
+  })
+
+  it('an all-skipped block gets no auto check-in: the day stays incomplete (M5-R36)', async () => {
+    const fake = setup({ day_plans: [plan], item_state: [skippedRow('dsa:p2')] })
+    expect(await recordOutcome(solved({ outcome: { type: 'item.skipped' } }))).toEqual({
+      ok: true,
+      message: copy.checkIn.outcome.saved,
+      autoCheckedIn: [],
+    })
+    expect(fake.rpcs('apply_system_event')).toEqual([])
+    expect(blockRow(fake, plan.id, pair.id)).toBeUndefined()
+    expect(dayRow(fake, TODAY)?.completed ?? false).toBe(false)
+  })
+
+  it('the paused plan’s only item skipped: no auto check-in, the gate stays closed (M5-R36)', async () => {
+    const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
+    const paused = planRow({ date: YESTERDAY, blocks: [old], seenAt: seen(YESTERDAY) })
+    const fake = setup({ day_plans: [paused] })
+    expect(await recordOutcome(solved({ outcome: { type: 'item.skipped' } }))).toEqual({
+      ok: true,
+      message: copy.checkIn.outcome.saved,
+      autoCheckedIn: [],
+    })
+    expect(learnerCalls(fake)[0]?.p_event).toMatchObject({ plan_id: paused.id, block_id: old.id })
+    expect(fake.rpcs('apply_system_event')).toEqual([])
+    expect(fake.tables.plan_block_state ?? []).toEqual([])
+    expect(dayRow(fake, TODAY)?.completed ?? false).toBe(false)
+    // Not resumed today: the gate is still closed on the paused plan.
+    const gate = await gateState(fake.client('session'), USER_ID, TODAY, new Set(['dsa']))
+    expect(gate?.kind).toBe('paused')
   })
 
   it('[RF-2] the same input twice: one event id, the duplicate is success, no second auto check-in', async () => {
@@ -1047,6 +1090,32 @@ describe('recordOutcome', () => {
       auto: true,
       version: 2,
     })
+    expect(dayRow(fake, TODAY)).toMatchObject({ minutes_by_track: { dsa: 20 }, items_done: 2 })
+  })
+
+  it('the extra block re-send follows the studied minutes: a skipped addition credits nothing (M5-R36)', async () => {
+    const one = planBlock(TODAY, 'dsa', 'extra', ['dsa:p1'])
+    const two = planBlock(TODAY, 'dsa', 'extra', ['dsa:p1', 'dsa:p2'])
+    const three = planBlock(TODAY, 'dsa', 'extra', ['dsa:p1', 'dsa:p2', 'dsa:p3'])
+    const extraPlan = planRow({ date: TODAY, blocks: [one], seenAt: seen(TODAY) })
+    const fake = setup({ day_plans: [extraPlan] })
+    const grow = (block: PlanBlock, version: number) => {
+      const row = fake.tables.day_plans?.[0]
+      if (row !== undefined) Object.assign(row, { blocks: [block], version })
+    }
+    expect((await recordOutcome(solved())).autoCheckedIn).toEqual([one.id])
+    // p2 is added, then skipped: the block is complete again, but its studied minutes are still
+    // 10 — nothing is re-sent.
+    grow(two, 2)
+    const skip = { itemId: 'dsa:p2', outcome: { type: 'item.skipped' } } as const
+    expect((await recordOutcome(solved(skip))).autoCheckedIn).toEqual([])
+    // p3 is added and solved: re-sent with p1's and p3's minutes, 20 — not the block's 30.
+    grow(three, 3)
+    expect((await recordOutcome(solved({ itemId: 'dsa:p3' }))).autoCheckedIn).toEqual([three.id])
+
+    const ids = systemCalls(fake).map((call) => call.p_event.id)
+    expect(ids).toEqual([autoId(extraPlan.id, one, 10), autoId(extraPlan.id, three, 20)])
+    expect(blockRow(fake, extraPlan.id, three.id)).toMatchObject({ minutes: 20, auto: true })
     expect(dayRow(fake, TODAY)).toMatchObject({ minutes_by_track: { dsa: 20 }, items_done: 2 })
   })
 
