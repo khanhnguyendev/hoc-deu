@@ -201,6 +201,7 @@ const DSA_TRACK: TrackProgressView = {
   weeks: 8,
   progress: 0.28,
   dueCount: 3,
+  startsOn: null,
   throttleMessage: null,
 }
 const ENGLISH_TRACK: TrackProgressView = {
@@ -211,6 +212,7 @@ const ENGLISH_TRACK: TrackProgressView = {
   weeks: 10,
   progress: 0.31,
   dueCount: 52,
+  startsOn: null,
   throttleMessage: 'Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.',
 }
 const NEW_TRACK: TrackProgressView = { ...DSA_TRACK, week: 1, progress: 0, dueCount: 0 }
@@ -591,6 +593,17 @@ export const TODAY_ENTRIES: Entry[] = [
       {
         title: 'Người học mới: tất cả bằng 0',
         render: () => narrow(<TodayStats streak={0} tracks={[NEW_TRACK]} />),
+      },
+      {
+        title:
+          'Lộ trình chưa bắt đầu (thêm lại, bắt đầu tuần sau): ngày bắt đầu, không đếm mục cần ôn',
+        render: () =>
+          narrow(
+            <TodayStats
+              streak={4}
+              tracks={[DSA_TRACK, { ...ENGLISH_TRACK, dueCount: 0, startsOn: '2026-10-05' }]}
+            />,
+          ),
       },
     ],
   },

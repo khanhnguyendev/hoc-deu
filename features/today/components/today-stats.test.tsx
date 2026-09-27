@@ -64,6 +64,18 @@ describe('TodayStats', () => {
     expect(region.textContent).toContain('2 mục cần ôn')
   })
 
+  it('a track that has not started says when it starts instead of its due count (UI I-2)', () => {
+    render(
+      <TodayStats
+        streak={1}
+        tracks={[trackView({ dueCount: 0, startsOn: '2026-10-05', week: 1, weeks: 8 })]}
+      />,
+    )
+    const region = screen.getByRole('region', { name: 'Tiến độ' })
+    expect(region.textContent).toContain('Tuần 1/8 · Bắt đầu vào 5 tháng 10, 2026')
+    expect(region.textContent).not.toContain('mục cần ôn')
+  })
+
   it('with no active track, shows the streak and due reviews only', () => {
     render(<TodayStats streak={3} tracks={[]} />)
     expect(screen.queryByRole('progressbar')).toBeNull()

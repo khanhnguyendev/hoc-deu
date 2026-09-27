@@ -1670,8 +1670,10 @@ Copy: `vi.today`.
 - **File:** `features/today/components/today-stats.tsx`
 - **Props:** `streak: number`, `tracks: TrackProgressView[]`
 - **Variants:** DESIGN_SYSTEM §5 order — the StreakBadge, a ProgressRing card per active track
-  ("Tuần {w}/{weeks} · {n} mục cần ôn"; the week left out without a roadmap), then the due
-  reviews StatCard
+  ("Tuần {w}/{weeks} · {n} mục cần ôn"; the week left out without a roadmap; a track that has
+  not started reads "Bắt đầu vào {date}" instead of a due count), then the due reviews StatCard —
+  the due counts are those of the tracks the engine plans today (`eligibleTracks`), so the total
+  is `/review`'s (UI I-2)
 - **States:** ready · a new learner (0 streak, 0 due, 0 % rings — never NaN) · no active track
   (streak and due only)
 - **Usage:** `<TodayStats streak={page.streak} tracks={page.tracks} />`
@@ -1684,7 +1686,8 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/weak-areas.tsx`
 - **Props:** `topics: WeakTopicView[]` (`{ trackId, topicId, title, trackTitle, count }`, §5.7:
-  ≥ 2 Weak items, active tracks only, most first; keyed by track and topic ID)
+  ≥ 2 Weak items, of the tracks the engine plans today — as `/review` — most first; keyed by
+  track and topic ID)
 - **Variants:** —
 - **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
 - **Usage:** `<WeakAreas topics={page.weakTopics} />`

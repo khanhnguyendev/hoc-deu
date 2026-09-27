@@ -146,6 +146,7 @@ export function trackView(change: Partial<TrackProgressView> = {}): TrackProgres
     weeks: 8,
     progress: 0.25,
     dueCount: 3,
+    startsOn: null,
     throttleMessage: null,
     ...change,
   }

@@ -6,8 +6,9 @@
  * all come in as plain data; `queries.ts` reads them and loads a due flashcard's sides.
  *
  * Track eligibility is the plan engine's own (`eligibleTracks`, §5.4 steps 1-2 — active
- * enrollment, started, catalog track active), not merely `status === 'active'`, so `/review` and
- * `/today` never disagree about which track's items count (review round 1, M7).
+ * enrollment, started, catalog track active), not merely `status === 'active'` (review round 1,
+ * M7); `/today`'s due counts and weak topics use the same rule (`countedTrackIds`, UI I-2), so the
+ * two pages never disagree about which track's items count.
  */
 import { itemHref } from '@/features/items/href'
 import type { ItemMode, PlanCatalog } from '@/lib/domain/catalog'

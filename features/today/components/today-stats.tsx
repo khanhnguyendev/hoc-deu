@@ -5,7 +5,7 @@ import { Section } from '@/components/patterns/section'
 import { StatCard } from '@/components/patterns/stat-card'
 import { StreakBadge } from '@/components/patterns/streak-badge'
 import { Card } from '@/components/ui/card'
-import { fill, formatNumber } from '@/lib/i18n/format'
+import { fill, formatDay, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { TrackProgressView } from '../view-model'
 
@@ -17,7 +17,9 @@ function TrackProgress({ track }: { track: TrackProgressView }) {
     track.weeks > 0
       ? fill(copy.week, { week: formatNumber(track.week), weeks: formatNumber(track.weeks) })
       : null,
-    fill(copy.dueCount, { n: formatNumber(track.dueCount) }),
+    track.startsOn === null
+      ? fill(copy.dueCount, { n: formatNumber(track.dueCount) })
+      : fill(copy.startsOn, { date: formatDay(track.startsOn) }),
   ].filter((fact) => fact !== null)
   return (
     <Card data-accent={track.accent} className="flex-row items-center gap-4 md:gap-4">

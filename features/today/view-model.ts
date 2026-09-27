@@ -12,6 +12,7 @@ import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
 import { extraTrackIds } from '@/lib/domain/plan/extra'
 import { dueQueue } from '@/lib/domain/plan/queues'
 import { coreItemsOfWeek, roadmapWeek, weekSizes } from '@/lib/domain/plan/roadmap'
+import { eligibleTracks } from '@/lib/domain/plan/track'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { blockKey, type BlockState, type DailyActivity } from '@/lib/domain/state'
 import { scheduleSkippedDays, streak } from '@/lib/domain/stats/streak'
@@ -54,7 +55,10 @@ export type TrackProgressView = {
   readonly weeks: number
   /** Introduced core items / core items of the variant (0–1). */
   readonly progress: number
+  /** Its due reviews now — 0 for a track the engine does not plan today (`countedTrackIds`). */
   readonly dueCount: number
+  /** The enrollment's start date while it is after today ("Bắt đầu vào {date}"), else null. */
+  readonly startsOn: LocalDay | null
   /** "Đang có {n} thẻ cần ôn — tạm giảm thẻ mới." when the plan's snapshot says throttled. */
   readonly throttleMessage: string | null
 }
@@ -221,7 +225,27 @@ function coreProgress(
   return introduced / core.size
 }
 
-function trackViews(data: TodayData): TrackProgressView[] {
+/**
+ * The tracks whose due items and weak topics `/today` counts: the plan engine's eligibility on
+ * today (`eligibleTracks` — an active enrollment that has started, of an active catalog track), the
+ * set `/review` draws its queue from (`reviewTrackIds`) and "Học thêm" is offered for
+ * (`extraTrackIds`), so the three never disagree (UI I-2). A track re-added with a later start
+ * date keeps its item states (§5.9) but counts nothing until it starts.
+ */
+function countedTrackIds(data: TodayData): ReadonlySet<string> {
+  const { catalog, enrollments, today } = data
+  return new Set(
+    eligibleTracks({ planDate: today, catalog, enrollments }).map(
+      (entry) => entry.enrollment.trackId,
+    ),
+  )
+}
+
+/**
+ * A progress card per active enrollment — a track that has not started keeps its card with its
+ * start date — whose due count is its `dueQueue` when the track counts today (`counted`), else 0.
+ */
+function trackViews(data: TodayData, counted: ReadonlySet<string>): TrackProgressView[] {
   const { catalog, items, today } = data
   const plan = shownPlan(data)
   return data.enrollments
@@ -238,7 +262,11 @@ function trackViews(data: TodayData): TrackProgressView[] {
         week: roadmapWeek(roadmap, catalog, items),
         weeks: roadmap === null ? 0 : weekSizes(roadmap, catalog).length,
         progress: coreProgress(catalog, enrollment, items),
-        dueCount: dueQueue({ trackId, items, catalog, today, weakTopicIds: new Set() }).length,
+        dueCount: counted.has(trackId)
+          ? dueQueue({ trackId, items, catalog, today, weakTopicIds: new Set() }).length
+          : 0,
+        // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
+        startsOn: enrollment.startDate > today ? enrollment.startDate : null,
         throttleMessage:
           snapshot?.throttled === true
             ? fill(copy.throttle.message, { n: formatNumber(snapshot.dueCount) })
@@ -269,11 +297,9 @@ function extraViews(data: TodayData): ExtraView[] {
   })
 }
 
-function weakTopicViews(data: TodayData): WeakTopicView[] {
-  const active = new Set(
-    data.enrollments.filter((entry) => entry.status === 'active').map((entry) => entry.trackId),
-  )
-  return weakTopics(data.items, data.catalog, active).map((topic) => ({
+/** §5.7 weak topics of the tracks `/today` counts (`countedTrackIds`, as `/review`). */
+function weakTopicViews(data: TodayData, counted: ReadonlySet<string>): WeakTopicView[] {
+  return weakTopics(data.items, data.catalog, counted).map((topic) => ({
     trackId: topic.trackId,
     topicId: topic.topicId,
     title: topicTitle(topic.trackId, topic.topicId),
@@ -311,12 +337,13 @@ export function buildTodayPage(
   block?: string,
 ): TodayPage {
   const blocks = stateBlocks(data)
+  const counted = countedTrackIds(data)
   return {
     data,
     blocks,
-    tracks: trackViews(data),
+    tracks: trackViews(data, counted),
     streak: streakOf(data, dailyActivity),
-    weakTopics: weakTopicViews(data),
+    weakTopics: weakTopicViews(data, counted),
     extra: extraViews(data),
     markSeenPlanId: data.state.kind === 'plan' ? data.state.plan.id : null,
     requestId,

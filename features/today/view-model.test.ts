@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { reviewQueue } from '@/features/review'
 import { enrollment, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { scheduleSkippedDays } from '@/lib/domain/stats/streak'
 import type { DailyActivity } from '@/lib/domain/state'
@@ -354,6 +355,51 @@ describe('buildTodayPage — tracks', () => {
     expect(paused.tracks.map((track) => track.throttleMessage)).toEqual([null, null])
   })
 
+  it('counts due items only of tracks the engine plans today (UI I-2): /today’s total is /review’s', () => {
+    // English removed and re-added with a start date next week keeps its item states (§5.9); DSA's
+    // catalog track is active; both have due items.
+    const nextWeek = '2026-10-05'
+    const data = todayData(planState(storedPlan({ tracks })), {
+      items,
+      enrollments: [enrollment('dsa'), enrollment('english', { startDate: nextWeek })],
+    })
+    const page = buildTodayPage(data, NO_ACTIVITY, REQUEST_ID)
+    expect(page.tracks.map((track) => [track.trackId, track.dueCount, track.startsOn])).toEqual([
+      ['dsa', 1, null],
+      ['english', 0, nextWeek],
+    ])
+    const total = page.tracks.reduce((sum, track) => sum + track.dueCount, 0)
+    const review = reviewQueue({
+      catalog: data.catalog,
+      enrollments: data.enrollments,
+      items,
+      today: data.today,
+    })
+    expect(total).toBe(review.length)
+
+    // A track the catalog retired, still an active enrollment: no due items counted either.
+    const retired = todayData(planState(storedPlan({ tracks })), {
+      items,
+      catalog: {
+        ...data.catalog,
+        tracks: {
+          ...data.catalog.tracks,
+          english: { ...data.catalog.tracks.english!, status: 'retired' },
+        },
+      },
+    })
+    const retiredPage = buildTodayPage(retired, NO_ACTIVITY, REQUEST_ID)
+    expect(retiredPage.tracks.map((track) => track.dueCount)).toEqual([1, 0])
+    expect(retiredPage.tracks.reduce((sum, track) => sum + track.dueCount, 0)).toBe(
+      reviewQueue({
+        catalog: retired.catalog,
+        enrollments: retired.enrollments,
+        items,
+        today: retired.today,
+      }).length,
+    )
+  })
+
   it('leaves out paused and removed tracks; a track without its roadmap is week 1 of 0, 0 %', () => {
     const page = buildTodayPage(
       todayData(planState(), {
@@ -374,6 +420,7 @@ describe('buildTodayPage — tracks', () => {
         weeks: 0,
         progress: 0,
         dueCount: 0,
+        startsOn: null,
         throttleMessage: null,
       },
     ])
@@ -462,6 +509,22 @@ describe('buildTodayPage — weak topics', () => {
         count: 2,
       },
     ])
+  })
+
+  it('leaves out a track that has not started yet, as /review does (UI I-2)', () => {
+    const weak = (id: string) => itemState(id, '2026-09-20', { status: 'weak', weak: true })
+    const items = Object.fromEntries(
+      ['dsa:p1', 'dsa:p2', 'english:e1', 'english:e2'].map((id) => [id, weak(id)]),
+    )
+    const page = buildTodayPage(
+      todayData(planState(), {
+        items,
+        enrollments: [enrollment('dsa', { startDate: '2026-10-05' }), enrollment('english')],
+      }),
+      NO_ACTIVITY,
+      REQUEST_ID,
+    )
+    expect(page.weakTopics.map((topic) => topic.trackId)).toEqual(['english'])
   })
 })
 
