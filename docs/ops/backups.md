@@ -60,10 +60,17 @@ Each command prints the key's public half (`Public key: age1…`), also written 
 
 ### Step 2 — the `backup` environment **[owner]**
 
-GitHub → repository Settings → Environments → **New environment** `backup`:
+GitHub → repository Settings → Environments → **create or open** `backup`. **(M1)** GitHub creates
+an environment the first time a workflow references it, with no deployment-branch rule at all — so
+`backup` may already be listed here, from the first scheduled `backup.yml` after the merge (22:17
+UTC) or `restore-test.yml` on the next Saturday, both failing with an empty URL until this step
+sets the rule. Confirm the rule below whether the environment is new or already existed — never
+skip it because it looks already set up:
 
 - **Deployment branches and tags:** "Selected branches and tags" → add the rule `main` (branch).
   Nothing else: no required reviewers (a reviewer would hold every scheduled run), no wait timer.
+  Optionally confirm it from the outside too: `gh api repos/khanhnguyendev/hoc-deu/environments/backup`
+  prints the environment, including `deployment_branch_policy` — `null` means no rule yet.
 - **Environment secrets:**
   - `BACKUP_RESTORE_KEY` — the whole content of `hoc-deu-backup-restore-test.key`:
     `gh secret set BACKUP_RESTORE_KEY --env backup < hoc-deu-backup-restore-test.key`, then
@@ -275,12 +282,26 @@ reaches the dump. Two mismatches still fail — loudly, never with a partial bac
   names the tables and whether each is missing, unexpected or different; a GoTrue failure names
   the kinds (`some restored users do not load in GoTrue under their own id: HTTP 500, another
   id`) — never a row, an id or a count (not even of learners).
+- **A restore-test failure right after a migration merges (M5) can be a false red, not a corrupt
+  backup:** the manifest records the workflow's own commit, not what migrations the target database
+  has actually had pushed to it — a merged migration reaches a hosted project only through the
+  manual push (`docs/ops/staging.md` §7). If a backup ran in the gap between the merge and the
+  push, its manifest names a commit whose schema the restore test's `db reset` then applies, but
+  the data it loads is still the *old* schema's shape: expect `42703` (a column the new migration
+  added or removed) or an `unexpected` count, not a real data problem. The fix is finishing the
+  push (staging, then production) before the next 22:17 UTC backup — I3 — never re-running the
+  restore test against the same stale-relative-to-schema backup.
 
 ## 4. Retention and storage
 
 - **Daily** (Monday–Saturday, UTC): artifact `db-backup-daily-<date>`, kept **14 days**.
   **Sunday's** (UTC): `db-backup-weekly-<date>`, kept **90 days** (owner-approved 2026-09-26,
   decision 27). At most about 12 dailies and 13 weeklies exist at once — 25 artifacts.
+- **If Sunday's scheduled backup fails, or runs late past 00:00 UTC** (GitHub does this under load
+  — it decides daily vs. weekly from the UTC weekday at run time, M4): dispatch it by hand the same
+  UTC Sunday (Actions → **backup** → Run workflow, before midnight UTC) so that week still gets its
+  90-day artifact — a daily kept only 14 days is the sole record otherwise, and that week's
+  long-term point is gone once it expires.
 - **The 500 MB question (spec §9.3):** GitHub's billing page (checked 2026-09-26) makes Actions
   free for public repositories on standard runners and describes the artifact-storage quota for
   private repositories, so it most likely does not apply here. If it ever does: 25 × the artifact
@@ -313,6 +334,26 @@ functions come with its migrations; step 4 checks who may call them, that they r
 account and that `backup` is not exposed), which replaces `SUPABASE_BACKUP_DB_URL`; then run
 backup (it proves `backup_reader`'s login on production) and restore-test once more, both green.
 Staging's remaining artifacts expire by retention; the restore test always takes the newest.
+
+**Once production's first backup is green (M7):** `backup_reader` on **staging** still has the
+login and password set in §2 step 3 — nothing above touches it, and switching the secret does not
+revoke the role. Lock it, through the Management API's database query endpoint, the same way step
+3 set it (one statement, printing nothing):
+
+```bash
+(
+set -euo pipefail
+ref=<staging project ref>
+: "${SUPABASE_ACCESS_TOKEN:?export a Management API token first}"
+curl -fsS -X POST "https://api.supabase.com/v1/projects/$ref/database/query" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
+  --data-binary '{"query": "alter role backup_reader nologin password null"}' > /dev/null
+echo "backup_reader can no longer sign in on staging"
+)
+```
+
+Re-enable it (step 3 again, a fresh password) only if staging ever becomes the backup target
+again.
 
 ## 7. Restoring by hand
 

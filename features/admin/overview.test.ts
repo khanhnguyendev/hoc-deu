@@ -134,12 +134,9 @@ describe('buildAdminOverview — backup and restore-test age (decision 26)', () 
   it.each([
     [35, []],
     [37, ['cron']],
-  ] as const)(
-    'the maintenance cron itself unrun for %i hours → %j (I2)',
-    (hours, expected) => {
-      expect(kinds({ 'cron.last_run_at': instant(0, hours * HOUR) })).toEqual(expected)
-    },
-  )
+  ] as const)('the maintenance cron itself unrun for %i hours → %j (I2)', (hours, expected) => {
+    expect(kinds({ 'cron.last_run_at': instant(0, hours * HOUR) })).toEqual(expected)
+  })
 
   it('names the cron’s last run and links to ADR-0034 (I2)', () => {
     // 2026-09-25T23:00Z is 06:00 on 26 September in Asia/Ho_Chi_Minh (37 hours before NOW).

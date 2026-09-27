@@ -8,8 +8,11 @@
  * exactly the dump. The restore test checks a decrypted artifact against it (`verifyBackupDir`)
  * before loading anything, then compares the restored database's counts with it.
  *
- * `format` is 1. A later format must keep reading 1: the restore test runs this file from `main`
- * against the newest backup, which an older commit may have written.
+ * `format` is 1. A later format must keep reading 1: only `verify` (the first check on a decrypted
+ * artifact) runs from `main` against the newest backup, which an older commit may have written —
+ * `compare`, `check-gotrue`, `normalise-auth.sql` and `counts.sql` run from the backup's own
+ * commit, checked out right after `verify` (restore-test.yml), so a future interface change of
+ * `cli.ts` must still let `main`'s `verify` read an old manifest.
  */
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'

@@ -311,7 +311,9 @@ describe('backup.yml', () => {
     expect(backup.text).toContain(
       'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
     )
-    const uploads = steps.filter((candidate) => candidate.uses?.startsWith('actions/upload-artifact'))
+    const uploads = steps.filter((candidate) =>
+      candidate.uses?.startsWith('actions/upload-artifact'),
+    )
     expect(uploads).toHaveLength(2)
     for (const upload of uploads) {
       expect(upload.uses).toBe('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a')

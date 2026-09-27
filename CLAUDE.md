@@ -27,6 +27,7 @@ pnpm db:start        # start the local Supabase stack (db, kong, gotrue, postgre
 pnpm db:stop         # stop it
 pnpm db:reset        # re-apply migrations and seed data
 pnpm db:types        # regenerate lib/supabase/database.types.ts from the local schema
+pnpm db:tz-sweep     # print the time-zone sweep's SQL (docs/ops/production.md §4 step 5)
 pnpm test:db         # pgTAP tests (supabase test db) — needs pnpm db:start
 pnpm test:sim        # the full §5.10 simulation, 200 seeds; CI job `sim`; `pnpm test` runs 20
 pnpm verify:full     # verify + test:sim + test:db + test:e2e — needs pnpm db:start

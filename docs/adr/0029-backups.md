@@ -205,6 +205,10 @@ A new task, same role, same environment, same encryption.
 - The workflows run only on `main` (the `backup` environment): before the merge they are checked by
   `tools/backup/workflows.test.ts` and the task's local dry run; their first real runs are
   5.8b step 2, both green before any production step.
-- The daily connection also keeps a Free-plan project from pausing for inactivity (§8, R15); if
-  GitHub disables the schedule after 60 days without repository activity (R16), `/admin`'s
-  backup-age warning shows it.
+- The daily connection also keeps **the backup target only** — not every hosted project — from
+  pausing for inactivity (§8, R15); if GitHub disables the schedule after 60 days without
+  repository activity (R16), `/admin`'s backup-age warning shows it. Once production becomes the
+  target (docs/ops/production.md §4 step 10), staging no longer gets this daily connection (a
+  preview built from it does not count) and can pause after a quiet week (M12,
+  `docs/ops/staging.md` "Current state"): a Supabase dashboard **Restore** brings it back before
+  the next PR preview needs it.

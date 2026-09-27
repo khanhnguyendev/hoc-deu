@@ -147,7 +147,11 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
   it('logs the failed step by name, never a secret', async () => {
     const error = vi.mocked(console.error)
     await runMaintenance({ fetch: github({ backup: 500 }), now: NOW })
-    expect(error).toHaveBeenCalledTimes(1)
-    expect(String(error.mock.calls[0]?.[0])).toContain('backups')
+    // lib/ops/github.ts logs the API status and rate-limit remaining first (M8), then
+    // lib/ops/maintenance.ts's own catch logs the step name — neither ever a secret or a row.
+    expect(error).toHaveBeenCalledTimes(2)
+    expect(String(error.mock.calls[0]?.[0])).toContain('backup.yml')
+    expect(String(error.mock.calls[0]?.[0])).toContain('500')
+    expect(String(error.mock.calls[1]?.[0])).toContain('backups')
   })
 })
