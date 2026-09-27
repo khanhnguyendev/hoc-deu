@@ -4,11 +4,30 @@ import { expect } from './test'
 
 export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 
+/**
+ * Sonner fades toasts in and out, and axe measures a half-transparent toast's text against the page
+ * (a contrast violation that exists only mid-animation). Waits until every toast on the page is
+ * fully opaque and none is leaving.
+ */
+async function settleToasts(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('[data-sonner-toast]')).every(
+          (toast) =>
+            toast.dataset.removed !== 'true' && window.getComputedStyle(toast).opacity === '1',
+        ),
+      ),
+    )
+    .toBe(true)
+}
+
 /** Scans the full page for WCAG 2.1 A/AA violations and asserts there are none. */
 export async function expectNoAxeViolations(
   page: Page,
   options?: { disableRules?: string[] },
 ): Promise<void> {
+  await settleToasts(page)
   let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS)
   if (options?.disableRules) builder = builder.disableRules(options.disableRules)
   const results = await builder.analyze()
