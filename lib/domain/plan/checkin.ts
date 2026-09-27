@@ -51,6 +51,35 @@ export function autoCheckInMinutes(
   return Math.ceil(minutes)
 }
 
+/** Rounds away float noise from a difference of fractional minutes (1.1 − 0.1 is not 1). */
+const MINUTES_PRECISION = 1e6
+
+/**
+ * The minutes a one-tap check-in of `block` records and the sheet pre-fills (ruling M5-R39 #3):
+ * the block's estimate less the minutes of its items the learner skipped for `planDate` — skipped
+ * and not studied (`itemStudied`: a skip after a result on or after the plan date keeps the
+ * result's minutes) — rounded up to whole minutes, never below 0. Nothing skipped, it is
+ * `checkInMinutes(block)`; every item skipped, 0 — a valid `done` payload (0–600), as the sheet
+ * allows. The auto check-in credits studied items only instead (`autoCheckInMinutes`).
+ */
+export function oneTapMinutes(
+  block: PlanBlock,
+  planDate: LocalDay,
+  items: Readonly<Record<string, ItemState>>,
+): number {
+  let skipped = 0
+  for (const item of block.items) {
+    if (
+      own(items, item.itemId)?.status === 'skipped' &&
+      !itemStudied(item.itemId, planDate, items)
+    ) {
+      skipped += item.minutes
+    }
+  }
+  const left = Math.round((block.estMinutes - skipped) * MINUTES_PRECISION) / MINUTES_PRECISION
+  return Math.max(0, Math.ceil(left))
+}
+
 /** The plan's blocks that list `itemId`, in plan order. */
 export function blocksWithItem(plan: StoredPlan, itemId: string): PlanBlock[] {
   return plan.blocks.filter((block) => block.items.some((item) => item.itemId === itemId))

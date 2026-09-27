@@ -8,13 +8,13 @@
 import { itemHrefFromId } from '@/features/items/href'
 import { getTrack } from '@/lib/content/catalog'
 import type { ItemMode } from '@/lib/domain/catalog'
-import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
+import { oneTapMinutes } from '@/lib/domain/plan/checkin'
 import { extraTrackIds } from '@/lib/domain/plan/extra'
 import { dueQueue } from '@/lib/domain/plan/queues'
 import { eligibleTracks } from '@/lib/domain/plan/track'
 import { trackProgressOf, type TrackProgressData } from '@/lib/domain/plan/trackProgress'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
-import { blockKey, type BlockState, type DailyActivity } from '@/lib/domain/state'
+import { blockKey, type BlockState, type DailyActivity, type ItemState } from '@/lib/domain/state'
 import { scheduleSkippedDays, streak } from '@/lib/domain/stats/streak'
 import { weakTopics } from '@/lib/domain/stats/weakTopics'
 import type { LocalDay } from '@/lib/domain/time/localDay'
@@ -43,7 +43,8 @@ export type BlockView = {
   }[]
   /** "Sửa": `/today?block=<blockId>` opens the check-in sheet (§2.4, task 5.2b). */
   readonly editHref: string
-  /** `checkInMinutes(block)`: the minutes a new check-in pre-fills (decision 34 of M4). */
+  /** `oneTapMinutes`: the minutes a new check-in pre-fills and the one-tap records — the block's
+   *  estimate less its items skipped for the plan (ruling M5-R39 #3). */
   readonly defaultMinutes: number
 }
 
@@ -156,6 +157,7 @@ function blockViews(
   blocks: readonly PlanBlock[],
   states: Readonly<Record<string, BlockState>>,
   enrollments: readonly Enrollment[],
+  items: Readonly<Record<string, ItemState>>,
 ): BlockView[] {
   const budgets = new Map(enrollments.map((entry) => [entry.trackId, entry.budgetMinutes]))
   return blocks.map((block) => {
@@ -174,20 +176,20 @@ function blockViews(
         href: blockItemHref(itemId, block.id, mode),
       })),
       editHref: editHref(block.id),
-      defaultMinutes: checkInMinutes(block),
+      defaultMinutes: oneTapMinutes(block, plan.planDate, items),
     }
   })
 }
 
 /** The blocks each state shows: today's or the resumed plan's, or the paused plan's unfinished. */
 function stateBlocks(data: TodayData): BlockView[] {
-  const { state, enrollments } = data
+  const { state, enrollments, items } = data
   switch (state.kind) {
     case 'plan':
     case 'resumed':
-      return blockViews(state.plan, state.plan.blocks, state.blocks, enrollments)
+      return blockViews(state.plan, state.plan.blocks, state.blocks, enrollments, items)
     case 'paused':
-      return blockViews(state.plan, state.unfinished, state.blocks, enrollments)
+      return blockViews(state.plan, state.unfinished, state.blocks, enrollments, items)
     default:
       return []
   }

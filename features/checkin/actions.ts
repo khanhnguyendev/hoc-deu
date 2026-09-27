@@ -7,8 +7,12 @@ import { itemHref } from '@/features/items/href'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
 import type { PlanItem } from '@/lib/domain/catalog'
-import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
-import { autoCheckInMinutes, blocksToAutoCheckIn, blocksWithItem } from '@/lib/domain/plan/checkin'
+import {
+  autoCheckInMinutes,
+  blocksToAutoCheckIn,
+  blocksWithItem,
+  oneTapMinutes,
+} from '@/lib/domain/plan/checkin'
 import { offPlanMode } from '@/lib/domain/plan/extra'
 import type { PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { projectEvent, type DomainEvent } from '@/lib/domain/projection/project'
@@ -115,15 +119,26 @@ async function checkInAttempt(
   request: CheckInInput,
 ): Promise<CheckInResult> {
   const { today, current } = await currentNow(supabase, userId)
-  const block =
-    current?.plan.id === request.planId
-      ? current.plan.blocks.find((candidate) => candidate.id === request.blockId)
-      : undefined
+  const plan = current?.plan.id === request.planId ? current.plan : undefined
+  const block = plan?.blocks.find((candidate) => candidate.id === request.blockId)
   // Decision 13: only the plan /today shows now — never yesterday's plan as if it were today's.
-  if (block === undefined) return { ok: false, message: copy.errors.stale }
+  if (plan === undefined || block === undefined) return { ok: false, message: copy.errors.stale }
 
-  // One-tap pre-fills the block's minutes (decision 34 of M4); a skip without minutes is 0.
-  const minutes = request.minutes ?? (request.status === 'skipped' ? 0 : checkInMinutes(block))
+  // One-tap records the block less its skipped items (ruling M5-R39 #3), on the item states this
+  // attempt reads — the pre-fill /today showed; a skip without minutes is 0.
+  const minutes =
+    request.minutes ??
+    (request.status === 'skipped'
+      ? 0
+      : oneTapMinutes(
+          block,
+          plan.planDate,
+          await loadItemStates(
+            supabase,
+            userId,
+            block.items.map((item) => item.itemId),
+          ),
+        ))
   const payload = checkInPayload({ ...request, minutes })
   const id = deriveEventId(request.requestId, checkInKey({ ...request, minutes }))
   const keys = { planId: request.planId, blockId: block.id, trackId: block.trackId }
@@ -149,11 +164,12 @@ async function checkInAttempt(
 }
 
 /**
- * A block check-in (§5.5): one-tap (`minutes` omitted = checkInMinutes(block); 0 for a skip) or
- * the sheet (status, minutes, a note of at most 280 graphemes, NFC — RF-3). Each attempt
+ * A block check-in (§5.5): one-tap (`minutes` omitted = `oneTapMinutes`: the block's estimate
+ * less its items skipped for the plan, ruling M5-R39 #3 — the pre-fill /today shows; 0 for a
+ * skip) or the sheet (status, minutes, a note of at most 280 graphemes, NFC — RF-3). Each attempt
  * re-derives today and the current plan (decision 13, RF-1), which must still be the plan named —
- * else the answer is "stale" and nothing is written — then loads the rows the check-in reads,
- * projects and applies it (`withRetry`: a version conflict or a day change runs the attempt
+ * else the answer is "stale" and nothing is written — then, for a one-tap, reads the block's item
+ * states (`loadItemStates`), loads the rows the check-in reads, projects and applies it (`withRetry`: a version conflict or a day change runs the attempt
  * again). The event id digests the payload (decision 16): the same tap twice is one event.
  * `/today` re-renders whatever the outcome; an EventError becomes its Vietnamese message,
  * anything else reaches the route's error boundary.

@@ -25,6 +25,7 @@ import {
   type RowOf,
 } from '@/lib/testing/fake-supabase'
 import { databaseDay, eventStore, type StoreArgs, type Step } from './__tests__/event-store'
+import { checkInKey } from './event-keys'
 import type { CheckInInput, OutcomeInput } from './schema'
 
 const state = vi.hoisted(() => ({
@@ -206,6 +207,47 @@ describe('checkInBlock', () => {
     const fake = setup({ day_plans: [shortPlan] })
     await checkInBlock(input({ planId: shortPlan.id, blockId: short.id }))
     expect(learnerCalls(fake)[0]?.p_event.payload).toEqual({ status: 'done', minutes: 8 })
+  })
+
+  it('one-tap after a skip records the block less the skipped item (M5-R39 #3), keyed by it', async () => {
+    const halves = planBlock(TODAY, 'english', 'review', ['english:e1', 'english:e2'], {
+      estMinutes: 3,
+      items: [
+        { itemId: 'english:e1', mode: 'review', minutes: 1.5 },
+        { itemId: 'english:e2', mode: 'review', minutes: 1.5 },
+      ],
+    })
+    const halvesPlan = planRow({ date: TODAY, blocks: [halves], seenAt: seen(TODAY) })
+    const fake = setup({ day_plans: [halvesPlan], item_state: [skippedRow('english:e1')] })
+    const request = input({ planId: halvesPlan.id, blockId: halves.id })
+    expect(await checkInBlock(request)).toMatchObject({ ok: true })
+    const [call] = learnerCalls(fake)
+    expect(call?.p_event.payload).toEqual({ status: 'done', minutes: 2 })
+    expect(call?.p_event.id).toBe(deriveEventId(REQUEST_ID, checkInKey({ ...request, minutes: 2 })))
+    expect(call?.p_event.id).not.toBe(
+      deriveEventId(REQUEST_ID, checkInKey({ ...request, minutes: 3 })),
+    )
+    expect(blockRow(fake, halvesPlan.id, halves.id)).toMatchObject({ status: 'done', minutes: 2 })
+  })
+
+  it('one-tap on a block whose items were all skipped records done with 0 minutes', async () => {
+    const fake = setup({
+      day_plans: [plan],
+      item_state: [skippedRow('dsa:p1'), skippedRow('dsa:p2')],
+    })
+    await checkInBlock(input())
+    expect(learnerCalls(fake)[0]?.p_event.payload).toEqual({ status: 'done', minutes: 0 })
+  })
+
+  it('the sheet (minutes given) and a skip read no item states', async () => {
+    const fake = setup({ day_plans: [plan], item_state: [skippedRow('dsa:p1')] })
+    await checkInBlock(input({ minutes: 20 }))
+    await checkInBlock(input({ status: 'skipped', requestId: OTHER_REQUEST_ID }))
+    expect(fake.selects('item_state')).toEqual([])
+    expect(learnerCalls(fake).map((call) => call.p_event.payload)).toEqual([
+      { status: 'done', minutes: 20 },
+      { status: 'skipped', minutes: 0 },
+    ])
   })
 
   it('stores a note as NFC and sends it in the payload', async () => {

@@ -1921,7 +1921,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
   CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
   status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
 - **Variants:** a bottom Sheet below `md`, a Dialog from `md` (`useMediaQuery(MEDIA.md)`) · new
-  check-in (Xong, the block's `checkInMinutes`) · edit (pre-filled with the block's check-in).
+  check-in (Xong, the block's `oneTapMinutes`: its estimate less the items skipped for the plan,
+  ruling M5-R39 #3 — what the one-tap records) · edit (pre-filled with the block's check-in).
   It renders on the server too (`/today?block=<id>` loaded as a new page): nothing in its render
   reads `document` (UI I-1)
 - **States:** through ActionFeedback (UI I-3): idle · saving (submit `loading`) · error (a danger

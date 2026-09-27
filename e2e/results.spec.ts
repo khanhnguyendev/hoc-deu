@@ -264,3 +264,37 @@ test('"Bỏ qua mục này" asks first, then records item.skipped — a skip is 
   await expect(card.locator('[data-slot="check-in-status"]')).toHaveCount(0)
   await expect(card.getByText('tự động')).toHaveCount(0)
 })
+
+test('[M5-R39 #3] one item of a two-item block skipped on its page: the one-tap on /today records the other item’s minutes, rounded up', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa'])
+  const block = newBlock(today, 'dsa', [
+    { itemId: 'dsa:lc-0003', minutes: 12.5 },
+    { itemId: 'dsa:lc-0002', minutes: 7.5 },
+  ])
+  const planId = await seedPlan(user.id, {
+    planDate: today,
+    blocks: [block],
+    tracks: { dsa: snapshot('8w') },
+  })
+  const path = `/t/dsa/items/lc-0003?${new URLSearchParams({ block: block.id, mode: 'new' })}`
+  await openItem(page, user, path, 'Longest Substring Without Repeating Characters')
+  await page.getByRole('button', { name: 'Bỏ qua mục này' }).click()
+  const dialog = page.getByRole('alertdialog', { name: 'Bỏ qua mục này?' })
+  await dialog.getByRole('button', { name: 'Bỏ qua' }).click()
+  await expect(dialog).toBeHidden()
+  await saved(page)
+
+  await page.goto('/today')
+  const card = page.getByRole('article', { name: `Bài mới ${DSA}` })
+  await card.getByRole('button', { name: `Check-in: Bài mới · ${DSA}` }).click()
+  const status = card.locator('[data-slot="check-in-status"]')
+  await expect(status.getByText('8 phút', { exact: true })).toBeVisible()
+  // 20 planned − 12.5 skipped = 7.5 → 8, the learner's own check-in (not auto).
+  expect(await blockCheckIn(user.id, planId, block.id)).toEqual({
+    status: 'done',
+    auto: false,
+    minutes: 8,
+  })
+})

@@ -8,6 +8,7 @@ import {
   blocksWithItem,
   itemHandled,
   itemStudied,
+  oneTapMinutes,
 } from './checkin'
 import type { PlanBlock, StoredPlan } from './types'
 
@@ -153,6 +154,50 @@ describe('autoCheckInMinutes (decision 15, ruling M5-R36)', () => {
       ],
     })
     expect(autoCheckInMinutes(halves, PLAN_DATE, items(done('dsa:p1'), skipped('dsa:p2')))).toBe(8)
+  })
+})
+
+describe('oneTapMinutes (ruling M5-R39 #3)', () => {
+  const pair = block('new:1', ['dsa:p1', 'dsa:p2'])
+  const halves = block('review:1', ['dsa:p1', 'dsa:p2', 'dsa:p3'], {
+    kind: 'review',
+    estMinutes: 4.5,
+    items: [
+      { itemId: 'dsa:p1', mode: 'review', minutes: 1.5 },
+      { itemId: 'dsa:p2', mode: 'review', minutes: 1.5 },
+      { itemId: 'dsa:p3', mode: 'review', minutes: 1.5 },
+    ],
+  })
+
+  it('nothing skipped: the block estimate, rounded up (checkInMinutes)', () => {
+    expect(oneTapMinutes(pair, PLAN_DATE, items())).toBe(20)
+    expect(oneTapMinutes(pair, PLAN_DATE, items(done('dsa:p1')))).toBe(20)
+    expect(oneTapMinutes(halves, PLAN_DATE, items())).toBe(5)
+  })
+
+  it('leaves out the skipped items, then rounds up: 4.5 − 1.5 gives 3, 4.5 − 3 gives 2', () => {
+    expect(oneTapMinutes(pair, PLAN_DATE, items(skipped('dsa:p1')))).toBe(10)
+    expect(oneTapMinutes(halves, PLAN_DATE, items(skipped('dsa:p2')))).toBe(3)
+    expect(oneTapMinutes(halves, PLAN_DATE, items(skipped('dsa:p1'), skipped('dsa:p3')))).toBe(2)
+  })
+
+  it('every item skipped: 0 (a valid `done` payload, as the sheet allows)', () => {
+    expect(oneTapMinutes(pair, PLAN_DATE, items(skipped('dsa:p1'), skipped('dsa:p2')))).toBe(0)
+  })
+
+  it('an item skipped after a result on the plan date was studied: its minutes count', () => {
+    const later = itemState('dsa:p1', PLAN_DATE, { status: 'skipped', dueOn: null })
+    expect(oneTapMinutes(pair, PLAN_DATE, items(later))).toBe(20)
+    // A result before the plan date is not study for this plan: the skip leaves the item out.
+    const older = itemState('dsa:p1', DAY_BEFORE, { status: 'skipped', dueOn: null })
+    expect(oneTapMinutes(pair, PLAN_DATE, items(older))).toBe(10)
+  })
+
+  it('reads own keys only, and never goes below 0', () => {
+    const proto = block('new:2', ['constructor'])
+    expect(oneTapMinutes(proto, PLAN_DATE, items())).toBe(10)
+    const short = block('new:3', ['dsa:p1'], { estMinutes: 5 })
+    expect(oneTapMinutes(short, PLAN_DATE, items(skipped('dsa:p1')))).toBe(0)
   })
 })
 

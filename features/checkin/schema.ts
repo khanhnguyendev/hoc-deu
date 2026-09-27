@@ -84,7 +84,8 @@ export type CheckInInput = {
   readonly planId: string
   readonly blockId: string
   readonly status: CheckInStatus
-  /** Omitted = checkInMinutes(block) (one-tap, decision 34 of M4); 0 for a skip. */
+  /** Omitted = oneTapMinutes (one-tap: the block's estimate less its skipped items, ruling
+   *  M5-R39 #3); 0 for a skip. */
   readonly minutes?: number
   readonly note?: string
 }

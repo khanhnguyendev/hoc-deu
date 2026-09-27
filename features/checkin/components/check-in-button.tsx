@@ -36,9 +36,9 @@ type CheckInButtonProps = {
 
 /**
  * The one-tap check-in (§5.5, DESIGN_SYSTEM §9): the full-width 48 px primary "Check-in" at the
- * bottom of a PlanBlockCard. It sends `done` without minutes — the server pre-fills the block's
- * `checkInMinutes` (decision 34 of M4) — with the page's request ID and the block's plan and ID,
- * through `useActionFeedback` (UI I-3): pending while the action and the re-render run (a second
+ * bottom of a PlanBlockCard. It sends `done` without minutes — the server records the block's
+ * `oneTapMinutes`, its estimate less its skipped items (ruling M5-R39 #3) — with the page's
+ * request ID and the block's plan and ID, through `useActionFeedback` (UI I-3): pending while the action and the re-render run (a second
  * tap sends nothing, RF-2); a failed request says so beside the button. The action revalidates
  * `/today`: a success collapses the button into CheckInStatus and a stale answer swaps the plan,
  * so the answer is a toast when the button is gone and its own polite region while it stays —

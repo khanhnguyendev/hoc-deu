@@ -47,7 +47,7 @@ export type CheckInSheetBlock = {
   readonly trackTitle: string
   /** The block's estimate (may be fractional: 1,5 phút per card). */
   readonly estMinutes: number
-  /** `checkInMinutes(block)`: what a new check-in pre-fills. */
+  /** `oneTapMinutes`: what a new check-in pre-fills (the block less its skipped items). */
   readonly defaultMinutes: number
   /** The block's check-in, when it has one: an edit starts from it. */
   readonly checkIn: Pick<BlockState, 'status' | 'minutes' | 'note'> | null
@@ -83,7 +83,7 @@ const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINU
  * a bottom Sheet below `md`, a Dialog from `md`. Focus moves to the title; `Esc`, "Đóng" and
  * "Huỷ" go back to `/today` with `router.replace`, so the back button never reopens it (§2.4).
  * The status is a segmented control (Xong / Một phần / Bỏ qua); the minutes a stepper (0–600,
- * pre-filled with the block's check-in minutes, or `checkInMinutes` for a new check-in — "Bỏ
+ * pre-filled with the block's check-in minutes, or `oneTapMinutes` for a new check-in — "Bỏ
  * qua" sets 0, and Xong / Một phần from 0 restores the pre-filled minutes); the note is optional,
  * with a live "n/280" grapheme counter and the server's own rule (`noteError`, RF-3) beside the
  * field — a crossed limit is also announced in a polite live region, so a disabled submit always

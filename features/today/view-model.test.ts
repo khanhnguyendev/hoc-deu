@@ -231,6 +231,26 @@ describe('buildTodayPage — blocks', () => {
     expect(half.blocks[0]!.defaultMinutes).toBe(20)
   })
 
+  it("pre-fills the block less its items skipped for the plan (M5-R39 #3): the one-tap's minutes", () => {
+    const skipped = itemState('english:e1', TODAY, {
+      status: 'skipped',
+      level: 0,
+      lastResult: null,
+      lastResultOn: null,
+    })
+    const reviewed = itemState('dsa:p1', TODAY, { status: 'skipped', dueOn: null })
+    const views = buildTodayPage(
+      todayData(planState(storedPlan({ blocks })), {
+        items: { 'english:e1': skipped, 'dsa:p1': reviewed },
+      }),
+      NO_ACTIVITY,
+      REQUEST_ID,
+    ).blocks
+    // English new: 3 − 1.5 skipped → 2 (rounded up); dsa review: p1 was skipped after a result
+    // on the plan date — studied, so it still counts (10).
+    expect(views.map((view) => view.defaultMinutes)).toEqual([10, 50, 2, 10, 10, 5, 3, 10])
+  })
+
   it('shows the resumed plan with its check-ins, and the paused plan’s unfinished blocks only', () => {
     const yesterday = '2026-09-27'
     const oldBlocks = [
