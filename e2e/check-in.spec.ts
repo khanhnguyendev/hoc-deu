@@ -3,6 +3,7 @@ import { seedDailyActivity } from './support/activity'
 import { expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { activityOf, checkInEventsOf, checkInOf } from './support/check-in'
+import { planOf } from './support/extra'
 import {
   addDays,
   newBlock,
@@ -14,7 +15,13 @@ import {
   type SeedBlock,
 } from './support/plans'
 import { expect, test } from './support/test'
-import { createTestUser, deleteTestUser, seedLearnerSetup, type TestUser } from './support/users'
+import {
+  createTestUser,
+  deleteTestUser,
+  seedLearnerSetup,
+  seedPausedTrack,
+  type TestUser,
+} from './support/users'
 
 /**
  * The check-in UI (task 5.2b; §2.4 `/today?block=`, §5.5; DESIGN_SYSTEM §9, §10; RF-2; decision
@@ -336,4 +343,59 @@ test('M-6 a: yesterday’s only block, skipped — "Sửa" → Xong today resume
   })
   expect(await activityOf(user.id, yesterday)).toMatchObject({ completed: false })
   expect(await activityOf(user.id, today)).toMatchObject({ completed: true })
+})
+
+test('M-3: a card of a paused track studied while the gate is closed — a fresh extra block checks it in, and the gate reopens', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa', 'english'])
+  await seedPausedTrack(user.id, 'english', 1)
+  const yesterday = addDays(today, -1)
+  // Yesterday's plan: its DSA block holds the gate closed; English's extra block (an earlier
+  // "Học thêm") holds a card never studied, and the paused view hides it — English is paused.
+  const hidden: SeedBlock = {
+    id: `${yesterday}:english:extra:1`,
+    trackId: 'english',
+    kind: 'extra',
+    estMinutes: 1.5,
+    items: [{ itemId: 'english:w01-blocker', mode: 'new', minutes: 1.5 }],
+  }
+  const planId = await plan(user, yesterday, [dsaBlock(yesterday), hidden])
+  await openToday(page, user)
+  await expect(page.getByText(PAUSED)).toBeVisible()
+
+  // Another English card, graded on its own page: off-plan study (decision 21).
+  await page.goto('/t/english/items/w01-unblock')
+  await expect(page.getByRole('heading', { level: 1, name: 'unblock' })).toBeVisible()
+  await page.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await page
+    .getByRole('group', { name: 'Bạn nhớ thẻ này không?' })
+    .getByRole('button', { name: /^Biết/ })
+    .click()
+  await expect(
+    page
+      .locator('[data-slot="outcome-message"]')
+      .filter({ hasText: 'Đã lưu kết quả. Khối học đã được tự động check-in.' }),
+  ).toBeVisible()
+
+  // It went to English's next extra block, which its result checked in today; extra:1 is untouched.
+  const fresh = `${yesterday}:english:extra:2`
+  expect((await planOf(user.id, yesterday))?.blocks.map((block) => block.id)).toEqual([
+    `${yesterday}:dsa:new:1`,
+    hidden.id,
+    fresh,
+  ])
+  expect(await checkInOf(user.id, planId, fresh)).toMatchObject({
+    status: 'done',
+    minutes: 2,
+    auto: true,
+    checked_in_on: today,
+  })
+  expect(await checkInOf(user.id, planId, hidden.id)).toBeNull()
+  expect(await activityOf(user.id, today)).toMatchObject({ completed: true })
+
+  // The study counts: the gate reopened as today's work — the resumed plan, no plan for today.
+  await page.goto('/today')
+  await expect(page.getByText(RESUMED)).toBeVisible()
+  expect((await plansOf(user.id)).map((row) => row.plan_date)).toEqual([yesterday])
 })
