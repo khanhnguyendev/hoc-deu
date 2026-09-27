@@ -372,6 +372,27 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<DataList items={problems} getKey={(p) => p.id} renderItem={…} empty={<EmptyState …/>} />`
 - **Accessibility:** `role="list"` kept; rows ≥ 44 px
 
+### DataTable
+
+- **Layer:** pattern
+- **File:** `components/patterns/data-table.tsx` (`DataTable`, `DataTableHead`,
+  `DataTableHeader`, `DataTableRow`, `DataTableRowHeader`, `DataTableCell`)
+- **Props:** `DataTable`: `label: string`, `children` (a `DataTableHead` and a `tbody`);
+  `DataTableHeader`: `lang?`; `DataTableRow`: `tone?: 'default' | 'danger'` and any `tr` attribute
+  but `className` (`data-state`); `DataTableRowHeader`: `numeric?`, `lang?`; `DataTableCell`:
+  `numeric?`
+- **Variants:** row `tone` (cva): default · danger (`danger-soft` — never colour alone: a cell
+  says why) · cells (cva): header, row header, cell; `numeric` (mono, tabular figures, no wrap)
+- **States:** static; the caller shows its own empty line instead of a table of zeros
+- **Usage:** `<DataTable label="Số mục của DSA theo loại"><DataTableHead><DataTableHeader>Loại
+  </DataTableHeader>…</DataTableHead><tbody><DataTableRow><DataTableRowHeader lang="en">Problem
+  </DataTableRowHeader><DataTableCell numeric>12</DataTableCell></DataTableRow></tbody>
+  </DataTable>` (CatalogStats, ContentCoverage — parked #1: their classes were a module of
+  `features/admin`)
+- **Accessibility:** one focusable (`tabIndex={0}`), labelled `role="region"` per table, so
+  keyboard users can scroll a wide table; `th scope="col"` / `scope="row"`; English item-type
+  names in `lang="en"`
+
 ### DataState
 
 - **Layer:** pattern
@@ -2358,7 +2379,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   verification line for a track with problems ("Kiểm chứng lời giải: n đã kiểm thử · n chỉ biên
   dịch · n chưa có ghi chú") · empty ("Lộ trình này chưa có mục nào.", no table)
 - **Usage:** `<CatalogStats stats={track.stats} />` (`app/(admin)/admin/content/page.tsx`)
-- **Accessibility:** an `h3`; the table sits in a focusable `region` named "Số mục của {track} theo
+- **Accessibility:** an `h3`; the table (the DataTable pattern, parked #1) sits in a focusable
+  `region` named "Số mục của {track} theo
   loại và trạng thái" (keyboard horizontal scroll); row headers are the item types (`lang="en"`);
   numbers in mono with tabular figures
 
@@ -2376,7 +2398,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   trình cho biến thể này.", no table); `/admin/content` loading — `app/(admin)/admin/content/
   loading.tsx`, shown in this entry's catalog demos (m-3)
 - **Usage:** `{track.roadmaps.map((r) => <ContentCoverage key={r.variant} coverage={r} />)}`
-- **Accessibility:** an `h3`; a focusable `region` named "Độ phủ theo tuần của {track}, {variant}";
+- **Accessibility:** an `h3`; a DataTable (parked #1) — a focusable `region` named "Độ phủ theo
+  tuần của {track}, {variant}";
   week numbers are row headers; a missing lesson says "(thiếu)" and a red row says "Cần bổ sung"
   with an icon — never colour alone; English column headers carry `lang="en"`
 

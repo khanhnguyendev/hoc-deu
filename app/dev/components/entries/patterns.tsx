@@ -5,6 +5,14 @@ import {
   type ActionAnswer,
   type ActionFeedback,
 } from '@/components/patterns/action-feedback'
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/patterns/data-table'
 import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { Section } from '@/components/patterns/section'
@@ -117,6 +125,42 @@ const DSA = 'Cấu trúc dữ liệu & Giải thuật'
 const IN_PROGRESS = { week: 2, weeks: 8, introduced: 18, total: 64 }
 
 export const PATTERN_ENTRIES: Entry[] = [
+  {
+    name: 'DataTable',
+    layer: 'patterns',
+    file: 'components/patterns/data-table.tsx',
+    demos: [
+      {
+        title: 'Cột, hàng, số (mono), một hàng cần xử lý (danger-soft + nhãn)',
+        render: () => (
+          <div className="w-full">
+            <DataTable label="Độ phủ theo tuần (mẫu)">
+              <DataTableHead>
+                <DataTableHeader>Tuần</DataTableHeader>
+                <DataTableHeader>Học viên</DataTableHeader>
+                <DataTableHeader lang="en">Exercise</DataTableHeader>
+                <DataTableHeader>Trạng thái</DataTableHeader>
+              </DataTableHead>
+              <tbody>
+                <DataTableRow>
+                  <DataTableRowHeader numeric>3</DataTableRowHeader>
+                  <DataTableCell numeric>2</DataTableCell>
+                  <DataTableCell numeric>6</DataTableCell>
+                  <DataTableCell>Đủ</DataTableCell>
+                </DataTableRow>
+                <DataTableRow tone="danger">
+                  <DataTableRowHeader numeric>4</DataTableRowHeader>
+                  <DataTableCell numeric>1</DataTableCell>
+                  <DataTableCell numeric>0</DataTableCell>
+                  <DataTableCell>Cần bổ sung</DataTableCell>
+                </DataTableRow>
+              </tbody>
+            </DataTable>
+          </div>
+        ),
+      },
+    ],
+  },
   {
     name: 'TrackProgressCard',
     layer: 'patterns',

@@ -1,19 +1,17 @@
 import { CircleAlert, CircleCheck, CircleDashed, type LucideIcon } from 'lucide-react'
 import type * as React from 'react'
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/patterns/data-table'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
 import type { CoverageColumn, CoverageRow, CoverageState, RoadmapCoverage } from '../content'
-import {
-  CELL,
-  HEAD_ROW,
-  HEADER_CELL,
-  NUMBER_CELL,
-  ROW_HEADER_CELL,
-  TABLE,
-  TABLE_REGION,
-  tableRow,
-} from './table'
 
 const copy = vi.adminOverview.content.coverage
 
@@ -38,7 +36,7 @@ const COLUMNS: Readonly<
 }
 
 /** The notes and counts are numbers; the lessons cell is text. */
-const cellClass = (column: CoverageColumn) => (column === 'lessons' ? CELL : NUMBER_CELL)
+const isNumeric = (column: CoverageColumn) => column !== 'lessons'
 
 /** Each week topic by title; a topic without its pattern lesson says "(thiếu)" — text, not colour. */
 function Lessons({ row }: { row: CoverageRow }) {
@@ -100,63 +98,43 @@ function ContentCoverage({ coverage }: { coverage: RoadmapCoverage }) {
                   horizon: formatNumber(coverage.horizon),
                 })}
           </p>
-          <div
-            role="region"
-            tabIndex={0}
-            aria-label={fill(copy.label, {
+          <DataTable
+            label={fill(copy.label, {
               track: coverage.trackTitle,
               variant: coverage.variantLabel,
             })}
-            className={TABLE_REGION}
           >
-            <table className={TABLE}>
-              <thead>
-                <tr className={HEAD_ROW}>
-                  <th scope="col" className={HEADER_CELL}>
-                    {copy.week}
-                  </th>
-                  <th scope="col" className={HEADER_CELL}>
-                    {copy.learners}
-                  </th>
+            <DataTableHead>
+              <DataTableHeader>{copy.week}</DataTableHeader>
+              <DataTableHeader>{copy.learners}</DataTableHeader>
+              {coverage.columns.map((column) => (
+                <DataTableHeader key={column} lang={COLUMNS[column].lang}>
+                  {COLUMNS[column].label}
+                </DataTableHeader>
+              ))}
+              <DataTableHeader>{copy.state}</DataTableHeader>
+            </DataTableHead>
+            <tbody>
+              {coverage.rows.map((row) => (
+                <DataTableRow
+                  key={row.week}
+                  data-state={row.state}
+                  tone={row.state === 'red' ? 'danger' : 'default'}
+                >
+                  <DataTableRowHeader numeric>{formatNumber(row.week)}</DataTableRowHeader>
+                  <DataTableCell numeric>{formatNumber(row.learners)}</DataTableCell>
                   {coverage.columns.map((column) => (
-                    <th
-                      key={column}
-                      scope="col"
-                      lang={COLUMNS[column].lang}
-                      className={HEADER_CELL}
-                    >
-                      {COLUMNS[column].label}
-                    </th>
+                    <DataTableCell key={column} numeric={isNumeric(column)}>
+                      {COLUMNS[column].cell(row)}
+                    </DataTableCell>
                   ))}
-                  <th scope="col" className={HEADER_CELL}>
-                    {copy.state}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {coverage.rows.map((row) => (
-                  <tr
-                    key={row.week}
-                    data-state={row.state}
-                    className={tableRow({ tone: row.state === 'red' ? 'danger' : 'default' })}
-                  >
-                    <th scope="row" className={cn(ROW_HEADER_CELL, 'font-mono tabular-nums')}>
-                      {formatNumber(row.week)}
-                    </th>
-                    <td className={NUMBER_CELL}>{formatNumber(row.learners)}</td>
-                    {coverage.columns.map((column) => (
-                      <td key={column} className={cellClass(column)}>
-                        {COLUMNS[column].cell(row)}
-                      </td>
-                    ))}
-                    <td className={CELL}>
-                      <StateLabel state={row.state} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  <DataTableCell>
+                    <StateLabel state={row.state} />
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
         </>
       )}
     </div>

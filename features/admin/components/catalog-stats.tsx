@@ -1,15 +1,14 @@
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/patterns/data-table'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { TrackStats } from '../content'
-import {
-  HEAD_ROW,
-  HEADER_CELL,
-  NUMBER_CELL,
-  ROW_HEADER_CELL,
-  TABLE,
-  TABLE_REGION,
-  tableRow,
-} from './table'
 
 const copy = vi.adminOverview.content.stats
 
@@ -25,43 +24,24 @@ function CatalogStats({ stats }: { stats: TrackStats }) {
       {stats.total === 0 ? (
         <p className="text-sm text-muted-foreground">{copy.empty}</p>
       ) : (
-        <div
-          role="region"
-          tabIndex={0}
-          aria-label={fill(copy.label, { track: stats.trackTitle })}
-          className={TABLE_REGION}
-        >
-          <table className={TABLE}>
-            <thead>
-              <tr className={HEAD_ROW}>
-                <th scope="col" className={HEADER_CELL}>
-                  {copy.type}
-                </th>
-                <th scope="col" className={HEADER_CELL}>
-                  {copy.active}
-                </th>
-                <th scope="col" className={HEADER_CELL}>
-                  {copy.draft}
-                </th>
-                <th scope="col" className={HEADER_CELL}>
-                  {copy.retired}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.rows.map((row) => (
-                <tr key={row.type} className={tableRow()}>
-                  <th scope="row" lang="en" className={ROW_HEADER_CELL}>
-                    {row.label}
-                  </th>
-                  <td className={NUMBER_CELL}>{formatNumber(row.active)}</td>
-                  <td className={NUMBER_CELL}>{formatNumber(row.draft)}</td>
-                  <td className={NUMBER_CELL}>{formatNumber(row.retired)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable label={fill(copy.label, { track: stats.trackTitle })}>
+          <DataTableHead>
+            <DataTableHeader>{copy.type}</DataTableHeader>
+            <DataTableHeader>{copy.active}</DataTableHeader>
+            <DataTableHeader>{copy.draft}</DataTableHeader>
+            <DataTableHeader>{copy.retired}</DataTableHeader>
+          </DataTableHead>
+          <tbody>
+            {stats.rows.map((row) => (
+              <DataTableRow key={row.type}>
+                <DataTableRowHeader lang="en">{row.label}</DataTableRowHeader>
+                <DataTableCell numeric>{formatNumber(row.active)}</DataTableCell>
+                <DataTableCell numeric>{formatNumber(row.draft)}</DataTableCell>
+                <DataTableCell numeric>{formatNumber(row.retired)}</DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
       {stats.verification && (
         <p data-slot="verification" className="text-sm text-muted-foreground">
