@@ -1439,7 +1439,8 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Variants:** with / without a hint
 - **States:** answering; checked — pass ("Chính xác", `CircleCheck`, success), close ("Gần đúng —
   bạn đã xem gợi ý", `CircleDot`, warning), miss ("Chưa đúng — đáp án: …", `CircleX`, danger);
-  editing the answer clears the verdict; hint hidden / shown
+  editing the answer clears the verdict; hint hidden / shown; saving (`pending`: "Kiểm tra" busy,
+  a check meanwhile ignored — in the catalog, parked #2)
 - **Usage:** `<FillBlankExercise text={ex.text} answers={ex.answers} hint={ex.hint} />`
   (ExercisePage); grading is `gradeFillBlank` (NFC, case- and whitespace-insensitive, [RF-3])
 - **Accessibility:** the text is `lang="en"`; the blank is a real input with a visually hidden
@@ -1944,9 +1945,11 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **States:** the nudge (decision 18): opening the note's "Xem lời giải" before a grade is saved
   preselects the `hint` grade, with "Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bấm để
   lưu, hoặc chọn mức khác." — any grade can still be chosen · saving · saved (pressed; pressing it
-  again sends nothing; "Tự giải được: …" with the server's message, e.g. "… tự động check-in") ·
-  failed (the message; every grade available) · redo: "Giải lại trên LeetCode từ đầu, không mở lời
-  giải, rồi tự chấm." above the note
+  again sends nothing but says "Kết quả này đã được lưu.", m-10; "Tự giải được: …" with the
+  server's message, e.g. "… tự động check-in") · failed (the message; every grade available) ·
+  redo: "Giải lại trên LeetCode từ đầu, không mở lời giải, rồi tự chấm." above the note. A grade
+  is keyed by the mode it was sent in (parked #2): after "Làm lại từ đầu" the recall's answer keeps
+  its label ("Nhớ rõ: …"), no redo grade shows pressed, and the redo's grade is a new result
 - **Usage:** ProblemPage: `<ProblemOutcome binding={outcome} hasNote={…}>{noteSection}</ProblemOutcome>`
 - **Accessibility:** the recall prompt is an `h2` section; "Xem ghi chú" has `aria-expanded` /
   `aria-controls`; "Làm lại từ đầu" is a link-styled button (an in-page switch, not a navigation);
@@ -2012,7 +2015,8 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 - **Variants:** without / with a checked Quiz ("Kèm điểm kiểm tra nhanh: 50%": `quizScore` 0–100,
   the latest check, is sent)
 - **States:** ready · saving · saved (a check icon on the button; the server's message; the same
-  completion — same score — again sends nothing, a new quiz score does) · failed
+  completion — same score — again sends nothing but says "Kết quả này đã được lưu." (m-10), a new
+  quiz score does) · failed
 - **Usage:** LessonPage: `<LessonComplete binding={outcome}>{body}</LessonComplete>`
 - **Accessibility:** "Hoàn thành bài học" is the view's one primary Button (`lg`) — the lesson's
   Quiz check steps down to `secondary` inside it; the answer in the OutcomeMessage live region

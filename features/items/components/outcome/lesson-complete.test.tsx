@@ -73,9 +73,10 @@ describe('LessonComplete', () => {
       .getAllByRole('status')
       .find((region) => region.dataset.slot === 'outcome-message')
     expect(outcome?.textContent).toBe('Hoàn thành bài học: Đã lưu kết quả.')
-    // The same completion again records nothing more; a new score does.
+    // The same completion again records nothing more — and says so (m-10); a new score does.
     await user.click(screen.getByRole('button', { name: 'Hoàn thành bài học' }))
     expect(record).toHaveBeenCalledOnce()
+    expect(outcome?.textContent).toBe('Hoàn thành bài học: Kết quả này đã được lưu.')
     await user.click(screen.getByRole('button', { name: 'Làm lại' }))
     await user.click(screen.getByRole('radio', { name: 'Có' }))
     await user.click(screen.getByRole('radio', { name: 'O(n)' }))

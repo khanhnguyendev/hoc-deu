@@ -15,6 +15,23 @@ const copy = vi.outcomes.problem
 type ProblemGrade = 'solved' | 'hint' | 'failed'
 /** How the page grades: a new problem, a redo, or a quick recall (explain-aloud included). */
 type ProblemMode = 'new' | 'redo' | 'recall'
+/** A sent grade names its mode too (parked #2): a recall's "Nhớ rõ" and the redo's "Tự giải
+ *  được" are both `solved`, but two different results. */
+type GradeKey = `${ProblemMode}:${ProblemGrade}`
+
+const keyOf = (mode: ProblemMode, grade: ProblemGrade): GradeKey => `${mode}:${grade}`
+
+function splitKey(key: GradeKey): { mode: ProblemMode; grade: ProblemGrade } {
+  const [mode, grade] = key.split(':') as [ProblemMode, ProblemGrade]
+  return { mode, grade }
+}
+
+/** The grade of `key` when it was sent in `mode`, else null. */
+function gradeIn(key: GradeKey | null, mode: ProblemMode): ProblemGrade | null {
+  if (key === null) return null
+  const sent = splitKey(key)
+  return sent.mode === mode ? sent.grade : null
+}
 
 const GRADE_ORDER: readonly ProblemGrade[] = ['solved', 'hint', 'failed']
 
@@ -40,7 +57,10 @@ function gradesFor(mode: ProblemMode): readonly GradeOption<ProblemGrade>[] {
  *
  * The nudge: opening the note's "Xem lời giải" (SolutionTabs, through `OutcomeSignalsContext`)
  * before a grade is saved preselects the `hint` grade; any grade can still be chosen. The answer is
- * announced in a polite live region; a failed save leaves every grade available.
+ * announced in a polite live region, labelled by the grade in the mode it was sent in — a recall
+ * graded, then switched to a redo, still reads "Nhớ rõ" — and a grade shows pressed only in the
+ * mode it was saved in, so the redo's own grade is a new result (parked #2). A failed save leaves
+ * every grade available; the saved grade pressed again says it is saved (m-10).
  */
 function ProblemOutcome({
   binding,
@@ -55,7 +75,7 @@ function ProblemOutcome({
   const [mode, setMode] = useState<ProblemMode>(() => problemMode(binding.mode))
   const [noteOpen, setNoteOpen] = useState(false)
   const [solutionSeen, setSolutionSeen] = useState(false)
-  const { pending, sent, saved, send } = useOutcome<ProblemGrade>(binding)
+  const { pending, sent, saved, send } = useOutcome<GradeKey>(binding)
   const noteId = useId()
   const signals = useMemo<OutcomeSignals>(
     () => ({ solutionRevealed: () => setSolutionSeen(true), quizScored: () => {} }),
@@ -65,6 +85,7 @@ function ProblemOutcome({
   const grades = gradesFor(mode)
   const recall = mode === 'recall'
   const hidden = recall && hasNote && !noteOpen
+  const savedHere = gradeIn(saved, mode)
   const suggested: ProblemGrade | null = saved === null && solutionSeen ? 'hint' : null
   const hintLabel = grades.find((grade) => grade.value === 'hint')?.label ?? ''
 
@@ -73,8 +94,9 @@ function ProblemOutcome({
       mode === 'new'
         ? { type: 'item.result', result: value }
         : { type: 'item.result', result: value, mode },
-      value,
+      keyOf(mode, value),
     )
+  const sentKey = sent === null ? null : splitKey(sent.key)
 
   return (
     <OutcomeSignalsContext value={signals}>
@@ -121,15 +143,19 @@ function ProblemOutcome({
           <GradeButtons
             label={recall ? copy.recallLabel : copy.solveLabel}
             grades={grades}
-            selected={saved ?? suggested}
-            pending={pending}
+            selected={savedHere ?? suggested}
+            pending={gradeIn(pending, mode)}
             description={suggested === null ? undefined : fill(copy.nudge, { grade: hintLabel })}
             onGrade={grade}
           />
         )}
         <OutcomeMessage
           result={sent}
-          label={grades.find((option) => option.value === sent?.key)?.label}
+          label={
+            sentKey === null
+              ? undefined
+              : gradesFor(sentKey.mode).find((option) => option.value === sentKey.grade)?.label
+          }
         />
       </div>
     </OutcomeSignalsContext>

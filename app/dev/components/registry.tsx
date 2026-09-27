@@ -2752,6 +2752,23 @@ export const CATALOG: Entry[] = [
           ) : null
         },
       },
+      {
+        title: 'Đang lưu (pending, 5.2c): "Kiểm tra" bận, một lần kiểm tra nữa bị bỏ qua',
+        render: () => {
+          const { content } = fillBlankItem()
+          return content.kind === 'fill-blank' ? (
+            <div className="w-full max-w-prose">
+              <FillBlankExercise
+                text={content.text}
+                answers={content.answers}
+                hint={content.hint}
+                onGrade={() => {}}
+                pending
+              />
+            </div>
+          ) : null
+        },
+      },
     ],
   },
   {

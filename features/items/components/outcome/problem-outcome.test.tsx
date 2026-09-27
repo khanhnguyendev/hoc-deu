@@ -56,9 +56,11 @@ describe('ProblemOutcome — a new problem', () => {
     expect(screen.getByRole('button', { name: 'Tự giải được' }).getAttribute('aria-pressed')).toBe(
       'true',
     )
-    // The saved grade again (the page re-rendered with a new request id) records nothing more.
+    // The saved grade again (the page re-rendered with a new request id) records nothing more,
+    // but says so — never a silent press (m-10).
     await user.click(screen.getByRole('button', { name: 'Tự giải được' }))
     expect(record).toHaveBeenCalledOnce()
+    expect(screen.getByRole('status').textContent).toBe('Tự giải được: Kết quả này đã được lưu.')
   })
 
   it('a failure says so and leaves every grade available', async () => {
@@ -193,5 +195,32 @@ describe('ProblemOutcome — quick recall and explain-aloud (decision 17)', () =
       result: 'solved',
       mode: 'redo',
     })
+  })
+
+  it('a recall graded, then "Làm lại từ đầu": the answer keeps the recall label; the same grade in the redo is a new result (parked #2)', async () => {
+    const { user, record } = setup({ mode: 'recall' }, false)
+    await user.click(within(grades(RECALL)).getByRole('button', { name: 'Nhớ rõ' }))
+    await screen.findByText('Đã lưu kết quả.')
+    await user.click(screen.getByRole('button', { name: 'Làm lại từ đầu' }))
+    // The answer was a recall: its label stays "Nhớ rõ", not the redo's "Tự giải được".
+    expect(screen.getByRole('status').textContent).toBe('Nhớ rõ: Đã lưu kết quả.')
+    // Nothing of the redo is saved yet: no redo grade is pressed.
+    const solve = grades(SOLVE)
+    expect(
+      within(solve)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-pressed')),
+    ).toEqual(['false', 'false', 'false'])
+    // The redo's "Tự giải được" is its own result (mode: redo), not the recall's again.
+    await user.click(within(solve).getByRole('button', { name: 'Tự giải được' }))
+    expect(record).toHaveBeenCalledTimes(2)
+    expect(record.mock.calls[1]![0].outcome).toEqual({
+      type: 'item.result',
+      result: 'solved',
+      mode: 'redo',
+    })
+    await vi.waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe('Tự giải được: Đã lưu kết quả.'),
+    )
   })
 })

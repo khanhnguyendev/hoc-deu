@@ -20,8 +20,9 @@ export type SentOutcome<K extends string> = {
  * checked in, or why not), or "Chưa lưu được kết quả" when the call itself failed. A retry within
  * the same render resends the same request id, so the server records the event once (decision 16).
  * `key` names the control (a grade) so it can show busy, then pressed. Sending the key that is
- * already saved does nothing: after a save the page re-renders with a new request id, so pressing
- * the saved grade again would otherwise record a second event.
+ * already saved sends nothing — after a save the page re-renders with a new request id, so pressing
+ * the saved grade again would otherwise record a second event — but it is never silent: the live
+ * region says "Kết quả này đã được lưu." again (m-10).
  */
 export function useOutcome<K extends string>(
   binding: Pick<OutcomeBinding, 'requestId' | 'itemId' | 'blockId' | 'record'>,
@@ -32,7 +33,11 @@ export function useOutcome<K extends string>(
   const [saved, setSaved] = useState<K | null>(null)
 
   const send = (outcome: Outcome, key: K, then?: (ok: boolean) => void) => {
-    if (pending || key === saved) return
+    if (pending) return
+    if (key === saved) {
+      setSent({ key, ok: true, message: vi.outcomes.alreadySaved, seq: (sent?.seq ?? 0) + 1 })
+      return
+    }
     setSending(key)
     startTransition(async () => {
       let answer: SentOutcome<K>

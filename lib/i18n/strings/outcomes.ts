@@ -8,6 +8,8 @@ export const outcomes = {
   },
   /** A save that never got an answer (offline, a server error): the learner may try again. */
   failed: 'Chưa lưu được kết quả. Bạn thử lại nhé.',
+  /** The saved control pressed again: nothing is sent, and it says so (m-10). */
+  alreadySaved: 'Kết quả này đã được lưu.',
   problem: {
     /** A new problem, or a redo (§5.5): solved alone, needed a hint, not solved. */
     solveLabel: 'Bạn giải bài này thế nào?',
