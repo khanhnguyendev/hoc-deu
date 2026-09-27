@@ -163,9 +163,8 @@ describe('AccountMenu', () => {
   it('shows no toast when the rejection is the redirect Next raises on a successful sign-out', async () => {
     // Calling a redirecting action directly (not through useActionState) still rejects the
     // promise with a NEXT_REDIRECT-digest error, even though the navigation already happened
-    // (server-action-reducer.js) — this must never read as a failure. Runs before the next test
-    // (which does toast): sonner's toast queue is a module-level singleton, not tied to a single
-    // Toaster instance, so a toast from an earlier test would otherwise still read as present here.
+    // (server-action-reducer.js) — this must never read as a failure. (Test order does not
+    // matter: `beforeEach` dismisses sonner's module-level toast queue.)
     const redirectError = Object.assign(new Error('NEXT_REDIRECT'), {
       digest: 'NEXT_REDIRECT;push;/sign-in;307;',
     })

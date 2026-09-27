@@ -236,10 +236,9 @@ type Slot = 'toggle' | 'remove'
 /**
  * "Tạm dừng" / "Tiếp tục" (one button, keyed by its slot, so it stays the same element — and
  * keeps focus — when the status flips) and "Gỡ lộ trình", which asks first. Runs through
- * `useSettingsAction` (`useActionState`, same as every other settings form): a plain `async`
- * `send` with its own `pending` state (an earlier version of this fix used) has no
- * `try`/`finally`, so a rejected action leaves `pending` stuck `true` forever — the buttons and
- * the confirm dialog then never recover. The action passed in wraps `setTrackStatus` to also
+ * `useSettingsAction` (`useActionState`, same as every other settings form), whose pending state
+ * always ends — also when the action rejects — so the buttons and the confirm dialog always
+ * recover. The action passed in wraps `setTrackStatus` to also
  * report its result to the list (`onStatusResult`), which keeps a failure alive even if this row
  * disappears (M2 minor): a stale re-render can remove the track from the list before the learner
  * has read why the change failed.

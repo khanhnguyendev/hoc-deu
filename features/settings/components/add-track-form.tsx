@@ -53,8 +53,9 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
   const [pickedStartDate, setPickedStartDate] = useState<string | null>(null)
   const { result, pending, onSubmit } = useSettingsAction(enrollTrack)
   // The last result belongs to the track it was submitted for — never the candidate now picked,
-  // if that has since changed (M2 minor): switching the radio clears the previous candidate's
-  // server errors and pending state instead of showing them against the new one's fields.
+  // if that has since changed (M2 minor): switching the radio hides the previous candidate's
+  // server errors instead of showing them against the new one's fields. (The pending state is
+  // not per candidate: the button stays busy for any running submission, `isPending` below.)
   const [submittedTrackId, setSubmittedTrackId] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
