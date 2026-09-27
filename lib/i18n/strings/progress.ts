@@ -27,6 +27,8 @@ export const progress = {
    */
   dayDone: 'Hoàn thành',
   dayNotDone: 'Chưa hoàn thành',
+  /** A day after today, read by screen readers beside its "—" (re-review M8). */
+  dayFuture: 'Chưa tới',
   noTracksTitle: 'Bạn chưa theo lộ trình nào',
   /** RF-4: a brand-new learner with no daily_activity row at all. */
   emptyTitle: 'Chưa có ngày học nào — bắt đầu từ trang Hôm nay',

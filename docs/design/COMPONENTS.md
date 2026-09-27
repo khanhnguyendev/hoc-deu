@@ -2210,13 +2210,15 @@ Task 5.5 adds these entries below this line (Part B-M5 decision 3).
 - **Layer:** features
 - **File:** `features/progress/components/weekly-summary.tsx`
 - **Props:** `week: WeeklySummary` (`lib/domain/stats/weeklySummary`), `tracks: { id, title, accent
-  }[]`, `title: string` (the week's name, from ProgressView), `nav?: ReactNode` (WeekNav)
+  }[]`, `title: string` (the week's name, from ProgressView), `today: LocalDay`, `nav?: ReactNode`
+  (WeekNav)
 - **Variants:** —
 - **States:** the week's Section: `nav` first, the stat cards under neutral labels ("Phút", "Ngày
   hoàn thành", "Mục đã học" — the section names the week, UI I-4), bars per enrolled track (value
   label at the bar end, scaled to the busiest track) · no tracks (a plain message, no bars) · the
   per-day list: "Thứ Hai, 28/09", the minutes and "Hoàn thành" / "Chưa hoàn thành" (the day's plan
-  completed — the stat card's count; never "Chưa học" beside minutes studied), icon + label
+  completed — the stat card's count; never "Chưa học" beside minutes studied), icon + label; a day
+  after `today` reads only "—" (screen readers: "Chưa tới"; re-review M8)
 - **Usage:** `<WeeklySummary week={page.week} tracks={page.tracks} title={…} nav={<WeekNav … />} />`
 - **Accessibility:** a region named by its `h2` (the week); the bars' list "Phút theo lộ trình",
   each a labelled `progressbar` (`components/ui/progress.tsx`) in its track accent; the days' list

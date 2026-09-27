@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { formatMinutes, formatWeekdayShort } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { WeeklySummary as WeekSummaryData } from '@/lib/domain/stats/weeklySummary'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 
 const copy = vi.progress
 
@@ -18,18 +19,22 @@ type Track = { readonly id: string; readonly title: string; readonly accent: str
  * bar per enrolled track in its accent, scaled to the week's busiest track, a value label at the
  * bar end, a baseline only (`Progress`'s own track), then each day by its weekday: its minutes and
  * whether its plan was completed ("Hoàn thành" / "Chưa hoàn thành", icon + label — never colour
- * alone; never "Chưa học" beside minutes studied).
+ * alone; never "Chưa học" beside minutes studied). A day after `today` reads only "—" (screen
+ * readers: "Chưa tới") — no minutes, no "Chưa hoàn thành" for a day that has not come (M8).
  */
 function WeeklySummary({
   week,
   tracks,
   title,
+  today,
   nav,
 }: {
   week: WeekSummaryData
   tracks: readonly Track[]
   /** The week's name (`ProgressView`: "Tuần này · 28/09 – 04/10", "Tuần trước · …", "Tuần …"). */
   title: string
+  /** The learner's local day: the days after it have not come yet. */
+  today: LocalDay
   /** WeekNav, above the cards. */
   nav?: React.ReactNode
 }) {
@@ -78,21 +83,31 @@ function WeeklySummary({
             className="flex items-center justify-between gap-2 border-b border-border py-1.5 text-sm last:border-b-0"
           >
             <span className="w-32 shrink-0">{formatWeekdayShort(day.localDay)}</span>
-            <span className="flex-1 font-mono text-muted-foreground tabular-nums">
-              {formatMinutes(day.minutes)}
-            </span>
-            <span className="flex items-center gap-1.5">
-              {day.completed ? (
-                <Check aria-hidden="true" strokeWidth={1.75} className="size-4 text-success" />
-              ) : (
-                <Circle
-                  aria-hidden="true"
-                  strokeWidth={1.75}
-                  className="size-4 text-subtle-foreground"
-                />
-              )}
-              {day.completed ? copy.dayDone : copy.dayNotDone}
-            </span>
+            {/* LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological. */}
+            {day.localDay > today ? (
+              <span className="flex-1 text-subtle-foreground">
+                <span aria-hidden="true">—</span>
+                <span className="sr-only">{copy.dayFuture}</span>
+              </span>
+            ) : (
+              <>
+                <span className="flex-1 font-mono text-muted-foreground tabular-nums">
+                  {formatMinutes(day.minutes)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  {day.completed ? (
+                    <Check aria-hidden="true" strokeWidth={1.75} className="size-4 text-success" />
+                  ) : (
+                    <Circle
+                      aria-hidden="true"
+                      strokeWidth={1.75}
+                      className="size-4 text-subtle-foreground"
+                    />
+                  )}
+                  {day.completed ? copy.dayDone : copy.dayNotDone}
+                </span>
+              </>
+            )}
           </li>
         ))}
       </ul>

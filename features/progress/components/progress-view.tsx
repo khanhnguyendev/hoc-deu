@@ -34,6 +34,7 @@ function ProgressView({ page }: { page: ProgressPage }) {
             week={page.week}
             tracks={page.tracks}
             title={weekTitle(page)}
+            today={page.today}
             nav={<WeekNav previousWeek={page.previousWeek} nextWeek={page.nextWeek} />}
           />
         </>

@@ -9,7 +9,8 @@ import type { Entry } from '../types'
 
 /** `/dev/components` entries of features/progress (task 5.5) — Part B-M5 decision 3: only that task edits this file. */
 
-const DEMO_TODAY = '2026-09-28'
+// A Wednesday: the week shows past days, today and days not yet come (re-review M8).
+const DEMO_TODAY = '2026-09-30'
 const DEMO_DAYS = {
   '2026-09-28': {
     localDay: '2026-09-28',
@@ -99,12 +100,14 @@ export const PROGRESS_ENTRIES: Entry[] = [
     file: 'features/progress/components/weekly-summary.tsx',
     demos: [
       {
-        title: 'Tuần này: điều hướng, thống kê, cột theo lộ trình, ngày (hoàn thành / chưa)',
+        title:
+          'Tuần này: điều hướng, thống kê, cột theo lộ trình, ngày (hoàn thành / chưa / "—" chưa tới)',
         render: () => (
           <WeeklySummary
             week={DEMO_WEEK}
             tracks={DEMO_TRACKS}
             title="Tuần này · 28/09 – 04/10"
+            today={DEMO_TODAY}
             nav={<WeekNav previousWeek="2026-09-21" nextWeek={null} />}
           />
         ),
@@ -116,6 +119,7 @@ export const PROGRESS_ENTRIES: Entry[] = [
             week={weeklySummary({}, DEMO_TODAY, new Set())}
             tracks={[]}
             title="Tuần này · 28/09 – 04/10"
+            today={DEMO_TODAY}
           />
         ),
       },
