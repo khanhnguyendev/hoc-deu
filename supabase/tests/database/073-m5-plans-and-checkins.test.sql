@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(93);
+select plan(97);
 
 -- Task 5.0b: SQL for plans and check-ins (platform design §2.3, §4.3–§4.5, §5.5, §5.9;
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2,
@@ -629,6 +629,45 @@ select throws_ok(
     :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
   ),
   'P0001', 'invalid_event', '... extra:0'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':english:extra:1000')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... a four-digit number (extra:1000)'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':english:extra:')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... an empty number (extra:)'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', '2'::jsonb), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... an id that is not a string'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        tests.extra_block(%3$L, 'english', array['english:card-0004']) - 'id', 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... or no id at all'
 );
 select throws_ok(
   format(
