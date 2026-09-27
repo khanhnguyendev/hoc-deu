@@ -30,8 +30,8 @@
 -- 4. The profile row lock: active users only (inactive). 5. A duplicate event id is a no-op.
 -- 5a. plan.generated: day_changed when the caller built the plan for another local day (ruling
 --    M4-R21) — before plan_exists, which then only returns a plan of the database's own day.
--- 6. A rebuild: version_conflict / plan_in_use; plan.extra_added: version_conflict and the stored
---    extra block — each decided under the lock. 7. The plan write (plan_exists when the date has
+-- 6. A rebuild: version_conflict / plan_in_use; plan.extra_added: version_conflict, the stored
+--    extra block and the numbering of a new one — each decided under the lock. 7. The plan write (plan_exists when the date has
 --    a plan) and the event, in one subtransaction.
 -- 8. day_changed when the caller computed its rows for another local day (decision 10 of M4).
 -- 9. The state change.
@@ -66,6 +66,8 @@ declare
   v_item_ids jsonb;
   v_items jsonb;
   v_block_id text;
+  v_extra_prefix text;
+  v_extra_n integer;
   v_blocks jsonb;
   v_old_items jsonb;
   v_old_index bigint;
@@ -151,12 +153,12 @@ begin
     v_plan_date := (v_row ->> 'plan_date')::date;
 
   elsif v_type = 'plan.extra_added' then
-    -- "Học thêm" and off-plan study (§5.9, decision 22): the server appends items to the track's
-    -- extra block of the user's own plan. p_event: plan_id and track_id; payload exactly
-    -- { itemIds }, 1 to 20 distinct strings of 1–128 characters (ruling M5-R2; addExtraItems
-    -- checks the same bound before calling). p_changes = [{ table: day_plan_block, row: <block> }]
-    -- — the whole extra block after the addition — and p_expected = { "day_plans:<plan_date>": n }
-    -- and nothing else, n the plan's version.
+    -- "Học thêm" and off-plan study (§5.9, decision 22): the server appends items to one of the
+    -- track's extra blocks of the user's own plan, or adds its next one (M-3). p_event: plan_id
+    -- and track_id; payload exactly { itemIds }, 1 to 20 distinct strings of 1–128 characters
+    -- (ruling M5-R2; addExtraItems checks the same bound before calling). p_changes = [{ table:
+    -- day_plan_block, row: <block> }] — the whole extra block after the addition — and
+    -- p_expected = { "day_plans:<plan_date>": n } and nothing else, n the plan's version.
     v_item_ids := v_payload -> 'itemIds';
     if p_event ->> 'plan_id' is null or p_event ->> 'track_id' is null
       or jsonb_typeof(v_item_ids) is distinct from 'array'
@@ -186,20 +188,25 @@ begin
     v_plan_id := (p_event ->> 'plan_id')::uuid;
     -- Ruling M4-R12: the date as YYYY-MM-DD whatever the session's DateStyle, never ::text.
     v_key := 'day_plans:' || to_char(v_plan_date, 'YYYY-MM-DD');
-    v_block_id := to_char(v_plan_date, 'YYYY-MM-DD') || ':' || (p_event ->> 'track_id')
-      || ':extra:1';
+    v_extra_prefix := to_char(v_plan_date, 'YYYY-MM-DD') || ':' || (p_event ->> 'track_id')
+      || ':extra:';
     v_row := case when jsonb_array_length(v_changes) = 1
       and v_changes -> 0 ->> 'table' = 'day_plan_block' then v_changes -> 0 -> 'row' end;
     v_items := v_row -> 'items';
-    -- The block: the track's extra block (id <date>:<track>:extra:1, kind extra), a numeric
-    -- estMinutes, items with distinct string itemIds that end with exactly payload.itemIds, in
-    -- order. The items before them are checked against the stored block under the lock.
+    v_block_id := case when jsonb_typeof(v_row -> 'id') = 'string' then v_row ->> 'id' end;
+    -- The block: one of the track's extra blocks — id <date>:<track>:extra:<n>, n = 1, 2, …
+    -- written without leading zeros (a fresh block after extra:1 for off-plan study on the paused
+    -- plan: ruling M5-R36, M-3) — kind extra, a numeric estMinutes, items with distinct string
+    -- itemIds that end with exactly payload.itemIds, in order. The items before them, and that a
+    -- new block follows extra:<n - 1>, are checked against the stored plan under the lock.
     if (select count(*) from jsonb_object_keys(v_expected_map)) <> 1
       or not (case when jsonb_typeof(v_expected_map -> v_key) = 'number'
         then coalesce(pg_catalog.pg_input_is_valid(v_expected_map ->> v_key, 'integer'), false)
         else false end)
       or jsonb_typeof(v_row) is distinct from 'object'
-      or v_row -> 'id' is distinct from to_jsonb(v_block_id)
+      or not coalesce(starts_with(v_block_id, v_extra_prefix), false)
+      or not coalesce(
+        substr(v_block_id, char_length(v_extra_prefix) + 1) ~ '^[1-9][0-9]{0,2}$', false)
       or v_row -> 'kind' is distinct from to_jsonb('extra'::text)
       or v_row -> 'trackId' is distinct from to_jsonb(p_event ->> 'track_id')
       or jsonb_typeof(v_row -> 'estMinutes') is distinct from 'number'
@@ -299,8 +306,9 @@ begin
         'outcome', 'plan_in_use', 'plan_id', v_plan_id, 'versions', '{}'::jsonb);
     end if;
   elsif v_type = 'plan.extra_added' then
-    -- The plan at version n; the block starts with the stored extra block's items — the same
-    -- objects, in the same order (none when the track has no extra block yet).
+    -- The plan at version n; the block starts with the stored block's items — the same objects,
+    -- in the same order (none for a new block). A new block is extra:1, or extra:<n> when the
+    -- plan holds extra:<n - 1>: the track's extra blocks stay numbered 1, 2, … (M-3).
     select d.version, d.blocks into v_version, v_blocks
     from public.day_plans d where d.id = v_plan_id;
     if v_version <> v_expected then
@@ -311,6 +319,13 @@ begin
     where b.value -> 'id' = to_jsonb(v_block_id)
     order by b.n
     limit 1;
+    v_extra_n := substr(v_block_id, char_length(v_extra_prefix) + 1)::integer;
+    if v_old_index is null and v_extra_n > 1 and not exists (
+      select 1 from pg_catalog.jsonb_array_elements(v_blocks) as b (value)
+      where b.value -> 'id' = to_jsonb(v_extra_prefix || (v_extra_n - 1)::text)
+    ) then
+      raise exception 'invalid_event';
+    end if;
     v_old_items := case when jsonb_typeof(v_old_items) = 'array' then v_old_items
       else '[]'::jsonb end;
     if jsonb_array_length(v_items) <> jsonb_array_length(v_old_items)
@@ -367,8 +382,8 @@ begin
       end if;
       v_versions := jsonb_build_object(v_key, v_plan_version);
     elsif v_type = 'plan.extra_added' then
-      -- The block replaces the track's extra block in place, or is appended; version n + 1. The
-      -- plan keeps its source, rules_version and seen_at.
+      -- The block replaces the stored block in place, or is appended; version n + 1. The plan
+      -- keeps its source, rules_version and seen_at.
       update public.day_plans d set
         blocks = case when v_old_index is null then d.blocks || jsonb_build_array(v_row)
           else jsonb_set(d.blocks, array[(v_old_index - 1)::text], v_row) end,

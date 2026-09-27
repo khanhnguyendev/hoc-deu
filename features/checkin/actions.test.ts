@@ -858,7 +858,7 @@ describe('recordOutcome', () => {
       ])
     })
 
-    it('[M-3] the paused plan’s extra block holds an unfinished item: the result joins it, no auto check-in, the gate stays closed', async () => {
+    it('[M-3] an active track: the paused plan’s extra block holds an unfinished item — the result joins it, no auto check-in, the gate stays closed (the paused view lists it)', async () => {
       const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
       const earlier = planBlock(YESTERDAY, 'dsa', 'extra', ['dsa:p6'])
       const paused = planRow({ date: YESTERDAY, blocks: [old, earlier], seenAt: seen(YESTERDAY) })
@@ -880,6 +880,50 @@ describe('recordOutcome', () => {
         block_id: `${YESTERDAY}:dsa:extra:1`,
       })
       expect(fake.tables.day_plans?.map((row) => row.plan_date)).toEqual([YESTERDAY])
+    })
+
+    it('[M-3, M5-R36] a paused track’s extra block holds an unfinished item: the card goes to a fresh extra block, checked in — the gate reopens', async () => {
+      const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
+      const english = planBlock(YESTERDAY, 'english', 'extra', ['english:e1'])
+      const paused = planRow({
+        date: YESTERDAY,
+        blocks: [old, english],
+        seenAt: seen(YESTERDAY),
+      })
+      const fake = setup({
+        day_plans: [paused],
+        user_tracks: [
+          trackRow('dsa', { start_date: '2026-09-01' }),
+          trackRow('english', { start_date: '2026-09-01', status: 'paused' }),
+        ],
+      })
+      const fresh = `${YESTERDAY}:english:extra:2`
+      const know = { type: 'item.result', result: 'know' } as const
+      expect(await recordOutcome(solved({ itemId: 'english:e2', outcome: know }))).toEqual({
+        ok: true,
+        message: copy.checkIn.outcome.savedAndCheckedIn,
+        autoCheckedIn: [fresh],
+      })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        plan_id: paused.id,
+        block_id: fresh,
+        local_day: TODAY,
+      })
+      // The hidden extra:1 is untouched; the fresh block's one card counts (1.5 → 2 minutes).
+      expect(extraBlock(fake, paused.id)).toEqual(english)
+      expect(blockRow(fake, paused.id, english.id)).toBeUndefined()
+      expect(blockRow(fake, paused.id, fresh)).toMatchObject({
+        status: 'done',
+        minutes: 2,
+        auto: true,
+        checked_in_on: TODAY,
+      })
+      expect(dayRow(fake, TODAY)).toMatchObject({
+        completed: true,
+        minutes_by_track: { english: 2 },
+      })
+      const gate = await gateState(fake.client('session'), USER_ID, TODAY, new Set(['dsa']))
+      expect(gate?.kind).toBe('resumed')
     })
 
     it('[M-2] a plain Error while building today’s plan never loses the result: logged, recorded without a plan', async () => {

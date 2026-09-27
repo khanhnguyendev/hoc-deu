@@ -1,14 +1,16 @@
 /**
  * "Học thêm" and off-plan study (platform design §5.3, §5.5, §5.9; Part B-M5 decisions 20, 21):
  * which new items a tap of "Học thêm" appends to a track's `extra` block, the block after an
- * addition, and the mode an item studied off the plan is attached in. Pure — the server
- * (`lib/plans/extra.ts`) loads the plan and the context and stores the block through
- * `plan.extra_added`, which only lets it append.
+ * addition, when off-plan study needs a fresh extra block (ruling M5-R36, M-3), and the mode an
+ * item studied off the plan is attached in. Pure — the server (`lib/plans/extra.ts`) loads the
+ * plan and the context and stores the block through `plan.extra_added`, which only lets it append
+ * to one of the track's extra blocks or add the next one.
  */
 import type { ItemMode, PlanItem } from '../catalog'
 import { own } from '../compare'
-import type { ItemState } from '../state'
+import { blockKey, type BlockState, type ItemState } from '../state'
 import type { LocalDay } from '../time/localDay'
+import { itemHandled } from './checkin'
 import { reviewMode } from './reviewMode'
 import { newQueue } from './roadmap'
 import { planBlockId } from './template'
@@ -29,15 +31,27 @@ export const EXTRA_MAX_ITEMS = 20
 /** `planBlockSchema`'s bound on a block's items. */
 const MAX_BLOCK_ITEMS = 500
 
-/** The track's `extra` block: `<date>:<track>:extra:1` (§5.4 step 8, decision 20). */
-export function extraBlockId(planDate: LocalDay, trackId: string): string {
-  return planBlockId(planDate, trackId, 'extra', 1)
+/** The track's `extra` block `n`: `<date>:<track>:extra:<n>` (§5.4 step 8, decision 20). A plan
+ *  holds `extra:1`; `extra:2`, … only follow it as fresh blocks (ruling M5-R36, M-3). */
+export function extraBlockId(planDate: LocalDay, trackId: string, n = 1): string {
+  return planBlockId(planDate, trackId, 'extra', n)
 }
 
-/** The track's extra block in `plan`, if it has one. */
-function extraBlockOf(plan: StoredPlan, trackId: string): PlanBlock | undefined {
-  const id = extraBlockId(plan.planDate, trackId)
-  return plan.blocks.find((block) => block.id === id)
+/** The track's extra blocks in `plan`, in number order: `extra:1`, `extra:2`, … while each exists. */
+function extraBlocksOf(plan: StoredPlan, trackId: string): PlanBlock[] {
+  const found: PlanBlock[] = []
+  for (;;) {
+    const id = extraBlockId(plan.planDate, trackId, found.length + 1)
+    const next = plan.blocks.find((block) => block.id === id)
+    if (next === undefined) return found
+    found.push(next)
+  }
+}
+
+/** The track's latest extra block in `plan` — the one "Học thêm" and off-plan study append to —
+ *  if it has one. */
+export function extraBlockOf(plan: StoredPlan, trackId: string): PlanBlock | undefined {
+  return extraBlocksOf(plan, trackId).at(-1)
 }
 
 /**
@@ -99,24 +113,51 @@ export function extraCandidates(
 }
 
 /**
- * The track's extra block after appending `items` — created when the plan has none: the stored
- * block's items first (the same objects, in order, as `plan.extra_added` checks), then `items`;
- * `estMinutes` = the sum of all its items' minutes.
+ * The track's latest extra block after appending `items` — created (`extra:1`) when the plan has
+ * none: the stored block's items first (the same objects, in order, as `plan.extra_added`
+ * checks), then `items`; `estMinutes` = the sum of all its items' minutes. With `fresh`, a new
+ * extra block numbered after the latest one, holding `items` only (`freshExtraBlockNeeded`).
  */
 export function withExtraItems(
   plan: StoredPlan,
   trackId: string,
   items: readonly PlanBlockItem[],
+  options: { readonly fresh?: boolean } = {},
 ): PlanBlock {
-  const existing = extraBlockOf(plan, trackId)
-  const all = [...(existing?.items ?? []), ...items]
+  const existing = extraBlocksOf(plan, trackId)
+  const latest = options.fresh === true ? undefined : existing.at(-1)
+  const n = latest === undefined ? existing.length + 1 : existing.length
+  const all = [...(latest?.items ?? []), ...items]
   return {
-    id: extraBlockId(plan.planDate, trackId),
+    id: extraBlockId(plan.planDate, trackId, n),
     trackId,
     kind: 'extra',
     estMinutes: all.reduce((sum, item) => sum + item.minutes, 0),
     items: all,
   }
+}
+
+/**
+ * Off-plan study of a track the paused view hides (ruling M5-R36, M-3): whether the item goes to
+ * a fresh extra block instead of the track's latest one. The caller asks only on the paused plan
+ * and for a track that is not active — its blocks are left out of the paused view
+ * (`unfinishedBlocks`, M-5 A), so the learner cannot check them in and the study must count by
+ * itself. True when that extra block would not be checked in after the item's result: it holds an
+ * item not handled for the plan date (`itemHandled`), or it carries the learner's own check-in (a
+ * skip — the auto check-in never replaces it, M-6). False without an extra block (the attachment
+ * creates `extra:1`).
+ */
+export function freshExtraBlockNeeded(
+  plan: StoredPlan,
+  trackId: string,
+  blocks: Readonly<Record<string, BlockState>>,
+  items: Readonly<Record<string, ItemState>>,
+): boolean {
+  const extra = extraBlockOf(plan, trackId)
+  if (extra === undefined) return false
+  const checkIn = own(blocks, blockKey(plan.id, extra.id))
+  if (checkIn !== undefined && !checkIn.auto) return true
+  return !extra.items.every((item) => itemHandled(item.itemId, plan.planDate, items))
 }
 
 /**

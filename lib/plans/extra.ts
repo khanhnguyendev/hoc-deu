@@ -12,11 +12,18 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ItemMode } from '@/lib/domain/catalog'
 import { own } from '@/lib/domain/compare'
 import { blocksWithItem } from '@/lib/domain/plan/checkin'
-import { extraCandidates, withExtraItems } from '@/lib/domain/plan/extra'
+import {
+  extraBlockOf,
+  extraCandidates,
+  freshExtraBlockNeeded,
+  withExtraItems,
+} from '@/lib/domain/plan/extra'
 import { planBlockSchema, type StoredPlan } from '@/lib/domain/plan/types'
+import type { BlockState } from '@/lib/domain/state'
 import type { LocalDay } from '@/lib/domain/time/localDay'
 import { withRetry } from '@/lib/events/apply'
 import { deriveEventId } from '@/lib/events/ids'
+import { loadItemStates } from '@/lib/events/load-derived'
 import { addExtraItems } from '@/lib/events/plans'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
@@ -83,17 +90,25 @@ export async function addExtraForTrack(
   })
 }
 
+/** Where an item studied now is attached (decision 21): the plan, with what the paused view needs
+ *  to know about it (M-3). */
+type Target = {
+  readonly plan: StoredPlan
+  readonly today: LocalDay
+  /** The plan is the paused one: its blocks of tracks not `active` are hidden (M-5 A). */
+  readonly paused: boolean
+  readonly blocks: Readonly<Record<string, BlockState>>
+  /** The tracks of the learner's `active` enrollments. */
+  readonly active: ReadonlySet<string>
+}
+
 /**
  * The plan an item studied now belongs to (decision 21): the current plan (decision 13) — today's,
  * the paused plan while the gate is closed, the resumed one — and, when there is none yet,
  * today's plan built by `ensureToday`. Null when there is no plan to show (no active track, every
  * track starting later, an unreadable plan of today).
  */
-async function planToAttach(
-  supabase: Client,
-  userId: string,
-  clock: Date,
-): Promise<{ readonly plan: StoredPlan; readonly today: LocalDay } | null> {
+async function planToAttach(supabase: Client, userId: string, clock: Date): Promise<Target | null> {
   const [versions, enrollments] = await Promise.all([
     readScheduleVersions(supabase, userId),
     readEnrollments(supabase, userId, planCatalog()),
@@ -105,21 +120,52 @@ async function planToAttach(
       .map((enrollment) => enrollment.trackId),
   )
   const current = await currentPlan(supabase, userId, today, active)
-  if (current !== null) return { plan: current.plan, today }
+  if (current !== null) {
+    const { plan, blocks } = current
+    return { plan, today, paused: current.kind === 'paused', blocks, active }
+  }
   if (active.size === 0) return null
   const built = await ensureToday(userId, clock)
   const { state } = built
   return state.kind === 'plan' || state.kind === 'paused' || state.kind === 'resumed'
-    ? { plan: state.plan, today: built.today }
+    ? {
+        plan: state.plan,
+        today: built.today,
+        paused: state.kind === 'paused',
+        blocks: state.blocks,
+        active,
+      }
     : null
 }
 
 /**
+ * M-3 (ruling M5-R36): whether the item of `trackId` goes to a fresh extra block — only on the
+ * paused plan, for a track that is not active (the paused view hides its blocks), whose latest
+ * extra block would not be checked in after the item's result (`freshExtraBlockNeeded`, on the
+ * item states of that block, read here).
+ */
+async function freshBlockNeeded(
+  supabase: Client,
+  userId: string,
+  target: Target,
+  trackId: string,
+): Promise<boolean> {
+  if (!target.paused || target.active.has(trackId)) return false
+  const extra = extraBlockOf(target.plan, trackId)
+  if (extra === undefined) return false
+  const itemIds = extra.items.map((entry) => entry.itemId)
+  const items = await loadItemStates(supabase, userId, itemIds)
+  return freshExtraBlockNeeded(target.plan, trackId, target.blocks, items)
+}
+
+/**
  * Off-plan study (decision 21, §5.9): attaches `itemId` in `mode` (its minutes in that mode) to
- * its track's extra block of the plan it belongs to (`planToAttach`) — building today's plan
- * first when there is none — and answers where it landed. An item a block of that plan already
- * lists (the extra block included) is answered with that block and added nothing: a second call
- * for one item never adds it twice. Null — nothing attached — for an unknown item, without a plan,
+ * its track's latest extra block of the plan it belongs to (`planToAttach`) — building today's
+ * plan first when there is none — and answers where it landed. An item a block of that plan
+ * already lists (an extra block included) is answered with that block and added nothing: a second
+ * call for one item never adds it twice. On the paused plan, a track the paused view hides gets a
+ * fresh extra block when its latest one cannot count by itself (`freshBlockNeeded`, M-3), so the
+ * study is checked in and counts. Null — nothing attached — for an unknown item, without a plan,
  * and when the extra block cannot hold it (`planBlockSchema`'s bounds). The auto check-in that
  * follows (decision 15) is the caller's (`recordOutcome`).
  */
@@ -143,9 +189,13 @@ export async function attachOffPlan(
     const listed = blocksWithItem(plan, itemId)[0]
     if (listed !== undefined) return { planId: plan.id, blockId: listed.id }
 
-    const block = withExtraItems(plan, item.trackId, [
-      { itemId, mode, minutes: item.minutes[mode] },
-    ])
+    const fresh = await freshBlockNeeded(supabase, userId, found, item.trackId)
+    const block = withExtraItems(
+      plan,
+      item.trackId,
+      [{ itemId, mode, minutes: item.minutes[mode] }],
+      { fresh },
+    )
     if (!planBlockSchema.safeParse(block).success) return null
     await addExtraItems(createAdminClient(), userId, {
       eventId: deriveEventId(requestId, `offplan:${plan.id}:${itemId}`),

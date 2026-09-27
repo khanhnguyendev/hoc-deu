@@ -2,10 +2,11 @@
  * `plan.extra_added` as `apply_system_event` answers it (20260927000100, decision 22), in the
  * fake's tables, for the "Học thêm" and off-plan tests (task 5.4): a known event id is
  * `duplicate`; the plan must be the user's, at the expected version (`version_conflict`); the
- * block must be the track's extra block holding the stored extra block's items, in order, then
- * exactly `payload.itemIds` (`invalid_event`); the event's `local_day` must be the database's
- * (`day_changed`). Then the block replaces the stored one (or is appended), the plan's version is
- * n + 1 and the event is stored with the plan's id. `planEvents` joins it with `planStore`'s
+ * block must be one of the track's extra blocks (`<date>:<track>:extra:<n>`) holding the stored
+ * block's items, in order, then exactly `payload.itemIds` — a new one only as `extra:1` or right
+ * after `extra:<n - 1>` (ruling M5-R36, M-3) — (`invalid_event`); the event's `local_day` must be
+ * the database's (`day_changed`). Then the block replaces the stored one (or is appended), the
+ * plan's version is n + 1 and the event is stored with the plan's id. `planEvents` joins it with `planStore`'s
  * `plan.generated` (`./fixtures`), so an action that builds today's plan first works too.
  */
 import type { PlanBlock } from '@/lib/domain/plan/types'
@@ -64,13 +65,17 @@ export function extraAdded(fake: FakeSupabase, raw: Record<string, unknown>): Rp
   if (args.p_expected[key] !== plan.version) return raise('version_conflict')
 
   const block = args.p_changes[0]?.row
-  const blockId = `${plan.plan_date}:${event.track_id}:extra:1`
+  const prefix = `${plan.plan_date}:${event.track_id}:extra:`
+  const n = block?.id.startsWith(prefix) === true ? block.id.slice(prefix.length) : ''
   const blocks = plan.blocks as unknown as PlanBlock[]
-  const index = blocks.findIndex((candidate) => candidate.id === blockId)
+  const index = blocks.findIndex((candidate) => candidate.id === block?.id)
   const before = index === -1 ? [] : (blocks[index]?.items ?? [])
+  const follows =
+    index !== -1 || n === '1' || blocks.some((stored) => stored.id === `${prefix}${Number(n) - 1}`)
   if (
     block === undefined ||
-    block.id !== blockId ||
+    !/^[1-9][0-9]{0,2}$/.test(n) ||
+    !follows ||
     block.kind !== 'extra' ||
     block.trackId !== event.track_id ||
     JSON.stringify(block.items) !==

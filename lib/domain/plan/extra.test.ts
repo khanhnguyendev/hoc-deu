@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ItemState } from '../state'
+import { blockKey, type BlockState, type ItemState } from '../state'
 import {
   CATALOG,
   enrollment,
@@ -14,8 +14,10 @@ import {
   EXTRA_MAX_ITEMS,
   EXTRA_MIN_MINUTES,
   extraBlockId,
+  extraBlockOf,
   extraCandidates,
   extraTrackIds,
+  freshExtraBlockNeeded,
   offPlanMode,
   withExtraItems,
 } from './extra'
@@ -80,9 +82,36 @@ function plan(
 
 const ids = (items: readonly PlanBlockItem[]) => items.map((item) => item.itemId)
 
+/** The track's extra block `n` (`<date>:<track>:extra:<n>`) holding `items`. */
+const extraN = (
+  trackId: string,
+  n: number,
+  items: readonly Pick<PlanBlockItem, 'itemId' | 'minutes'>[],
+): PlanBlock => ({ ...block(trackId, 'extra', items), id: `${MONDAY}:${trackId}:extra:${n}` })
+
 describe('extraBlockId', () => {
   it('is `<date>:<track>:extra:1` (§5.4 step 8, decision 20)', () => {
     expect(extraBlockId('2026-09-28', 'dsa')).toBe('2026-09-28:dsa:extra:1')
+  })
+
+  it('numbers a fresh extra block: `<date>:<track>:extra:<n>` (ruling M5-R36, M-3)', () => {
+    expect(extraBlockId('2026-09-28', 'english', 2)).toBe('2026-09-28:english:extra:2')
+  })
+})
+
+describe('extraBlockOf (the track’s latest extra block)', () => {
+  const first = extraN('english', 1, [{ itemId: 'english:e1', minutes: 1.5 }])
+  const second = extraN('english', 2, [{ itemId: 'english:e2', minutes: 1.5 }])
+
+  it('is extra:1, else none', () => {
+    expect(extraBlockOf(plan([first]), 'english')).toEqual(first)
+    expect(extraBlockOf(plan([first]), 'dsa')).toBeUndefined()
+    expect(extraBlockOf(plan([]), 'english')).toBeUndefined()
+  })
+
+  it('is the last of extra:1, extra:2, … in number order', () => {
+    expect(extraBlockOf(plan([first, second]), 'english')).toEqual(second)
+    expect(extraBlockOf(plan([second, first]), 'english')).toEqual(second)
   })
 })
 
@@ -298,6 +327,105 @@ describe('withExtraItems', () => {
     expect(grown.items).toEqual([...existing.items, p2, p3])
     expect(grown.items[0]).toEqual(existing.items[0])
     expect(grown.estMinutes).toBe(90)
+  })
+
+  describe('a fresh extra block (ruling M5-R36, M-3)', () => {
+    const e2 = { itemId: 'english:e2', mode: 'review', minutes: 1.5 } as const
+    const first = extraN('english', 1, [{ itemId: 'english:e1', minutes: 1.5 }])
+
+    it('is extra:1 when the track has none', () => {
+      expect(withExtraItems(plan([]), 'english', [e2], { fresh: true })).toEqual({
+        id: `${MONDAY}:english:extra:1`,
+        trackId: 'english',
+        kind: 'extra',
+        estMinutes: 1.5,
+        items: [e2],
+      })
+    })
+
+    it('is the next number after the latest one, holding only the new items', () => {
+      const fresh = withExtraItems(plan([first]), 'english', [e2], { fresh: true })
+      expect(fresh).toEqual({
+        id: `${MONDAY}:english:extra:2`,
+        trackId: 'english',
+        kind: 'extra',
+        estMinutes: 1.5,
+        items: [e2],
+      })
+      expect(planBlockSchema.safeParse(fresh).success).toBe(true)
+    })
+
+    it('the next addition appends to the latest extra block, the fresh one', () => {
+      const second = extraN('english', 2, [{ itemId: 'english:e2', minutes: 1.5 }])
+      const e3 = { itemId: 'english:e3', mode: 'new', minutes: 1.5 } as const
+      const grown = withExtraItems(plan([first, second]), 'english', [e3])
+      expect(grown.id).toBe(second.id)
+      expect(ids(grown.items)).toEqual(['english:e2', 'english:e3'])
+    })
+
+    it('extraCandidates measures the room of the latest extra block', () => {
+      const full = extraN('dsa', 1, [{ itemId: 'dsa:p9', minutes: MAX_BLOCK_MINUTES }])
+      const small = extraN('dsa', 2, [{ itemId: 'dsa:p8', minutes: 5 }])
+      expect(extraCandidates(planContext(), plan([full]), 'dsa')).toEqual([])
+      expect(ids(extraCandidates(planContext(), plan([full, small]), 'dsa'))).toEqual([
+        'dsa:lesson-arrays',
+      ])
+    })
+  })
+})
+
+describe('freshExtraBlockNeeded (off-plan study of a track the paused view hides, M-3)', () => {
+  const extra = extraN('english', 1, [
+    { itemId: 'english:e1', minutes: 1.5 },
+    { itemId: 'english:e2', minutes: 1.5 },
+  ])
+  const target = plan([extra])
+  const studied = (itemId: string): ItemState => itemState(itemId, MONDAY)
+  const handledBoth = statesOf(studied('english:e1'), studied('english:e2'))
+  const checkIn = (change: Partial<BlockState>): Record<string, BlockState> => ({
+    [blockKey(target.id, extra.id)]: {
+      planId: target.id,
+      blockId: extra.id,
+      trackId: 'english',
+      status: 'skipped',
+      minutes: 0,
+      note: null,
+      auto: false,
+      checkedInOn: MONDAY,
+      ...change,
+    },
+  })
+
+  it('is false without an extra block of the track: the attachment creates one', () => {
+    expect(freshExtraBlockNeeded(target, 'dsa', {}, {})).toBe(false)
+  })
+
+  it('is false while every item of the extra block is handled: its auto check-in follows', () => {
+    expect(freshExtraBlockNeeded(target, 'english', {}, handledBoth)).toBe(false)
+    const skipped = statesOf(
+      studied('english:e1'),
+      itemState('english:e2', MONDAY, { status: 'skipped', lastResultOn: null }),
+    )
+    expect(freshExtraBlockNeeded(target, 'english', {}, skipped)).toBe(false)
+    const auto = checkIn({ status: 'done', minutes: 3, auto: true })
+    expect(freshExtraBlockNeeded(target, 'english', auto, handledBoth)).toBe(false)
+  })
+
+  it('is true when the extra block holds an item not studied on or after the plan date', () => {
+    expect(freshExtraBlockNeeded(target, 'english', {}, statesOf(studied('english:e1')))).toBe(true)
+    const older = statesOf(studied('english:e1'), itemState('english:e2', '2026-09-20'))
+    expect(freshExtraBlockNeeded(target, 'english', {}, older)).toBe(true)
+  })
+
+  it('is true when the learner checked it in (a skip): the auto check-in never replaces that', () => {
+    expect(freshExtraBlockNeeded(target, 'english', checkIn({}), handledBoth)).toBe(true)
+  })
+
+  it('reads the latest extra block, and never modifies its inputs', () => {
+    const second = extraN('english', 2, [{ itemId: 'english:e3', minutes: 1.5 }])
+    const both = plan([extra, second])
+    const states = deepFreeze(statesOf(studied('english:e3')))
+    expect(freshExtraBlockNeeded(both, 'english', deepFreeze({}), states)).toBe(false)
   })
 })
 

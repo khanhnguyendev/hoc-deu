@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(85);
+select plan(93);
 
 -- Task 5.0b: SQL for plans and check-ins (platform design §2.3, §4.3–§4.5, §5.5, §5.9;
 -- implementation plan Part B-M5 decisions 9, 22, 23, 30; rulings M4-R12, M4-R21, M4-R22, M5-R2,
@@ -342,13 +342,12 @@ select throws_ok(
   format(
     $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'dsa',
         array['dsa:lc-0104'],
-        jsonb_set(
-          tests.extra_block(%3$L, 'dsa',
-            array['dsa:lc-0101', 'dsa:lc-0102', 'dsa:lc-0103', 'dsa:lc-0104']),
-          '{id}', to_jsonb(%3$L || ':dsa:extra:2')), 4, %3$L)$$,
+        jsonb_set(tests.extra_block(%3$L, 'dsa', array['dsa:lc-0104']),
+          '{id}', to_jsonb(%3$L || ':dsa:extra:3')), 4, %3$L)$$,
     :'extra', '73000000-0000-4000-8000-0000000000e1', :'today'
   ),
-  'P0001', 'invalid_event', 'a block id other than <date>:<track>:extra:1 raises invalid_event'
+  'P0001', 'invalid_event',
+  'a new block other than the track''s next extra block (extra:3 without extra:2) raises invalid_event'
 );
 select throws_ok(
   format(
@@ -568,6 +567,108 @@ select results_eq(
     where id = '73000000-0000-4000-8000-0000000000e1'$$,
   $$values (4, 4)$$,
   '... and neither changed the plan'
+);
+
+-- ---------------------------------------------------------------------------------------------
+-- 2b. A fresh extra block (ruling M5-R36, M-3): off-plan study of a track the paused view hides
+--     adds the track's next extra block, <date>:<track>:extra:<n> after extra:<n - 1>, holding
+--     only payload.itemIds; the next addition appends to it. A paused plan of yesterday.
+-- ---------------------------------------------------------------------------------------------
+select tests.create_user('m5-extra-fresh@hocdeu.test') as fresh \gset
+insert into public.day_plans (id, user_id, plan_date, blocks) values
+  ('73000000-0000-4000-8000-0000000000f1', :'fresh', :'yesterday',
+   tests.blocks(:'yesterday')
+     || jsonb_build_array(tests.extra_block(:'yesterday', 'english', array['english:card-0001'])));
+
+select tests.authenticate_as_service_role();
+select is(
+  tests.add_extra(
+    :'fresh', '73000000-0000-4000-8000-000000000f01', '73000000-0000-4000-8000-0000000000f1',
+    :'yesterday', 'english', array['english:card-0002'],
+    jsonb_set(tests.extra_block(:'yesterday', 'english', array['english:card-0002']),
+      '{id}', to_jsonb(:'yesterday' || ':english:extra:2')), 1, :'today') -> 'versions',
+  tests.plan_expected(:'yesterday', 2),
+  'the track''s extra:2 after its extra:1, holding only the new item, returns version 2'
+);
+select is(
+  tests.add_extra(
+    :'fresh', '73000000-0000-4000-8000-000000000f02', '73000000-0000-4000-8000-0000000000f1',
+    :'yesterday', 'english', array['english:card-0003'],
+    jsonb_set(
+      tests.extra_block(:'yesterday', 'english', array['english:card-0002', 'english:card-0003']),
+      '{id}', to_jsonb(:'yesterday' || ':english:extra:2')), 2, :'today') -> 'versions',
+  tests.plan_expected(:'yesterday', 3),
+  '... and the next addition appends to extra:2 (version 3)'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':english:extra:4')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', 'extra:4 without extra:3 raises invalid_event'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':english:extra:03')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... and so does a number with a leading zero (extra:03)'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':english:extra:0')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... extra:0'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        tests.extra_block(%4$L, 'english', array['english:card-0004']), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... or the extra block of another date than the plan''s'
+);
+select throws_ok(
+  format(
+    $$select tests.add_extra(%1$L, gen_random_uuid()::text, %2$L, %3$L, 'english',
+        array['english:card-0004'],
+        jsonb_set(tests.extra_block(%3$L, 'english', array['english:card-0004']),
+          '{id}', to_jsonb(%3$L || ':dsa:extra:1')), 3, %4$L)$$,
+    :'fresh', '73000000-0000-4000-8000-0000000000f1', :'yesterday', :'today'
+  ),
+  'P0001', 'invalid_event', '... or of another track than the event''s'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select version, blocks,
+             (select count(*)::int from public.events where user_id = %L)
+      from public.day_plans where id = '73000000-0000-4000-8000-0000000000f1'$$,
+    :'fresh'
+  ),
+  format(
+    $$values (3,
+              tests.blocks(%1$L) || jsonb_build_array(
+                tests.extra_block(%1$L, 'english', array['english:card-0001']),
+                jsonb_set(
+                  tests.extra_block(%1$L, 'english',
+                    array['english:card-0002', 'english:card-0003']),
+                  '{id}', to_jsonb(%1$L || ':english:extra:2'))),
+              2)$$,
+    :'yesterday'
+  ),
+  '... the plan holds extra:1 untouched, then extra:2; the refused ones wrote nothing'
 );
 
 -- ---------------------------------------------------------------------------------------------

@@ -368,4 +368,110 @@ describe('attachOffPlan (off-plan study, decision 21)', () => {
     await expect(attachOffPlan(USER_ID, 'dsa:p6', 'new', REQUEST_ID, NOW)).rejects.toThrow()
     expect(fake.calls).toEqual([])
   })
+  describe('M-3 (ruling M5-R36): a track the paused view hides', () => {
+    const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
+    const english = planBlock(YESTERDAY, 'english', 'extra', ['english:e1'])
+    const tracks = { dsa: SNAPSHOT, english: ENGLISH_SNAPSHOT }
+    const paused = planRow({
+      date: YESTERDAY,
+      blocks: [old, english],
+      tracks,
+      seenAt: seen(YESTERDAY),
+    })
+    const enrolled = (status: 'active' | 'paused' | 'removed') => [
+      trackRow('dsa', { start_date: '2026-09-01' }),
+      trackRow('english', { start_date: '2026-09-01', status }),
+    ]
+    const fresh = `${YESTERDAY}:english:extra:2`
+
+    it.each(['paused', 'removed'] as const)(
+      'a %s track whose extra block holds an item not studied: a fresh extra block',
+      async (status) => {
+        const fake = learner({ day_plans: [paused], user_tracks: enrolled(status) })
+        expect(await attachOffPlan(USER_ID, 'english:e2', 'new', REQUEST_ID, NOW)).toEqual({
+          planId: paused.id,
+          blockId: fresh,
+        })
+        const [call, ...others] = extraCalls(fake)
+        expect(others).toEqual([])
+        expect(call?.p_event).toMatchObject({
+          id: deriveEventId(REQUEST_ID, `offplan:${paused.id}:english:e2`),
+          plan_id: paused.id,
+          track_id: 'english',
+          local_day: TODAY,
+          payload: { itemIds: ['english:e2'] },
+        })
+        expect(call?.p_changes[0]?.row).toEqual({
+          id: fresh,
+          trackId: 'english',
+          kind: 'extra',
+          estMinutes: 1.5,
+          items: [{ itemId: 'english:e2', mode: 'new', minutes: 1.5 }],
+        })
+        expect(blocksOf(fake, paused.id).map((block) => block.id)).toEqual([
+          old.id,
+          english.id,
+          fresh,
+        ])
+        // e2's result (recordOutcome records it next) finishes the fresh block: the track's next
+        // card joins it, its latest extra block.
+        ;(fake.tables.item_state ??= []).push(itemStateRow(itemState('english:e2', TODAY)))
+        await attachOffPlan(USER_ID, 'english:e3', 'new', REQUEST_ID, NOW)
+        expect(
+          blocksOf(fake, paused.id)
+            .at(-1)
+            ?.items.map((item) => item.itemId),
+        ).toEqual(['english:e2', 'english:e3'])
+      },
+    )
+
+    it('a track still active appends to its extra block: the paused view lists it', async () => {
+      const fake = learner({ day_plans: [paused], user_tracks: enrolled('active') })
+      expect(await attachOffPlan(USER_ID, 'english:e2', 'new', REQUEST_ID, NOW)).toEqual({
+        planId: paused.id,
+        blockId: english.id,
+      })
+      expect(extraOf(fake, paused.id, 'english')?.items.map((item) => item.itemId)).toEqual([
+        'english:e1',
+        'english:e2',
+      ])
+    })
+
+    it('every item of its extra block handled: appended, and its auto check-in follows', async () => {
+      learner({
+        day_plans: [paused],
+        user_tracks: enrolled('paused'),
+        item_state: [itemStateRow(itemState('english:e1', TODAY))],
+      })
+      expect(await attachOffPlan(USER_ID, 'english:e2', 'new', REQUEST_ID, NOW)).toEqual({
+        planId: paused.id,
+        blockId: english.id,
+      })
+    })
+
+    it('its extra block checked in skipped by the learner: a fresh extra block', async () => {
+      const fake = learner({
+        day_plans: [paused],
+        user_tracks: enrolled('paused'),
+        item_state: [itemStateRow(itemState('english:e1', TODAY))],
+        plan_block_state: [blockStateRow(paused, english, 'skipped', YESTERDAY)],
+      })
+      expect(await attachOffPlan(USER_ID, 'english:e2', 'new', REQUEST_ID, NOW)).toEqual({
+        planId: paused.id,
+        blockId: fresh,
+      })
+      expect(extraCalls(fake)).toHaveLength(1)
+    })
+
+    it("today's plan shows every block: appended, whatever the track", async () => {
+      const todayExtra = planBlock(TODAY, 'english', 'extra', ['english:e1'])
+      const today = planRow({ date: TODAY, blocks: [todayNew, todayExtra], tracks })
+      const fake = learner({ day_plans: [today], user_tracks: enrolled('paused') })
+      expect(await attachOffPlan(USER_ID, 'english:e2', 'new', REQUEST_ID, NOW)).toEqual({
+        planId: today.id,
+        blockId: todayExtra.id,
+      })
+      expect(fake.rpcs('apply_system_event')).toHaveLength(1)
+    })
+  })
 })
