@@ -9,15 +9,13 @@ describe('TodayStats', () => {
       <TodayStats
         streak={12}
         tracks={[
-          trackView({ dueCount: 3, week: 2, weeks: 8, progress: 0.25 }),
+          trackView({ dueCount: 3, progress: { week: 2, weeks: 8, introduced: 16, total: 64 } }),
           trackView({
             trackId: 'english',
             title: ENGLISH_TITLE,
             accent: 'track-2',
             dueCount: 9,
-            week: 1,
-            weeks: 10,
-            progress: 0.05,
+            progress: { week: 1, weeks: 10, introduced: 5, total: 100 },
           }),
         ]}
       />,
@@ -50,7 +48,14 @@ describe('TodayStats', () => {
   })
 
   it('a new learner (empty): streak 0, nothing due, rings at 0 %', () => {
-    render(<TodayStats streak={0} tracks={[trackView({ dueCount: 0, progress: 0, week: 1 })]} />)
+    render(
+      <TodayStats
+        streak={0}
+        tracks={[
+          trackView({ dueCount: 0, progress: { week: 1, weeks: 8, introduced: 0, total: 64 } }),
+        ]}
+      />,
+    )
     const region = screen.getByRole('region', { name: 'Tiến độ' })
     expect(region.textContent).toContain('0 ngày liên tiếp')
     expect(within(region).getByRole('link', { name: /Cần ôn hôm nay/ }).textContent).toContain('0')
@@ -58,7 +63,14 @@ describe('TodayStats', () => {
   })
 
   it('leaves the week out for a track without its roadmap (weeks 0)', () => {
-    render(<TodayStats streak={1} tracks={[trackView({ weeks: 0, week: 1, dueCount: 2 })]} />)
+    render(
+      <TodayStats
+        streak={1}
+        tracks={[
+          trackView({ progress: { week: 1, weeks: 0, introduced: 0, total: 0 }, dueCount: 2 }),
+        ]}
+      />,
+    )
     const region = screen.getByRole('region', { name: 'Tiến độ' })
     expect(region.textContent).not.toContain('Tuần')
     expect(region.textContent).toContain('2 mục cần ôn')
@@ -68,7 +80,13 @@ describe('TodayStats', () => {
     render(
       <TodayStats
         streak={1}
-        tracks={[trackView({ dueCount: 0, startsOn: '2026-10-05', week: 1, weeks: 8 })]}
+        tracks={[
+          trackView({
+            dueCount: 0,
+            startsOn: '2026-10-05',
+            progress: { week: 1, weeks: 8, introduced: 0, total: 64 },
+          }),
+        ]}
       />,
     )
     const region = screen.getByRole('region', { name: 'Tiến độ' })

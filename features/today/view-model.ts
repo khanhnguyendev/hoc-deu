@@ -6,12 +6,12 @@
  * catalog, which the tests replace.
  */
 import { itemHrefFromId } from '@/features/items/href'
+import { trackProgressOf, type TrackProgressData } from '@/features/roadmap'
 import { getTrack } from '@/lib/content/catalog'
-import { isActiveItem, type ItemMode, type PlanCatalog } from '@/lib/domain/catalog'
+import type { ItemMode } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
 import { extraTrackIds } from '@/lib/domain/plan/extra'
 import { dueQueue } from '@/lib/domain/plan/queues'
-import { coreItemsOfWeek, roadmapWeek, weekSizes } from '@/lib/domain/plan/roadmap'
 import { eligibleTracks } from '@/lib/domain/plan/track'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { blockKey, type BlockState, type DailyActivity } from '@/lib/domain/state'
@@ -51,10 +51,9 @@ export type TrackProgressView = {
   readonly trackId: string
   readonly title: string
   readonly accent: string
-  readonly week: number
-  readonly weeks: number
-  /** Introduced core items / core items of the variant (0–1). */
-  readonly progress: number
+  /** The roadmap week of weeks and the introduced core items of the enrolled variant — the track
+   *  page's own `trackProgressOf` (m-1), so the two never disagree. */
+  readonly progress: TrackProgressData
   /** Its due reviews now — 0 for a track the engine does not plan today (`countedTrackIds`). */
   readonly dueCount: number
   /** The enrollment's start date while it is after today ("Bắt đầu vào {date}"), else null. */
@@ -200,24 +199,6 @@ function shownPlan(data: TodayData): StoredPlan | null {
   return state.kind === 'plan' || state.kind === 'resumed' ? state.plan : null
 }
 
-/** Active core items of the variant, and the introduced ones among them (decision 16). */
-function coreProgress(
-  catalog: PlanCatalog,
-  enrollment: Enrollment,
-  items: TodayData['items'],
-): number {
-  const roadmap = catalog.tracks[enrollment.trackId]?.roadmaps[enrollment.variant] ?? null
-  if (roadmap === null) return 0
-  const core = new Set(
-    roadmap.weeks
-      .flatMap((week) => coreItemsOfWeek(week, catalog))
-      .filter((id) => isActiveItem(catalog, id)),
-  )
-  if (core.size === 0) return 0
-  const introduced = [...core].filter((id) => items[id] !== undefined).length
-  return introduced / core.size
-}
-
 /**
  * The tracks whose due items and weak topics `/today` counts: the plan engine's eligibility on
  * today (`eligibleTracks` — an active enrollment that has started, of an active catalog track), the
@@ -245,16 +226,13 @@ function trackViews(data: TodayData, counted: ReadonlySet<string>): TrackProgres
     .filter((enrollment) => enrollment.status === 'active')
     .map((enrollment) => {
       const { trackId } = enrollment
-      const roadmap = catalog.tracks[trackId]?.roadmaps[enrollment.variant] ?? null
       const snapshot = plan?.tracks[trackId]
       const { title, accent } = trackInfo(trackId)
       return {
         trackId,
         title,
         accent,
-        week: roadmapWeek(roadmap, catalog, items),
-        weeks: roadmap === null ? 0 : weekSizes(roadmap, catalog).length,
-        progress: coreProgress(catalog, enrollment, items),
+        progress: trackProgressOf(catalog, trackId, enrollment.variant, items),
         dueCount: counted.has(trackId)
           ? dueQueue({ trackId, items, catalog, today, weakTopicIds: new Set() }).length
           : 0,

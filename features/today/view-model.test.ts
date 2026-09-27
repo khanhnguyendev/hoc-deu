@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { reviewQueue } from '@/features/review'
+import { trackProgressOf } from '@/features/roadmap'
 import { enrollment, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { scheduleSkippedDays } from '@/lib/domain/stats/streak'
 import type { DailyActivity } from '@/lib/domain/state'
@@ -303,12 +304,16 @@ describe('buildTodayPage — tracks', () => {
     expect(dsa).toMatchObject({
       title: DSA_TITLE,
       accent: 'track-1',
-      week: 1,
-      weeks: 2,
-      progress: 2 / 5,
+      progress: { week: 1, weeks: 2, introduced: 2, total: 5 },
     })
     // English 10w: W1 core cards e1–e4, W2 e5 e6 — 2 of 6 introduced (a mastered card counts).
-    expect(english).toMatchObject({ title: ENGLISH_TITLE, week: 1, weeks: 2, progress: 2 / 6 })
+    expect(english).toMatchObject({
+      title: ENGLISH_TITLE,
+      progress: { week: 1, weeks: 2, introduced: 2, total: 6 },
+    })
+    // m-1: exactly the track page's own numbers.
+    const data = todayData(planState(storedPlan({ tracks })), { items })
+    expect(dsa!.progress).toEqual(trackProgressOf(data.catalog, 'dsa', '8w', items))
   })
 
   it('counts the due reviews of active items now (not mastered, not retired)', () => {
@@ -416,9 +421,7 @@ describe('buildTodayPage — tracks', () => {
         trackId: 'english',
         title: ENGLISH_TITLE,
         accent: 'track-2',
-        week: 1,
-        weeks: 0,
-        progress: 0,
+        progress: { week: 1, weeks: 0, introduced: 0, total: 0 },
         dueCount: 0,
         startsOn: null,
         throttleMessage: null,

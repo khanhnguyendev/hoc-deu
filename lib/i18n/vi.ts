@@ -60,6 +60,11 @@ export const vi = {
   streak: {
     suffix: 'ngày liên tiếp',
   },
+  /** TrackProgressCard (m-1): one string pair for `/today` and the track page. */
+  trackProgress: {
+    week: 'Tuần {week}/{weeks}',
+    ring: 'Tiến độ {title}',
+  },
   heatmap: {
     legend: 'Chú giải',
     /** Minutes per level 0–4 (DESIGN_SYSTEM §3.4). */

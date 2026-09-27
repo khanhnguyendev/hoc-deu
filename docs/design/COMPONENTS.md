@@ -589,6 +589,23 @@ from `lib/i18n/vi.ts`.
   Vietnamese text, so diacritics do not collide; a linked card is named by its label, value and
   hint and keeps the global focus ring
 
+### TrackProgressCard
+
+- **Layer:** pattern
+- **File:** `components/patterns/track-progress-card.tsx` (with `weekOfWeeks`, `progressPercent`)
+- **Props:** `title: string` (names the ring), `progress: TrackProgressFacts` (`{ week, weeks,
+  introduced, total }` — `trackProgressOf`, features/roadmap), `accent?` (`data-accent`),
+  `size?: 'md' | 'lg'`, `headline?`, `facts?: (string | null)[]` (joined with " · "), `actions?`
+- **Variants:** `md` (`/today`'s TodayStats: the track's title, "Tuần {w}/{N} · {n} mục cần ôn")
+  · `lg` (the track page's TrackProgress: the week as headline, "{introduced}/{total} bài chính
+  đã học", "Bắt đầu lại") — cva for the card and headline
+- **States:** a new learner (0 %, never NaN) · in progress · no roadmap (`weekOfWeeks` null: no
+  week line)
+- **Usage:** `<TrackProgressCard title={t} accent={a} progress={p} headline={t}
+  facts={[weekOfWeeks(p), due]} />`
+- **Accessibility:** a ProgressRing `tone="track"` named "Tiến độ {title}" (`vi.trackProgress`,
+  the one string pair, m-1) with the percentage printed — never colour alone
+
 ### StatusPill
 
 - **Layer:** pattern
@@ -1723,8 +1740,9 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/today-stats.tsx`
 - **Props:** `streak: number`, `tracks: TrackProgressView[]`
-- **Variants:** DESIGN_SYSTEM §5 order — the StreakBadge, a ProgressRing card per active track
-  ("Tuần {w}/{weeks} · {n} mục cần ôn"; the week left out without a roadmap; a track that has
+- **Variants:** DESIGN_SYSTEM §5 order — the StreakBadge, a TrackProgressCard per active track
+  (m-1: the track page's card and its `trackProgressOf` numbers; "Tuần {w}/{weeks} · {n} mục cần
+  ôn"; the week left out without a roadmap; a track that has
   not started reads "Bắt đầu vào {date}" instead of a due count), then the due reviews StatCard —
   the due counts are those of the tracks the engine plans today (`eligibleTracks`), so the total
   is `/review`'s (UI I-2)
@@ -1732,8 +1750,7 @@ Copy: `vi.today`.
   (streak and due only)
 - **Usage:** `<TodayStats streak={page.streak} tracks={page.tracks} />`
 - **Accessibility:** a Section "Tiến độ"; StreakBadge reads "{n} ngày liên tiếp"; the due
-  reviews are a StatCard inside one link to `/review` (a clickable card: hover shadow, global
-  focus ring); each ring is a labelled `progressbar` "Tiến độ {title}" with its percentage printed
+  reviews are a StatCard with `href="/review"` (one link: hover shadow, global focus ring); each ring is a labelled `progressbar` "Tiến độ {title}" with its percentage printed
 
 ### WeakAreas
 
@@ -2233,9 +2250,10 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **States:** new learner (0 %) · in progress
 - **Usage:** `<TrackProgress title={track.title} progress={data.progress} actions={<ResetTrackButton
   … />} />` (TrackOverview's `learner` slot)
-- **Accessibility:** a Section (region "Tiến độ của bạn") holding a `Card`; ProgressRing
-  `tone="track"`, `size="lg"`, a `progressbar` named "Tiến độ {title}" with the percentage printed
-  (never colour alone); needs TrackOverview's `data-accent`
+- **Accessibility:** a Section (region "Tiến độ của bạn") holding the `lg` TrackProgressCard
+  (m-1: the card `/today` uses too); ProgressRing `tone="track"`, `size="lg"`, a `progressbar`
+  named "Tiến độ {title}" with the percentage printed (never colour alone); needs TrackOverview's
+  `data-accent`
 
 ### WeakItems
 

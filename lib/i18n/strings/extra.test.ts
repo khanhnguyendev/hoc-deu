@@ -35,7 +35,6 @@ describe('lib/i18n/strings/extra.ts', () => {
   })
 
   it('fills its placeholders', () => {
-    expect(fill(extra.progress.week, { week: 3, weeks: 8 })).toBe('Tuần 3/8')
     expect(fill(extra.progress.core, { introduced: 20, total: 64 })).toBe('20/64 bài chính đã học')
     expect(fill(extra.reset.done, { title: 'DSA' })).toBe('Đã bắt đầu lại lộ trình DSA.')
   })

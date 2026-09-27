@@ -27,9 +27,8 @@ export const extra = {
   /** The track page (§2.4; Part B-M3 decision 25): the learner's progress on the track. */
   progress: {
     title: 'Tiến độ của bạn',
-    week: 'Tuần {week}/{weeks}',
+    /** The week and the ring's name are `vi.trackProgress` (TrackProgressCard, m-1). */
     core: '{introduced}/{total} bài chính đã học',
-    ring: 'Tiến độ {title}',
   },
   /** The track's items with status Weak (§5.7). */
   weak: {

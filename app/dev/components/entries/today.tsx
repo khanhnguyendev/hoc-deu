@@ -197,9 +197,7 @@ const DSA_TRACK: TrackProgressView = {
   trackId: 'dsa',
   title: DSA,
   accent: 'track-1',
-  week: 2,
-  weeks: 8,
-  progress: 0.28,
+  progress: { week: 2, weeks: 8, introduced: 18, total: 64 },
   dueCount: 3,
   startsOn: null,
   throttleMessage: null,
@@ -208,14 +206,16 @@ const ENGLISH_TRACK: TrackProgressView = {
   trackId: 'english',
   title: ENGLISH,
   accent: 'track-2',
-  week: 3,
-  weeks: 10,
-  progress: 0.31,
+  progress: { week: 3, weeks: 10, introduced: 31, total: 100 },
   dueCount: 52,
   startsOn: null,
   throttleMessage: 'Kế hoạch này được lập khi bạn có 52 thẻ cần ôn — tạm giảm thẻ mới.',
 }
-const NEW_TRACK: TrackProgressView = { ...DSA_TRACK, week: 1, progress: 0, dueCount: 0 }
+const NEW_TRACK: TrackProgressView = {
+  ...DSA_TRACK,
+  progress: { week: 1, weeks: 8, introduced: 0, total: 64 },
+  dueCount: 0,
+}
 
 const WEAK_TOPICS: WeakTopicView[] = [
   {

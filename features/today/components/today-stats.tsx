@@ -1,8 +1,8 @@
 import { RotateCcw } from 'lucide-react'
-import { ProgressRing } from '@/components/patterns/progress-ring'
 import { Section } from '@/components/patterns/section'
 import { StatCard } from '@/components/patterns/stat-card'
 import { StreakBadge } from '@/components/patterns/streak-badge'
+import { TrackProgressCard, weekOfWeeks } from '@/components/patterns/track-progress-card'
 import { Card } from '@/components/ui/card'
 import { fill, formatDay, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -10,35 +10,29 @@ import type { TrackProgressView } from '../view-model'
 
 const copy = vi.today.stats
 
-/** One active track: its ring (the track accent, the percentage printed), week and due count. */
+/** One active track's card (TrackProgressCard, m-1): its ring, week and due count or start date. */
 function TrackProgress({ track }: { track: TrackProgressView }) {
-  const facts = [
-    track.weeks > 0
-      ? fill(copy.week, { week: formatNumber(track.week), weeks: formatNumber(track.weeks) })
-      : null,
-    track.startsOn === null
-      ? fill(copy.dueCount, { n: formatNumber(track.dueCount) })
-      : fill(copy.startsOn, { date: formatDay(track.startsOn) }),
-  ].filter((fact) => fact !== null)
   return (
-    <Card data-accent={track.accent} className="flex-row items-center gap-4 md:gap-4">
-      <ProgressRing
-        value={track.progress * 100}
-        label={fill(copy.progress, { title: track.title })}
-        tone="track"
-      />
-      <div className="flex min-w-0 flex-col gap-1">
-        <p className="font-medium">{track.title}</p>
-        <p className="text-sm text-muted-foreground">{facts.join(' · ')}</p>
-      </div>
-    </Card>
+    <TrackProgressCard
+      title={track.title}
+      accent={track.accent}
+      progress={track.progress}
+      headline={track.title}
+      facts={[
+        weekOfWeeks(track.progress),
+        track.startsOn === null
+          ? fill(copy.dueCount, { n: formatNumber(track.dueCount) })
+          : fill(copy.startsOn, { date: formatDay(track.startsOn) }),
+      ]}
+    />
   )
 }
 
 /**
  * The dashboard's numbers in the DESIGN_SYSTEM §5 order — streak + per-track progress → due
- * reviews: the StreakBadge, a ProgressRing card per active track (week of weeks, due count), then
- * the due reviews as a StatCard linking to `/review`. A new learner reads 0 everywhere, never NaN.
+ * reviews: the StreakBadge, a TrackProgressCard per active track (week of weeks, due count), then
+ * the due reviews as a StatCard linking to `/review` (`href`, m-2). A new learner reads 0
+ * everywhere, never NaN.
  */
 function TodayStats({ streak, tracks }: { streak: number; tracks: readonly TrackProgressView[] }) {
   const due = tracks.reduce((sum, track) => sum + track.dueCount, 0)

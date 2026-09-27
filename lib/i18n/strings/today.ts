@@ -60,11 +60,9 @@ export const today = {
     title: 'Tiến độ',
     due: 'Cần ôn hôm nay',
     dueHint: 'Mở Ôn tập',
-    week: 'Tuần {week}/{weeks}',
     dueCount: '{n} mục cần ôn',
     /** A track re-added with a later start date: nothing of it counts until then (UI I-2). */
     startsOn: 'Bắt đầu vào {date}',
-    progress: 'Tiến độ {title}',
   },
   /**
    * §5.5 throttle: why fewer new cards today — shown once on `/today` (UI I-5). `{n}` is the plan's
