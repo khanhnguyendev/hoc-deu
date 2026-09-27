@@ -13,13 +13,15 @@ export type ResumeAction = () => Promise<ResumeResult>
  * sends nothing), a failed request said beside the button, never the error boundary. The action
  * revalidates `/today`, so a success — or "not offered", when another tab changed the plan —
  * usually replaces the paused view and this button: the answer is then a toast, and focus moves to
- * the plan's heading; while the button stays, the answer is in its own polite region.
+ * the plan's heading; while the button stays, the answer is in its own polite region. An outline
+ * button, like every banner action: the paused view's primaries are its blocks' one-tap check-ins
+ * (DESIGN_SYSTEM §9, §12 — one primary per view; m-12).
  */
 function ResumeButton({ resume }: { resume: ResumeAction }) {
   const feedback = useActionFeedback()
   return (
     <div data-slot="resume-button" className="flex flex-col items-start">
-      <Button onClick={() => feedback.run(resume)} loading={feedback.pending}>
+      <Button variant="outline" onClick={() => feedback.run(resume)} loading={feedback.pending}>
         {vi.today.paused.resume}
       </Button>
       <ActionStatus feedback={feedback} />

@@ -56,6 +56,13 @@ describe('ResumeButton (§5.8)', () => {
     expect(button.getAttribute('aria-busy')).toBeNull()
   })
 
+  it('is an outline button: the paused view’s primaries are its blocks’ one-tap check-ins (m-12)', () => {
+    render(<ResumeButton resume={deferred().action} />)
+    expect(
+      screen.getByRole('button', { name: 'Học tiếp hôm nay' }).getAttribute('data-variant'),
+    ).toBe('outline')
+  })
+
   it('the re-render replaces the paused view: the answer is a toast, focus on the plan heading', async () => {
     const { action, settle } = deferred()
     const { rerender } = render(<Paused resume={action} resumed={false} />)

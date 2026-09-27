@@ -1721,8 +1721,9 @@ Copy: `vi.today`.
   stays, its own region · failed request ("Không lưu được thay đổi…" beside the button, never the
   error boundary)
 - **Usage:** `<ResumeButton resume={resume} />` (PausedBanner)
-- **Accessibility:** a 44 px Button "Học tiếp hôm nay"; the answer in a polite `role="status"`
-  region (ActionStatus) or a toast, never both
+- **Accessibility:** a 44 px `outline` Button "Học tiếp hôm nay" (a banner action; the paused
+  view's primaries are the one-tap check-ins — one primary per view, m-12); the answer in a polite
+  `role="status"` region (ActionStatus) or a toast, never both
 
 ### MarkPlanSeen
 
