@@ -1,5 +1,6 @@
 import { CalendarCheck, CalendarClock, Route } from 'lucide-react'
 import { EmptyState } from '@/components/patterns/empty-state'
+import { reviewHref } from '@/features/items/href'
 import type { LocalDay } from '@/lib/domain/time/localDay'
 import { fill, formatDay } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -14,7 +15,8 @@ type TodayEmptyProps =
   /** Today's plan holds no block (RF-4): it still keeps the gate open tomorrow. */
   | { kind: 'noBlocks' }
 
-/** `/today` without work to show (RF-4): an EmptyState with one action each. */
+/** `/today` without work to show (RF-4): an EmptyState with one action each — an empty plan's is
+ *  `/review`, the review its line suggests (m-11). */
 function TodayEmpty(props: TodayEmptyProps) {
   switch (props.kind) {
     case 'notStarted':
@@ -41,7 +43,7 @@ function TodayEmpty(props: TodayEmptyProps) {
           icon={CalendarCheck}
           title={copy.noBlocks.title}
           description={copy.noBlocks.description}
-          action={{ label: copy.noBlocks.action, href: '/tracks' }}
+          action={{ label: copy.noBlocks.action, href: reviewHref(null) }}
           titleAs="h3"
         />
       )

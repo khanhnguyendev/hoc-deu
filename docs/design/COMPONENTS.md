@@ -1790,8 +1790,9 @@ Copy: `vi.today`.
 - **Props:** `{ kind: 'notStarted'; startDate: LocalDay } | { kind: 'noTracks' } | { kind:
   'noBlocks' }`
 - **Variants:** notStarted ("Bắt đầu vào {date}", "Xem lộ trình" → `/tracks`) · noTracks ("Bạn
-  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào",
-  `h3` inside the plan Section)
+  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào", "Bạn
+  có thể ôn lại các mục đã học.", "Mở Ôn tập" → `/review` — the action it suggests, m-11; `h3`
+  inside the plan Section)
 - **States:** empty (RF-4)
 - **Usage:** `<TodayEmpty kind="notStarted" startDate={state.startDate} />`
 - **Accessibility:** EmptyState — decorative icon, a heading, one action link

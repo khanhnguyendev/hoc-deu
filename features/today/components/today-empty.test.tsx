@@ -15,9 +15,10 @@ describe('TodayEmpty (RF-4)', () => {
     expect(screen.getByRole('link', { name: 'Mở Cài đặt' }).getAttribute('href')).toBe('/settings')
   })
 
-  it('an empty plan: "Hôm nay không có bài nào"', () => {
+  it('an empty plan: "Hôm nay không có bài nào" — its one action is the review it suggests (m-11)', () => {
     render(<TodayEmpty kind="noBlocks" />)
     expect(screen.getByRole('heading', { name: 'Hôm nay không có bài nào' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Xem lộ trình' })).toBeTruthy()
+    expect(screen.getByText('Bạn có thể ôn lại các mục đã học.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Mở Ôn tập' }).getAttribute('href')).toBe('/review')
   })
 })
