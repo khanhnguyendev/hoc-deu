@@ -26,7 +26,7 @@ function Section({
     <section data-slot="section" aria-labelledby={headingId} className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id={headingId} className="scroll-mt-20 text-xl font-semibold" {...fallback}>
+          <h2 id={headingId} className="text-xl font-semibold" {...fallback}>
             {title}
           </h2>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
