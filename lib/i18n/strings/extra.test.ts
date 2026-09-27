@@ -35,6 +35,8 @@ describe('lib/i18n/strings/extra.ts', () => {
     expect(`${extra.reset.title} ${extra.reset.description}`).toBe(
       'Xoá tiến độ của lộ trình này? Lịch sử học và chuỗi ngày vẫn được giữ.',
     )
+    // Re-review M2: the reset refused because the track changed — the page already re-rendered.
+    expect(extra.reset.stale).toBe('Lộ trình này vừa thay đổi. Trang đã được làm mới.')
   })
 
   it('fills its placeholders', () => {

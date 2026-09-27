@@ -71,13 +71,15 @@ async function record(
   apply: () => Promise<unknown>,
   message: string,
   rebuildFor?: string,
+  /** A stale refusal's message, when the caller's page is re-rendered anyway (`resetTrack`). */
+  staleMessage?: string,
 ): Promise<SettingsResult> {
   try {
     await apply()
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     if (error.code === 'invalid_timezone') return fieldError('timezone', errors.timezone)
-    if (STALE.has(error.code)) return stale(error.userMessage)
+    if (STALE.has(error.code)) return stale(staleMessage ?? error.userMessage)
     return { ok: false, message: error.userMessage }
   }
   if (rebuildFor !== undefined) await rebuildToday(rebuildFor)
@@ -354,9 +356,10 @@ const resetInputSchema = z.strictObject({
  * page's ResetTrackButton, which passes the page's per-render `requestId`: `track.reset`, which
  * clears the track's item states and records the day (events, plans, check-ins and daily activity
  * stay; an active or paused track only — the database answers `invalid_transition` for a removed
- * one and `track_not_enrolled` for one never enrolled, both shown as stale). A recorded reset is
- * followed by `rebuildTodayIfUntouched` (decision 11): an untouched plan of today starts the track
- * over too. The track page and `/today` re-render whatever the outcome.
+ * one and `track_not_enrolled` for one never enrolled, both shown as stale: "Lộ trình này vừa
+ * thay đổi. Trang đã được làm mới.", true because the pages re-render — re-review M2). A recorded
+ * reset is followed by `rebuildTodayIfUntouched` (decision 11): an untouched plan of today starts
+ * the track over too. The track page and `/today` re-render whatever the outcome.
  */
 export async function resetTrack(input: {
   requestId: string
@@ -377,6 +380,7 @@ export async function resetTrack(input: {
       }),
     withTitle(vi.extra.reset.done, titleOf(trackId)),
     user.id,
+    vi.extra.reset.stale,
   )
   revalidatePath(`/t/${trackId}`)
   revalidatePath('/today')

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActionStatus, useActionFeedback, type ActionAnswer } from './action-feedback'
+import { PageHeader } from './page-header'
 import { Section } from './section'
 
 const toasts = vi.hoisted(() => [] as string[])
@@ -172,6 +173,43 @@ describe('useActionFeedback + ActionStatus (UI I-3)', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Kế hoạch hôm nay' }))
   })
 
+  it('without a section fallback (the track page, /today without a plan): the page’s h1 (M2)', async () => {
+    const { action, settle } = deferred()
+    const host = (gone: boolean) => (
+      <>
+        <PageHeader title="Lộ trình DSA" />
+        {gone ? <p>Chưa theo lộ trình này</p> : <Control action={action} />}
+      </>
+    )
+    const { rerender } = render(host(false))
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi' }))
+    await act(async () => {
+      settle({ ok: false, message: 'Lộ trình này vừa thay đổi. Trang đã được làm mới.' })
+      await tick()
+      rerender(host(true))
+    })
+    expect(toasts).toEqual(['Lộ trình này vừa thay đổi. Trang đã được làm mới.'])
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }))
+  })
+
+  it('a section fallback wins over the page’s h1', async () => {
+    const { action, settle } = deferred()
+    const host = (gone: boolean) => (
+      <>
+        <PageHeader title="Hôm nay" />
+        <Page action={action} gone={gone} />
+      </>
+    )
+    const { rerender } = render(host(false))
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi' }))
+    await act(async () => {
+      settle({ ok: true, message: 'Đã xong.' })
+      await tick()
+      rerender(host(true))
+    })
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Kế hoạch hôm nay' }))
+  })
+
   it('the control’s own focus target first (e.g. the block’s new "Sửa")', async () => {
     const { action, settle } = deferred()
     const target = () => document.querySelector<HTMLElement>('a[href="#other"]')
@@ -245,7 +283,7 @@ describe('Section — focusFallback', () => {
     render(<Two />)
     const a = screen.getByRole('heading', { name: 'A' })
     expect(a.getAttribute('tabindex')).toBe('-1')
-    expect(a.hasAttribute('data-focus-fallback')).toBe(true)
+    expect(a.getAttribute('data-focus-fallback')).toBe('section')
     const b = screen.getByRole('heading', { name: 'B' })
     expect(b.hasAttribute('tabindex')).toBe(false)
     expect(b.hasAttribute('data-focus-fallback')).toBe(false)

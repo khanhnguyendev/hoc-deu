@@ -1,11 +1,12 @@
 import { useId } from 'react'
 import type * as React from 'react'
-import { FOCUS_FALLBACK_ATTRIBUTE } from './focus-fallback'
+import { focusFallbackProps } from './focus-fallback'
 
 /**
  * A titled page region; screen readers list it by its heading. `focusFallback` makes the heading
  * the page's focus fallback (`tabIndex={-1}`, focusable by script only): where focus goes when an
- * action control disappears with it (`useActionFeedback`, DESIGN_SYSTEM §10). One per page.
+ * action control disappears with it (`useActionFeedback`, DESIGN_SYSTEM §10) — before PageHeader's
+ * `h1`, the page-wide one. One per page.
  */
 function Section({
   title,
@@ -21,7 +22,7 @@ function Section({
   children: React.ReactNode
 }) {
   const headingId = useId()
-  const fallback = focusFallback ? { tabIndex: -1, [FOCUS_FALLBACK_ATTRIBUTE]: '' } : {}
+  const fallback = focusFallback ? focusFallbackProps('section') : {}
   return (
     <section data-slot="section" aria-labelledby={headingId} className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

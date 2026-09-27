@@ -807,13 +807,14 @@ describe('resetTrack — "Bắt đầu lại" (§5.9, Part B-M2 decision 18, tas
     expect(second?.id).toBe(first?.id)
   })
 
-  it('a removed (or never enrolled) track is stale: the message, no rebuild, the pages re-render', async () => {
+  it('a removed (or never enrolled) track is stale: a truthful message, no rebuild, the pages re-render', async () => {
     for (const code of ['invalid_transition', 'track_not_enrolled'] as const) {
       fake.calls = []
       fake.failOn = { type: 'track.reset', error: new EventError(code) }
+      // Re-review M2: the page has already re-rendered — never "Bạn tải lại trang nhé".
       expect(await resetTrack(input)).toEqual({
         ok: false,
-        message: new EventError(code).userMessage,
+        message: 'Lộ trình này vừa thay đổi. Trang đã được làm mới.',
       })
       expect(rebuilds()).toEqual([])
       expect(revalidated()).toEqual([

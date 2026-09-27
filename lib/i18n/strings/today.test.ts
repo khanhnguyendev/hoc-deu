@@ -52,11 +52,13 @@ describe('lib/i18n/strings/today.ts', () => {
     expect(vi.checkIn.errors.stale).toBe(refreshed)
     expect(vi.extra.add.stale).toBe(refreshed)
     expect(today.resumeResult.notOffered).toBe(refreshed)
+    // The plan's three answers share one string; "Bắt đầu lại" has the track's own (M2).
     const all = [today, vi.checkIn, vi.extra].flatMap((area) => strings(area))
     expect(all.filter(([, value]) => value.includes('làm mới')).map(([, value]) => value)).toEqual([
       refreshed,
       refreshed,
       refreshed,
+      vi.extra.reset.stale,
     ])
   })
 

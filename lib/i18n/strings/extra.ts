@@ -43,5 +43,8 @@ export const extra = {
     description: 'Lịch sử học và chuỗi ngày vẫn được giữ.',
     confirm: 'Bắt đầu lại',
     done: 'Đã bắt đầu lại lộ trình {title}.',
+    /** Refused because the track changed (removed in another tab): `resetTrack` has already
+     *  re-rendered the track page — never "tải lại trang" (re-review M2). */
+    stale: 'Lộ trình này vừa thay đổi. Trang đã được làm mới.',
   },
 } as const

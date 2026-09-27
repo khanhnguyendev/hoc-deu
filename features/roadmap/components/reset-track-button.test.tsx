@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PageHeader } from '@/components/patterns/page-header'
 import { ResetTrackButton } from './reset-track-button'
 
 const toasts = vi.hoisted(() => [] as string[])
@@ -93,5 +94,30 @@ describe('ResetTrackButton ("Bắt đầu lại", §5.9)', () => {
     await act(async () => settle({ ok: false, message }))
     expect(screen.getByRole('status').textContent).toBe(message)
     expect(toasts).toEqual([])
+  })
+
+  it('the track changed in another tab: the re-render drops the button — a toast, focus on the page’s h1 (M2)', async () => {
+    const user = userEvent.setup()
+    const { action, settle } = deferred()
+    const page = (followed: boolean) => (
+      <>
+        <PageHeader title="Cấu trúc dữ liệu & Giải thuật" />
+        {followed && <ResetTrackButton action={action} requestId={REQUEST_ID} trackId="dsa" />}
+      </>
+    )
+    const { rerender } = render(page(true))
+    await user.click(screen.getByRole('button', { name: 'Bắt đầu lại' }))
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(
+      [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Bắt đầu lại')!,
+    )
+    const message = 'Lộ trình này vừa thay đổi. Trang đã được làm mới.'
+    await act(async () => {
+      settle({ ok: false, message })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      rerender(page(false))
+    })
+    expect(toasts).toEqual([message])
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }))
   })
 })

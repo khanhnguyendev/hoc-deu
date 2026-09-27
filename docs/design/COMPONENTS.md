@@ -268,7 +268,8 @@ from `lib/i18n/vi.ts`.
   plan swapped, the paused view ending), a toast; an answer already shown is never toasted too.
   When the answer's own re-render removes the control with focus on `<body>`, focus moves to
   `focusTarget()` (the block's new "Sửa"), else to the page's focus fallback — the heading a
-  `Section` marks with `focusFallback` (DESIGN_SYSTEM §10); focus that is still somewhere stays,
+  `Section` marks with `focusFallback`, else PageHeader's `h1` (DESIGN_SYSTEM §10; M2); focus that
+  is still somewhere stays,
   and a later unmount (a route change) never moves it (M7)
 
 ### AppShell
@@ -571,7 +572,10 @@ from `lib/i18n/vi.ts`.
 - **Variants:** actions right (≥ 768 px) or stacked (mobile)
 - **States:** static
 - **Usage:** `<PageHeader title="Hôm nay học gì?" actions={…} />`
-- **Accessibility:** the page's single `h1`
+- **Accessibility:** the page's single `h1` — also the page-wide focus fallback
+  (`data-focus-fallback="page"`, `tabIndex={-1}`: focusable by script only): where
+  `useActionFeedback` moves focus when an answer's re-render removes its control and no Section is
+  marked (the track page, `/today` without a plan; re-review M2)
 
 ### ProgressRing
 
@@ -590,8 +594,8 @@ from `lib/i18n/vi.ts`.
 - **File:** `components/patterns/section.tsx`
 - **Props:** `title`, `description?`, `actions?`, `focusFallback?: boolean`, `children`
 - **Variants:** `focusFallback` — the heading is the page's focus fallback (`tabIndex={-1}`,
-  `data-focus-fallback`): where `useActionFeedback` moves focus when its control disappears with
-  it. One per page (`/today`: the plan section)
+  `data-focus-fallback="section"`): where `useActionFeedback` moves focus when its control
+  disappears with it, before PageHeader's `h1`. One per page (`/today`: the plan section)
 - **States:** static
 - **Usage:** `<Section title="Ôn tập đến hạn">…</Section>`
 - **Accessibility:** a region named by its `h2`; a `focusFallback` heading is focusable by script
@@ -2325,7 +2329,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   "Lịch sử học và chuỗi ngày vẫn được giữ." / "Bắt đầu lại") · pending (the dialog busy, it cannot
   close) · answered, through ActionFeedback (UI I-3): the dialog closes; the button stays, so the
   message is in its own region only, not also a toast (m-4); a failed request is said there too,
-  never the error boundary
+  never the error boundary · stale (the track was removed in another tab: "Lộ trình này vừa thay
+  đổi. Trang đã được làm mới." — `resetTrack` re-rendered the page, whose learner part and this
+  button are gone: a toast, focus on the page's `h1`; re-review M2)
 - **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
   trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
 - **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps
