@@ -13,10 +13,10 @@ import {
   buildRoadmapView,
   itemLinkOf,
   resolveItemLink,
-  trackProgressOf,
   weakItemsOf,
   type WeekView,
 } from './view-model'
+import { trackProgressOf } from '@/lib/domain/plan/trackProgress'
 
 const ids = (items: readonly { id: string }[]) => items.map((item) => item.id)
 

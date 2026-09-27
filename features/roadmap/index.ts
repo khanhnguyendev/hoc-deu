@@ -28,4 +28,3 @@ export {
 } from './queries'
 export { roadmapSlots, type RoadmapSlots, type RowRenderer, type WeekSlots } from './slots'
 export type { RoadmapView as RoadmapViewModel, TrackProgressData, WeekView } from './view-model'
-export { trackProgressOf } from './view-model'

@@ -6,7 +6,7 @@ import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
 import { ProgressRing } from './progress-ring'
 
-/** A learner's progress on a track's variant (`trackProgressOf`, features/roadmap): the plan
+/** A learner's progress on a track's variant (`trackProgressOf`, lib/domain): the plan
  *  engine's roadmap week of `weeks`, and the introduced active core items of `total`. */
 export type TrackProgressFacts = {
   readonly week: number

@@ -34,6 +34,7 @@ import {
   describeWeeklyTemplate,
   type TemplateDay,
 } from '@/lib/content/weekly-template'
+import { trackProgressOf } from '@/lib/domain/plan/trackProgress'
 import { defaultVariant } from '@/lib/domain/plan/variant'
 import { variantLabel } from '@/lib/i18n/format'
 import { createClient } from '@/lib/supabase/server'
@@ -41,7 +42,6 @@ import {
   buildRoadmapView,
   isListed,
   resolveItemLink,
-  trackProgressOf,
   TODAY_HREF,
   TRACKS_HREF,
   weakItemsOf,

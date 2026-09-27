@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { reviewQueue } from '@/features/review'
-import { trackProgressOf } from '@/features/roadmap'
+import { trackProgressOf } from '@/lib/domain/plan/trackProgress'
 import { enrollment, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { scheduleSkippedDays } from '@/lib/domain/stats/streak'
 import type { DailyActivity } from '@/lib/domain/state'

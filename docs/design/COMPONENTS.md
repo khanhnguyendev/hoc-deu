@@ -623,8 +623,9 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/track-progress-card.tsx` (with `weekOfWeeks`, `progressPercent`)
 - **Props:** `title: string` (names the ring), `progress: TrackProgressFacts` (`{ week, weeks,
-  introduced, total }` — `trackProgressOf`, features/roadmap), `accent?` (`data-accent`),
-  `size?: 'md' | 'lg'`, `headline?`, `facts?: (string | null)[]` (joined with " · "), `actions?`
+  introduced, total }` — `trackProgressOf`, `lib/domain/plan/trackProgress.ts`), `accent?`
+  (`data-accent`), `size?: 'md' | 'lg'`, `headline?`, `facts?: (string | null)[]` (joined with
+  " · "), `actions?`
 - **Variants:** `md` (`/today`'s TodayStats: the track's title, "Tuần {w}/{N} · {n} mục cần ôn")
   · `lg` (the track page's TrackProgress: the week as headline, "{introduced}/{total} bài chính
   đã học", "Bắt đầu lại") — cva for the card and headline

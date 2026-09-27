@@ -6,13 +6,13 @@
  * catalog, which the tests replace.
  */
 import { itemHrefFromId } from '@/features/items/href'
-import { trackProgressOf, type TrackProgressData } from '@/features/roadmap'
 import { getTrack } from '@/lib/content/catalog'
 import type { ItemMode } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
 import { extraTrackIds } from '@/lib/domain/plan/extra'
 import { dueQueue } from '@/lib/domain/plan/queues'
 import { eligibleTracks } from '@/lib/domain/plan/track'
+import { trackProgressOf, type TrackProgressData } from '@/lib/domain/plan/trackProgress'
 import type { Enrollment, PlanBlock, StoredPlan } from '@/lib/domain/plan/types'
 import { blockKey, type BlockState, type DailyActivity } from '@/lib/domain/state'
 import { scheduleSkippedDays, streak } from '@/lib/domain/stats/streak'
@@ -52,7 +52,7 @@ export type TrackProgressView = {
   readonly title: string
   readonly accent: string
   /** The roadmap week of weeks and the introduced core items of the enrolled variant — the track
-   *  page's own `trackProgressOf` (m-1), so the two never disagree. */
+   *  page's own `trackProgressOf` (`lib/domain`, m-1 / M9), so the two never disagree. */
   readonly progress: TrackProgressData
   /** Its due reviews now — 0 for a track the engine does not plan today (`countedTrackIds`). */
   readonly dueCount: number
