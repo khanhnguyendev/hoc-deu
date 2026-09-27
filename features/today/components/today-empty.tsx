@@ -12,11 +12,13 @@ type TodayEmptyProps =
   | { kind: 'notStarted'; startDate: LocalDay }
   /** No active track (§5.4 step 2). */
   | { kind: 'noTracks' }
-  /** Today's plan holds no block (RF-4): it still keeps the gate open tomorrow. */
-  | { kind: 'noBlocks' }
+  /** Today's plan holds no block (RF-4): it still keeps the gate open tomorrow. `due`: the items
+   *  due today (TodayStats' total) — the review is offered only when there is one (M4). */
+  | { kind: 'noBlocks'; due: number }
 
 /** `/today` without work to show (RF-4): an EmptyState with one action each — an empty plan's is
- *  `/review`, the review its line suggests (m-11). */
+ *  `/review` while items are due (m-11), else the roadmaps: `/review` with nothing due is an
+ *  empty state that links back here (M4). */
 function TodayEmpty(props: TodayEmptyProps) {
   switch (props.kind) {
     case 'notStarted':
@@ -37,16 +39,22 @@ function TodayEmpty(props: TodayEmptyProps) {
           action={{ label: copy.noTracks.action, href: '/settings' }}
         />
       )
-    case 'noBlocks':
+    case 'noBlocks': {
+      const review = props.due > 0
       return (
         <EmptyState
           icon={CalendarCheck}
           title={copy.noBlocks.title}
-          description={copy.noBlocks.description}
-          action={{ label: copy.noBlocks.action, href: reviewHref(null) }}
+          description={review ? copy.noBlocks.reviewDescription : copy.noBlocks.tracksDescription}
+          action={
+            review
+              ? { label: copy.noBlocks.reviewAction, href: reviewHref(null) }
+              : { label: copy.noBlocks.tracksAction, href: '/tracks' }
+          }
           titleAs="h3"
         />
       )
+    }
   }
 }
 

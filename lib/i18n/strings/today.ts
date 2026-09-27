@@ -94,11 +94,14 @@ export const today = {
       description: 'Thêm hoặc tiếp tục một lộ trình trong Cài đặt để có kế hoạch mỗi ngày.',
       action: 'Mở Cài đặt',
     },
-    /** m-11: the one action is the review the line suggests. */
+    /** m-11 / M4: the one action is the review — only while something is due (else `/review`
+     *  is empty too and links back here) — or the roadmaps. */
     noBlocks: {
       title: 'Hôm nay không có bài nào',
-      description: 'Bạn có thể ôn lại các mục đã học.',
-      action: 'Mở Ôn tập',
+      reviewDescription: 'Bạn có thể ôn lại các mục đến hạn.',
+      reviewAction: 'Mở Ôn tập',
+      tracksDescription: 'Bạn có thể xem trước lộ trình của mình.',
+      tracksAction: 'Xem lộ trình',
     },
     /** M-4: in use, so not rebuilt. "Thử lại" renders the page again (M5-R26: no promise that
      *  it repairs itself). */

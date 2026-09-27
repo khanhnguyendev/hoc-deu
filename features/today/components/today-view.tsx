@@ -100,7 +100,10 @@ function Dashboard({
             focusFallback
           >
             {page.blocks.length === 0 ? (
-              <TodayEmpty kind="noBlocks" />
+              <TodayEmpty
+                kind="noBlocks"
+                due={page.tracks.reduce((sum, track) => sum + track.dueCount, 0)}
+              />
             ) : (
               <ul role="list" className="flex flex-col gap-3 md:gap-4">
                 {page.blocks.map((view) => {

@@ -1825,11 +1825,12 @@ Copy: `vi.today`.
 - **Layer:** feature (`features/today`, server-compatible)
 - **File:** `features/today/components/today-empty.tsx`
 - **Props:** `{ kind: 'notStarted'; startDate: LocalDay } | { kind: 'noTracks' } | { kind:
-  'noBlocks' }`
+  'noBlocks'; due: number }` (`due`: TodayStats' total)
 - **Variants:** notStarted ("Bắt đầu vào {date}", "Xem lộ trình" → `/tracks`) · noTracks ("Bạn
-  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào", "Bạn
-  có thể ôn lại các mục đã học.", "Mở Ôn tập" → `/review` — the action it suggests, m-11; `h3`
-  inside the plan Section)
+  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào", `h3`
+  inside the plan Section): with items due, "Bạn có thể ôn lại các mục đến hạn." and "Mở Ôn tập" →
+  `/review` (m-11); with none, "Bạn có thể xem trước lộ trình của mình." and "Xem lộ trình" →
+  `/tracks` — never `/review`'s own empty state, which links back here (M4)
 - **States:** empty (RF-4)
 - **Usage:** `<TodayEmpty kind="notStarted" startDate={state.startDate} />`
 - **Accessibility:** EmptyState — decorative icon, a heading, one action link

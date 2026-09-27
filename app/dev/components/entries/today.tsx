@@ -658,7 +658,14 @@ export const TODAY_ENTRIES: Entry[] = [
         render: () => narrow(<TodayEmpty kind="notStarted" startDate="2026-10-03" />),
       },
       { title: 'Chưa có lộ trình nào', render: () => narrow(<TodayEmpty kind="noTracks" />) },
-      { title: 'Kế hoạch trống', render: () => narrow(<TodayEmpty kind="noBlocks" />) },
+      {
+        title: 'Kế hoạch trống, có mục đến hạn: "Mở Ôn tập"',
+        render: () => narrow(<TodayEmpty kind="noBlocks" due={3} />),
+      },
+      {
+        title: 'Kế hoạch trống, không mục nào đến hạn: "Xem lộ trình" (M4)',
+        render: () => narrow(<TodayEmpty kind="noBlocks" due={0} />),
+      },
     ],
   },
 ]
