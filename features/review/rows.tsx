@@ -3,7 +3,7 @@
  * 5.3). Server-only (the registry and the generated catalog); the page calls `reviewRows`.
  */
 import 'server-only'
-import { isItemOfType } from '@/features/items/narrow'
+import { cardSidesOf } from '@/features/items/outcome'
 import { renderItemRow } from '@/features/items/render'
 import type { ItemStateView } from '@/features/items/types'
 import { getItem } from '@/lib/content/catalog'
@@ -22,7 +22,7 @@ import type { ReviewEntry } from './view-model'
 export function reviewRows(entries: readonly ReviewEntry[]): readonly ReviewItemSlot[] {
   return entries.flatMap((entry) => {
     const item = getItem(entry.itemId)
-    if (item === null || isItemOfType(item, 'flashcard')) return []
+    if (item === null || cardSidesOf(item) !== null) return []
     const state: ItemStateView | null = entry.weak
       ? { status: 'weak', level: 0, dueOn: null }
       : null

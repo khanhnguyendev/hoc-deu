@@ -10,8 +10,9 @@ import type { ItemMode, PlanItem } from '@/lib/domain/catalog'
 import { reviewMode } from '@/lib/domain/plan/reviewMode'
 import type { ItemState } from '@/lib/domain/state'
 import type { LocalDay } from '@/lib/domain/time/localDay'
-import type { FlashcardContent } from '@/lib/content/catalog-types'
+import type { CatalogItem, FlashcardContent } from '@/lib/content/catalog-types'
 import type { FlashcardSides } from './components/flashcard-view'
+import { isItemOfType } from './narrow'
 import type { ItemStateView, Mode } from './types'
 
 export type { FlashcardSides } from './components/flashcard-view'
@@ -32,6 +33,15 @@ export function flashcardSides(content: FlashcardContent): FlashcardSides {
     pronunciation: content.pronunciation,
     lang: content.lang,
   }
+}
+
+/**
+ * A flashcard's sides, or null for any other item (m-5): the one place outside the registry that
+ * tells a card from other items, for `/today`'s card blocks and shadowing sentences, `/review`'s
+ * due cards and rows, and the flashcard page.
+ */
+export function cardSidesOf(item: CatalogItem): FlashcardSides | null {
+  return isItemOfType(item, 'flashcard') ? flashcardSides(item.content) : null
 }
 
 /**
@@ -70,11 +80,18 @@ export type CardSessionProps = {
   readonly cards: readonly CardSessionCard[]
   readonly requestId: string
   readonly record: RecordOutcome
-  /** The card front's heading level — 2 (default) on its own screen (e.g. /today's card-only
-   *  blocks); 3 under a section heading (e.g. /review's "Thẻ") so the outline nests correctly.
-   *  Also sets the empty/end EmptyState titles, so they stay siblings of the card front, not of
-   *  the section heading (task 5.3 review, finding M8). */
-  readonly headingLevel?: 2 | 3
+  /** The card front's heading level, so the outline nests where the session sits: 2 (default)
+   *  directly under a page's `h1`; 3 under a section's `h2` (/review's "Thẻ"); 4 inside a plan
+   *  block on /today, under the block's `h3` (parked #7). Also sets the empty/end EmptyState
+   *  titles, so they stay siblings of the card front (task 5.3 review, finding M8). */
+  readonly headingLevel?: 2 | 3 | 4
+  /** "Xem nghĩa"'s variant: `primary` (default, the view's one primary — /review) or `outline`
+   *  where the view has its own primary (/today's block "Check-in", DESIGN_SYSTEM §9, §12). */
+  readonly revealVariant?: 'primary' | 'outline'
+  /** The card that starts revealed (`itemId`): a deck remounted mid-card keeps it open. */
+  readonly initialRevealed?: string | null
+  /** A card was revealed or hidden again. */
+  readonly onRevealChange?: (itemId: string, open: boolean) => void
 }
 
 const PROBLEM_MODES: readonly ItemMode[] = ['new', 'recall', 'redo', 'explain-aloud']

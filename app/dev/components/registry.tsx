@@ -2700,6 +2700,18 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title:
+          'Trong khối của /today: "Xem nghĩa" outline, tiêu đề h4; mở sẵn khi khối được thêm thẻ (#7, #8)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-3">
+            <FlashcardView card={cardItem().content} headingLevel={4} revealVariant="outline" />
+            <FlashcardView card={cardItem().content} headingLevel={4} defaultOpen>
+              <FlashcardGrades onGrade={() => {}} />
+            </FlashcardView>
+          </div>
+        ),
+      },
     ],
   },
   {

@@ -3,13 +3,12 @@
  * through `lib/plans/reads.ts` with the session client (own rows, RLS) — item states through
  * `readItemStates` (paged past 1000 rows, decision 7), the three independent reads in parallel
  * (task 5.3 review, finding M10). The due flashcards' sides come from the generated catalog
- * (`getItem`, `isItemOfType` — the one sanctioned narrowing outside the registry, gate-review fix
- * 4, and `flashcardSides`, shared with the flashcard page): `reviewQueue`'s entries carry no item
- * type, so this is the one place that tells a flashcard from every other due item.
+ * (`getItem`) through `cardSidesOf` (features/items, m-5) — the one helper that tells a
+ * flashcard from every other item, shared with `/today`'s card blocks, `reviewRows` and the
+ * flashcard page: `reviewQueue`'s entries carry no item type.
  */
 import 'server-only'
-import { isItemOfType } from '@/features/items/narrow'
-import { flashcardSides, type FlashcardSides } from '@/features/items/outcome'
+import { cardSidesOf, type FlashcardSides } from '@/features/items/outcome'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { getItem, getTrack } from '@/lib/content/catalog'
 import { compareIds } from '@/lib/domain/compare'
@@ -36,8 +35,8 @@ export type ReviewPage = {
 function cardsOf(entries: readonly ReviewEntry[]): ReviewCard[] {
   return entries.flatMap((entry) => {
     const item = getItem(entry.itemId)
-    if (item === null || !isItemOfType(item, 'flashcard')) return []
-    return [{ itemId: entry.itemId, sides: flashcardSides(item.content) }]
+    const sides = item === null ? null : cardSidesOf(item)
+    return sides === null ? [] : [{ itemId: entry.itemId, sides }]
   })
 }
 

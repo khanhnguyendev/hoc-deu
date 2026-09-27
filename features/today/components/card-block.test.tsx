@@ -2,15 +2,18 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { cardItem, SAVED } from '@/features/items/fixtures'
-import type { CardSessionCard, RecordOutcome } from '@/features/items/outcome'
+import {
+  cardSidesOf,
+  type CardSessionCard,
+  type FlashcardSides,
+  type RecordOutcome,
+} from '@/features/items/outcome'
 import { REQUEST_ID } from '../__tests__/fixtures'
 import type { BlockItemSlot } from '../slots'
 import { CardBlock } from './card-block'
 
-const sidesOf = (item: ReturnType<typeof cardItem>) => {
-  const { front, back, hint, usage, example, pronunciation, lang } = item.content
-  return { front, back, hint, usage, example, pronunciation, lang }
-}
+/** The shared mapping (parked #7): no copy of it here. */
+const sidesOf = (item: ReturnType<typeof cardItem>): FlashcardSides => cardSidesOf(item)!
 
 const BLOCKER = cardItem()
 const UNBLOCK = cardItem({
@@ -64,6 +67,22 @@ describe('CardBlock (decision 19)', () => {
     })
   })
 
+  it('sits under the block’s h3: the card front is an h4, "Xem nghĩa" outline (parked #7, m-12)', () => {
+    render(
+      <CardBlock
+        cards={[card(BLOCKER, 'b-new')]}
+        items={ROWS}
+        requestId={REQUEST_ID}
+        record={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('heading', { level: 4, name: 'blocker' })).toBeTruthy()
+    // The block's own primary is its "Check-in" (DESIGN_SYSTEM §9, §12: one primary per view).
+    expect(screen.getByRole('button', { name: 'Xem nghĩa' }).getAttribute('data-variant')).toBe(
+      'outline',
+    )
+  })
+
   it('lists the rows when every card is already handled at mount', () => {
     render(<CardBlock cards={[]} items={ROWS} requestId={REQUEST_ID} record={vi.fn()} />)
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
@@ -107,7 +126,7 @@ describe('CardBlock (decision 19)', () => {
       )
       await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
       await user.click(screen.getByRole('button', { name: /^Biết/ }))
-      await screen.findByRole('heading', { level: 2, name: 'unblock' })
+      await screen.findByRole('heading', { level: 4, name: 'unblock' })
       await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
       await user.click(screen.getByRole('button', { name: /^Biết/ }))
       expect(await screen.findByRole('heading', { name: 'Đã ôn xong' })).toBeTruthy()
@@ -121,7 +140,7 @@ describe('CardBlock (decision 19)', () => {
         />,
       )
       expect(screen.getByText('Còn 1 thẻ')).toBeTruthy()
-      expect(screen.getByRole('heading', { level: 2, name: 'on track' })).toBeTruthy()
+      expect(screen.getByRole('heading', { level: 4, name: 'on track' })).toBeTruthy()
       await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
       await user.click(screen.getByRole('button', { name: /^Chưa chắc/ }))
       expect(record).toHaveBeenLastCalledWith({
@@ -168,7 +187,7 @@ describe('CardBlock (decision 19)', () => {
       )
       await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
       await user.click(screen.getByRole('button', { name: /^Biết/ }))
-      expect(await screen.findByRole('heading', { level: 2, name: 'unblock' })).toBeTruthy()
+      expect(await screen.findByRole('heading', { level: 4, name: 'unblock' })).toBeTruthy()
       // Graded blocker is gone from the page's cards; on track was appended.
       rerender(
         <CardBlock
@@ -178,12 +197,38 @@ describe('CardBlock (decision 19)', () => {
           record={record}
         />,
       )
-      expect(screen.getByRole('heading', { level: 2, name: 'unblock' })).toBeTruthy()
+      expect(screen.getByRole('heading', { level: 4, name: 'unblock' })).toBeTruthy()
       expect(screen.getByText('Còn 2 thẻ')).toBeTruthy()
       await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
       await user.click(screen.getByRole('button', { name: /^Biết/ }))
-      expect(await screen.findByRole('heading', { level: 2, name: 'on track' })).toBeTruthy()
+      expect(await screen.findByRole('heading', { level: 4, name: 'on track' })).toBeTruthy()
       expect(record.mock.calls.map(([input]) => input.itemId)).toEqual([BLOCKER.id, UNBLOCK.id])
+    })
+
+    it('keeps the current card revealed when the block grows (parked #8)', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(
+        <CardBlock
+          cards={[card(BLOCKER, 'b-extra'), card(UNBLOCK, 'b-extra')]}
+          items={ROWS}
+          requestId={REQUEST_ID}
+          record={vi.fn()}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+      expect(screen.getByText('vấn đề đang chặn, khiến bạn chưa làm tiếp được')).toBeTruthy()
+      rerender(
+        <CardBlock
+          cards={[card(BLOCKER, 'b-extra'), card(UNBLOCK, 'b-extra'), card(ON_TRACK, 'b-extra')]}
+          items={GROWN}
+          requestId={REQUEST_ID}
+          record={vi.fn()}
+        />,
+      )
+      expect(screen.getByText('Còn 3 thẻ')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Ẩn nghĩa' })).toBeTruthy()
+      expect(screen.getByText('vấn đề đang chặn, khiến bạn chưa làm tiếp được')).toBeTruthy()
+      expect(screen.getByRole('button', { name: /^Biết/ })).toBeTruthy()
     })
 
     it('leaves focus where it is (the "Học thêm" button outside the block)', () => {
@@ -254,6 +299,6 @@ describe('CardBlock (decision 19)', () => {
       blockId: 'b-new',
       outcome: { type: 'item.result', result: 'dont_know' },
     })
-    expect(within(second).getByRole('heading', { level: 2, name: 'unblock' })).toBeTruthy()
+    expect(within(second).getByRole('heading', { level: 4, name: 'unblock' })).toBeTruthy()
   })
 })

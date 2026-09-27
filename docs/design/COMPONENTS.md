@@ -388,7 +388,7 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/empty-state.tsx`
 - **Props:** `icon`, `title`, `description?`, `action?: { label, href } | { label, onClick }`,
-  `titleAs?: 'h1' | 'h2' | 'h3'`, `layout?: 'inline' | 'page'`
+  `titleAs?: 'h1' | 'h2' | 'h3' | 'h4'`, `layout?: 'inline' | 'page'`
 - **Variants:** inline · page (a centred `main`, e.g. the 404)
 - **States:** with / without action
 - **Usage:** `<EmptyState icon={Inbox} title="Chưa có thẻ nào" action={{ label: '…', href: '/today' }} />`
@@ -1406,12 +1406,15 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/flashcard-view.tsx`
 - **Props:** `card: FlashcardSides` (`front`, `back`, `hint?`, `usage?`, `example?`,
-  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3` (1 on the item page), `onReveal?: () =>
-  void` (the first reveal only), `children?` (task 5.2c: the grade buttons — FlashcardOutcome on
-  the card's page, FlashcardGrades in a CardSession)
+  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3 | 4` (1 on the item page; 4 in a plan
+  block on /today), `revealVariant?: 'primary' | 'outline'` ("Xem nghĩa" outline in a view with
+  its own primary, m-12), `defaultOpen?` (starts revealed, grades shown — a remounted card block,
+  parked #8), `onReveal?: () => void` (the first reveal only), `onOpenChange?: (open) => void`,
+  `children?` (task 5.2c: the grade buttons — FlashcardOutcome on the card's page, FlashcardGrades
+  in a CardSession)
 - **Variants:** vocabulary card (usage, example, pronunciation) · recall / derived card (back and
   hint only, each side in its own language)
-- **States:** front only ("Xem nghĩa", primary); revealed (back, hint, "danh từ · trung tính" +
+- **States:** front only ("Xem nghĩa", `revealVariant`: primary by default); revealed (back, hint, "danh từ · trung tính" +
   note, example, pronunciation; "Ẩn nghĩa", outline); `children` at the bottom of the card from the
   first reveal on, kept when the back is hidden again
 - **Usage:** `<FlashcardView card={item.content} headingLevel={1}>{outcome && <FlashcardOutcome
@@ -1976,8 +1979,13 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
   and card blocks on /today (5.4))
 - **File:** `features/items/components/outcome/card-session.tsx`
 - **Props:** `CardSessionProps` — `cards: { itemId, sides: FlashcardSides, blockId? }[]`,
-  `requestId: string`, `record: RecordOutcome` (the unbound `recordOutcome`)
-- **Variants:** —
+  `requestId: string`, `record: RecordOutcome` (the unbound `recordOutcome`), `headingLevel?: 2 |
+  3 | 4` (2 under a page `h1`, 3 under /review's "Thẻ", 4 in a /today plan block — parked #7),
+  `revealVariant?`, `initialRevealed?: string | null` (the first card starts revealed if it is
+  that one), `onRevealChange?: (itemId, open) => void`. The sides come from `cardSidesOf(item)`
+  (features/items, m-5: the one "is this a card, and its sides", for /today, /review's loader and
+  rows) or `flashcardSides` (the flashcard page)
+- **Variants:** `revealVariant` primary (/review) · outline (/today's card blocks, m-12)
 - **States:** empty (no cards: EmptyState "Không có thẻ nào để ôn") · grading ("Còn {n} thẻ",
   FlashcardView then FlashcardGrades once revealed) · saving (the grade busy) · error (the card
   stays; ErrorState "Chưa lưu được kết quả" + the reason + "Thử lại", which resends the same input)
@@ -2225,13 +2233,15 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
   `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
   (`recordOutcome`, unbound)
-- **Variants:** session (CardSession: FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows
-  (every card was handled before the page rendered: BlockItemList)
+- **Variants:** session (CardSession with `headingLevel={4}` — under the block's `h3`, parked #7 —
+  and an outline "Xem nghĩa", the block's "Check-in" being the view's primary, m-12;
+  FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows (every card was handled before the
+  page rendered: BlockItemList)
 - **States:** grading · saving · error (CardSession's ErrorState + "Thử lại") · end ("Đã ôn xong":
   a session keeps its deck to the end while the revalidated page drops the graded cards) ·
   handled (the rows) · grown (the block's items changed — "Học thêm", an off-plan result: the deck
-  starts again from the cards not handled yet, the current card first, then the appended ones;
-  ruling M5-R33 I-1)
+  starts again from the cards not handled yet, the current card first — still revealed if it was,
+  parked #8 — then the appended ones; ruling M5-R33 I-1)
 - **Usage:** `<PlanBlockCard … cards={slots.cards && <CardBlock cards={slots.cards}
   items={slots.items} requestId={page.requestId} record={record} />} />` (TodayView)
 - **Accessibility:** CardSession's (focus to the next card's "Xem nghĩa", the polite "Đã lưu thẻ

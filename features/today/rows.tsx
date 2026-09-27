@@ -6,8 +6,7 @@
  * Server-only (the registry and the generated catalog); the page calls `todaySlots`.
  */
 import 'server-only'
-import { isItemOfType } from '@/features/items/narrow'
-import type { CardSessionCard, FlashcardSides } from '@/features/items/outcome'
+import { cardSidesOf, type CardSessionCard } from '@/features/items/outcome'
 import { renderItemRow } from '@/features/items/render'
 import type { ItemStateView } from '@/features/items/types'
 import { getItem } from '@/lib/content/catalog'
@@ -47,12 +46,6 @@ function itemSlots(view: BlockView, states: States): BlockItemSlot[] {
   }))
 }
 
-/** What a FlashcardView shows: plain, serialisable data (it crosses to the client). */
-function sidesOf(card: CatalogItem<'flashcard'>): FlashcardSides {
-  const { front, back, hint, usage, example, pronunciation, lang } = card.content
-  return { front, back, hint, usage, example, pronunciation, lang }
-}
-
 /**
  * Decision 19: a block whose items are all flashcards grades them inline — its cards not handled
  * yet for the plan's date (a result on or after it, or skipped: `itemHandled`), each with the
@@ -62,19 +55,19 @@ function sidesOf(card: CatalogItem<'flashcard'>): FlashcardSides {
 function cardsOf(view: BlockView, states: States, planDate: LocalDay): CardSessionCard[] | null {
   if (view.block.shadowing !== undefined) return null
   const items = knownItems(view).map(({ item }) => item)
-  const cards = items.filter((item) => isItemOfType(item, 'flashcard'))
+  const cards = items.flatMap((item) => {
+    const sides = cardSidesOf(item)
+    return sides === null ? [] : [{ itemId: item.id, sides, blockId: view.block.id }]
+  })
   if (cards.length === 0 || cards.length !== items.length) return null
-  return cards
-    .filter((card) => !itemHandled(card.id, planDate, states))
-    .map((card) => ({ itemId: card.id, sides: sidesOf(card), blockId: view.block.id }))
+  return cards.filter((card) => !itemHandled(card.itemId, planDate, states))
 }
 
 /** §5.6: the example sentence of each listed card that has one, in block order. */
 function sentencesOf(view: BlockView): ShadowingSentence[] {
   return (view.block.shadowing ?? []).flatMap((itemId) => {
     const item = getItem(itemId)
-    if (item === null || !isItemOfType(item, 'flashcard')) return []
-    const text = item.content.example
+    const text = item === null ? undefined : cardSidesOf(item)?.example
     return text === undefined ? [] : [{ itemId, text }]
   })
 }

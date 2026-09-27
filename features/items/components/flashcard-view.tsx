@@ -45,17 +45,26 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function FlashcardView({
   card,
   headingLevel = 2,
+  revealVariant = 'primary',
+  defaultOpen = false,
   onReveal,
+  onOpenChange,
   children,
 }: {
   card: FlashcardSides
-  /** 1 on the item page (the front is the page title); 2 inside other screens. */
-  headingLevel?: 1 | 2 | 3
+  /** 1 on the item page (the front is the page title); 2–4 inside other screens, by nesting. */
+  headingLevel?: 1 | 2 | 3 | 4
+  /** "Xem nghĩa" while closed: `primary`, or `outline` in a view with its own primary (m-12). */
+  revealVariant?: 'primary' | 'outline'
+  /** Starts revealed (a card block remounted mid-card, parked #8): the grades show too. */
+  defaultOpen?: boolean
   onReveal?: () => void
+  /** The back was revealed (true) or hidden again (false). */
+  onOpenChange?: (open: boolean) => void
   children?: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
-  const [seen, setSeen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+  const [seen, setSeen] = useState(defaultOpen)
   const backId = useId()
   const cardRef = useRef<HTMLDivElement>(null)
   const Heading = `h${headingLevel}` as const
@@ -69,6 +78,7 @@ function FlashcardView({
       if (!(active instanceof Node && cardRef.current?.contains(active))) cardRef.current?.focus()
     }
     setOpen(!open)
+    onOpenChange?.(!open)
   }
   return (
     <Card ref={cardRef} tabIndex={-1} data-slot="flashcard-view" className="gap-5 md:gap-5">
@@ -76,7 +86,7 @@ function FlashcardView({
         {card.front}
       </Heading>
       <Button
-        variant={open ? 'outline' : 'primary'}
+        variant={open ? 'outline' : revealVariant}
         aria-expanded={open}
         aria-controls={backId}
         onClick={toggle}

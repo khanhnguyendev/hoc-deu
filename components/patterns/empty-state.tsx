@@ -47,7 +47,7 @@ function EmptyState({
   title: string
   description?: string
   action?: StateAction
-  titleAs?: 'h1' | 'h2' | 'h3'
+  titleAs?: 'h1' | 'h2' | 'h3' | 'h4'
   layout?: StateLayout
   className?: string
 }) {

@@ -27,10 +27,21 @@ type Announcement = { readonly card: CardSessionCard; readonly grade: FlashcardG
  * error state — "Thử lại" resends the same input (the same event id, decision 16) — and the
  * end state "Đã ôn xong" takes focus after the last card. No cards: an empty state. `headingLevel`
  * (default 2) sets the card front's and every EmptyState's heading level, so a caller nesting this
- * under its own section heading (e.g. /review's "Thẻ", task 5.3) can pass 3 (review round 1, M8).
+ * under its own heading passes 3 (/review's "Thẻ", M8) or 4 (a plan block on /today, parked #7).
+ * `revealVariant` makes "Xem nghĩa" outline where the view has its own primary (m-12);
+ * `initialRevealed` opens the deck's first card if it is that one — a deck remounted mid-card
+ * (CardBlock, parked #8) — and `onRevealChange` reports each reveal.
  */
-function CardSession({ cards, requestId, record, headingLevel = 2 }: CardSessionProps) {
-  const titleAs = headingLevel === 3 ? 'h3' : 'h2'
+function CardSession({
+  cards,
+  requestId,
+  record,
+  headingLevel = 2,
+  revealVariant = 'primary',
+  initialRevealed = null,
+  onRevealChange,
+}: CardSessionProps) {
+  const titleAs = `h${headingLevel}` as const
   const [deck] = useState<readonly CardSessionCard[]>(() => [...cards])
   const [session] = useState(requestId)
   const [index, setIndex] = useState(0)
@@ -98,7 +109,14 @@ function CardSession({ cards, requestId, record, headingLevel = 2 }: CardSession
           <p className="text-sm font-medium text-muted-foreground">
             {fill(copy.remaining, { count: deck.length - index })}
           </p>
-          <FlashcardView key={card.itemId} card={card.sides} headingLevel={headingLevel}>
+          <FlashcardView
+            key={card.itemId}
+            card={card.sides}
+            headingLevel={headingLevel}
+            revealVariant={revealVariant}
+            defaultOpen={index === 0 && card.itemId === initialRevealed}
+            onOpenChange={(open) => onRevealChange?.(card.itemId, open)}
+          >
             <FlashcardGrades onGrade={grade} pending={pending ? grading : null} />
           </FlashcardView>
           {failure !== null && (

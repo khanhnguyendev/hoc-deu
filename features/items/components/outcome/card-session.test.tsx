@@ -2,13 +2,10 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { cardItem, derivedCardItem, REQUEST_ID, SAVED } from '../../fixtures'
-import type { CardSessionProps, RecordOutcome } from '../../outcome'
+import { flashcardSides, type CardSessionProps, type RecordOutcome } from '../../outcome'
 import { CardSession } from './card-session'
 
-const sidesOf = (item: ReturnType<typeof cardItem>) => {
-  const { front, back, hint, usage, example, pronunciation, lang } = item.content
-  return { front, back, hint, usage, example, pronunciation, lang }
-}
+const sidesOf = (item: ReturnType<typeof cardItem>) => flashcardSides(item.content)
 
 const BLOCKER = cardItem()
 const UNBLOCK = cardItem({
@@ -213,6 +210,30 @@ describe('CardSession (decision 19)', () => {
     await reveal(user)
     await user.click(screen.getByRole('button', { name: /^Biết/ }))
     expect(await screen.findByRole('heading', { level: 3, name: 'Đã ôn xong' })).toBeTruthy()
+  })
+
+  it('headingLevel 4 inside a plan block; revealVariant outline; initialRevealed opens the first card (#7, #8, m-12)', () => {
+    const onRevealChange = vi.fn()
+    render(
+      <CardSession
+        cards={CARDS}
+        requestId={REQUEST_ID}
+        record={vi.fn()}
+        headingLevel={4}
+        revealVariant="outline"
+        initialRevealed={CARDS[0]!.itemId}
+        onRevealChange={onRevealChange}
+      />,
+    )
+    expect(screen.getByRole('heading', { level: 4, name: CARDS[0]!.sides.front })).toBeTruthy()
+    // Revealed from mount: "Ẩn nghĩa" and the grades.
+    expect(screen.getByRole('button', { name: 'Ẩn nghĩa' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Biết/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Ẩn nghĩa' }))
+    expect(onRevealChange).toHaveBeenLastCalledWith(CARDS[0]!.itemId, false)
+    expect(screen.getByRole('button', { name: 'Xem nghĩa' }).getAttribute('data-variant')).toBe(
+      'outline',
+    )
   })
 
   it('forwards `headingLevel` to the empty-state title for a session without cards (M8)', () => {

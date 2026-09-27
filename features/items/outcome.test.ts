@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanItem } from '@/lib/domain/catalog'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
-import { cardItem, derivedCardItem } from './fixtures'
+import { cardItem, derivedCardItem, problemItem } from './fixtures'
 import {
+  cardSidesOf,
   flashcardSides,
   isDue,
   itemActionsFor,
@@ -169,5 +170,13 @@ describe('flashcardSides (the one FlashcardContent → FlashcardSides mapping, t
       pronunciation: card.pronunciation,
       lang: card.lang,
     })
+  })
+})
+
+describe('cardSidesOf (m-5: the one "is this a card, and its sides")', () => {
+  it('gives a flashcard’s sides, and null for any other item', () => {
+    const card = cardItem()
+    expect(cardSidesOf(card)).toEqual(flashcardSides(card.content))
+    expect(cardSidesOf(problemItem())).toBeNull()
   })
 })
