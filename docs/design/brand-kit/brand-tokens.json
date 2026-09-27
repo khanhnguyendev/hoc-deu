@@ -1,0 +1,71 @@
+{
+  "name": "Học Đều",
+  "tagline": "Mỗi ngày một chút, AI giúp bạn tiến đều.",
+  "mark": {
+    "viewBox": 84,
+    "cell": 24,
+    "gap": 6,
+    "radius": 4.36,
+    "cells_row_col": [
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        2
+      ]
+    ],
+    "light": {
+      "tokens": [
+        "heat-1",
+        "heat-2",
+        "heat-3"
+      ],
+      "hex": [
+        "#2DD4BF",
+        "#0D9488",
+        "#115E59"
+      ]
+    },
+    "dark": {
+      "tokens": [
+        "heat-2",
+        "heat-3",
+        "heat-4"
+      ],
+      "hex": [
+        "#0D9488",
+        "#2DD4BF",
+        "#CCFBF1"
+      ]
+    }
+  },
+  "wordmark": {
+    "font": "Be Vietnam Pro",
+    "weight": 600,
+    "tracking": 0,
+    "light": "foreground #1C1917",
+    "dark": "foreground #FAFAF9"
+  },
+  "app_icon": {
+    "tile": "heat-4 (light) #042F2E",
+    "cells": "dark ramp"
+  }
+}
