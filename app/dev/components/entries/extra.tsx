@@ -236,7 +236,10 @@ export const EXTRA_ENTRIES: Entry[] = [
     layer: 'features',
     file: 'features/roadmap/components/reset-track-button.tsx',
     demos: [
-      { title: '"Bắt đầu lại" → hỏi lại → thành công (toast)', render: () => RESET },
+      {
+        title: '"Bắt đầu lại" → hỏi lại → thành công (vùng trạng thái cạnh nút, không kèm toast)',
+        render: () => RESET,
+      },
       {
         title: 'Lộ trình đã đổi trạng thái (thông báo cạnh nút)',
         render: () => (

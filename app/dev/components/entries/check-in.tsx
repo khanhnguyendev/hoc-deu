@@ -85,7 +85,8 @@ export const CHECK_IN_ENTRIES: Entry[] = [
     file: 'features/checkin/components/check-in-button.tsx',
     demos: [
       {
-        title: 'Check-in một chạm: đang lưu, rồi thông báo (toast)',
+        title:
+          'Check-in một chạm: đang lưu, rồi thông báo (nút còn: vùng trạng thái; nút biến mất: toast)',
         render: () =>
           narrow(
             <CheckInButton

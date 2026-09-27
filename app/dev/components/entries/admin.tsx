@@ -1,4 +1,5 @@
 import { FocusLayout } from '@/components/patterns/focus-layout'
+import { LoadingState } from '@/components/patterns/loading-state'
 import { Button } from '@/components/ui/button'
 import type { AdminActionResult } from '@/features/admin/actions'
 import { AdminOverview } from '@/features/admin/components/admin-overview'
@@ -226,6 +227,14 @@ const ADMIN_OVERVIEW_ENTRIES: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Đang tải (app/(admin)/admin/loading.tsx)',
+        render: () => (
+          <div className="w-full">
+            <LoadingState variant="page" />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -368,6 +377,14 @@ const ADMIN_OVERVIEW_ENTRIES: Entry[] = [
                 maxLearnerWeek: null,
               }}
             />
+          </div>
+        ),
+      },
+      {
+        title: 'Đang tải /admin/content (app/(admin)/admin/content/loading.tsx)',
+        render: () => (
+          <div className="w-full">
+            <LoadingState variant="page" />
           </div>
         ),
       },

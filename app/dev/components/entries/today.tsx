@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import { LinkRow } from '@/components/patterns/link-row'
+import { ErrorState } from '@/components/patterns/error-state'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { StatusPill } from '@/components/patterns/status-pill'
 import type { CheckInResult, OutcomeResult } from '@/features/checkin/actions'
@@ -420,6 +421,11 @@ export const TODAY_ENTRIES: Entry[] = [
         title: 'Đang tải (app/(app)/today/loading.tsx)',
         render: () => wide(<LoadingState variant="page" />),
       },
+      {
+        title: 'Lỗi (app/(app)/today/error.tsx): không tải được kế hoạch hôm nay',
+        render: () =>
+          wide(<ErrorState titleAs="h1" title={vi.today.error.title} onRetry={() => {}} />),
+      },
     ],
   },
   {
@@ -558,9 +564,13 @@ export const TODAY_ENTRIES: Entry[] = [
     layer: 'features',
     file: 'features/today/components/resume-button.tsx',
     demos: [
-      { title: 'Thành công (toast)', render: () => <ResumeButton resume={demoResume} /> },
       {
-        title: 'Không còn khả dụng (thông báo cạnh nút)',
+        title:
+          'Thành công: nút còn đây nên vùng trạng thái nói (trên /today trang làm mới, nút biến mất: toast)',
+        render: () => <ResumeButton resume={demoResume} />,
+      },
+      {
+        title: 'Không còn khả dụng: "Kế hoạch vừa thay đổi. Trang đã được làm mới."',
         render: () => <ResumeButton resume={demoResumeFailure} />,
       },
     ],

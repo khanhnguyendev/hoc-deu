@@ -1640,13 +1640,16 @@ Copy: `vi.today`.
   lists an ExtraButton per active, started track (`page.extra`). No mode badge in v1.0
   (decision 12)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
-  error (`unreadable`; `error.tsx`) · ready
+  error (`unreadable`; `error.tsx`: ErrorState `h1` "Không tải được kế hoạch hôm nay" + "Thử lại")
+  · ready — all in the catalog (m-3)
 - **Usage:** `<TodayView page={page} slots={todaySlots(page)} markPlanSeen={markPlanSeen}
   resumeToday={resumeTodayAction} checkIn={checkInBlock} addExtra={addExtraAction}
   record={recordOutcome} />` (`app/(app)/today/page.tsx`)
 - **Accessibility:** PageHeader `h1` "Hôm nay" with the long date; each column part is a Section
-  (a region named by its `h2`); blocks are a `role="list"`; DESIGN_SYSTEM §5 order — banners →
-  blocks (2/3 column from 1024 px) → stats and weak areas (1/3 column)
+  (a region named by its `h2`); the plan section's heading is the page's focus fallback
+  (`focusFallback`: where focus goes when an action control disappears with it, UI I-3); blocks
+  are a `role="list"`; DESIGN_SYSTEM §5 order — banners → blocks (2/3 column from 1024 px) → stats
+  and weak areas (1/3 column)
 
 ### PlanBlockCard
 
@@ -2313,7 +2316,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   first cron run with the hint "Có sau lần chạy đầu tiên của cron bảo trì.", after it (no
   successful backup / restore test read) with "Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành
   công nào."; a DB size not measured for 36 h says "Không có số liệu mới trong 36 giờ qua (đo lúc
-  …)"; loading — `app/(admin)/admin/loading.tsx`; error — the `(admin)` error boundary
+  …)"; loading — `app/(admin)/admin/loading.tsx` (in the catalog, m-3); error — the `(admin)`
+  error boundary
 - **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
@@ -2363,7 +2367,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   or an unnoted placed problem — decision 25: `danger-soft`, an icon and "Cần bổ sung"), `gap`
   (a gap further ahead: "Còn thiếu"), `covered` ("Đủ"); a line naming the horizon, or "Chưa học
   viên nào có kế hoạch trong 14 ngày qua…"; a variant without its roadmap file ("Chưa có tệp lộ
-  trình cho biến thể này.", no table)
+  trình cho biến thể này.", no table); `/admin/content` loading — `app/(admin)/admin/content/
+  loading.tsx`, shown in this entry's catalog demos (m-3)
 - **Usage:** `{track.roadmaps.map((r) => <ContentCoverage key={r.variant} coverage={r} />)}`
 - **Accessibility:** an `h3`; a focusable `region` named "Độ phủ theo tuần của {track}, {variant}";
   week numbers are row headers; a missing lesson says "(thiếu)" and a red row says "Cần bổ sung"
