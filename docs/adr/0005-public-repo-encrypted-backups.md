@@ -37,7 +37,9 @@ database, a key that decrypts it, and a database URL with a password.
 - **Secrets live in environments limited to `main`** — `backup` now, `bot` in v1.1 — or in Vercel;
   no pull-request branch (`claude/*` included) can read them. Inside a job, only the step that
   needs a secret gets it (step-level `env`, never workflow- or job-level), values reach scripts
-  through `env` only (no `${{ }}` inside a script), and the secret-bearing steps run no Node code.
+  through `env` only (no `${{ }}` inside a script), and the secret-bearing steps run no Node code —
+  the same rule for `github.token` (M6): the restore test's own download step, which needs it,
+  never also runs the Node-based artifact check; that runs in a step of its own with no token.
 - **Nothing a pull request can create is trusted.** The restore test takes the newest artifact of a
   successful `backup.yml` run on `main` of this repository, started by its schedule or by hand —
   never the newest artifact by name — and checks the manifest's commit is on `main` before checking
@@ -68,9 +70,13 @@ database, a key that decrypts it, and a database URL with a password.
 
 ## Follow-ups
 
-- **Pin third-party actions by commit SHA.** The workflows use major-version tags
-  (`actions/checkout@v7`, `pnpm/action-setup@v6`, …) like the rest of the repository; task 7.3 pins
-  every action by commit SHA, the backup workflows included.
+- **Pin third-party actions by commit SHA.** `backup.yml` and `restore-test.yml` now pin every
+  action (`actions/checkout`, `pnpm/action-setup`, `actions/setup-node`, `actions/upload-artifact`)
+  by commit SHA, each with a `# vX.Y.Z` comment (M11, `tools/backup/workflows.test.ts`), moved
+  ahead of task 7.3 because `pnpm/action-setup` runs in both `backup` jobs before the
+  secret-bearing steps, daily, once production is the target — a moved tag there could plant a
+  process or swap a binary the later steps trust. Task 7.3 still pins the rest of the repository
+  (`ci.yml`, `codeql.yml`, `content-verify.yml`).
 - **`sslmode=verify-full` for the backup's database URL.** The job requires TLS
   (`sslmode=require`) but does not yet verify the pooler's certificate. Check on staging first that
   the pooler's certificate chain verifies against Supabase's CA, then switch the URL and the

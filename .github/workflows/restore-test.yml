@@ -34,13 +34,13 @@ jobs:
       PG_BIN: /usr/lib/postgresql/17/bin
       LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # The manifest's commit must be reachable (and is checked to be on main).
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -100,7 +100,9 @@ jobs:
           echo "artifact=${artifacts[0]}" >> "$GITHUB_OUTPUT"
           echo "Restoring ${artifacts[0]} (backup run $run_id)."
 
-      - name: Download it and check its files
+      # github.token stays in this step only: the check below runs Node code, and ADR-0005 keeps
+      # secret-bearing steps (a token included) free of it (M6).
+      - name: Download it
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -112,6 +114,12 @@ jobs:
           umask 077
           gh run download "$RUN_ID" --repo "$REPOSITORY" --name "$ARTIFACT" \
             --dir "$RUNNER_TEMP/restore/encrypted"
+
+      - name: Check its files
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
           pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/restore/encrypted" --auth optional
 
       - name: Decrypt with the restore-test key, then decompress

@@ -96,7 +96,8 @@ const B = {
 const R = {
   install: 'Install postgresql-client-17 (PGDG) and age',
   find: 'Find the newest backup (a successful scheduled or dispatched backup.yml run on main)',
-  download: 'Download it and check its files',
+  download: 'Download it',
+  checkArtifact: 'Check its files',
   decrypt: 'Decrypt with the restore-test key, then decompress',
   verify: 'Check the manifest and every file’s SHA-256',
   checkout: 'Check out the backup’s commit (its migrations are the backup’s schema)',
@@ -110,7 +111,7 @@ const R = {
 /** Steps that handle backup data or the key: they create files only their user can read. */
 const DATA_STEPS = {
   backup: [B.meta, B.dump, B.manifest, B.encrypt, B.check],
-  restore: [R.find, R.download, R.decrypt, R.verify, R.load, R.compare, R.gotrue],
+  restore: [R.find, R.download, R.checkArtifact, R.decrypt, R.verify, R.load, R.compare, R.gotrue],
 }
 
 describe('the print guard itself', () => {
@@ -173,7 +174,7 @@ describe.each([
 
   it('checks out without keeping the token', () => {
     const checkout = steps[0] as Step
-    expect(checkout.uses).toBe('actions/checkout@v7')
+    expect(checkout.uses).toBe('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1')
     expect(checkout.with?.['persist-credentials']).toBe(false)
   })
 
@@ -252,6 +253,24 @@ describe.each([
     expect(JSON.stringify(job.env ?? {})).not.toContain('secrets.')
   })
 
+  it('never runs Node code in a step whose env holds github.token (M6, ADR-0005)', () => {
+    for (const candidate of steps) {
+      if (JSON.stringify(candidate.env ?? {}).includes('github.token')) {
+        expect(commands(candidate).join('\n'), candidate.name).not.toMatch(
+          /\b(pnpm|node|npx|npm|tsx)\b/,
+        )
+      }
+    }
+  })
+
+  it('pins every action by commit SHA, with its version as a comment (M11)', () => {
+    const uses = text.split('\n').filter((line) => /^\s*(?:-\s*)?uses:\s/.test(line))
+    expect(uses.length).toBeGreaterThan(0)
+    for (const line of uses) {
+      expect(line, line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+(\.\d+){0,2}\s*$/)
+    }
+  })
+
   it('runs every multi-line script under bash with set -euo pipefail', () => {
     const scripts = steps.filter((step) => (step.run ?? '').includes('\n'))
     expect(scripts.length).toBeGreaterThan(4)
@@ -281,6 +300,27 @@ describe('backup.yml', () => {
   const { steps } = backup
   const step = (name: string) => stepNamed(steps, name)
   const script = (name: string) => step(name).run ?? ''
+
+  it('pins actions/checkout, pnpm/action-setup, actions/setup-node and actions/upload-artifact (M11)', () => {
+    expect(backup.text).toContain(
+      'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+    )
+    expect(backup.text).toContain(
+      'uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10',
+    )
+    expect(backup.text).toContain(
+      'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+    )
+    const uploads = steps.filter((candidate) => candidate.uses?.startsWith('actions/upload-artifact'))
+    expect(uploads).toHaveLength(2)
+    for (const upload of uploads) {
+      expect(upload.uses).toBe('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a')
+    }
+    expect(backup.text).toContain(
+      'uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1',
+    )
+    expect(backup.text).not.toMatch(/uses: [\w.-]+\/[\w.-]+@v\d/)
+  })
 
   it('creates every file of backup data readable by its user only (umask 077)', () => {
     for (const name of DATA_STEPS.backup) {
@@ -442,7 +482,7 @@ describe('backup.yml', () => {
     expect(encryptAt).toBeLessThan(checkAt)
     for (const upload of uploads) {
       expect(steps.indexOf(upload)).toBeGreaterThan(checkAt)
-      expect(upload.uses).toBe('actions/upload-artifact@v7')
+      expect(upload.uses).toBe('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a')
       expect(upload.with?.path).toBe('${{ runner.temp }}/backup-upload')
       expect(upload.with?.['if-no-files-found']).toBe('error')
     }
@@ -491,6 +531,19 @@ describe('restore-test.yml', () => {
   const step = (name: string) => stepNamed(steps, name)
   const script = (name: string) => step(name).run ?? ''
 
+  it('pins actions/checkout, pnpm/action-setup and actions/setup-node (M11)', () => {
+    expect(restore.text).toContain(
+      'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+    )
+    expect(restore.text).toContain(
+      'uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10',
+    )
+    expect(restore.text).toContain(
+      'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+    )
+    expect(restore.text).not.toMatch(/uses: [\w.-]+\/[\w.-]+@v\d/)
+  })
+
   it('checks out the whole history, so the manifest’s commit is reachable', () => {
     expect((steps[0] as Step).with?.['fetch-depth']).toBe(0)
   })
@@ -514,16 +567,28 @@ describe('restore-test.yml', () => {
     })
   })
 
-  it('checks the downloaded files before decrypting them', () => {
-    const lines = commands(step(R.download))
-    const download = lines.findIndex((line) => line.startsWith('gh run download "$RUN_ID"'))
-    const check = lines.findIndex((line) =>
-      line.startsWith(
-        'pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/restore/encrypted" --auth optional',
-      ),
+  it('downloads, then checks the downloaded files in a step of its own, before decrypting them', () => {
+    const downloadAt = indexOf(steps, named(R.download), R.download)
+    const checkAt = indexOf(steps, named(R.checkArtifact), R.checkArtifact)
+    const decryptAt = indexOf(steps, named(R.decrypt), R.decrypt)
+    expect(downloadAt).toBeLessThan(checkAt)
+    expect(checkAt).toBeLessThan(decryptAt)
+    expect(commands(step(R.download))).toContainEqual(
+      expect.stringMatching(/^gh run download "\$RUN_ID"/),
     )
-    expect(download).toBeGreaterThanOrEqual(0)
-    expect(check).toBeGreaterThan(download)
+    expect(commands(step(R.checkArtifact))).toContainEqual(
+      'pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/restore/encrypted" --auth optional',
+    )
+  })
+
+  it('downloads with github.token, but the check-artifact step (Node) never holds it (M6, ADR-0005)', () => {
+    expect(step(R.download).env).toEqual({
+      GH_TOKEN: '${{ github.token }}',
+      REPOSITORY: '${{ github.repository }}',
+      RUN_ID: '${{ steps.find.outputs.run_id }}',
+      ARTIFACT: '${{ steps.find.outputs.artifact }}',
+    })
+    expect(step(R.checkArtifact).env).toBeUndefined()
   })
 
   it('hands the restore key to the decrypt step only, as a 0600 file removed right after', () => {
@@ -549,6 +614,7 @@ describe('restore-test.yml', () => {
     const order = [
       at(named(R.find), R.find),
       at(named(R.download), R.download),
+      at(named(R.checkArtifact), R.checkArtifact),
       at(named(R.decrypt), R.decrypt),
       at(named(R.verify), R.verify),
       at(named(R.checkout), R.checkout),
