@@ -1200,4 +1200,39 @@ describe('one rule, two appliers (M-8)', () => {
     expect(start.items['dsa:p1']?.reps).toBe(1)
     expect(Object.keys(start.items)).toEqual(['dsa:p1'])
   })
+  describe('an item id of `__proto__` stays a key in both appliers (5.0a put)', () => {
+    // A catalog that really has the item: Object.fromEntries defines `__proto__` as an own key.
+    const PROTO_ID = '__proto__'
+    const lesson = { ...CATALOG.items['dsa:lesson-arrays']!, id: PROTO_ID }
+    const catalog: PlanCatalog = {
+      ...CATALOG,
+      items: Object.fromEntries([...Object.entries(CATALOG.items), [PROTO_ID, lesson]]),
+    }
+    const completed = eventBuilder()('lesson.completed', { itemId: PROTO_ID, trackId: 'dsa' })
+
+    /** The table holds the row as an own `__proto__` key; its prototype is untouched. */
+    function expectOwnProtoKey(items: Readonly<Record<string, ItemState>>): void {
+      expect(Object.getPrototypeOf(items)).toBe(Object.prototype)
+      expect(Object.keys(items)).toEqual([PROTO_ID])
+      expect(Object.getOwnPropertyDescriptor(items, PROTO_ID)).toMatchObject({
+        value: { itemId: PROTO_ID, lastResult: 'completed', lastResultOn: MONDAY },
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      })
+    }
+
+    it('projectEvent stores it as an own key of a new table', () => {
+      const { state, ignored } = projectEvent(EMPTY_DERIVED_STATE, completed, catalog)
+      expect(ignored).toBeNull()
+      expectOwnProtoKey(state.items)
+      expect(Object.getPrototypeOf(EMPTY_DERIVED_STATE.items)).toBe(Object.prototype)
+    })
+
+    it('applyChangesInPlace stores it as an own key of the working table', () => {
+      const working = mutableCopy(EMPTY_DERIVED_STATE)
+      applyChangesInPlace(working, projectChanges(working, completed, catalog).changes)
+      expectOwnProtoKey(working.items)
+    })
+  })
 })
