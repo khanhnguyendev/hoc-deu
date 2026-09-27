@@ -195,7 +195,9 @@ read).
      the release-boundary week-4 constraint, ADR-0038, covers this).
 10. **The first maintenance cron (I2)** — after the first 21:00 UTC following step 8: Vercel →
     Settings → Cron Jobs lists `/api/cron/maintenance`; its last invocation is `200` with `ok`
-    (before step 11, `backups: failed` is expected — no backup workflow points at production yet).
+    (its `backups` step reads the repository's last successful `backup.yml` / `restore-test.yml`
+    runs on `main`, whichever database they dumped: until step 11 those are **staging's** runs, so
+    `backups: ok` here proves only that the cron runs — production is not backed up yet).
     `/admin`'s cron card shows that run, with no "Cron bảo trì chưa chạy lại kể từ …" warning
     (ADR-0034, I2). This is the first proof the cron is registered on production at all — nothing
     else in this runbook checks it.
