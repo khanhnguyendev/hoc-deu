@@ -4,7 +4,8 @@ import { useSyncExternalStore } from 'react'
  * The media queries of the layout breakpoints (DESIGN_SYSTEM §5): Tailwind's own `md` (48rem,
  * 768 px) and `lg` (64rem, 1024 px), so a component that must switch in script — the check-in
  * sheet's Sheet / Dialog, the toasts' position — flips exactly where the `md:` / `lg:` utilities
- * do. The one place a breakpoint is written outside the CSS.
+ * do. The one place a breakpoint is written outside the CSS: a documented exception to "no `rem`
+ * literals outside app/globals.css" (COMPONENTS.md "useMediaQuery", re-review M6).
  */
 export const MEDIA = {
   /** From `md`: the desktop layout (dialogs instead of bottom sheets, toasts bottom-right). */

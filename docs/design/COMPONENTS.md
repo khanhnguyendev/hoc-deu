@@ -217,6 +217,23 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** polite live region labelled "Thông báo"; never the only feedback for a failed
   save
 
+### useMediaQuery (hook)
+
+- **Layer:** ui (a hook, not a component: no catalog entry of its own — the Toaster and
+  CheckInSheet demos use it)
+- **Module:** `components/ui/use-media-query.ts` — `useMediaQuery(query): boolean` and `MEDIA`
+- **Props:** `query` — `MEDIA.md` (`(min-width: 48rem)`) or `MEDIA.lg` (`(min-width: 64rem)`)
+- **Variants:** —
+- **States:** false on the server and in the hydrating render (the server snapshot), then the
+  viewport's answer, kept in sync (`useSyncExternalStore` over `matchMedia`)
+- **Usage:** `const desktop = useMediaQuery(MEDIA.md)` (CheckInSheet: Sheet below `md`, Dialog
+  from it; Toaster: position and the bottom-navigation offset)
+- **Documented exception (visual values):** `MEDIA` holds the one pair of `rem` literals outside
+  `app/globals.css`. Script must switch exactly where the `md:` / `lg:` utilities do, and those
+  breakpoints are Tailwind's defaults (48rem, 64rem) with no CSS variable a script can read
+  reliably, so they are written once here — never as `px`, never a second copy (UI m-2,
+  re-review M6). The token guard scans colours, not strings, so this entry is the record.
+
 ### ToggleGroup
 
 - **Layer:** ui
@@ -2268,8 +2285,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   (TodayView's Section "Học thêm", plan and resumed states: one per track `extraTrackIds` gives —
   the plan engine's eligibility, the same the server applies). The surface is `Card`
 - **Accessibility:** in the track's `data-accent`, the track named by its chip (never colour
-  alone); the button's and the link's accessible names carry the track title (`sr-only`), so
-  several are distinct; a polite `role="status"` for the answer; 44 px targets
+  alone); the button's accessible name carries the track title (`sr-only`), so several are
+  distinct (a paused card has no button and no link — the throttle banner holds the "Ôn tập"
+  link, UI I-5); a polite `role="status"` for the answer; 44 px targets
 
 ### CardBlock
 

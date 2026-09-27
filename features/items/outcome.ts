@@ -37,8 +37,9 @@ export function flashcardSides(content: FlashcardContent): FlashcardSides {
 
 /**
  * A flashcard's sides, or null for any other item (m-5): the one place outside the registry that
- * tells a card from other items, for `/today`'s card blocks and shadowing sentences, `/review`'s
- * due cards and rows, and the flashcard page.
+ * tells a card from other items, for `/today`'s card blocks and shadowing sentences and `/review`'s
+ * due cards and rows. (The flashcard page's item is already a flashcard: it calls
+ * `flashcardSides` directly.)
  */
 export function cardSidesOf(item: CatalogItem): FlashcardSides | null {
   return isItemOfType(item, 'flashcard') ? flashcardSides(item.content) : null

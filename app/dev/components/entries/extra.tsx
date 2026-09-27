@@ -130,7 +130,7 @@ export const EXTRA_ENTRIES: Entry[] = [
     file: 'features/today/components/extra-button.tsx',
     demos: [
       {
-        title: '"Học thêm" (thành công: thông báo cạnh nút và toast)',
+        title: '"Học thêm" (thành công: thông báo cạnh nút — nút còn đó nên không kèm toast)',
         render: () =>
           narrow(<ExtraButton view={DSA_EXTRA} requestId={REQUEST_ID} action={demoAddExtra} />),
       },
