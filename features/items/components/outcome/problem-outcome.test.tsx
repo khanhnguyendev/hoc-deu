@@ -83,6 +83,31 @@ describe('ProblemOutcome — a new problem', () => {
   })
 })
 
+describe('ProblemOutcome — a navigation from the action (M1)', () => {
+  it('a guard redirect says nothing: the router is already navigating', async () => {
+    const user = userEvent.setup()
+    const redirect = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/sign-in;307;',
+    })
+    const record = vi.fn<RecordOutcome>().mockRejectedValueOnce(redirect)
+    render(
+      <ProblemOutcome binding={outcomeBinding(record)} hasNote>
+        {NOTE}
+      </ProblemOutcome>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Chưa giải được' }))
+    await vi.waitFor(() => expect(record).toHaveBeenCalledOnce())
+    expect(screen.getByRole('status').textContent).toBe('')
+    // Not stuck busy: every grade is available again.
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Tự giải được' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    )
+  })
+})
+
 describe('ProblemOutcome — the solution-reveal nudge (decision 18)', () => {
   it('"Xem lời giải" before grading preselects "Cần gợi ý"; another grade is still possible', async () => {
     const { user, record } = setup()

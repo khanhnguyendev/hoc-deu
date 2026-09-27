@@ -253,7 +253,10 @@ from `lib/i18n/vi.ts`.
 - **States:** idle · pending (the action and the re-render it causes; a second `run` sends
   nothing) · success · refused (the server's reason; the control can be pressed again) · thrown (a
   rejected request — offline, a 5xx — answers "Không lưu được thay đổi. Bạn thử lại nhé." and never
-  reaches the route's error boundary)
+  reaches the route's error boundary) · navigating (Next's own `redirect()` / `notFound()` from the
+  action — a guard after the session expired: no answer, no toast, no focus move; the router is
+  already leaving — `isNavigationError`, `components/patterns/navigation-error.ts`, shared with
+  `useOutcome` and AccountMenu, M1)
 - **Usage:** `const feedback = useActionFeedback({ focusTarget: () => checkInControlOf(id) })`;
   `feedback.run(() => action(input))`; `<Button loading={feedback.pending}>…</Button>
   <ActionStatus feedback={feedback} />`. `run(send, (answer) => (answer.ok ? 'toast' : undefined))`
@@ -284,7 +287,7 @@ from `lib/i18n/vi.ts`.
   toast instead of failing silently (M2 minor); a successful sign-out also rejects the promise
   (Next settles a redirecting action called directly, outside `useActionState`, with a
   `NEXT_REDIRECT`-digest error even though the navigation already happened), and that shape is
-  recognised and never toasted; bottom nav 56 px; `main` and the root scroll padding keep content
+  recognised (`isNavigationError`, shared with ActionFeedback) and never toasted; bottom nav 56 px; `main` and the root scroll padding keep content
   and focus clear of the top bar and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order

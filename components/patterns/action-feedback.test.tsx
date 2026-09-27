@@ -120,6 +120,33 @@ describe('useActionFeedback + ActionStatus (UI I-3)', () => {
     expect(toasts).toEqual([])
   })
 
+  it('a navigation from the action (a guard redirect, M1) says nothing: no answer, no toast, no focus move', async () => {
+    const { action, fail } = deferred()
+    const { rerender } = render(<Page action={action} gone={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi' }))
+    const redirect = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/sign-in;307;',
+    })
+    await act(async () => fail(redirect))
+    expect(screen.getByRole('status').textContent).toBe('')
+    // The router navigates: the control goes, silently.
+    rerender(<Page action={action} gone />)
+    expect(toasts).toEqual([])
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('a notFound() from the action is a navigation too (M1)', async () => {
+    const { action, fail } = deferred()
+    render(<Control action={action} />)
+    fireEvent.click(screen.getByRole('button'))
+    const notFound = Object.assign(new Error('NEXT_HTTP_ERROR_FALLBACK;404'), {
+      digest: 'NEXT_HTTP_ERROR_FALLBACK;404',
+    })
+    await act(async () => fail(notFound))
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(toasts).toEqual([])
+  })
+
   it('re-announces the same answer (a new node in the region)', async () => {
     const first = deferred()
     render(<Control action={first.action} />)

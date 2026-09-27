@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
 import { focusFallbackElement, focusLost } from './focus-fallback'
+import { isNavigationError } from './navigation-error'
 
 /** What a server action answers a control: whether it worked, and what to say. */
 export type ActionAnswer = { readonly ok: boolean; readonly message: string }
@@ -27,7 +28,8 @@ export type ActionFeedback = {
    * Sends `send()` unless a send is running. `onAnswer` sees the answer first and may return
    * `'toast'` to deliver it as a toast now — for a control that closes itself on success (the
    * check-in sheet). A rejection is caught: it answers "Không lưu được thay đổi. Bạn thử lại
-   * nhé." and never reaches the route's error boundary.
+   * nhé." and never reaches the route's error boundary — except Next's own navigation (a guard's
+   * `redirect()`, a `notFound()`), which says nothing: the router is already leaving (M1).
    */
   readonly run: (
     send: () => Promise<ActionAnswer>,
@@ -45,7 +47,8 @@ export type ActionFeedback = {
  *   meanwhile sends nothing.
  * - **Failed request:** a rejection (offline, a 5xx) becomes the save-failed answer beside the
  *   control — an async transition that throws would otherwise replace the page with its error
- *   boundary.
+ *   boundary. Next's own navigation (a guard `redirect()`, `notFound()`) is not a failure: the
+ *   router is already leaving, so the control says nothing (M1, `isNavigationError`).
  * - **Where the answer goes — never two places:** the actions revalidate the page, and the
  *   re-render can remove the control that asked (a check-in collapses its button, a stale plan
  *   is swapped, the paused view ends). The answer shows in the control's own status region
@@ -100,7 +103,9 @@ export function useActionFeedback(
       try {
         const result = await send()
         answer = { ok: result.ok, message: result.message, thrown: false }
-      } catch {
+      } catch (error) {
+        // The router is navigating (a guard redirect): nothing to say, nothing to toast (M1).
+        if (isNavigationError(error)) return
         answer = { ok: false, message: vi.errors.saveFailed, thrown: true }
       } finally {
         sending.current = false

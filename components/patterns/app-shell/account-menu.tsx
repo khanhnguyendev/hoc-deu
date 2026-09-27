@@ -16,26 +16,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
+import { isNavigationError } from '../navigation-error'
 import { initial } from './initial'
-
-/**
- * A successful `signOut()` still rejects the promise we get back from calling it directly (not
- * through `useActionState`): Next's client action runtime settles a redirecting action's promise
- * with a `NEXT_REDIRECT`-digest error so a `RedirectBoundary` can perform the navigation — the
- * navigation itself already happened by the time this rejection reaches us, regardless of what we
- * do with it (`server-action-reducer.js`). Recognising that shape here (never `unstable_rethrow`,
- * which would only turn it into an unhandled rejection with no boundary to catch it) keeps the
- * ordinary sign-out path silent.
- */
-function isRedirectError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'digest' in error &&
-    typeof (error as { digest: unknown }).digest === 'string' &&
-    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
-  )
-}
 
 /** Name, theme, "Quản trị" (admins only) and "Đăng xuất" (DESIGN_SYSTEM §5). */
 export function AccountMenu({
@@ -86,7 +68,8 @@ export function AccountMenu({
           // (the ordinary, successful path) never does.
           onSelect={() => {
             onSignOut?.().catch((error: unknown) => {
-              if (!isRedirectError(error)) toast.error(vi.account.signOutFailed)
+              // A successful sign-out rejects with Next's redirect (`isNavigationError`).
+              if (!isNavigationError(error)) toast.error(vi.account.signOutFailed)
             })
           }}
         >
