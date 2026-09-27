@@ -292,6 +292,8 @@ export const vi = {
     backToTrack: 'Về lộ trình {title}',
     /** An item of a retired track the learner does not follow: its track page is a 404. */
     backToTracks: 'Về danh sách lộ trình',
+    /** An item opened from a plan block goes back to the dashboard (m-9). */
+    backToToday: 'Về Hôm nay',
   },
   /** Shared track pieces (`features/tracks`): the weekly template preview. */
   tracks: {

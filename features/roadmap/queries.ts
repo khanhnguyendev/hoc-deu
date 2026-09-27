@@ -42,6 +42,7 @@ import {
   isListed,
   resolveItemLink,
   trackProgressOf,
+  TODAY_HREF,
   TRACKS_HREF,
   weakItemsOf,
   type RoadmapView,
@@ -341,7 +342,8 @@ function mockInterviewLink(
  * local ID is decoded — derived IDs hold colons), its track, who is looking and the links it may
  * resolve. Null (→ 404) for an unknown item or track, and for a draft item or an item of a draft
  * track when a learner asks; retired items stay viewable (their page shows the notice), and link
- * back to `/tracks` when their retired track's page would be a 404. The page loads the item's MDX
+ * back to `/tracks` when their retired track's page would be a 404 — or to `/today` when opened
+ * from a block of the plan the dashboard shows (`?block=`, m-9). The page loads the item's MDX
  * and code itself (`renderItemPage`). Task 5.2c adds the learner's side (`learnerContext`): the
  * state, the result controls' context — `block` and `mode` are the route's `?block=` and `?mode=` —
  * and, for the mock-interview prompt, its problem. Wrapped in `cache()` like `getTrackPage`: the
@@ -372,6 +374,9 @@ export const getItemPage = cache(
     }
 
     const learner = await learnerContext(user, item, track.status === 'active', { block, mode })
+    // m-9: opened from a plan block (`?block=`) while the item is in the plan /today shows — the
+    // way back is the dashboard, not the track.
+    if (block !== undefined && learner.outcome?.plan) backHref = TODAY_HREF
     return {
       item,
       track: summaryOf(track),

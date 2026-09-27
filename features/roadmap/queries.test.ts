@@ -573,6 +573,18 @@ describe('getItemPage — the learner’s results context (task 5.2c)', () => {
     expect(unknown?.outcome).toMatchObject({ blockId: 'b-new', mode: 'new' })
   })
 
+  it('opened from a plan (?block=, the item in the current plan): the back link is /today (m-9)', async () => {
+    learner.current = currentWith('today', [['b-new', 'dsa:lc-0001', 'new']])
+    expect((await getItemPage('dsa', 'lc-0001', 'b-new'))?.backHref).toBe('/today')
+    // A stale ?block= of an item still in the plan: the plan is still where it came from.
+    expect((await getItemPage('dsa', 'lc-0001', 'b-gone'))?.backHref).toBe('/today')
+    // Without ?block= (from the track page, /review): its track.
+    expect((await getItemPage('dsa', 'lc-0001'))?.backHref).toBe('/t/dsa')
+    // ?block= of an item no longer in the current plan: its track.
+    learner.current = currentWith('today', [['b-other', 'dsa:lc-0167', 'new']])
+    expect((await getItemPage('dsa', 'lc-0001', 'b-new'))?.backHref).toBe('/t/dsa')
+  })
+
   it('a valid ?mode= wins; an invalid one is ignored', async () => {
     learner.current = currentWith('today', [['b-new', 'dsa:lc-0001', 'new']])
     expect((await getItemPage('dsa', 'lc-0001', undefined, 'redo'))?.outcome?.mode).toBe('redo')

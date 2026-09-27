@@ -127,7 +127,7 @@ import { VariantLinks } from '@/features/roadmap/components/variant-links'
 import { WeekSection } from '@/features/roadmap/components/week-section'
 import type { Enrollment, TrackSummary, VariantLink } from '@/features/roadmap/queries'
 import type { RoadmapSlots, WeekSlots } from '@/features/roadmap/slots'
-import { TRACKS_HREF } from '@/features/roadmap/view-model'
+import { TODAY_HREF, TRACKS_HREF } from '@/features/roadmap/view-model'
 import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
 import { AdminLink } from '@/features/settings/components/admin-link'
@@ -2008,6 +2008,22 @@ export const CATALOG: Entry[] = [
               trackTitle="Lộ trình cũ"
               page={
                 <ItemPageFrame status="active" title="Bài luyện cũ">
+                  <Md.p>Nội dung của mục.</Md.p>
+                </ItemPageFrame>
+              }
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Mở từ một khối của kế hoạch (?block=): liên kết "Về Hôm nay" (m-9)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <ItemView
+              backHref={TODAY_HREF}
+              trackTitle={DEMO_DSA_SUMMARY.title}
+              page={
+                <ItemPageFrame status="active" title={<span lang="en">Two Sum</span>}>
                   <Md.p>Nội dung của mục.</Md.p>
                 </ItemPageFrame>
               }

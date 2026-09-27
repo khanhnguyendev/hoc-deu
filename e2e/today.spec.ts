@@ -180,6 +180,14 @@ test('[RF-4] a seeded plan: a problem without a note says so; rows link with ?bl
   const due = page.getByRole('link', { name: /Cần ôn hôm nay/ })
   await expect(due).toHaveAttribute('href', '/review')
   await expect(due.locator('[data-slot="stat-card"] > p').nth(1)).toHaveText('2')
+
+  // m-9: an item opened from the plan offers the way back to the dashboard.
+  await row.click()
+  await expect(page).toHaveURL((url) => url.pathname === `/t/dsa/items/${noteLess.localId}`)
+  const back = page.getByRole('link', { name: 'Về Hôm nay' })
+  await expect(back).toHaveAttribute('href', '/today')
+  await back.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Hôm nay' })).toBeVisible()
 })
 
 test('[RF-5] paused 3 days: "Học tiếp hôm nay" builds one plan for today, also when clicked again', async ({

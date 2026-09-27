@@ -23,6 +23,9 @@ import type { ItemState } from '@/lib/domain/state'
 /** The track list: where an item's back link goes when its track's page would be a 404. */
 export const TRACKS_HREF = '/tracks'
 
+/** An item opened from a plan block (`?block=`) links back to the dashboard (m-9). */
+export const TODAY_HREF = '/today'
+
 export type WeekView = {
   week: number
   topics: { id: string; title: string }[]

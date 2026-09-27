@@ -1089,7 +1089,7 @@ not under `components/`), described under ItemView below, the one place it rende
 - **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`<ItemBody item viewer
   resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
   draft / retired notice, so ItemView never renders a second one
-- **Variants:** —
+- **Variants:** the back link: the track · the track list · `/today` (m-9)
 - **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
   route validates its params and calls `notFound()` before `page` is built, so only this part ever
   suspends — never the 404 check itself) · ready — `page`
@@ -1100,7 +1100,9 @@ not under `components/`), described under ItemView below, the one place it rende
   record: recordOutcome }` — the server action unbound — or `undefined` on a read-only page)
 - **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first
   — "Về danh sách lộ trình" when `backHref` is `TRACKS_HREF` (`/tracks`: the loader's choice for
-  a retired track the learner does not follow, whose page is a 404); the page brings its own
+  a retired track the learner does not follow, whose page is a 404), "Về Hôm nay" when it is
+  `TODAY_HREF` (an item opened from a block of the plan `/today` shows, `?block=`, m-9); the page
+  brings its own
   `h1`; a `contents` wrapper keeps the page's spacing
 - **`ItemBody`** (`features/roadmap/item-body.tsx`, task 5.1c, ruling M5-R6): the `page` prop
   above, not a catalog component — a render helper beside `queries.ts` (like `renderItemPage`

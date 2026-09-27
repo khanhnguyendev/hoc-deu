@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ItemPageFrame } from '@/features/items/components/item-page-frame'
 import { outcomeBinding } from '@/features/items/fixtures'
 import { vi as strings } from '@/lib/i18n/vi'
-import { TRACKS_HREF } from '../view-model'
+import { TODAY_HREF, TRACKS_HREF } from '../view-model'
 import { ItemView } from './item-view'
 
 /** A page that suspends on a pending promise — stands in for `ItemBody` (task 5.1c). */
@@ -37,6 +37,18 @@ describe('ItemView', () => {
     )
     const back = screen.getByRole('link', { name: 'Về danh sách lộ trình' })
     expect(back.getAttribute('href')).toBe('/tracks')
+  })
+
+  it('opened from a plan (m-9): the link goes back to /today, "Về Hôm nay"', () => {
+    render(
+      <ItemView
+        backHref={TODAY_HREF}
+        trackTitle="DSA"
+        page={<ItemPageFrame status="active" title="Two Sum" />}
+      />,
+    )
+    const back = screen.getByRole('link', { name: 'Về Hôm nay' })
+    expect(back.getAttribute('href')).toBe('/today')
   })
 
   it('M3-R4: adds no notice of its own — the page’s ItemPageFrame shows it exactly once', () => {
