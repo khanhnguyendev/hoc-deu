@@ -10369,8 +10369,12 @@ its section of `COMPONENTS.md` (plus the existing entries of components it chang
     off-plan study (5.4).
 15. **The auto check-in rule (§5.5)**: a block is complete when every item is handled — its
     `lastResultOn` is on or after the plan date, or its status is `skipped`. When a result completes
-    a block that has no check-in, the server records `block.checked_in { status: 'done', minutes:
-    checkInMinutes(block), auto: true }` through `apply_system_event` in the same action. For the
+    a block that has no check-in, the server records `block.checked_in { status: 'done', minutes,
+    auto: true }` through `apply_system_event` in the same action. **Amended (whole-branch review,
+    ruling M5-R36):** a skip is not a result (§4.1) — the auto check-in fires only when at least
+    one of the block's items has a result on or after the plan date; its `minutes` are the ceiling
+    of the minutes of the items with a result (skipped items credit nothing); a block whose items
+    were all skipped gets no auto check-in (the learner checks it in, e.g. `skipped` in the sheet). For the
     `extra` block the auto check-in is sent again whenever items are added while its check-in is
     still `auto` (its minutes follow its items; a learner's edit is kept). Which blocks to check in
     is decided **inside each retry attempt, on the reloaded rows**: a block that meanwhile got a
