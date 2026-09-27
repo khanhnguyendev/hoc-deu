@@ -1,7 +1,8 @@
 # ADR-0016: Gate rule on the last **seen** plan; stale-plan resume
 
 - **Status:** accepted
-- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5 and M-6, owner rulings)
+- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5 and M-6, owner rulings) and
+  2026-09-27 (M5 task 5.4: off-plan study, ruling M5-R33)
 - **Spec:** platform design §5.2, §5.6, §5.8, §5.9
 
 ## Context
@@ -63,6 +64,16 @@ Two further constraints shape the rule:
   a skip after the day start counts for the new day; the earlier day stays incomplete. Doing every
   item of a skipped block never checks it in again by itself (the auto check-in fills only a block
   with no check-in, §5.5): the learner taps "Sửa" on it.
+- **Off-plan study (§5.9; Part B-M5 decision 21, ruling M5-R33).** A result for an item that no
+  block of the current plan lists is attached first to its track's `extra` block of that plan —
+  today's plan, the paused (last seen) plan while the gate is closed, the resumed plan on a resume
+  day; with none yet, today's plan is built — and the auto check-in follows (§5.5). A `done` extra
+  block of the paused plan reopens the gate like any check-in, as `resumedToday`. A studied item
+  of a paused, removed or never-followed track attaches to the extra block too: pause and remove
+  govern what plans schedule, not what gets recorded ("studying always counts"). Accepted: when
+  the paused plan's extra block of that track already holds an item never done (an earlier "Học
+  thêm"), the attached result joins it, the block is not complete, no auto check-in fires and the
+  gate stays closed — the paused view lists that block with its one-tap check-in.
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
   plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
   old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers

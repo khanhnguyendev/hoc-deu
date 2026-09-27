@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { unstable_rethrow } from 'next/navigation'
 import { itemHref } from '@/features/items/href'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
@@ -190,8 +191,10 @@ type Placement = { readonly planId: string; readonly blockId: string }
  * Off-plan study (decision 21, §5.9): `attachOffPlan` appends the item — in the result's mode
  * (`offPlanMode`, from its state before the result) — to its track's extra block of the current
  * plan, building today's plan first when there is none, and answers where it landed. A failure
- * here never loses the result: it is logged (its name and message only) and the result is
- * recorded without a plan, as before task 5.4.
+ * here never loses the result (ruling M5-R33 M-2): any error — an EventError, or a plain Error
+ * from building today's plan (a failed read, the engine) — is logged (its name and message only)
+ * and the result is recorded without a plan, as before task 5.4. Next's own control flow (a
+ * redirect, a not-found, a dynamic bailout) is rethrown first (`unstable_rethrow`).
  */
 async function attach(
   userId: string,
@@ -204,8 +207,11 @@ async function attach(
   try {
     return await attachOffPlan(userId, request.itemId, mode, request.requestId)
   } catch (error) {
-    if (!(error instanceof EventError)) throw error
-    console.error('[checkin] off-plan attachment failed:', `${error.name}: ${error.message}`)
+    unstable_rethrow(error)
+    console.error(
+      '[checkin] off-plan attachment failed:',
+      error instanceof Error ? `${error.name}: ${error.message}` : typeof error,
+    )
     return null
   }
 }

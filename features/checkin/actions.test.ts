@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import type { PlanBlock } from '@/lib/domain/plan/types'
@@ -33,6 +34,8 @@ const state = vi.hoisted(() => ({
   fake: null as unknown as import('@/lib/testing/fake-supabase').FakeSupabase,
   /** Runs when the auto check-in reads the item states (another request landing then). */
   onLoadItemStates: null as (() => void) | null,
+  /** `ensureToday` throws this when set (task 5.4: the off-plan attachment builds today's plan). */
+  ensureTodayThrows: null as unknown,
 }))
 
 vi.mock('next/cache', () => ({
@@ -64,6 +67,16 @@ vi.mock('@/lib/events/load-derived', async (importOriginal) => {
     loadItemStates: (...args: Parameters<typeof real.loadItemStates>) => {
       state.onLoadItemStates?.()
       return real.loadItemStates(...args)
+    },
+  }
+})
+vi.mock('@/lib/plans/today', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/plans/today')>()
+  return {
+    ...real,
+    ensureToday: (...args: Parameters<typeof real.ensureToday>) => {
+      if (state.ensureTodayThrows !== null) throw state.ensureTodayThrows
+      return real.ensureToday(...args)
     },
   }
 })
@@ -118,6 +131,7 @@ beforeEach(() => {
   state.log = []
   state.denied = null
   state.onLoadItemStates = null
+  state.ensureTodayThrows = null
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
 })
@@ -779,6 +793,84 @@ describe('recordOutcome', () => {
       } finally {
         logged.mockRestore()
       }
+    })
+
+    it('[M-9] the result write conflicts after the attachment: the retry finds the item listed, no second plan.extra_added', async () => {
+      const fake = setup({ day_plans: [plan] }, { learner: ['version_conflict'] })
+      expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toEqual({
+        ok: true,
+        message: copy.checkIn.outcome.savedAndCheckedIn,
+        autoCheckedIn: [extraId],
+      })
+      expect(systemTypes(fake)).toEqual(['plan.extra_added', 'block.checked_in'])
+      const calls = learnerCalls(fake)
+      expect(calls).toHaveLength(2)
+      expect(calls[1]?.p_event.id).toBe(calls[0]?.p_event.id)
+      expect(calls.map((call) => call.p_event.block_id)).toEqual([extraId, extraId])
+      expect(extraBlock(fake, plan.id)?.items.map((item) => item.itemId)).toEqual(['dsa:p5'])
+      expect(fake.tables.events?.map((row) => row.type)).toEqual([
+        'plan.extra_added',
+        'item.result',
+        'block.checked_in',
+      ])
+    })
+
+    it('[M-3] the paused plan’s extra block holds an unfinished item: the result joins it, no auto check-in, the gate stays closed', async () => {
+      const old = planBlock(YESTERDAY, 'dsa', 'new', ['dsa:p1'])
+      const earlier = planBlock(YESTERDAY, 'dsa', 'extra', ['dsa:p6'])
+      const paused = planRow({ date: YESTERDAY, blocks: [old, earlier], seenAt: seen(YESTERDAY) })
+      const fake = setup({ day_plans: [paused] })
+      expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toEqual({
+        ok: true,
+        message: copy.checkIn.outcome.saved,
+        autoCheckedIn: [],
+      })
+      expect(extraBlock(fake, paused.id)?.items.map((item) => item.itemId)).toEqual([
+        'dsa:p6',
+        'dsa:p5',
+      ])
+      expect(fake.tables.plan_block_state ?? []).toEqual([])
+      // Still closed: the next result goes to the paused plan again, and no plan is built today.
+      await recordOutcome(solved({ itemId: 'dsa:p6', requestId: OTHER_REQUEST_ID }))
+      expect(learnerCalls(fake)[1]?.p_event).toMatchObject({
+        plan_id: paused.id,
+        block_id: `${YESTERDAY}:dsa:extra:1`,
+      })
+      expect(fake.tables.day_plans?.map((row) => row.plan_date)).toEqual([YESTERDAY])
+    })
+
+    it('[M-2] a plain Error while building today’s plan never loses the result: logged, recorded without a plan', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        const fake = setup({})
+        state.ensureTodayThrows = new Error('Could not read the recap history')
+        expect(await recordOutcome(solved({ itemId: 'dsa:p5' }))).toEqual({
+          ok: true,
+          message: copy.checkIn.outcome.saved,
+          autoCheckedIn: [],
+        })
+        expect(learnerCalls(fake)[0]?.p_event).not.toHaveProperty('plan_id')
+        expect(fake.tables.day_plans ?? []).toEqual([])
+        expect(logged).toHaveBeenCalledWith(
+          '[checkin] off-plan attachment failed:',
+          'Error: Could not read the recap history',
+        )
+      } finally {
+        logged.mockRestore()
+      }
+    })
+
+    it('[M-2] Next’s control flow (a redirect) is never swallowed: it passes through, nothing recorded', async () => {
+      const fake = setup({})
+      let control: unknown = null
+      try {
+        redirect('/sign-in')
+      } catch (error) {
+        control = error
+      }
+      state.ensureTodayThrows = control
+      await expect(recordOutcome(solved({ itemId: 'dsa:p5' }))).rejects.toBe(control)
+      expect(fake.rpcs('apply_event')).toEqual([])
     })
 
     it('records a result without a plan when there is none to attach to (no active track)', async () => {
