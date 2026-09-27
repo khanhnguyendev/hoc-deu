@@ -287,6 +287,7 @@ M5 SQL, sandbox tests as root and the `sim` job, M2 carry-overs) (2); no mode ba
 | L5 | On a resume day a track can show two "Học thêm" cards (its `extra:1` and a fresh `extra:<n>`, ADR-0016); label the later one "Học thêm (2)" or merge their display | M5 fix-pass re-reviews N-4 / B |
 | L6 | An e2e helper that backdates `ops_metrics.recorded_at`, so the `/admin` cron-staleness warning (ADR-0034) gets an end-to-end case (unit-tested in v1.0) | M5 fix-pass C report |
 | L7 | The Settings and track-page throttle rule lines still count "thẻ" ("Trên {dueAbove} thẻ cần ôn: {n} thẻ mới mỗi ngày", "Giới hạn thẻ mới"); align them with the settled nouns "mục cần ôn" / "bài mới" (lib/i18n + lib/content tests) | M5 fix-pass B round 2 |
+| L8 | During dogfooding, measure events per active learner per day, learner vs system (`events.source`). If the mean exceeds ~60, write `plan.extra_added` at most once per track per day (later results append their items in the same write), and update spec §8's storage estimate with the measured number | owner, 2026-09-27 (PR #11 decision 2); owned by 5.8b step 5 (dogfooding) |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
@@ -12325,7 +12326,7 @@ merged M5.
 - [ ] **5. Dogfooding:** the owner uses production for two weeks; then the pace check (decision 37,
   `docs/ops/dogfooding.md`) → the owner decides whether to invite learners.
 - [ ] Archive the ledger; update the memory file; write the M6 hand-off (including 6.5's `plan_id`
-  widening and backlog rows L1–L7).
+  widening and backlog rows L1–L8).
 
 ### M5 finish
 

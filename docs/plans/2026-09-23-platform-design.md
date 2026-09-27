@@ -2332,7 +2332,10 @@ size; Vercel and Supabase dashboards show the rest).
 
 - "N users" = N **daily active** learners (worst case; real usage will be lower).
 - Per active learner per day: ~30 page navigations (incl. RSC prefetches), ~35 events
-  (check-ins, item results — mostly single-card grades), 1 `ensurePlan`.
+  (check-ins, item results — mostly single-card grades), 1 `ensurePlan`. **M5 note (owner,
+  2026-09-27):** results graded off the plan (typically on `/review`) also write system events —
+  `plan.extra_added` and the extra block's auto check-in — about 2.5–3 events per such card; the
+  estimate is re-measured during dogfooding (backlog L8).
   → ~65 function invocations, ~100 edge requests.
 - Averages per invocation: ~30 ms CPU (RSC render, Zod, domain logic — MDX and code highlighting
   are done at build time), ~0.25 s wall time at 1 GB memory, ~25 KB response, ~8 KB read from the
@@ -2393,7 +2396,9 @@ size; Vercel and Supabase dashboards show the rest).
 2. **Learner write quotas in Postgres, not Upstash** (amends §2.1 / §6.2): at most 500 learner
    events per user per local day, enforced by a `SECURITY DEFINER` `BEFORE INSERT` trigger on
    `events` using a counter in the internal `event_quota` table, which learners cannot read or
-   write (no `count(*)`); `apply_event` shows a friendly error (§4.5). From v1.1, Upstash
+   write (no `count(*)`); `apply_event` shows a friendly error (§4.5). The quota caps **learner**
+   events only: system events (`apply_system_event`: plan changes, auto check-ins) are not counted,
+   so the real per-user ceiling is about 3× that (M5 note, owner 2026-09-27). From v1.1, Upstash
    rate-limits only the bot API, the OAuth callback, account deletion, admin actions and (when
    built) data export.
 3. **Daily maintenance cron** (Vercel Hobby allows one daily job; `/api/cron/maintenance`,
