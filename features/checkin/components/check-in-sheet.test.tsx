@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MEDIA } from '@/components/ui/use-media-query'
 import type { CheckInResult } from '../actions'
 import type { CheckInInput } from '../schema'
 import { CheckInSheet, type CheckInSheetBlock } from './check-in-sheet'
@@ -118,7 +120,7 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     unmount()
     window.matchMedia = ((query: string) => ({
       ...matchMedia(query),
-      matches: query === '(min-width: 768px)',
+      matches: query === MEDIA.md,
     })) as typeof window.matchMedia
     sheet()
     expect(dialog().getAttribute('data-slot')).toBe('dialog-content')
@@ -352,5 +354,25 @@ describe('CheckInSheet — focus and reopening (DESIGN_SYSTEM §10)', () => {
     expect(document.activeElement).toBe(
       within(dialog()).getByRole('heading', { name: 'Check-in: Bài mới' }),
     )
+  })
+})
+
+describe('CheckInSheet — the server render of /today?block=<id> (UI I-1)', () => {
+  it('renders where there is no document, as the server does, without throwing', () => {
+    vi.stubGlobal('document', undefined)
+    try {
+      expect(() =>
+        renderToString(
+          <CheckInSheet
+            action={deferred().action}
+            requestId={REQUEST_ID}
+            planId={PLAN_ID}
+            block={BLOCK}
+          />,
+        ),
+      ).not.toThrow()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

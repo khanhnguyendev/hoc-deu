@@ -249,6 +249,30 @@ test('/today?block= opens the sheet; back closes it; Esc replaces the URL; an un
   expect(await checkInEventsOf(user.id, planId, block.id)).toEqual([])
 })
 
+test('[UI I-1] /today?block=<id> loaded as a new page (a reload, a new tab): rendered on the server, sheet open', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['dsa'])
+  const block = dsaBlock(today)
+  await plan(user, today, [block])
+  await openToday(page, user)
+  // A real page load — not the sign-in's client-side redirect — so the server renders the sheet.
+  const response = await page.goto(`/today?${new URLSearchParams({ block: block.id }).toString()}`)
+  expect(response?.status()).toBe(200)
+  // The server's HTML holds the dashboard itself, not only the loading skeleton that a failed
+  // server render falls back to (the browser would then log a recoverable error, which fails the
+  // test through the console fixture).
+  const html = (await response?.text()) ?? ''
+  expect(html).toContain('Kế hoạch hôm nay')
+  expect(html).toContain('data-slot="plan-block-card"')
+  await expect(sheet(page)).toBeVisible()
+  await expect(sheet(page).getByRole('heading', { name: 'Check-in: Bài mới' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toBeHidden()
+  await expect(editLink(card(page, DSA), DSA)).toHaveCount(0)
+  await expect(oneTap(card(page, DSA), DSA)).toBeVisible()
+})
+
 test.describe('a save that fails', () => {
   // The aborted server-action request below is logged by the browser.
   test.use({ allowedConsoleErrors: [/Failed to load resource/] })

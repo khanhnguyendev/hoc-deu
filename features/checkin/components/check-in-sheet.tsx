@@ -19,6 +19,7 @@ import { SheetContent } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { toast } from '@/components/ui/toaster'
+import { MEDIA, useMediaQuery } from '@/components/ui/use-media-query'
 import { CHECK_IN_STATUSES, type BlockState, type CheckInStatus } from '@/lib/domain/state'
 import { fill, formatMinutes, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -31,7 +32,6 @@ const copy = vi.checkIn.sheet
 export const SHEET_MINUTES = { min: 0, max: 600, step: 5 } as const
 /** Where the sheet goes back to (§2.4): `/today` without `?block=`. */
 const TODAY_PATH = '/today'
-const DESKTOP = '(min-width: 768px)'
 
 const STATUS_ICON: Record<CheckInStatus, LucideIcon> = {
   done: Check,
@@ -60,18 +60,6 @@ type CheckInSheetProps = {
   block: CheckInSheetBlock
   /** Closing (Esc, "Đóng", "Huỷ", a saved check-in). Default: `router.replace('/today')`. */
   onClose?: () => void
-}
-
-function useMedia(query: string): boolean {
-  return React.useSyncExternalStore(
-    (onChange) => {
-      const list = window.matchMedia(query)
-      list.addEventListener('change', onChange)
-      return () => list.removeEventListener('change', onChange)
-    },
-    () => window.matchMedia(query).matches,
-    () => false,
-  )
 }
 
 /** The typed minutes as an integer 0–600, else null. */
@@ -106,7 +94,7 @@ const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINU
  */
 function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInSheetProps) {
   const router = useRouter()
-  const desktop = useMedia(DESKTOP)
+  const desktop = useMediaQuery(MEDIA.md)
   const uid = React.useId()
   const titleRef = React.useRef<HTMLHeadingElement>(null)
   const openRef = React.useRef(true)
@@ -114,7 +102,11 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
   const sending = React.useRef(false)
   const [open, setOpen] = React.useState(true)
   // What had focus when `?block=` mounted the sheet: the "Sửa" link, or <body> for a deep link.
-  const [opener] = React.useState(() => document.activeElement)
+  // Read in the browser only: `/today?block=<id>` renders this sheet on the server too, where
+  // there is no document (UI I-1) — there, and in the hydrating render, nothing had focus yet.
+  const [opener] = React.useState(() =>
+    typeof document === 'undefined' ? null : document.activeElement,
+  )
   // Idle, saving (`pending`: the action and the re-render it causes), or an error with "Thử lại".
   const [pending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)

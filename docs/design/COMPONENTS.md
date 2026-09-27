@@ -208,8 +208,10 @@ from `lib/i18n/vi.ts`.
 - **Layer:** ui
 - **File:** `components/ui/toaster.tsx`
 - **Props:** none; `toast(message)` re-exported from sonner
-- **Variants:** bottom-centre (< 768 px) · bottom-right (≥ 768 px); lifted above the bottom
-  navigation below 1024 px
+- **Variants:** bottom-centre (below `md`) · bottom-right (from `md`); lifted above the bottom
+  navigation below `lg` — both from `useMediaQuery(MEDIA.md / MEDIA.lg)`
+  (`components/ui/use-media-query.ts`, Tailwind's own 48rem / 64rem, the one place a breakpoint
+  is written outside the CSS; false on the server)
 - **States:** hidden, showing (4 s)
 - **Usage:** mount `<Toaster />` once; `toast('Đã lưu')`
 - **Accessibility:** polite live region labelled "Thông báo"; never the only feedback for a failed
@@ -1780,8 +1782,10 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `block:
   CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
   status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
-- **Variants:** a bottom Sheet below `md`, a Dialog from `md` · new check-in (Xong, the block's
-  `checkInMinutes`) · edit (pre-filled with the block's check-in)
+- **Variants:** a bottom Sheet below `md`, a Dialog from `md` (`useMediaQuery(MEDIA.md)`) · new
+  check-in (Xong, the block's `checkInMinutes`) · edit (pre-filled with the block's check-in).
+  It renders on the server too (`/today?block=<id>` loaded as a new page): nothing in its render
+  reads `document` (UI I-1)
 - **States:** idle · saving (submit `loading`) · error (a danger Banner with the message —
   "stale", "Không lưu được thay đổi. Bạn thử lại nhé." for a failed request — and "Thử lại",
   the sheet kept open) · invalid (minutes outside 0–600, or a note over 280 graphemes / the
