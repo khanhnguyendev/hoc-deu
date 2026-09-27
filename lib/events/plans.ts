@@ -156,7 +156,8 @@ export async function addExtraItems(
 ): Promise<{ readonly outcome: 'applied' | 'duplicate'; readonly version: number | null }> {
   const { eventId, planId, planDate, trackId, itemIds, expectedVersion, localDay } = input
   // The database checks the rest (the block id, kind and track, and that it only appends
-  // `itemIds` to the stored extra block); these bounds never reach it (ruling M5-R2).
+  // `itemIds` to one of the track's extra blocks, or opens its next one); these bounds never
+  // reach it (ruling M5-R2).
   const block = planBlockSchema.safeParse(input.block)
   if (
     !block.success ||

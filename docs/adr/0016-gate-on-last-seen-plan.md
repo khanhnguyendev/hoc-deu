@@ -82,11 +82,16 @@ Two further constraints shape the rule:
   gate stays closed — the paused view lists that block with its one-tap check-in. A track that is
   **not active** has its blocks hidden from the paused view (M-5 A), so its extra block could never
   be checked in there (whole-branch review M-3, ruling M5-R36): when that block holds an item not
-  done since the plan date, or carries the learner's own check-in (a skip), the studied item goes
+  handled since the plan date (neither studied nor skipped), or carries the learner's own check-in (a skip), the studied item goes
   to a **fresh extra block** of the track, `<date>:<track>:extra:<n>` after `extra:<n - 1>`, which
   its result completes and checks in — the study counts and reopens the gate like any check-in.
   The track's next items join that newest extra block. `plan.extra_added` accepts only the track's
   existing extra blocks or its next number (checked under the plan lock).
+  **Accepted residual (fix-pass re-review N-1):** an item a paused plan lists in a *non-extra*
+  block of a track since paused or removed is recorded in that hidden block; the study counts
+  once every item of the block is handled or the track is reactivated, not before (the same
+  holds for a fresh extra block whose auto check-in failed, until its track's next result).
+  Listing such blocks in the paused view is hand-off backlog row L4.
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
   plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
   old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers

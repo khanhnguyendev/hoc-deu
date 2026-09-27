@@ -1260,7 +1260,9 @@ from the next plan.
     estimate): full re-solve on LeetCode, graded solved / hint / failed.
 - **Flashcards:** know / unsure / don't know.
 - **Auto check-in:** when the last item of a block gets a result and the block has no check-in
-  yet, the server also records `block.checked_in {status: done, minutes: sum(est), auto: true}`.
+  yet, the server also records `block.checked_in {status: done, minutes, auto: true}` — `minutes`
+  is the ceiling of the estimates of the items **with a result**; a skip is not a result, so a
+  block whose items were all skipped gets no auto check-in (M5 whole-branch review, decision 15).
   The user can edit it. This keeps the strict "completed = a block done/partial" rule (§4.1) from
   punishing someone who studied but forgot to tap. A block already checked in `skipped` is never
   re-checked automatically; the learner corrects it with "Sửa", which then counts for that day

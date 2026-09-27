@@ -259,7 +259,7 @@ scenario moves with overrides to 6.6 (31).
 | Task | Files | Tests that must exist | Verify |
 | --- | --- | --- | --- |
 | 5.1 `/today` | `features/today/*` (queries, `ensurePlan` action, `<MarkPlanSeen>`), `app/(app)/today` **Writes ADR-0039.** M1 deferred #15: StatCard applies `tracking-tight` to numbers only (§4.3). Part B-M4: the real HTTP 404 for unknown tracks and items (M3 follow-up, decision 28); no second plan on a resume day (`gateStatus().resumedToday`, decision 32); settings and track add / pause / remove / reset rebuild today's plan while it is untouched (`storePlan` mode `rebuild`, §5.4, §5.9). | **[RF-4]** new learner / future start / missing notes states; **[RF-5]** paused banner + "Học tiếp hôm nay" after 3 days, one plan only; prefetch never sets `seen_at` | `pnpm verify && pnpm test:e2e` |
-| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** Part B-M4: one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34). | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
+| 5.2 Check-in + results | `features/checkin/*` (sheet, one-tap, auto check-in), result actions per item type (recall/redo, flashcard grades, exercise, prompt, quiz), solution-reveal nudge **Writes ADR-0036.** Part B-M4: one-tap and auto check-in minutes = `checkInMinutes(block)` (decision 34); M5 decision 15 (amended): the auto check-in credits only the items with a result. | **[RF-2]** double tap → one event; retry after version conflict; **[RF-3]** NFD note stored NFC, 280-char limit counts graphemes | `pnpm verify && pnpm test:e2e && pnpm test:db` |
 | 5.3 `/review` | `features/review/*` | Weak first; **[RF-4]** empty queue state | `pnpm verify && pnpm test:e2e` |
 | 5.4 "Học thêm" + off-plan study; "Bắt đầu lại"; track-page progress and weak items | `features/today/*`; the "Bắt đầu lại" button (`track.reset`, ConfirmDialog) on the track page (Part B-M2 decision 18); track-page progress and weak items on `/t/[trackId]` (Part B-M3 decision 25) | extra block auto-checked-in; reopens a closed gate | `pnpm verify` |
 | 5.5 `/progress` | `features/progress/*` M1 deferred #8 (month-view selected day gets a visual state), #9 (year-view month labels never overlap), #22 (catalog: empty CalendarHeatmap demo, `/dev/components` title from `vi.dev`). | heatmap year/month views; weekly summary bars with values | `pnpm verify && pnpm test:e2e` |
@@ -282,6 +282,8 @@ M5 SQL, sandbox tests as root and the `sim` job, M2 carry-overs) (2); no mode ba
 | --- | --- | --- |
 | L1 | Drift check (§4.7, release "later"), including the replay vs live ordering under a concurrent reset / resume (M-7: set `occurred_at := clock_timestamp()` after the quota upsert and raise `day_changed` if the local day moved) and the ms-vs-µs replay sort | M4 final review M-7; Part B-M5 decision 30 |
 | L2 | Could-have: email sign-in enabled on the **staging** project only, with one synthetic user, so the e2e suite can run against preview deployments automatically (production keeps email off, ADR-0003) | owner, 2026-09-26 |
+| L3 | The two-tab race between "Học tiếp hôm nay" and a check-in (or off-plan study) on the paused plan (~100–300 ms): under the `(user, plan_date)` lock, `plan.generated` refuses when an earlier plan's block was checked in `done` / `partial` on that date (accepted for v1.0 in ADR-0016) | M5 whole-branch review M-2; ruling M5-R36 |
+| L4 | The paused view lists a hidden (paused / removed track) block that holds an item studied since the plan date, so in-plan study of such a block counts before the whole block is handled (accepted residual in ADR-0016) | M5 fix-pass re-review N-1 |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
@@ -10376,7 +10378,7 @@ its section of `COMPONENTS.md` (plus the existing entries of components it chang
     of the minutes of the items with a result (skipped items credit nothing); a block whose items
     were all skipped gets no auto check-in (the learner checks it in, e.g. `skipped` in the sheet). For the
     `extra` block the auto check-in is sent again whenever items are added while its check-in is
-    still `auto` (its minutes follow its items; a learner's edit is kept). Which blocks to check in
+    still `auto` and its studied minutes change (a learner's edit is kept). Which blocks to check in
     is decided **inside each retry attempt, on the reloaded rows**: a block that meanwhile got a
     learner's (non-auto) check-in — the sheet racing the auto check-in — is left alone.
 16. **Event ids digest the payload** (M2 RF-2 "digest keys" minor): `deriveEventId(requestId,
@@ -12320,7 +12322,7 @@ merged M5.
 - [ ] **5. Dogfooding:** the owner uses production for two weeks; then the pace check (decision 37,
   `docs/ops/dogfooding.md`) → the owner decides whether to invite learners.
 - [ ] Archive the ledger; update the memory file; write the M6 hand-off (including 6.5's `plan_id`
-  widening and backlog rows L1, L2).
+  widening and backlog rows L1–L4).
 
 ### M5 finish
 
