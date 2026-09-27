@@ -266,9 +266,10 @@ from `lib/i18n/vi.ts`.
   region (`ActionStatus`, keyed per answer so a repeat is re-announced) once the page's re-render
   is over — or, when that re-render removed the control (a check-in collapsing its button, a stale
   plan swapped, the paused view ending), a toast; an answer already shown is never toasted too.
-  When a control that has had an answer disappears with focus on `<body>`, focus moves to
+  When the answer's own re-render removes the control with focus on `<body>`, focus moves to
   `focusTarget()` (the block's new "Sửa"), else to the page's focus fallback — the heading a
-  `Section` marks with `focusFallback` (DESIGN_SYSTEM §10); focus that is still somewhere stays
+  `Section` marks with `focusFallback` (DESIGN_SYSTEM §10); focus that is still somewhere stays,
+  and a later unmount (a route change) never moves it (M7)
 
 ### AppShell
 

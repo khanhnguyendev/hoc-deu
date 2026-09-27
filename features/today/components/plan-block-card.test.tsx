@@ -88,13 +88,17 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
     )
     const { rerender } = render(<PlanBlockCard view={blockView()} actions={oneTap} />)
     await user.click(screen.getByRole('button', { name: `Check-in: Bài mới · ${DSA_TITLE}` }))
-    await act(async () => settle({ ok: true, message: 'Đã check-in: xong khối học.' }))
-    // The revalidated page: the block is checked in, the actions slot is gone.
-    rerender(
-      <PlanBlockCard
-        view={blockView({ checkIn: blockState(PLAN_ID, blockId, { minutes: 20 }) })}
-      />,
-    )
+    // The answer and the revalidated page land in one commit (the router's transition): the
+    // block is checked in, the actions slot is gone.
+    await act(async () => {
+      settle({ ok: true, message: 'Đã check-in: xong khối học.' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      rerender(
+        <PlanBlockCard
+          view={blockView({ checkIn: blockState(PLAN_ID, blockId, { minutes: 20 }) })}
+        />,
+      )
+    })
     expect(document.activeElement).toBe(
       screen.getByRole('link', { name: `Sửa Bài mới · ${DSA_TITLE}` }),
     )

@@ -201,15 +201,16 @@ describe('useActionFeedback + ActionStatus (UI I-3)', () => {
     expect(document.activeElement).toBe(other)
   })
 
-  it('a control whose answer was shown, removed later with focus lost: focus moves, no toast', async () => {
+  it('a control removed later, not by its answer’s re-render (a route change): no toast, no focus move (M7)', async () => {
     const { action, settle } = deferred()
     const { rerender } = render(<Page action={action} gone={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Gửi' }))
     await act(async () => settle({ ok: true, message: 'Đã xong.' }))
+    // The re-render is over and the control stayed: the answer is in its region.
     expect(screen.getByRole('status').textContent).toBe('Đã xong.')
     rerender(<Page action={action} gone />)
     expect(toasts).toEqual([])
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Kế hoạch hôm nay' }))
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('a control never used moves no focus when it goes', () => {

@@ -54,10 +54,10 @@ export type ActionFeedback = {
  *   is swapped, the paused view ends). The answer shows in the control's own status region
  *   (`ActionStatus`) once the re-render is over; if that re-render removed the control first, the
  *   answer is a toast instead. An answer already shown is never toasted later.
- * - **Focus:** when a control that has had an answer disappears with focus on `<body>` (the
+ * - **Focus:** when the answer's own re-render removes the control with focus on `<body>` (the
  *   button it removed held it), focus moves to `focusTarget()` (e.g. the block's new "Sửa"),
- *   else to the page's focus fallback — the heading a `Section` marks with `focusFallback`
- *   (DESIGN_SYSTEM §10). Focus that is still somewhere is never moved.
+ *   else to the page's focus fallback (DESIGN_SYSTEM §10). Focus that is still somewhere is never
+ *   moved, and a later unmount — a route change — never moves it (M7).
  */
 export function useActionFeedback(
   options: { focusTarget?: () => HTMLElement | null } = {},
@@ -67,9 +67,8 @@ export function useActionFeedback(
   const sending = useRef(false)
   const seq = useRef(0)
   // The last answer until the status region has shown it: a toast if the control goes first.
+  // While it is set, the answer's own re-render is not over — an unmount now is that re-render.
   const undelivered = useRef<ActionAnswer | null>(null)
-  // The control has had an answer: its unmount may be that answer's re-render.
-  const answered = useRef(false)
   const focusTarget = useRef(options.focusTarget)
 
   useEffect(() => {
@@ -81,15 +80,16 @@ export function useActionFeedback(
     if (!pending && shown !== null) undelivered.current = null
   }, [pending, shown])
 
-  // Runs after the commit that removed the control, so the page's new elements exist.
+  // Runs after the commit that removed the control, so the page's new elements exist. Only the
+  // answer's own re-render (the answer still undelivered) toasts and moves focus: a later unmount
+  // — a route change through an in-page link — leaves focus to the navigation (M7).
   useEffect(
     () => () => {
       const answer = undelivered.current
+      if (answer === null) return
       undelivered.current = null
-      if (answer !== null) toast(answer.message)
-      if (answered.current && focusLost()) {
-        ;(focusTarget.current?.() ?? focusFallbackElement())?.focus()
-      }
+      toast(answer.message)
+      if (focusLost()) (focusTarget.current?.() ?? focusFallbackElement())?.focus()
     },
     [],
   )
@@ -110,7 +110,6 @@ export function useActionFeedback(
       } finally {
         sending.current = false
       }
-      answered.current = true
       if (onAnswer?.(answer) === 'toast') {
         toast(answer.message)
         return
