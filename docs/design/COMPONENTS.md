@@ -1889,8 +1889,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
   reopens it; the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
   labels); the minutes stepper's −/+ are 44 px icon buttons "Bớt 5 phút" / "Thêm 5 phút"; the
   note's live "n/280" counter and error are in its `aria-describedby`, and a crossed limit (note
-  or minutes) is announced in an `sr-only` polite live region, so the disabled submit always has
-  a reason; the save result is in a polite `role="status"` live region (a success is a toast)
+  or minutes — both, when both are crossed, parked #3) is announced in an `sr-only` polite live
+  region, so the disabled submit always has its reasons; the save result is in a polite `role="status"` live region (a success is a toast)
 
 ### Item outcome components (`features/items/components/outcome`)
 

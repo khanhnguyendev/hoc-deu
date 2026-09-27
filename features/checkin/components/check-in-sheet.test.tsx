@@ -313,6 +313,9 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     expect(live.textContent).toBe('')
     fireEvent.change(minutes(), { target: { value: '601' } })
     expect(live.textContent).toBe('Nhập số phút từ 0 đến 600.')
+    // Both crossed: both reasons, never only the note's (parked #3).
+    fireEvent.change(note(), { target: { value: 'a'.repeat(281) } })
+    expect(live.textContent).toBe(`${TOO_LONG} Nhập số phút từ 0 đến 600.`)
   })
 })
 

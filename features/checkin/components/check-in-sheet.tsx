@@ -300,7 +300,7 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
           )}
         </FormField>
         <p data-slot="check-in-sheet-limits" aria-live="polite" className="sr-only">
-          {noteMessage ?? minutesError ?? ''}
+          {[noteMessage, minutesError].filter((reason) => reason !== undefined).join(' ')}
         </p>
         <div role="status" aria-live="polite">
           {error !== null && (
