@@ -1,6 +1,7 @@
 import { FileCheck } from 'lucide-react'
 import type * as React from 'react'
 import { EmptyState } from '@/components/patterns/empty-state'
+import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -51,10 +52,7 @@ function DraftsList({ drafts }: { drafts: Drafts }) {
             <h3 className="text-lg font-semibold">
               {group.title} ({formatNumber(group.rows.length)})
             </h3>
-            <ul
-              role="list"
-              className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-2"
-            >
+            <LinkList>
               {group.rows.map((row) => (
                 <li key={row.id}>
                   <LinkRow
@@ -65,7 +63,7 @@ function DraftsList({ drafts }: { drafts: Drafts }) {
                   />
                 </li>
               ))}
-            </ul>
+            </LinkList>
           </div>
         ))
       )}

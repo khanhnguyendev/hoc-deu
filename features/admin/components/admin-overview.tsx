@@ -11,6 +11,7 @@ import {
   UserCheck,
   UserX,
 } from 'lucide-react'
+import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { PageHeader } from '@/components/patterns/page-header'
 import { Section } from '@/components/patterns/section'
@@ -75,16 +76,13 @@ function AdminOverview({ page }: { page: AdminOverviewPage }) {
         </div>
       </Section>
       <Section title={copy.links.title}>
-        <ul
-          role="list"
-          className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-2"
-        >
+        <LinkList>
           {page.links.map((link) => (
             <li key={link.href}>
               <LinkRow href={link.href} title={link.title} meta={[link.meta]} />
             </li>
           ))}
-        </ul>
+        </LinkList>
       </Section>
     </div>
   )

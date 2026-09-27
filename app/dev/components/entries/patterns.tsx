@@ -5,7 +5,10 @@ import {
   type ActionAnswer,
   type ActionFeedback,
 } from '@/components/patterns/action-feedback'
+import { LinkList } from '@/components/patterns/link-list'
+import { LinkRow } from '@/components/patterns/link-row'
 import { Section } from '@/components/patterns/section'
+import { StatusPill } from '@/components/patterns/status-pill'
 import { Button } from '@/components/ui/button'
 import { vi } from '@/lib/i18n/vi'
 import type { Entry } from '../types'
@@ -110,6 +113,48 @@ function RemovedDemo() {
 }
 
 export const PATTERN_ENTRIES: Entry[] = [
+  {
+    name: 'LinkList',
+    layer: 'patterns',
+    file: 'components/patterns/link-list.tsx',
+    demos: [
+      {
+        title: 'spaced (mặc định): chủ đề yếu, liên kết quản trị, bản nháp, bài liên quan',
+        render: () => (
+          <div className="w-full max-w-md">
+            <LinkList aria-label="Chủ đề cần củng cố (mẫu)">
+              <li>
+                <LinkRow
+                  href="/t/dsa"
+                  title="Arrays & Hashing"
+                  meta={['Cấu trúc dữ liệu & Giải thuật', '3 mục yếu']}
+                  trailing={<StatusPill status="weak" />}
+                />
+              </li>
+              <li>
+                <LinkRow href="/t/dsa" title="Two Pointers" meta={['2 mục yếu']} />
+              </li>
+            </LinkList>
+          </div>
+        ),
+      },
+      {
+        title: 'divided: các dòng của một tuần lộ trình, mục yếu',
+        render: () => (
+          <div className="w-full max-w-md">
+            <LinkList variant="divided" aria-label="Bài của tuần (mẫu)">
+              <li>
+                <LinkRow href="/t/dsa/items/lc-0001" title="Two Sum" titleLang="en" />
+              </li>
+              <li>
+                <LinkRow href="/t/dsa/items/lc-0217" title="Contains Duplicate" titleLang="en" />
+              </li>
+            </LinkList>
+          </div>
+        ),
+      },
+    ],
+  },
   {
     name: 'ActionFeedback',
     layer: 'patterns',

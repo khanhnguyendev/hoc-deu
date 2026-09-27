@@ -1,5 +1,4 @@
 import { RotateCcw } from 'lucide-react'
-import Link from 'next/link'
 import { ProgressRing } from '@/components/patterns/progress-ring'
 import { Section } from '@/components/patterns/section'
 import { StatCard } from '@/components/patterns/stat-card'
@@ -57,12 +56,7 @@ function TodayStats({ streak, tracks }: { streak: number; tracks: readonly Track
           ))}
         </ul>
       )}
-      <Link
-        href="/review"
-        className="block rounded-lg transition-shadow duration-(--duration-fast) ease-standard hover:shadow-sm"
-      >
-        <StatCard label={copy.due} value={due} icon={RotateCcw} hint={copy.dueHint} />
-      </Link>
+      <StatCard label={copy.due} value={due} icon={RotateCcw} hint={copy.dueHint} href="/review" />
     </Section>
   )
 }

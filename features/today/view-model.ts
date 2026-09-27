@@ -5,7 +5,7 @@
  * come in; the track manifests (titles, accents, topic titles) are read from the generated
  * catalog, which the tests replace.
  */
-import { itemHref } from '@/features/items/href'
+import { itemHrefFromId } from '@/features/items/href'
 import { getTrack } from '@/lib/content/catalog'
 import { isActiveItem, type ItemMode, type PlanCatalog } from '@/lib/domain/catalog'
 import { checkInMinutes } from '@/lib/domain/plan/buildPlan'
@@ -136,17 +136,9 @@ function kindLabel(block: PlanBlock): string {
   }
 }
 
-/**
- * `/t/<track>/items/<local id>?block=<blockId>&mode=<mode>`: the track is the ID's first segment
- * and the rest its local ID (`itemHref` encodes a derived card's colons).
- */
+/** `/t/<track>/items/<local id>?block=<blockId>&mode=<mode>` (`itemHrefFromId`, m-2). */
 function blockItemHref(itemId: string, blockId: string, mode: ItemMode): string {
-  const separator = itemId.indexOf(':')
-  const path = itemHref({
-    trackId: itemId.slice(0, separator),
-    localId: itemId.slice(separator + 1),
-  })
-  return `${path}?${new URLSearchParams({ block: blockId, mode }).toString()}`
+  return itemHrefFromId(itemId, { block: blockId, mode })
 }
 
 /** `/today?block=<blockId>`: the block's check-in sheet (§2.4). */

@@ -10,7 +10,7 @@
  * M7); `/today`'s due counts and weak topics use the same rule (`countedTrackIds`, UI I-2), so the
  * two pages never disagree about which track's items count.
  */
-import { itemHref } from '@/features/items/href'
+import { itemHrefFromId } from '@/features/items/href'
 import type { ItemMode, PlanCatalog } from '@/lib/domain/catalog'
 import { compareDueEntries, dueQueue, type DueEntry } from '@/lib/domain/plan/queues'
 import { eligibleTracks } from '@/lib/domain/plan/track'
@@ -29,15 +29,9 @@ export type ReviewEntry = {
   readonly href: string
 }
 
-/** `itemId`'s local ID (after its track's prefix): `itemHref`'s `localId` (decision 24 of 5.1b). */
-function localIdOf(itemId: string): string {
-  return itemId.slice(itemId.indexOf(':') + 1)
-}
-
 /** `/t/<track>/items/<local id>?mode=<mode>` — a plain item page, no plan block (off-plan). */
 function hrefOf(entry: DueEntry): string {
-  const path = itemHref({ trackId: entry.item.trackId, localId: localIdOf(entry.itemId) })
-  return `${path}?${new URLSearchParams({ mode: entry.mode }).toString()}`
+  return itemHrefFromId(entry.itemId, { mode: entry.mode })
 }
 
 function toReviewEntry(entry: DueEntry): ReviewEntry {

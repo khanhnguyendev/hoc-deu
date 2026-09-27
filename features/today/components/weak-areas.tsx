@@ -1,3 +1,4 @@
+import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { Section } from '@/components/patterns/section'
 import { StatusPill } from '@/components/patterns/status-pill'
@@ -18,10 +19,7 @@ function WeakAreas({ topics }: { topics: readonly WeakTopicView[] }) {
       {topics.length === 0 ? (
         <p className="text-sm text-muted-foreground">{copy.empty}</p>
       ) : (
-        <ul
-          role="list"
-          className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-2"
-        >
+        <LinkList>
           {topics.map((topic) => (
             <li key={`${topic.trackId}/${topic.topicId}`}>
               <LinkRow
@@ -32,7 +30,7 @@ function WeakAreas({ topics }: { topics: readonly WeakTopicView[] }) {
               />
             </li>
           ))}
-        </ul>
+        </LinkList>
       )}
     </Section>
   )

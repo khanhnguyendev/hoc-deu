@@ -1538,6 +1538,20 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'href: cả thẻ là một liên kết (hover, focus ring)',
+        render: () => (
+          <div className="w-full max-w-xs">
+            <StatCard
+              label="Cần ôn hôm nay"
+              value={12}
+              icon={Clock}
+              hint="Mở Ôn tập"
+              href="/dev/components#statcard"
+            />
+          </div>
+        ),
+      },
     ],
   },
   {

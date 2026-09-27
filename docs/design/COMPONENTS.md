@@ -497,6 +497,21 @@ from `lib/i18n/vi.ts`.
   ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"; `FormFieldError` is the
   same error line (`text-danger` + icon, never colour alone)
 
+### LinkList
+
+- **Layer:** pattern
+- **File:** `components/patterns/link-list.tsx`
+- **Props:** `variant?: 'spaced' | 'divided'`, `children` (`<li>`s, each usually one LinkRow or a
+  registry Row), and any `ul` attribute but `className` / `role` (`aria-label`,
+  `aria-labelledby`, `data-slot`)
+- **Variants:** `spaced` (default; `gap-1 p-2` — weak topics, admin links, drafts, related items) ·
+  `divided` (`divide-y p-1` — a roadmap week's item rows, Weak items)
+- **States:** static; the caller shows its own empty state instead of an empty list
+- **Usage:** `<LinkList aria-label="Bài liên quan">{items.map((item) => <li key={item.id}><LinkRow
+  … /></li>)}</LinkList>`
+- **Accessibility:** a `ul role="list"` (Safari keeps list semantics without bullets); name it
+  when the page has several; the rows are the links (44 px, global focus ring)
+
 ### LinkRow
 
 - **Layer:** pattern
@@ -561,13 +576,18 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/stat-card.tsx`
-- **Props:** `label`, `value: number | string`, `hint?`, `icon?`
+- **Props:** `label`, `value: number | string`, `hint?`, `icon?`, `href?` (the whole card is one
+  link)
 - **Variants:** a number value (vi-VN digits, `tracking-tight`) · a text value such as "12,4 tuần"
-  (normal tracking: `tracking-tight` is for numerals only, DESIGN_SYSTEM §4.3, M1 #15)
-- **States:** static
-- **Usage:** `<StatCard label="Phút tuần này" value={245} icon={Clock} />`
+  (normal tracking: `tracking-tight` is for numerals only, DESIGN_SYSTEM §4.3, M1 #15) · linked
+  (`href`: Card `interactive` — the hover shadow — inside one link; `/today`'s "Cần ôn hôm nay",
+  m-2)
+- **States:** static · linked: hover, focus-visible
+- **Usage:** `<StatCard label="Phút" value={245} icon={Clock} />`; `<StatCard label="Cần ôn hôm
+  nay" value={12} href="/review" />`
 - **Accessibility:** numbers in vi-VN format, mono with tabular figures; never tightened
-  Vietnamese text, so diacritics do not collide
+  Vietnamese text, so diacritics do not collide; a linked card is named by its label, value and
+  hint and keeps the global focus ring
 
 ### StatusPill
 
@@ -1013,7 +1033,8 @@ not under `components/`), described under ItemView below, the one place it rende
 ### WeekSection
 
 - **Layer:** feature (`features/roadmap`, server-compatible; also exports the `RoadmapGroup`,
-  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses, and `RowList`, which WeakItems
+  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses, and `RowList` (a divided
+  LinkList), which WeakItems
   reuses)
 - **File:** `features/roadmap/components/week-section.tsx`
 - **Props:** `week: WeekSlots` (`roadmapSlots`: `{ week, topics, lessons, core, recap: { row, mode
@@ -1346,7 +1367,7 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **States:** empty → nothing
 - **Usage:** a lesson's anchor / about / practice problems, a problem's deep-dive lesson —
   `resolveItem(id)` results (an unknown ID is skipped by the page)
-- **Accessibility:** a list named "Bài liên quan"; each a LinkRow — the role label, `#leetcode`
+- **Accessibility:** a LinkList named "Bài liên quan"; each a LinkRow — the role label, `#leetcode`
   and difficulty as text; LeetCode titles in `lang="en"`
 
 ### RubricList
@@ -1724,7 +1745,7 @@ Copy: `vi.today`.
 - **Variants:** —
 - **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
 - **Usage:** `<WeakAreas topics={page.weakTopics} />`
-- **Accessibility:** a Section "Chủ đề cần củng cố"; each topic is a LinkRow to `/t/<track>`
+- **Accessibility:** a Section "Chủ đề cần củng cố"; a LinkList, each topic a LinkRow to `/t/<track>`
   with "{track} · {n} bài yếu" and the "Yếu" StatusPill (icon + label)
 
 ### ThrottleNotice
@@ -2267,7 +2288,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
   (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam);
-  "Trang quản trị" (LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
+  "Trang quản trị" (a LinkList of LinkRows to `/admin/users` and `/admin/content` with one-line
+  summaries)
 - **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
   named (§4.5)
 
@@ -2327,5 +2349,6 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
   đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)." — no publish button in v1.0 (§6.6)
 - **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts} /></Section>`
-- **Accessibility:** each entry is a LinkRow (44 px) to its page — admins see drafts; LeetCode
+- **Accessibility:** each group a LinkList, each entry a LinkRow (44 px) to its page — admins see
+  drafts; LeetCode
   titles and English card fronts carry `lang="en"`; group titles are `h3`
