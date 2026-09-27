@@ -62,6 +62,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     test.use({ colorScheme })
 
     test('renders every catalog entry with no WCAG 2.1 AA violations', async ({ page }) => {
+      // One page with every entry: 16–17 s alone, over the default 30 s under parallel load
+      // (parked #9) — so three times the default timeout.
+      test.slow()
       await page.goto('/dev/components')
       expect(NAMES.length).toBeGreaterThanOrEqual(30)
       for (const name of NAMES) {
