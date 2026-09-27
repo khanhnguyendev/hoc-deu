@@ -52,8 +52,11 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
   const [pickedVariants, setPickedVariants] = useState<Record<string, string>>({})
   const [pickedStartDate, setPickedStartDate] = useState<string | null>(null)
   const { result, pending, onSubmit } = useSettingsAction(enrollTrack)
-  const errors = fieldErrorsOf(result)
-  const failure = failureOf(result)
+  // The last result belongs to the track it was submitted for — never the candidate now picked,
+  // if that has since changed (M2 minor): switching the radio hides the previous candidate's
+  // server errors instead of showing them against the new one's fields. (The pending state is
+  // not per candidate: the button stays busy for any running submission, `isPending` below.)
+  const [submittedTrackId, setSubmittedTrackId] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   /** The track being added: when it leaves the list and focus went with the form, focus moves here. */
@@ -68,6 +71,13 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
 
   const selected =
     candidates.find((track) => track.option.id === pickedTrack) ?? candidates[0] ?? null
+  const forCurrentTrack = selected !== null && submittedTrackId === selected.option.id
+  const errors = forCurrentTrack ? fieldErrorsOf(result) : {}
+  const failure = forCurrentTrack ? failureOf(result) : null
+  // The button stays busy for *any* running submission, not only the current candidate's own
+  // (M2 minor): switching candidates mid-submit must not let a second submit start (the errors
+  // above still only ever show for the candidate they belong to).
+  const isPending = pending
 
   /** A track's fields: as typed or picked, else its last (removed) or default values. */
   function fieldsOf({ option, enrollment }: SettingsTrack) {
@@ -89,7 +99,13 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
         <form
           aria-label={copy.title}
           onSubmit={(event) => {
-            adding.current = selected.option.id
+            // useSettingsAction's own onSubmit silently ignores a submit while one is already
+            // pending — recording the track id here regardless would still let a switch to
+            // another candidate, mid-submit, borrow the *first* one's eventual result (M2 minor).
+            if (!pending) {
+              adding.current = selected.option.id
+              setSubmittedTrackId(selected.option.id)
+            }
             onSubmit(event)
           }}
           noValidate
@@ -162,7 +178,7 @@ function AddTrackForm({ tracks, schedule, now, requestId, enrollTrack }: AddTrac
             )}
           </FormField>
           <FormActions error={failure}>
-            <Button type="submit" loading={pending}>
+            <Button type="submit" loading={isPending}>
               {copy.submit}
             </Button>
           </FormActions>

@@ -41,6 +41,10 @@ test run from production.
      `/sign-in` or `/auth/…`), else the home path from the profile **read fresh** through the
      session client — not the request-cached DAL, which may predate the bootstrap: `/pending`
      (not active), `/onboarding` (active, not onboarded) or `/today`.
+  3. **A failure here** (the bootstrap RPC, or the profile read) happens *after* the code exchange
+     already created a session: the callback signs it out locally (`scope: 'local'`, cookies only)
+     and returns to `/sign-in?error=oauth` the same way a failed exchange does, instead of a bare
+     500 — route handlers bypass `error.tsx` (M2 minor).
 - **Approval happens in the app only.** Every new account is a pending learner (the
   `on_auth_user_created` trigger). An admin approves, rejects or suspends it in `/admin/users`
   (task 2.8). There is no invite list, domain allow-list or provider-side gate.
@@ -62,6 +66,18 @@ test run from production.
   `(account)` → `requireUser()`; `(onboarding)` → `requireActive()`, and an onboarded user goes
   to `/today`; `(app)` → `requireOnboarded()` and the AppShell. A signed-in user who opens
   `/sign-in` goes to their home path.
+- **Sign-out stays global scope by default** (`signOut`, `features/auth/actions.ts`) — an owner
+  decision left open at M2, recorded here as a ruling the owner can overturn. A failed global
+  sign-out falls back to a local one (cookies only), so the browser's own session is cleared
+  either way; a failure there too throws (nothing more local left to fall back to), and the
+  account menu awaits the action and shows a toast on a genuine rejection (M2 minor) — calling a
+  redirecting action directly (not through `useActionState`) still rejects the promise with a
+  `NEXT_REDIRECT`-digest error on the *ordinary, successful* path too (the navigation itself
+  already happened by then), so the handler recognises and ignores that shape rather than
+  toasting it. `deleteAccount` (§4.6) ignores its own local sign-out's error entirely (a returned
+  `{ error }` or a rejection) and always redirects to the deleted notice: the account row is
+  already gone by then, so a thrown error there would be misleading — auth-js has already cleared
+  the session client-side for most error cases regardless.
 
 ## Consequences
 

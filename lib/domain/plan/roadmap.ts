@@ -2,23 +2,20 @@
  * Roadmap position, the new-item queue and the recap source (platform design §5.3, §5.6; Part B-M4
  * decisions 15 and 16). Pure functions over the plan catalog and the learner's item states.
  */
-import type {
-  CardTier,
-  ItemMode,
-  PlanCatalog,
-  PlanItem,
-  PlanRoadmap,
-  PlanRoadmapWeek,
+import {
+  type CardTier,
+  isActiveItem,
+  type ItemMode,
+  type PlanCatalog,
+  type PlanItem,
+  type PlanRoadmap,
+  type PlanRoadmapWeek,
 } from '../catalog'
+import { compareIds } from '../compare'
 import type { ItemState } from '../state'
 import { reviewMode } from './reviewMode'
 
 type ItemStates = Readonly<Record<string, ItemState>>
-
-const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-
-const isActive = (itemId: string, catalog: PlanCatalog): boolean =>
-  catalog.items[itemId]?.status === 'active'
 
 /** The cards of a week's decks with `tier`, in deck order then card order. */
 function deckCards(week: PlanRoadmapWeek, catalog: PlanCatalog, tier: CardTier): string[] {
@@ -41,7 +38,7 @@ export function weekSizes(roadmap: PlanRoadmap, catalog: PlanCatalog): number[] 
 /** A core item counts as passed when introduced (it has a row) or not active in the catalog
  *  (draft, retired, missing) — decision 16. */
 export function isPassed(itemId: string, catalog: PlanCatalog, items: ItemStates): boolean {
-  return items[itemId] !== undefined || !isActive(itemId, catalog)
+  return items[itemId] !== undefined || !isActiveItem(catalog, itemId)
 }
 
 /** §5.3: the first week w whose cumulative size exceeds `passedCore`, clamped to the last week;
@@ -58,7 +55,7 @@ export function weekForProgress(passedCore: number, sizes: readonly number[]): n
 /** Each week's active core items; draft, retired and missing ones count nowhere (decision 16). */
 function activeCoreItems(roadmap: PlanRoadmap, catalog: PlanCatalog): string[][] {
   return roadmap.weeks.map((week) =>
-    coreItemsOfWeek(week, catalog).filter((id) => isActive(id, catalog)),
+    coreItemsOfWeek(week, catalog).filter((id) => isActiveItem(catalog, id)),
   )
 }
 
@@ -90,9 +87,9 @@ function unlockedDerivedCards(trackId: string, catalog: PlanCatalog, items: Item
     })
     .toSorted(
       (a, b) =>
-        compare(a.source.introducedOn, b.source.introducedOn) ||
-        compare(a.source.itemId, b.source.itemId) ||
-        compare(a.card.id, b.card.id),
+        compareIds(a.source.introducedOn, b.source.introducedOn) ||
+        compareIds(a.source.itemId, b.source.itemId) ||
+        compareIds(a.card.id, b.card.id),
     )
     .map(({ card }) => card.id)
 }
@@ -117,7 +114,7 @@ export function newQueue(input: {
   /** The IDs of `ids` the queue takes: active, not introduced, not queued before — in order. */
   const take = (ids: readonly string[]): string[] =>
     ids.filter((id) => {
-      if (queued.has(id) || items[id] !== undefined || !isActive(id, catalog)) return false
+      if (queued.has(id) || items[id] !== undefined || !isActiveItem(catalog, id)) return false
       queued.add(id)
       return true
     })
@@ -130,7 +127,7 @@ export function newQueue(input: {
       patternLessons
         .filter((lesson) => lesson.topicId === topic)
         .map((lesson) => lesson.id)
-        .toSorted(compare),
+        .toSorted(compareIds),
     )
 
   const weeks = (roadmap?.weeks ?? []).map((week) => ({
@@ -221,8 +218,8 @@ export function recapCandidates(input: {
     .toSorted(
       (a, b) =>
         a.state.level - b.state.level ||
-        compare(a.state.lastResultOn ?? '', b.state.lastResultOn ?? '') ||
-        compare(a.item.id, b.item.id),
+        compareIds(a.state.lastResultOn ?? '', b.state.lastResultOn ?? '') ||
+        compareIds(a.item.id, b.item.id),
     )
   while (picks.length < count && filler.length > 0) {
     const newTopic = filler.findIndex(({ item }) => !pickedTopics.has(item.topicId))

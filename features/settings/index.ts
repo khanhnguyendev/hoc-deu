@@ -1,6 +1,7 @@
 export {
   deleteAccount,
   enrollTrack,
+  resetTrack,
   setTrackStatus,
   updateCodeLanguage,
   updateSchedule,

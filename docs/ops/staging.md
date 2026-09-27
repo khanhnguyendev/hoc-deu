@@ -11,14 +11,35 @@ See also: `docs/adr/0003-oauth-and-test-login.md` (OAuth and test-login design),
 bootstrap only touches a never-processed profile, and only while no active admin exists) and
 platform design §2.5 (environment variables and admin bootstrap).
 
-## Current state (2026-09-25, M2 ruling R18)
+## Current state (2026-09-26, task 5.8; M2 — pre- and post-5.8b states below)
 
-- **No separate staging project yet.** Previews — `main` included — use the **production**
-  Supabase project `hoc-deu` (owner decision 2026-09-25) until a staging project exists (the Free
-  plan allows two active projects); read "the staging project" below as `hoc-deu` until then.
-- The placeholder production branch `production` **exists** on GitHub, pinned at M1 (`c2a9583`),
-  and `hoc-deu.vercel.app` serves that M1 deployment until task 5.8 (§5 steps 2 and 6).
+- **`hoc-deu` stays the staging project — permanently, not as a stand-in.** From 2026-09-25 to
+  task 5.8, previews (`main` included) used the Supabase project `hoc-deu` as a temporary stand-in
+  for production, because no separate staging project existed yet (owner decision 2026-09-25, M2
+  ruling R18). Task 5.8 (`docs/ops/production.md`) ends that: production gets its **own**, new
+  Supabase project, and `hoc-deu` simply keeps its existing role. **§2 below ("Create the Supabase
+  staging project") is superseded and kept only for reference** — `hoc-deu` already exists, already
+  carries this file's OAuth apps, redirect allow-list and admin bootstrap, and is never recreated
+  under the name `hoc-deu-staging`.
+- **Pre-5.8b:** the placeholder production branch `production` existed on GitHub from M1
+  (`c2a9583`); the Vercel project's Production Branch pointed at it, so every push to `main` built
+  as a **Preview** with this file's staging variables, exactly like every other branch — `main`'s
+  own stable preview alias (§3's Site URL) served staging, and it was every preview's consumer,
+  `main` included.
+- **Post-5.8b** (`docs/ops/production.md` §4 step 7 sets the Production Branch back to `main`):
+  every push to `main` now builds a **Production** deployment with production's own variables —
+  `main`'s preview alias stops existing/updating, and `hoc-deu` (staging) is served only by
+  **branch previews of pull requests**, never by `main`. §3's Site URL and §5 step 2 below describe
+  the pre-5.8b setup; see §3 for the post-5.8b Site URL and the note there.
 - Preview URLs sit behind Vercel's standard deployment protection: sign in to Vercel to open them.
+- **Staging can pause once it is no longer the backup target (M12).** A Free-plan Supabase project
+  pauses after a quiet week; the daily backup connection kept `hoc-deu` awake (ADR-0029) until
+  `docs/ops/production.md` §4 step 11 points the `backup` environment at production instead —
+  after that, staging gets no daily connection of its own (a preview built
+  from it does not count), and it can pause between pull requests. If a PR preview then fails to
+  reach staging: Supabase dashboard → the `hoc-deu` project → **Restore** (a few minutes), then
+  retry the preview. Restoring it before opening a PR is unnecessary busywork if none has run
+  recently; only do it when a preview actually fails.
 - The image bucket `content-images` exists in `hoc-deu` (public read, owner-only writes; created
   by the owner in the dashboard — implementation plan Part B-M3, OD3). Its runbook,
   `docs/ops/content-images.md`, arrives with task 3.3b.
@@ -28,10 +49,16 @@ platform design §2.5 (environment variables and admin bootstrap).
 | Environment | Where | Auth |
 | --- | --- | --- |
 | Local | Docker (`pnpm db:start`), `next dev` | Test login on (`AUTH_TEST_LOGIN=true`) |
-| Staging | Vercel **Preview** deployments — every branch, `main` included — + Supabase project `hoc-deu-staging` | Google/GitHub OAuth only — hosted e-mail provider disabled |
-| Production | Vercel **Production** deployment + a separate Supabase project — none until task 5.8 (§5 step 2) | Google/GitHub OAuth only (task 5.8) |
+| Staging | Vercel **Preview** deployments — every branch pre-5.8b, pull-request branches only post-5.8b (`main` included until then; "Current state" above, M2) — + Supabase project `hoc-deu` | Google/GitHub OAuth only — hosted e-mail provider disabled |
+| Production | Vercel **Production** deployment + its own, separate Supabase project — `docs/ops/production.md` | Google/GitHub OAuth only |
 
 ## 2. Create the Supabase staging project
+
+**Superseded (task 5.8) — kept for reference only.** `hoc-deu` already exists and stays the
+staging project permanently ("Current state" above); this section's `hoc-deu-staging` project is
+never created. Skip to §3 if `hoc-deu` is already set up as this section describes (it is, as of
+task 2.2) — or use this section's steps if a *production* project needs the same clicks, since
+they are the same either way, just under a different project name (`docs/ops/production.md`).
 
 1. Create a project named `hoc-deu-staging` in region `ap-southeast-1` (Singapore), on
    Postgres **16 or later** (Supabase's default, 17, is right; local runs 17 —
@@ -58,9 +85,16 @@ platform design §2.5 (environment variables and admin bootstrap).
 
 In the staging project's Auth → URL Configuration:
 
-- **Site URL:** the stable preview alias of the `main` branch,
+- **Site URL — pre-5.8b:** the stable preview alias of the `main` branch,
   `https://hoc-deu-git-main-<vercel-scope>.vercel.app` — `main` builds as a Preview until task 5.8
   (§5 step 2), so this alias always serves the latest `main` with the staging variables.
+- **Site URL — post-5.8b (M2):** once the Production Branch is back to `main` (§5 step 2;
+  `docs/ops/production.md` §4 step 7), that same alias builds and serves **Production** — a
+  production-serving alias must never be staging's Site URL. Point it instead at a branch preview
+  that keeps existing (any long-lived non-`main` branch's alias), or at `http://localhost:3000` if
+  none is kept around: the Site URL is only GoTrue's fallback when a redirect is not on the
+  allow-list (below), and after 5.8b staging's only real consumers are pull-request preview
+  deployments, never `main`.
 - **Redirect allow-list:**
   - `https://hoc-deu-*-<vercel-scope>.vercel.app/**`
   - `http://localhost:3000/**`
@@ -156,14 +190,43 @@ on the hash URL exchanges its code against the wrong host and always ends at
    `/sign-in.segments/….segment.rsc`) — rather than erroring or redirect-looping; the proxy's
    public-path check must treat these the same as the pages they prefetch.
 
-## 7. Migrations after merging (owner review SF6)
+## 7. Migrations after merging (owner review SF6; standing procedure since task 5.8, I3)
 
-Until task 5.8 automates this, after merging any PR that adds a migration:
+Every migration merged to `main` reaches both hosted projects the same way, in this order, and the
+CLI is **re-linked before every push** — the link is sticky local state, so a stale link from an
+earlier session pushes to the wrong project silently, with nothing in the output to say so besides
+`migration list`'s own project. Staging first, then production; finish both **before the next
+scheduled backup** (22:17 UTC, `docs/ops/backups.md`) — a migration that reaches a hosted project
+only after that day's backup makes the manifest's recorded commit describe a schema the database
+does not have yet (M5, `docs/ops/backups.md` M5).
 
-```bash
-pnpm exec supabase db push
-pnpm exec supabase migration list
-```
+1. **Link to staging explicitly**, every time, even if the checkout looks already linked:
+
+   ```bash
+   pnpm exec supabase link --project-ref <staging ref>
+   ```
+
+2. **The decision-30 precheck** (`docs/ops/production.md` §4 step 3) against **staging** — it
+   carries real usage, so it is not automatically `0` the way a brand-new project is.
+3. **Push, then confirm which project you just pushed:**
+
+   ```bash
+   pnpm exec supabase db push
+   pnpm exec supabase migration list
+   ```
+
+   `migration list`'s output names the project (its ref): read it, not only "local and remote
+   agree" — a stale link agrees with the wrong project too.
+4. **Smoke** the migration on staging (the owner's staging smoke checklist, or the specific flow
+   the migration touches).
+5. **Repeat 1–4 against production** — link to the **production** ref, the same precheck, push,
+   `migration list`, smoke.
+6. **Re-link to staging** when both are done, so the next day-to-day command from this checkout
+   (`pnpm db:types`, an ad hoc query) defaults to staging, not production:
+
+   ```bash
+   pnpm exec supabase link --project-ref <staging ref>
+   ```
 
 **Before pushing `20260925000500_bound_schedule_history_and_avatar.sql`** (M2 ruling R17, merged
 with M3's PR A), run this in the project's SQL editor. The migration adds the
@@ -181,9 +244,9 @@ over-long provider avatar — then push:
 update public.profiles set avatar_url = null where char_length(avatar_url) > 2048;
 ```
 
-Run both against the linked staging project (§2; today the production project `hoc-deu` — see
-"Current state") and confirm `migration list` shows local and remote at the same version before
-the next PR is opened against staging.
+Run both against the linked staging project (`hoc-deu` — see "Current state") and confirm
+`migration list` shows local and remote at the same version before the next PR is opened against
+staging.
 
 ## 8. Break glass — no active admin left (decision 23, ADR-0004)
 

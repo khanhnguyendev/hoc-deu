@@ -30,7 +30,9 @@ Options considered:
   `event_quota (user_id, local_day)` with `on conflict … do update set count = count + 1
   returning count`, and raises **`quota_exceeded`** (`P0001`) when the count exceeds **500 per
   local day**. No `count(*)`: the upsert takes the row lock for that user-day, which also
-  serialises concurrent inserts, and a failed insert rolls its increment back with it.
+  serialises concurrent inserts, and a failed insert rolls its increment back with it. An event
+  whose id already exists is not counted against the limit at 500: its insert fails on
+  `events_pkey` and `apply_event` answers `duplicate` (task 5.0b, M2 quota #500).
 - The trigger counts what the log stores: **`events_10_prepare`** fires first (row triggers fire
   in name order). For the `authenticated` role it:
   - rejects a `user_id` other than `auth.uid()` (`forbidden_user_id`, `42501`) before the quota

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { requireOnboarded, requireUser } from '@/lib/auth/dal'
 import { activeTracks, getTrack } from '@/lib/content/tracks'
 import { MAX_PAUSED_DAYS } from '@/lib/domain/events'
@@ -15,9 +16,10 @@ import {
 } from '@/lib/domain/time/localDay'
 import { canonicalTimeZone, isTimeZoneOption } from '@/lib/domain/time/timeZones'
 import { applyLearnerEvent, EventError } from '@/lib/events/apply'
-import { deriveEventId } from '@/lib/events/ids'
+import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { rebuildTodayIfUntouched } from '@/lib/plans/rebuild'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
@@ -60,19 +62,46 @@ const stale = (message: string = vi.errors.invalidTransition): SettingsResult =>
 /**
  * Records one event, then re-renders `/settings` — which also brings a fresh `requestId`, so the
  * next change is a new event (decision 9). An `EventError` becomes its Vietnamese message; any
- * other error goes to the route's error boundary.
+ * other error goes to the route's error boundary. With `rebuildFor` (a track change: budget,
+ * variant, add, pause, resume, remove, reset), a recorded event is followed by
+ * `rebuildTodayIfUntouched` (Part B-M5 decision 11): today's plan follows the change while it is
+ * untouched, otherwise the change applies from tomorrow — its outcome never changes the message.
  */
-async function record(apply: () => Promise<unknown>, message: string): Promise<SettingsResult> {
+async function record(
+  apply: () => Promise<unknown>,
+  message: string,
+  rebuildFor?: string,
+  /** A stale refusal's message, when the caller's page is re-rendered anyway (`resetTrack`). */
+  staleMessage?: string,
+): Promise<SettingsResult> {
   try {
     await apply()
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     if (error.code === 'invalid_timezone') return fieldError('timezone', errors.timezone)
-    if (STALE.has(error.code)) return stale(error.userMessage)
+    if (STALE.has(error.code)) return stale(staleMessage ?? error.userMessage)
     return { ok: false, message: error.userMessage }
   }
+  if (rebuildFor !== undefined) await rebuildToday(rebuildFor)
   revalidatePath(PATH)
   return { ok: true, message }
+}
+
+/**
+ * `rebuildTodayIfUntouched` after a recorded change. The change is saved whatever happens here:
+ * a failure (e.g. a read that failed) is logged — its name and message only, never user data —
+ * and today's plan stays as it is (the change applies from tomorrow), so the learner still sees
+ * the success message and the re-rendered page.
+ */
+async function rebuildToday(userId: string): Promise<void> {
+  try {
+    await rebuildTodayIfUntouched(userId)
+  } catch (error) {
+    console.error(
+      '[settings] rebuild failed:',
+      error instanceof Error ? `${error.name}: ${error.message}` : typeof error,
+    )
+  }
 }
 
 /** The learner's today, in the schedule in force (§5.1). */
@@ -112,7 +141,10 @@ export async function updateSchedule(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(parsed.data.requestId, 'schedule.changed'),
+        // Digested on `desired` only, never `effectiveAt` (server-derived): an edited resubmit —
+        // a different zone, picked after reading the first error — must send a new event, but the
+        // same tap twice must still collapse to one (M2 RF-2 "digest keys" minor; decision 16).
+        id: deriveEventId(parsed.data.requestId, `schedule.changed:${digest(desired)}`),
         type: 'schedule.changed',
         payload: { ...desired, effectiveAt },
       }),
@@ -141,7 +173,7 @@ export async function updateCodeLanguage(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, 'settings.changed:codeLanguage'),
+        id: deriveEventId(requestId, `settings.changed:${digest({ codeLanguage })}`),
         type: 'settings.changed',
         payload: { codeLanguage },
       }),
@@ -184,12 +216,13 @@ export async function updateTrack(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, `track.updated:${trackId}`),
+        id: deriveEventId(requestId, `track.updated:${trackId}:${digest(changes)}`),
         type: 'track.updated',
         trackId,
         payload: changes,
       }),
     withTitle(copy.tracks.updated, track.title.vi),
+    user.id,
   )
 }
 
@@ -233,12 +266,16 @@ export async function enrollTrack(
   return record(
     () =>
       applyLearnerEvent(supabase, {
-        id: deriveEventId(requestId, `track.enrolled:${trackId}`),
+        id: deriveEventId(
+          requestId,
+          `track.enrolled:${trackId}:${digest({ roadmapVariant, budgetMinutes, startDate })}`,
+        ),
         type: 'track.enrolled',
         trackId,
         payload: { roadmapVariant, budgetMinutes, startDate },
       }),
     withTitle(copy.add.added, track.title.vi),
+    user.id,
   )
 }
 
@@ -269,6 +306,7 @@ export async function setTrackStatus(
           payload: {},
         }),
       withTitle(copy.tracks.paused, title),
+      user.id,
     )
   }
   if (to === 'removed') {
@@ -281,6 +319,7 @@ export async function setTrackStatus(
           payload: {},
         }),
       withTitle(copy.tracks.removed, title),
+      user.id,
     )
   }
 
@@ -302,7 +341,50 @@ export async function setTrackStatus(
         payload: { pausedDays },
       }),
     withTitle(copy.tracks.resumed, title),
+    user.id,
   )
+}
+
+const resetInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  /** The database's rule for track ids (`user_tracks.track_id`). */
+  trackId: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+})
+
+/**
+ * "Bắt đầu lại" (§5.9 "Removing a track", Part B-M2 decision 18; task 5.4) — from the track
+ * page's ResetTrackButton, which passes the page's per-render `requestId`: `track.reset`, which
+ * clears the track's item states and records the day (events, plans, check-ins and daily activity
+ * stay; an active or paused track only — the database answers `invalid_transition` for a removed
+ * one and `track_not_enrolled` for one never enrolled, both shown as stale: "Lộ trình này vừa
+ * thay đổi. Trang đã được làm mới.", true because the pages re-render — re-review M2). A recorded
+ * reset is followed by `rebuildTodayIfUntouched` (decision 11): an untouched plan of today starts
+ * the track over too. The track page and `/today` re-render whatever the outcome.
+ */
+export async function resetTrack(input: {
+  requestId: string
+  trackId: string
+}): Promise<SettingsResult> {
+  const user = await requireOnboarded()
+  const parsed = resetInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, trackId } = parsed.data
+  const supabase = await createClient()
+  const result = await record(
+    () =>
+      applyLearnerEvent(supabase, {
+        id: deriveEventId(requestId, `track.reset:${trackId}`),
+        type: 'track.reset',
+        trackId,
+        payload: {},
+      }),
+    withTitle(vi.extra.reset.done, titleOf(trackId)),
+    user.id,
+    vi.extra.reset.stale,
+  )
+  revalidatePath(`/t/${trackId}`)
+  revalidatePath('/today')
+  return result
 }
 
 /**
@@ -314,7 +396,11 @@ export async function setTrackStatus(
  * exists to revoke a session for) and returns to the landing page with the deleted notice.
  * `redirect()` is the function's last statement, outside any try/catch (it works by throwing).
  * Takes no arguments (assignable to `SettingsAction`: fewer parameters is fine) — there is no
- * form data to read.
+ * form data to read. The local sign-out's error is ignored entirely — a returned `{ error }` or a
+ * rejection — and never blocks the redirect (controller ruling, M2 minor): the account row is
+ * already gone by then, so a thrown error here would be misleading (the learner would see a
+ * failure for a delete that actually went through), and auth-js has already cleared the session
+ * client-side for most error cases regardless.
  */
 export async function deleteAccount(): Promise<SettingsResult> {
   const user = await requireUser()
@@ -322,6 +408,10 @@ export async function deleteAccount(): Promise<SettingsResult> {
   if (error) return { ok: false, message: copy.deleteAccount.failed }
 
   const supabase = await createClient()
-  await supabase.auth.signOut({ scope: 'local' })
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // Ignored either way (a returned `{ error }` or a rejection): see the doc comment above.
+  }
   redirect('/?account=deleted')
 }

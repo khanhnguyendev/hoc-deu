@@ -1,7 +1,7 @@
 'use client'
 
 import { Eye, EyeOff } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { FlashcardContent } from '@/lib/content/catalog-types'
@@ -36,29 +36,60 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
  * A flashcard (DESIGN_SYSTEM §9 FlashcardViewer): the front as a heading in its language, then
  * "Xem nghĩa" reveals the back, hint, usage ("danh từ · trung tính" + note), a work example
  * (`lang="en"`) and the pronunciation. The card stays in place; nothing of the back is in the DOM
- * until revealed. Grade buttons arrive with task 5.2.
+ * until revealed. `children` — the three grade buttons (task 5.2c: FlashcardOutcome on the card's
+ * page, FlashcardGrades in a CardSession) — show at the bottom of the card from the first reveal
+ * on and stay when the back is hidden again; `onReveal` fires on the first reveal only. The card
+ * takes focus (`tabIndex={-1}`: a click inside keeps focus in it, and the first reveal focuses it
+ * when focus is elsewhere), so the grades' keys reach the card the learner is using.
  */
 function FlashcardView({
   card,
   headingLevel = 2,
+  revealVariant = 'primary',
+  defaultOpen = false,
+  onReveal,
+  onOpenChange,
+  children,
 }: {
   card: FlashcardSides
-  /** 1 on the item page (the front is the page title); 2 inside other screens. */
-  headingLevel?: 1 | 2 | 3
+  /** 1 on the item page (the front is the page title); 2–4 inside other screens, by nesting. */
+  headingLevel?: 1 | 2 | 3 | 4
+  /** "Xem nghĩa" while closed: `primary`, or `outline` in a view with its own primary (m-12). */
+  revealVariant?: 'primary' | 'outline'
+  /** Starts revealed (a card block remounted mid-card, parked #8): the grades show too. */
+  defaultOpen?: boolean
+  onReveal?: () => void
+  /** The back was revealed (true) or hidden again (false). */
+  onOpenChange?: (open: boolean) => void
+  children?: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+  const [seen, setSeen] = useState(defaultOpen)
   const backId = useId()
+  const cardRef = useRef<HTMLDivElement>(null)
   const Heading = `h${headingLevel}` as const
+  const toggle = () => {
+    if (!open && !seen) {
+      setSeen(true)
+      onReveal?.()
+      // Keys (the grades' 1 / 2 / 3) go to the card the learner is looking at: Safari and
+      // Firefox on macOS do not focus a clicked button, so focus lands here instead.
+      const active = document.activeElement
+      if (!(active instanceof Node && cardRef.current?.contains(active))) cardRef.current?.focus()
+    }
+    setOpen(!open)
+    onOpenChange?.(!open)
+  }
   return (
-    <Card data-slot="flashcard-view" className="gap-5 md:gap-5">
+    <Card ref={cardRef} tabIndex={-1} data-slot="flashcard-view" className="gap-5 md:gap-5">
       <Heading lang={card.lang.front} className="text-2xl font-semibold md:text-3xl">
         {card.front}
       </Heading>
       <Button
-        variant={open ? 'outline' : 'primary'}
+        variant={open ? 'outline' : revealVariant}
         aria-expanded={open}
         aria-controls={backId}
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className="self-start"
       >
         {open ? (
@@ -106,6 +137,11 @@ function FlashcardView({
           </div>
         )}
       </div>
+      {seen && children !== undefined && children !== null && (
+        <div data-slot="flashcard-actions" className="border-t border-border pt-4">
+          {children}
+        </div>
+      )}
     </Card>
   )
 }

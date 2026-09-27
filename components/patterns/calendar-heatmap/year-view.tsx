@@ -6,7 +6,7 @@ import { formatMonthShort } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
 import { cellLabel } from './cell-label'
-import { addDays, yearColumns } from './dates'
+import { addDays, pickMonthLabels, yearColumns } from './dates'
 import { CELL, levelFor, ON_CELL } from './levels'
 
 const KEY_STEP: Record<string, number> = {
@@ -33,6 +33,7 @@ export function YearView({
 }) {
   const columns = yearColumns(today)
   const first = columns[0]?.[0] ?? today
+  const monthLabels = pickMonthLabels(columns)
   const [focusDay, setFocusDay] = useState(today)
   const grid = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -63,12 +64,15 @@ export function YearView({
     >
       <div className="inline-flex flex-col gap-1">
         <div aria-hidden="true" className="ml-7 grid auto-cols-max grid-flow-col gap-0.75">
-          {columns.map((column, i) => {
-            const firstOfMonth = column.find((day) => day?.endsWith('-01'))
-            const labelDay = i === 0 ? column[0] : firstOfMonth
+          {columns.map((_, i) => {
+            const label = monthLabels.find((candidate) => candidate.index === i)
             return (
-              <span key={i} className="w-3 text-xs whitespace-nowrap text-muted-foreground">
-                {labelDay ? formatMonthShort(labelDay) : ''}
+              <span
+                key={i}
+                data-col={i}
+                className="w-3 text-xs whitespace-nowrap text-muted-foreground"
+              >
+                {label ? formatMonthShort(label.day) : ''}
               </span>
             )
           })}

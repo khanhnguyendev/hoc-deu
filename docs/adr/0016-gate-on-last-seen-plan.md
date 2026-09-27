@@ -1,7 +1,9 @@
 # ADR-0016: Gate rule on the last **seen** plan; stale-plan resume
 
 - **Status:** accepted
-- **Date:** 2026-09-25
+- **Date:** 2026-09-25; amended 2026-09-26 (M5 task 5.0a: M-5 and M-6, owner rulings),
+  2026-09-27 (M5 task 5.4: off-plan study, ruling M5-R33) and 2026-09-27 (M5 final fix pass,
+  ruling M5-R36: a skip is not a result, the fresh extra block, two accepted costs)
 - **Spec:** platform design §5.2, §5.6, §5.8, §5.9
 
 ## Context
@@ -28,8 +30,9 @@ Two further constraints shape the rule:
   today (`lastSeenPlan`); an unseen plan, whatever its date, is invisible to the gate. This keeps
   AI and baseline users on one rule: skipping a day never closes the gate on a plan nobody opened.
 - **Open** when there is no last seen plan, when it has no blocks (an empty plan gave nothing to
-  do — RF-4), or when any of its blocks has been checked in `done` or `partial`, at any time
-  including a later day. **Closed** otherwise (nothing done, or everything skipped).
+  do — RF-4), when any of its blocks has been checked in `done` or `partial`, at any time
+  including a later day, or when none of its blocks belongs to a track that is still active
+  (M-5, below). **Closed** otherwise (nothing done, or everything skipped).
 - **`resumedToday`.** When the gate is open because of a check-in on an **earlier** day's plan,
   `gateStatus` reports whether the *earliest* qualifying (`done`/`partial`) check-in landed on
   `today`. When it did, the caller (`ensurePlan`, M5 task 5.1) builds no new plan today — the resumed work
@@ -41,6 +44,54 @@ Two further constraints shape the rule:
   unfinished blocks (`unfinishedBlocks`, plan order, `done`/`partial` dropped) with the paused
   banner, and check-ins go to that old plan. The bot cannot write a plan for this user
   (`skipped_gate_closed`).
+- **Blocks of tracks no longer active never hold the gate closed (M-5 A, owner ruling
+  2026-09-26).** `gateStatus` and `unfinishedBlocks` take the learner's active track IDs
+  (`activeTrackIds`: the `active` enrollments, which `ensurePlan` passes — M5 task 5.1a). A `done` /
+  `partial` check-in on any block still opens the gate, whatever its track; when there is none,
+  only blocks of active tracks count, so a last seen plan whose blocks all belong to tracks paused
+  or removed since is treated like an empty plan (open), and the paused view lists only the active
+  tracks' unfinished blocks. Pausing a track to open the gate gains nothing: the roadmap moves only
+  on introduced items, so the next plan holds the same unfinished items plus the due reviews, as
+  "Học tiếp hôm nay" would. Without `activeTrackIds` every track counts (the M4 rule). Not a
+  `RULES_VERSION` change: the gate reads history and derives no rows.
+- **A skipped block resumed on a later day counts for that day (M-6 a, owner ruling
+  2026-09-26).** A block counts for the local day of its first check-in (`checked_in_on`, Part B-M4
+  decision 6) — except a `skipped` check-in edited to `done` / `partial` on a later local day,
+  whose `checked_in_on` moves to that day (only forward, only from `skipped`; the projection and
+  `apply_derived_changes` apply the same rule, `RULES_VERSION` 3). The earlier day is recomputed
+  without the block, the later day with it, so the earliest qualifying check-in is today's and
+  resuming through a skipped block is `resumedToday` — exactly like resuming through a block that
+  was never checked in: one plan per day holds, and no day is completed after the fact. Correcting
+  a skip after the day start counts for the new day; the earlier day stays incomplete. Doing every
+  item of a skipped block never checks it in again by itself (the auto check-in fills only a block
+  with no check-in, §5.5): the learner taps "Sửa" on it.
+- **A skip is not a result (ruling M5-R36, Part B-M5 decision 15 as amended).** The auto check-in
+  fires only when at least one of the block's items has a result on or after the plan date, and
+  records only those items' minutes. Skipping every item of a block ("Bỏ qua mục này") checks
+  nothing in, so skipping the paused plan's only item leaves the gate closed — it never reopens it
+  as `resumedToday`. The learner checks such a block in themselves (`skipped` in the sheet).
+- **Off-plan study (§5.9; Part B-M5 decision 21, ruling M5-R33).** A result for an item that no
+  block of the current plan lists is attached first to its track's `extra` block of that plan —
+  today's plan, the paused (last seen) plan while the gate is closed, the resumed plan on a resume
+  day; with none yet, today's plan is built — and the auto check-in follows (§5.5). A `done` extra
+  block of the paused plan reopens the gate like any check-in, as `resumedToday`. A studied item
+  of a paused, removed or never-followed track attaches to the extra block too: pause and remove
+  govern what plans schedule, not what gets recorded ("studying always counts"). When the paused
+  plan's extra block of an **active** track already holds an item never done (an earlier "Học
+  thêm"), the attached result joins it, the block is not complete, no auto check-in fires and the
+  gate stays closed — the paused view lists that block with its one-tap check-in. A track that is
+  **not active** has its blocks hidden from the paused view (M-5 A), so its extra block could never
+  be checked in there (whole-branch review M-3, ruling M5-R36): when that block holds an item not
+  handled since the plan date (neither studied nor skipped), or carries the learner's own check-in (a skip), the studied item goes
+  to a **fresh extra block** of the track, `<date>:<track>:extra:<n>` after `extra:<n - 1>`, which
+  its result completes and checks in — the study counts and reopens the gate like any check-in.
+  The track's next items join that newest extra block. `plan.extra_added` accepts only the track's
+  existing extra blocks or its next number (checked under the plan lock).
+  **Accepted residual (fix-pass re-review N-1):** an item a paused plan lists in a *non-extra*
+  block of a track since paused or removed is recorded in that hidden block; the study counts
+  once every item of the block is handled or the track is reactivated, not before (the same
+  holds for a fresh extra block whose auto check-in failed, until its track's next result).
+  Listing such blocks in the paused view is hand-off backlog row L4.
 - **Stale-plan resume ("Học tiếp hôm nay").** Offered once the gate is closed **and** the last seen
   plan is **more than** `RESUME_AFTER_DAYS` (2) local days old (`daysSince > 2`) — a plan two days
   old does not yet warrant it, one three days old does. `plan/gate.ts` only computes the numbers
@@ -68,3 +119,30 @@ Two further constraints shape the rule:
   takes no plan lock, so it can commit between the check and the rebuild. It touches only the
   learner's own plan, and every app path (`apply_event` for events naming a plan,
   `apply_system_event`) takes the plan lock — the same class as ruling R14's direct writes.
+- Accepted for v1.0 (M5 whole-branch review M-2, ruling M5-R36): a two-tab race on the paused
+  plan. "Học tiếp hôm nay" in one tab and, in another, a check-in, a result or off-plan study on
+  the paused plan P1 each decide from their own read of the gate (closed), then take different
+  advisory locks — `(user, today)` for the resume plan, `(user, P1's date)` for P1's check-in —
+  and `plan.generated` re-checks only the date and `plan_exists`, not the gate. Within a window of
+  about 100–300 ms both commit: today gets a resume plan while one of P1's blocks is checked in
+  `done` / `partial` today (`resumedToday`), so the day has two plans. Sequential taps are handled
+  (decision 13's stale answer on one side, `not_offered` on the other). It is benign: no data is
+  lost — every event and its derived rows are written once — and the day still counts once:
+  `daily_activity` has one row per local day, which sums the minutes of every block counted for
+  that day on either plan, and the streak counts days, not plans. `/today` shows today's plan
+  (today's row wins over the gate), and later check-ins to P1 are refused as stale. In the
+  off-plan variant the result names P1's extra block but its auto check-in is skipped (P1 is no
+  longer the current plan): the result and its SRS state are kept; only that block's minutes are
+  not credited. The fix (a `gate_changed` refusal of `plan.generated` under the plan lock when an
+  earlier plan has a `done` / `partial` check-in dated that day) is a hand-off backlog row.
+- Accepted for v1.0, flagged for the owner (M5 whole-branch review M-4, ruling M5-R36): the
+  write rate of off-plan study. Each card graded outside the plan (typically on `/review` after an
+  absence, where far more cards are due than the plan's review block holds) writes a
+  `plan.extra_added` (one rewrite of the plan row: `blocks`, `version`), its `item.result`, and an
+  auto `block.checked_in` re-sent whenever the extra block's ceiled studied minutes change — about
+  every other 0.5-minute card and every 5-minute recall. That is about 2.5–3 events and one plan
+  rewrite per off-plan card instead of one event (100 cards ≈ 250–300 events and 100 rewrites),
+  and about 17 sequential round trips per grade. The daily quota (500 events per user, ADR-0030)
+  counts learner events only — here the one `item.result` per card — so it is never the limit;
+  database size and server CPU (§8.3) are. Batching a session's cards into one
+  `plan.extra_added` per track is the follow-up if the owner wants it.

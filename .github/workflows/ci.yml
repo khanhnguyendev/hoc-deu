@@ -31,6 +31,24 @@ jobs:
       - name: Block Google Fonts — the build must work offline (platform design §2.1)
         run: echo "0.0.0.0 fonts.googleapis.com fonts.gstatic.com" | sudo tee -a /etc/hosts
       - run: pnpm verify
+      - name: Unit tests as root (owner item a)
+        run: sudo env "PATH=$PATH" "$(command -v pnpm)" exec vitest run
+
+  sim:
+    name: sim
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:sim
 
   content-build:
     name: content-build

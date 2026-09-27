@@ -2,6 +2,14 @@
  * Vietnamese UI strings (DESIGN_SYSTEM §11). Technical terms stay English; learning content is
  * not here. Keep strings in NFC (tested) and sentence case.
  */
+import { adminOverview } from './strings/admin-overview'
+import { checkIn } from './strings/check-in'
+import { extra } from './strings/extra'
+import { outcomes } from './strings/outcomes'
+import { progress } from './strings/progress'
+import { review } from './strings/review'
+import { today } from './strings/today'
+
 export const vi = {
   common: {
     close: 'Đóng',
@@ -51,6 +59,11 @@ export const vi = {
   },
   streak: {
     suffix: 'ngày liên tiếp',
+  },
+  /** TrackProgressCard (m-1): one string pair for `/today` and the track page. */
+  trackProgress: {
+    week: 'Tuần {week}/{weeks}',
+    ring: 'Tiến độ {title}',
   },
   heatmap: {
     legend: 'Chú giải',
@@ -114,6 +127,9 @@ export const vi = {
     signInFailed: 'Đăng nhập không thành công. Bạn thử lại nhé.',
     testLoginTitle: 'Đăng nhập thử nghiệm',
     testLoginDescription: 'Chỉ có trên máy local và CI, với tài khoản thử nghiệm.',
+    /** The form's own accessible name (M2 minor: distinct from the section's `testLoginTitle`,
+     *  so the two nested landmarks are not named alike — landmark-unique). */
+    testLoginFormLabel: 'Biểu mẫu đăng nhập thử nghiệm',
     email: 'Email',
     password: 'Mật khẩu',
     submit: 'Đăng nhập',
@@ -141,6 +157,8 @@ export const vi = {
       title: 'Tài khoản đang tạm khoá',
       description: 'Quản trị viên đã tạm khoá tài khoản này. Bạn hãy liên hệ họ để mở lại.',
     },
+    /** AccountMenu's "Đăng xuất" (M2 minor): shown when the sign-out action rejects. */
+    signOutFailed: 'Không đăng xuất được. Bạn thử lại nhé.',
   },
   /**
    * /onboarding, the setup wizard (§2.4, task 2.10). `{minutes}` is a formatted number of
@@ -274,6 +292,8 @@ export const vi = {
     backToTrack: 'Về lộ trình {title}',
     /** An item of a retired track the learner does not follow: its track page is a 404. */
     backToTracks: 'Về danh sách lộ trình',
+    /** An item opened from a plan block goes back to the dashboard (m-9). */
+    backToToday: 'Về Hôm nay',
   },
   /** Shared track pieces (`features/tracks`): the weekly template preview. */
   tracks: {
@@ -318,6 +338,8 @@ export const vi = {
       templateTitle: 'Mẫu tuần',
       save: 'Lưu',
       actionsFor: 'Thao tác với {title}',
+      /** The orphaned-failure banner's close button (M2 minor): distinct per track. */
+      dismissFailure: 'Đóng thông báo về {title}',
       pause: 'Tạm dừng',
       resume: 'Tiếp tục',
       remove: 'Gỡ lộ trình',
@@ -439,11 +461,8 @@ export const vi = {
       failed: 'Không thực hiện được thao tác. Bạn thử lại nhé.',
     },
   },
-  /** /today until the dashboard arrives (task 5.1). */
-  today: {
-    comingSoonTitle: 'Kế hoạch hôm nay sắp có',
-    comingSoonBody: 'Các khối học, check-in và thẻ cần ôn của bạn sẽ hiện ở đây.',
-  },
+  /** `/today` — its own file (Part B-M5 decision 3). */
+  today,
   /**
    * `describeWeeklyTemplate` / `describeThrottle` (`lib/content/weekly-template.ts`, platform
    * design §3.4). `{n}`, `{count}`, `{w}`, `{dueAbove}` are replaced with formatted numbers.
@@ -604,4 +623,11 @@ export const vi = {
     /** An exercise's or prompt's self-check criteria. */
     rubric: 'Tiêu chí',
   },
+  /** M5 areas, one file each (Part B-M5 decision 3): only the task that owns an area edits it. */
+  checkIn,
+  outcomes,
+  review,
+  progress,
+  extra,
+  adminOverview,
 } as const

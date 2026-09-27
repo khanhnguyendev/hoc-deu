@@ -17,7 +17,13 @@ create extension if not exists pgtap with schema extensions;
 -- itself) and plan_lock_key (the invoker apply_event takes the plan lock as the learner). 4.9b
 -- adds apply_derived_changes (SECURITY INVOKER: the invoker apply_event writes the derived rows as
 -- the learner, under RLS and the derived-table bounds). 4.9c adds none: plans and the auto
--- check-in go through apply_system_event, which stays service_role only (041, 072).
+-- check-in go through apply_system_event, which stays service_role only (041, 072). 5.0b adds
+-- none: plan.extra_added goes through apply_system_event, and its two trigger functions
+-- (plan_block_state_check_in_day, schedule_versions_lock_user) get no grants (073). 5.7a adds
+-- health (SECURITY INVOKER, `select true`: /api/health's cheap query); the ops_* functions are
+-- service_role only (080). 5.6 adds admin_overview and admin_track_positions (aggregate readers,
+-- each checks is_admin() itself) and replaces admin_set_status(uuid, text) with
+-- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -25,9 +31,17 @@ insert into _authenticated_allowlist (proname) values
   ('apply_event'), ('admin_set_status'), ('admin_set_role'),
   ('admin_list_users'),
   ('mark_plan_seen'), ('plan_lock_key'),
-  ('apply_derived_changes');
+  ('apply_derived_changes'),
+  ('health'),
+  ('admin_overview'), ('admin_track_positions');
 
-select plan(6);
+-- Allowlist of `public` functions `anon` may EXECUTE (check 5), overload for overload like the
+-- one above. Only 5.7a's health(): /api/health calls it with the publishable key and no session.
+-- A SECURITY DEFINER function may never be listed here (check 4).
+create temporary table _anon_allowlist (proname text) on commit drop;
+insert into _anon_allowlist (proname) values ('health');
+
+select plan(11);
 
 -- 1. Every table (relkind r, p) in public has row level security enabled.
 select is_empty(
@@ -108,8 +122,10 @@ select is_empty(
   'PUBLIC entry, and grants no EXECUTE to anon'
 );
 
--- 5. anon has EXECUTE on no function in public.
-select is_empty(
+-- 5. anon may EXECUTE exactly the allowlisted public functions (health() only, task 5.7a),
+--    overload for overload (bag_eq, as check 6). Unlike check 6, extension-owned functions are
+--    not excluded: anon may execute none in public, so one that becomes executable must fail.
+select bag_eq(
   $$
   select p.proname
   from pg_proc p
@@ -117,7 +133,8 @@ select is_empty(
   where n.nspname = 'public'
     and has_function_privilege('anon', p.oid, 'EXECUTE')
   $$,
-  'anon has EXECUTE on no function in public'
+  $$ select proname from _anon_allowlist $$,
+  'anon may EXECUTE exactly the allowlisted public functions, overload for overload'
 );
 
 -- 6. authenticated may EXECUTE exactly the allowlisted public functions, overload for overload.
@@ -135,6 +152,107 @@ select bag_eq(
   $$,
   $$ select proname from _authenticated_allowlist $$,
   'authenticated may EXECUTE exactly the allowlisted public functions, overload for overload'
+);
+
+-- 7. backup_reader (task 5.7a, 5.7b's pg_dump role) may SELECT every table, view, materialized
+--    view and foreign table in public except the internal event_quota, and not event_quota — so
+--    a later table is never silently missing from the backup (the migration's default privileges
+--    cover tables postgres creates; this catches any other owner).
+select is_empty(
+  $$
+  select c.relname
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind in ('r', 'p', 'v', 'm', 'f')
+    and case c.relname
+      when 'event_quota' then has_table_privilege('backup_reader', c.oid, 'SELECT')
+      else not has_table_privilege('backup_reader', c.oid, 'SELECT')
+    end
+  $$,
+  'backup_reader may select every relation in public except event_quota, and not event_quota'
+);
+
+-- 8. backup_reader only reads: no write privilege on any relation in public, and SELECT (for
+--    pg_dump's setval) but no USAGE or UPDATE on every sequence. `case` as in check 3.
+select is_empty(
+  $$
+  select c.relname
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
+    and case c.relkind
+      when 'S' then
+        not has_sequence_privilege('backup_reader', c.oid, 'SELECT')
+        or has_sequence_privilege('backup_reader', c.oid, 'USAGE,UPDATE')
+      else
+        has_table_privilege(
+          'backup_reader', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        )
+        or has_any_column_privilege('backup_reader', c.oid, 'INSERT,UPDATE,REFERENCES')
+    end
+  $$,
+  'backup_reader has no write privilege in public and reads every sequence'
+);
+
+-- 9. Schema backup (task 5.7c, ADR-0029) is owned by postgres, the migration role, and closed to
+--    every API role: USAGE for backup_reader only, CREATE for none of them. It is not in
+--    config.toml's [api].schemas either (tools/backup/auth-columns.test.ts).
+select is_empty(
+  $$
+  select r.rolname
+  from (
+    values ('public', false), ('anon', false), ('authenticated', false), ('service_role', false),
+           ('authenticator', false), ('backup_reader', true)
+  ) as r (rolname, usage)
+  where has_schema_privilege(r.rolname, 'backup', 'USAGE') <> r.usage
+     or has_schema_privilege(r.rolname, 'backup', 'CREATE')
+  $$,
+  'schema backup: USAGE for backup_reader only, CREATE for no API role'
+);
+
+-- 10. Every function in schema backup is SECURITY DEFINER, sets search_path, is owned by postgres
+--     (the migration role; its body reads auth as postgres) and is executable by backup_reader
+--     only: an explicit ACL whose EXECUTE grantees are its owner and backup_reader, nobody else.
+select is_empty(
+  $$
+  select p.proname
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'backup'
+    and (
+      not p.prosecdef
+      or not exists (
+        select 1 from unnest(coalesce(p.proconfig, '{}')) as cfg where cfg like 'search_path=%'
+      )
+      or pg_get_userbyid(p.proowner) <> 'postgres'
+      or p.proacl is null
+      or exists (
+        select 1 from aclexplode(p.proacl) a
+        where a.privilege_type = 'EXECUTE'
+          and a.grantee not in (p.proowner, 'backup_reader'::regrole)
+      )
+      or not has_function_privilege('backup_reader', p.oid, 'EXECUTE')
+      or has_function_privilege('anon', p.oid, 'EXECUTE')
+      or has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      or has_function_privilege('service_role', p.oid, 'EXECUTE')
+      or has_function_privilege('authenticator', p.oid, 'EXECUTE')
+    )
+  $$,
+  'every function in backup is a postgres-owned SECURITY DEFINER with search_path set, '
+  'executable by backup_reader only'
+);
+
+-- 11. ... and there are functions to check: check 10 never passes on an empty schema.
+select is(
+  (select pg_get_userbyid(n.nspowner)::text || ':' || count(p.oid)
+   from pg_namespace n
+   left join pg_proc p on p.pronamespace = n.oid
+   where n.nspname = 'backup'
+   group by n.nspowner),
+  'postgres:2',
+  'schema backup is owned by postgres and holds the two auth readers'
 );
 
 select * from finish();

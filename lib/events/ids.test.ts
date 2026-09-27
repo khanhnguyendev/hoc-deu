@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveEventId } from './ids'
+import { deriveEventId, digest } from './ids'
 
 const REQUEST_ID = '3f2b8c1e-4d5a-4b6c-8e7f-9a0b1c2d3e4f'
 const UUID_V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -57,5 +57,24 @@ describe('deriveEventId (decision 9)', () => {
     ` ${REQUEST_ID}`,
   ])('throws for the invalid requestId %j', (requestId) => {
     expect(() => deriveEventId(requestId, 'track.enrolled:dsa')).toThrow(TypeError)
+  })
+})
+
+describe('digest (M2 RF-2 "digest keys" minor)', () => {
+  it('gives the same digest for the same value', () => {
+    const value = { roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' }
+    expect(digest(value)).toBe(digest({ ...value }))
+  })
+
+  it('gives a different digest when a field changes', () => {
+    const first = digest({ roadmapVariant: '10w', budgetMinutes: 75 })
+    const editedBudget = digest({ roadmapVariant: '10w', budgetMinutes: 90 })
+    const editedVariant = digest({ roadmapVariant: '8w', budgetMinutes: 75 })
+    expect(new Set([first, editedBudget, editedVariant]).size).toBe(3)
+  })
+
+  it('is a short, stable hex string', () => {
+    const value = digest({ a: 1 })
+    expect(value).toMatch(/^[0-9a-f]{16}$/)
   })
 })

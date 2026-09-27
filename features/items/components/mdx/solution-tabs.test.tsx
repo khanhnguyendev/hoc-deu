@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { HighlightedCode } from '@/lib/content/code-tokens'
+import { OutcomeSignalsContext } from '../../outcome-signals'
 import { SolutionTabs } from './solution-tabs'
 
 const PYTHON: HighlightedCode = { lang: 'python', lines: [[['class', 'keyword'], ' Solution:']] }
@@ -63,5 +64,22 @@ describe('SolutionTabs', () => {
   it('renders nothing without solutions', () => {
     const { container } = render(<SolutionTabs solutions={{}} defaultLanguage="python" />)
     expect(container.innerHTML).toBe('')
+  })
+
+  it('task 5.2c: tells the page’s outcome signals on the first reveal only (the nudge)', async () => {
+    const signals = { solutionRevealed: vi.fn(), quizScored: vi.fn() }
+    const onReveal = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <OutcomeSignalsContext value={signals}>
+        <SolutionTabs solutions={{ python: PYTHON }} defaultLanguage="python" onReveal={onReveal} />
+      </OutcomeSignalsContext>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Xem lời giải' }))
+    await user.click(screen.getByRole('button', { name: 'Ẩn lời giải' }))
+    await user.click(screen.getByRole('button', { name: 'Xem lời giải' }))
+    expect(signals.solutionRevealed).toHaveBeenCalledOnce()
+    expect(onReveal).toHaveBeenCalledOnce()
+    expect(signals.quizScored).not.toHaveBeenCalled()
   })
 })

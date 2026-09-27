@@ -69,4 +69,11 @@ describe('VariantPicker', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(1)
     expect(screen.queryByText(/hoàn thành sau/)).toBeNull()
   })
+
+  it('carries aria-invalid on the group, not on each radio (M2 minor, ruling R9)', () => {
+    setup({ 'aria-invalid': true })
+    expect(
+      screen.getByRole('radiogroup', { name: 'Phiên bản DSA' }).getAttribute('aria-invalid'),
+    ).toBe('true')
+  })
 })

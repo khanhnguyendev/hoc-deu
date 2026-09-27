@@ -1,0 +1,714 @@
+/**
+ * Guards the backup and restore-test workflows (task 5.7b, ADR-0005, ADR-0029). They run only on
+ * `main` (the `backup` environment), so no pull request ever runs them: this file is their only
+ * check before the merge. The repository is public — anyone can read the logs and download the
+ * artifacts — so most checks here are about what must never be printed or uploaded.
+ */
+import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { parse as parseYaml } from 'yaml'
+import { describe, expect, it } from 'vitest'
+
+const ROOT = resolve(import.meta.dirname, '..', '..')
+
+type Step = {
+  id?: string
+  name?: string
+  if?: string
+  uses?: string
+  run?: string
+  shell?: string
+  with?: Record<string, string | number | boolean>
+  env?: Record<string, string>
+}
+type Job = {
+  name?: string
+  'runs-on': string
+  'timeout-minutes': number
+  environment: string
+  permissions?: unknown
+  env?: Record<string, string>
+  'continue-on-error'?: unknown
+  steps: Step[]
+}
+type Workflow = {
+  on: Record<string, unknown>
+  permissions: Record<string, string>
+  concurrency: { group: string; 'cancel-in-progress': boolean }
+  env?: unknown
+  jobs: Record<string, Job>
+}
+
+function load(file: string): { text: string; workflow: Workflow; job: Job; steps: Step[] } {
+  const text = readFileSync(join(ROOT, '.github', 'workflows', file), 'utf8')
+  const workflow = parseYaml(text) as Workflow
+  const jobs = Object.values(workflow.jobs)
+  if (jobs.length !== 1) throw new Error(`${file}: expected one job`)
+  const job = jobs[0] as Job
+  return { text, workflow, job, steps: job.steps }
+}
+
+const backup = load('backup.yml')
+const restore = load('restore-test.yml')
+
+const stepNamed = (steps: Step[], name: string): Step => {
+  const found = steps.find((step) => step.name === name)
+  if (found === undefined) throw new Error(`no step "${name}"`)
+  return found
+}
+const indexOf = (steps: Step[], predicate: (step: Step) => boolean, label: string): number => {
+  const index = steps.findIndex(predicate)
+  if (index === -1) throw new Error(`no step: ${label}`)
+  return index
+}
+const named = (name: string) => (step: Step) => step.name === name
+/**
+ * Where a word runs as a command: line start, after an operator, a brace, a case arm's pattern
+ * (`*) …`), a keyword or a wrapper.
+ */
+const COMMAND_AT = String.raw`(?:^|[|;&(){!]|\$\(|\b(?:sudo|do|then|else|if|elif|while|until|exec|xargs|env|command|time)\b)\s*`
+/** A command that prints a file, in command position. */
+const PRINTERS = new RegExp(
+  `${COMMAND_AT}(cat|head|tail|less|more|tee|xxd|od|hexdump|strings|zcat|zless|zmore|zgrep|bzcat|xzcat|base64|jq)\\b`,
+)
+/** A script's commands: continuation lines joined, comment lines dropped, indentation trimmed. */
+const commands = (step: Step): string[] =>
+  (step.run ?? '')
+    .replace(/\s*\\\n\s*/g, ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+
+// Step names, shared by the tests below and the workflows.
+const B = {
+  install: 'Install postgresql-client-17 (PGDG) and age',
+  meta: 'Backup kind and date (UTC; Sunday’s backup is the weekly one)',
+  dump: 'Dump the database as backup_reader, in one snapshot',
+  manifest: 'Write the manifest',
+  encrypt: 'Compress and encrypt for every recipient',
+  check: 'Every expected file is present, encrypted and not empty',
+  weekly: 'Upload the weekly backup (kept 90 days)',
+  daily: 'Upload the daily backup (kept 14 days)',
+  shred: 'Remove the plaintext before the upload',
+  uploaded: 'The backup artifact was uploaded',
+  cleanup: 'Remove the plaintext',
+}
+const R = {
+  install: 'Install postgresql-client-17 (PGDG) and age',
+  find: 'Find the newest backup (a successful scheduled or dispatched backup.yml run on main)',
+  download: 'Download it',
+  checkArtifact: 'Check its files',
+  decrypt: 'Decrypt with the restore-test key, then decompress',
+  verify: 'Check the manifest and every file’s SHA-256',
+  checkout: 'Check out the backup’s commit (its migrations are the backup’s schema)',
+  reset: 'Apply that commit’s migrations without seed.sql',
+  load: 'Load the data, auth first, with triggers and foreign keys off',
+  compare: 'Compare every table’s row count with the manifest',
+  gotrue: 'Every restored account loads in the local auth server (GoTrue) under its own id',
+  cleanup: 'Remove the plaintext',
+}
+
+/** Steps that handle backup data or the key: they create files only their user can read. */
+const DATA_STEPS = {
+  backup: [B.meta, B.dump, B.manifest, B.encrypt, B.check],
+  restore: [R.find, R.download, R.checkArtifact, R.decrypt, R.verify, R.load, R.compare, R.gotrue],
+}
+
+describe('the print guard itself', () => {
+  it.each([
+    'cat "$work/public.sql"',
+    'x=1; head -c 100 "$work/public.sql"',
+    'for f in *.gz; do zcat "$f"; done',
+    'if true; then base64 "$work/auth.sql"; fi',
+    '{ tail -n 1 "$work/public.sql"; }',
+    'xargs cat < list',
+    // A case arm: the command follows the pattern's closing parenthesis.
+    '*) cat "$work/x" ;;',
+    'true) tee copy.sql < "$work/public.sql" ;;',
+  ])('catches %s', (line) => {
+    expect(line).toMatch(PRINTERS)
+  })
+
+  it.each([
+    '*) echo ok ;;',
+    '*) echo "::error::BACKUP_INCLUDE_AUTH must be true, false or unset"; exit 1 ;;',
+    'true) with_auth=true ;;',
+    'sudo apt-get install -y -qq --no-install-recommends postgresql-client-17 age',
+    'echo "the category is more or less fine"',
+  ])('lets %s through', (line) => {
+    expect(line).not.toMatch(PRINTERS)
+  })
+})
+
+describe.each([
+  ['backup.yml', backup, { cron: '17 22 * * *', permissions: { contents: 'read' } }],
+  [
+    'restore-test.yml',
+    restore,
+    { cron: '17 3 * * 6', permissions: { contents: 'read', actions: 'read' } },
+  ],
+] as const)('%s', (_file, { text, workflow, job, steps }, expected) => {
+  it('runs on its schedule and by hand only — never for a push or a pull request', () => {
+    expect(Object.keys(workflow.on).sort()).toEqual(['schedule', 'workflow_dispatch'])
+    expect(workflow.on.schedule).toEqual([{ cron: expected.cron }])
+  })
+
+  it('is scheduled off the top of the hour, when GitHub delays or drops runs (ruling M5-R20)', () => {
+    const [minute] = expected.cron.split(' ')
+    expect(minute).not.toBe('0')
+    expect(text).toContain('M5-R20')
+  })
+
+  it('uses the backup environment (limited to main) with the least permissions', () => {
+    expect(job.environment).toBe('backup')
+    expect(workflow.permissions).toEqual(expected.permissions)
+    expect(job.permissions).toBeUndefined()
+    expect(job['continue-on-error']).toBeUndefined()
+  })
+
+  it('runs one job at a time on the pinned image, for at most 30 minutes', () => {
+    expect(workflow.concurrency['cancel-in-progress']).toBe(false)
+    expect(job['runs-on']).toBe('ubuntu-24.04')
+    expect(job['timeout-minutes']).toBe(30)
+  })
+
+  it('checks out without keeping the token', () => {
+    const checkout = steps[0] as Step
+    expect(checkout.uses).toBe('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1')
+    expect(checkout.with?.['persist-credentials']).toBe(false)
+  })
+
+  it('never traces a script (set -x would print every secret-bearing command)', () => {
+    expect(text).not.toMatch(
+      /set -[a-z]*x|set -o xtrace|bash -[a-z]*x|set -[a-z]*v\b|set -o verbose/,
+    )
+  })
+
+  it('never prints a file: no cat, head, tail, pagers, tee, z-tools, encoders or hex dumpers', () => {
+    for (const step of steps) {
+      for (const line of commands(step)) expect(line, step.name).not.toMatch(PRINTERS)
+    }
+  })
+
+  it('never lets gzip or gunzip write to stdout (or gzip decompress)', () => {
+    for (const step of steps) {
+      for (const line of commands(step)) {
+        expect(line, step.name).not.toMatch(
+          /\bgzip\b.*\s(-[a-zA-Z]*[cd]\b|--(stdout|to-stdout|decompress)\b)/,
+        )
+        expect(line, step.name).not.toMatch(/\bgunzip\b.*\s(-[a-zA-Z]*c\b|--(stdout|to-stdout)\b)/)
+      }
+    }
+  })
+
+  it('never lets age write to stdout: every encrypt or decrypt names its --output', () => {
+    const ageCommand = new RegExp(`${COMMAND_AT}age\\s`)
+    const invocations = steps
+      .flatMap(commands)
+      .filter((line) => ageCommand.test(line) && !line.includes('age --version'))
+    expect(invocations.length).toBeGreaterThan(0)
+    for (const line of invocations) {
+      expect(line).toMatch(/\bage --(encrypt|decrypt) /)
+      expect(line).toContain(' --output "')
+      expect(line).not.toMatch(/\s-[a-zA-Z]*[do]\s/)
+    }
+  })
+
+  it('never reads a .sql file with grep, sed or awk (they print what they match)', () => {
+    for (const step of steps) {
+      for (const line of commands(step)) {
+        if (/\bgrep\b|\bsed\b|\bawk\b/.test(line)) expect(line, step.name).not.toContain('.sql')
+      }
+    }
+  })
+
+  it('runs psql without psqlrc and never echoes the input it runs', () => {
+    const psql = steps.flatMap(commands).filter((line) => line.includes('$PG_BIN/psql" --dbname='))
+    expect(psql.length).toBeGreaterThan(0)
+    for (const line of psql) {
+      expect(line).toContain(' -X ')
+      expect(line).not.toMatch(/--echo|\s-[a-zA-Z]*[aeb]\s/)
+    }
+  })
+
+  it('never lets psql print to the log: its output is redirected or captured', () => {
+    const lines = steps.flatMap(commands)
+    const connecting = lines.filter((line) => line.includes('"$PG_BIN/psql" --dbname='))
+    for (const line of connecting) {
+      if (line.startsWith('psql_backup() {')) continue // the helper; its calls are checked below
+      expect(line).toMatch(/\s>\s/)
+    }
+    for (const line of lines.filter((candidate) => /\bpsql_backup\s/.test(candidate))) {
+      if (line.startsWith('psql_backup() {')) continue
+      expect(line).toMatch(/\$\(psql_backup /)
+    }
+  })
+
+  it('never interpolates an expression into a script: values reach bash through env only', () => {
+    for (const step of steps) expect(step.run ?? '', step.name).not.toContain('${{')
+  })
+
+  it('keeps secrets out of workflow- and job-level env', () => {
+    expect(workflow.env).toBeUndefined()
+    expect(JSON.stringify(job.env ?? {})).not.toContain('secrets.')
+  })
+
+  it('never runs Node code in a step whose env holds github.token (M6, ADR-0005)', () => {
+    for (const candidate of steps) {
+      if (JSON.stringify(candidate.env ?? {}).includes('github.token')) {
+        expect(commands(candidate).join('\n'), candidate.name).not.toMatch(
+          /\b(pnpm|node|npx|npm|tsx)\b/,
+        )
+      }
+    }
+  })
+
+  it('pins every action by commit SHA, with its version as a comment (M11)', () => {
+    const uses = text.split('\n').filter((line) => /^\s*(?:-\s*)?uses:\s/.test(line))
+    expect(uses.length).toBeGreaterThan(0)
+    for (const line of uses) {
+      expect(line, line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+(\.\d+){0,2}\s*$/)
+    }
+  })
+
+  it('runs every multi-line script under bash with set -euo pipefail', () => {
+    const scripts = steps.filter((step) => (step.run ?? '').includes('\n'))
+    expect(scripts.length).toBeGreaterThan(4)
+    for (const step of scripts) {
+      expect(step.shell, step.name).toBe('bash')
+      expect(step.run?.startsWith('set -euo pipefail\n'), step.name).toBe(true)
+    }
+  })
+
+  it('installs postgresql-client-17 from PGDG (key fingerprint checked) and age', () => {
+    expect(job.env?.PG_BIN).toBe('/usr/lib/postgresql/17/bin')
+    const install = stepNamed(steps, B.install).run ?? ''
+    expect(install).toContain('https://www.postgresql.org/media/keys/ACCC4CF8.asc')
+    expect(install).toContain('B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8')
+    expect(install).toContain('https://apt.postgresql.org/pub/repos/apt')
+    expect(install).toMatch(/apt-get install .*postgresql-client-17 age/)
+  })
+
+  it('removes the plaintext at the end, whatever happened', () => {
+    const cleanup = steps.at(-1) as Step
+    expect(cleanup.name).toBe('Remove the plaintext')
+    expect(cleanup.if).toBe('always()')
+  })
+})
+
+describe('backup.yml', () => {
+  const { steps } = backup
+  const step = (name: string) => stepNamed(steps, name)
+  const script = (name: string) => step(name).run ?? ''
+
+  it('pins actions/checkout, pnpm/action-setup, actions/setup-node and actions/upload-artifact (M11)', () => {
+    expect(backup.text).toContain(
+      'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+    )
+    expect(backup.text).toContain(
+      'uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10',
+    )
+    expect(backup.text).toContain(
+      'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+    )
+    const uploads = steps.filter((candidate) =>
+      candidate.uses?.startsWith('actions/upload-artifact'),
+    )
+    expect(uploads).toHaveLength(2)
+    for (const upload of uploads) {
+      expect(upload.uses).toBe('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a')
+    }
+    expect(backup.text).toContain(
+      'uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1',
+    )
+    expect(backup.text).not.toMatch(/uses: [\w.-]+\/[\w.-]+@v\d/)
+  })
+
+  it('creates every file of backup data readable by its user only (umask 077)', () => {
+    for (const name of DATA_STEPS.backup) {
+      expect(script(name).startsWith('set -euo pipefail\numask 077\n'), name).toBe(true)
+    }
+  })
+
+  it('hands the database URL to the dump step only, which runs no Node code', () => {
+    const holders = steps.filter((candidate) => JSON.stringify(candidate).includes('secrets.'))
+    expect(holders.map((holder) => holder.name)).toEqual([B.dump])
+    expect(step(B.dump).env).toEqual({
+      SUPABASE_BACKUP_DB_URL: '${{ secrets.SUPABASE_BACKUP_DB_URL }}',
+      BACKUP_INCLUDE_AUTH: '${{ vars.BACKUP_INCLUDE_AUTH }}',
+    })
+    expect(script(B.dump)).not.toMatch(/\b(pnpm|node|npx|npm|tsx)\b/)
+  })
+
+  it('dumps as backup_reader through TLS, refusing the transaction-mode pooler', () => {
+    const dump = script(B.dump)
+    expect(dump).toContain("-c 'select current_user'")
+    expect(dump).toContain('!= backup_reader')
+    expect(dump).toContain('*:6543/*')
+    expect(dump).toContain('sslmode=require')
+  })
+
+  it('includes auth unless BACKUP_INCLUDE_AUTH=false, and fails clearly without the auth functions', () => {
+    const dump = script(B.dump)
+    expect(dump).toContain('case "${BACKUP_INCLUDE_AUTH:-true}" in')
+    expect(dump).toMatch(/\*\) echo "::error::BACKUP_INCLUDE_AUTH must be/)
+    expect(dump).toMatch(/::warning::BACKUP_INCLUDE_AUTH=false/)
+    // backup_reader reads auth only through the two functions of 20260927000400_backup_auth.sql
+    // (ADR-0029): the check is that it may call both, not that it may read the tables.
+    expect(dump).toContain(
+      "select count(*) = 2 and bool_and(has_schema_privilege(n.oid, 'usage') and has_function_privilege(p.oid, 'execute')) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'backup' and p.proname in ('auth_users', 'auth_identities') and p.pronargs = 0",
+    )
+    expect(dump).not.toContain("has_schema_privilege('auth'")
+    const unusable = dump
+      .split('\n')
+      .find((line) =>
+        line.includes(
+          '::error::backup_reader cannot call backup.auth_users() and backup.auth_identities()',
+        ),
+      )
+    expect(unusable).toContain('supabase/migrations/20260927000400_backup_auth.sql')
+    expect(unusable).toContain('docs/ops/backups.md')
+    expect(unusable).toContain('No backup was made')
+    expect(unusable).not.toMatch(/\bgrant/i)
+  })
+
+  it('dumps public (minus event_quota) with pg_dump in an exported snapshot, and counts in it', () => {
+    const lines = commands(step(B.dump))
+    expect(script(B.dump)).toContain('begin isolation level repeatable read, read only;')
+    expect(script(B.dump)).toContain('pg_export_snapshot()')
+    const dumps = lines.filter((line) => line.startsWith('"$PG_BIN/pg_dump"'))
+    expect(dumps).toEqual([
+      '"$PG_BIN/pg_dump" --dbname="$db" --snapshot="$snapshot" --data-only --no-owner --no-privileges --schema=public --exclude-table=public.event_quota --file="$work/public.sql"',
+    ])
+    // The snapshot session reads its SQL from a FIFO this shell holds open; it must not inherit
+    // that descriptor, or it never sees the end of its input and the job hangs (dry run, 5.7b).
+    expect(lines).toContain('exec 3<> "$work/holder.sql"')
+    // It reads the accounts: errors as SQLSTATE codes only, no context (a message could quote a
+    // value); auth.sql's \restrict key comes from the runner.
+    expect(lines).toContain(
+      '"$PG_BIN/psql" --dbname="$db" -X -q -A -t -F $\'\\t\' -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate -v SHOW_CONTEXT=never -v with_auth="$with_auth" -v auth_from=functions -v auth_restrict_key="$restrict_key" -f "$work/holder.sql" > /dev/null 3>&- &',
+    )
+    expect(lines).toContain('exec 3>&-')
+    // The same session that exported the snapshot runs counts.sql, then commits.
+    expect(script(B.dump)).toContain('"\\\\i \'$GITHUB_WORKSPACE/tools/backup/counts.sql\'"')
+  })
+
+  it('never lets pg_dump read the auth schema: auth goes through backup_reader’s functions only', () => {
+    expect(backup.text).not.toMatch(/--table[= ]+"?auth\./)
+    expect(backup.text).not.toMatch(/--schema[= ]+"?auth\b/)
+    // No command names an auth table (messages may).
+    for (const line of backup.steps.flatMap(commands)) {
+      if (!line.startsWith('echo ')) expect(line).not.toMatch(/\bauth\.(users|identities)\b/)
+    }
+  })
+
+  it('dumps auth in the snapshot session, through the functions, after public and before the counts', () => {
+    const lines = commands(step(B.dump))
+    const publicAt = lines.findIndex((line) => line.includes('--file="$work/public.sql"'))
+    const authIf = lines.indexOf('if [ "$with_auth" = true ]; then', publicAt)
+    const authAt = lines.indexOf(
+      "printf '%s\\n' \"\\\\o '$work/auth.sql'\" \"\\\\i '$GITHUB_WORKSPACE/tools/backup/auth-dump.sql'\" '\\o' >&3",
+    )
+    const countsAt = lines.findIndex((line) => line.includes('tools/backup/counts.sql'))
+    expect(publicAt).toBeGreaterThan(-1)
+    expect(authIf).toBeGreaterThan(publicAt)
+    expect(authAt).toBe(authIf + 1)
+    expect(lines[authAt + 1]).toBe('fi')
+    expect(countsAt).toBeGreaterThan(authAt)
+    // …and commits only after the counts, in the same printf.
+    expect(lines[countsAt]).toMatch(/counts\.sql'" '\\o' 'commit;' >&3$/)
+    // auth-dump.sql reads the two functions — never the tables — and writes COPY blocks.
+    const authDump = readFileSync(join(ROOT, 'tools', 'backup', 'auth-dump.sql'), 'utf8')
+    expect(authDump).toContain('from backup.auth_users() order by id) to stdout;')
+    expect(authDump).toContain('from backup.auth_identities() order by id) to stdout;')
+    expect(authDump).not.toMatch(/\bfrom auth\./)
+  })
+
+  it('makes auth.sql’s \\restrict key on the runner, never on the server being dumped', () => {
+    const lines = commands(step(B.dump))
+    const keyAt = lines.indexOf('restrict_key="$(openssl rand -hex 32)"')
+    expect(keyAt).toBeGreaterThan(-1)
+    expect(lines[keyAt + 1]).toBe('if [[ ! "$restrict_key" =~ ^[0-9a-f]{64}$ ]]; then')
+    expect(keyAt).toBeLessThan(lines.findIndex((line) => line.includes('-f "$work/holder.sql"')))
+    const authDump = readFileSync(join(ROOT, 'tools', 'backup', 'auth-dump.sql'), 'utf8')
+    expect(authDump).toContain("\\qecho '\\\\restrict' :auth_restrict_key")
+    expect(authDump).not.toMatch(/gen_random|\\gset/)
+  })
+
+  it('fails the job when the snapshot session fails — auth dump or counts — before anything is encrypted', () => {
+    const dump = script(B.dump)
+    expect(dump).toContain('wait "$holder" || status=$?')
+    expect(dump).toMatch(
+      /if \[ "\$status" -ne 0 \]; then\n\s+echo "::error::dumping auth or counting the rows in the snapshot failed \(psql exit \$status\); no backup was made"\n\s+exit 1/,
+    )
+    expect(indexOf(steps, named(B.dump), B.dump)).toBeLessThan(
+      indexOf(steps, named(B.encrypt), B.encrypt),
+    )
+  })
+
+  it('writes the manifest with the commit that ran (the restore applies its migrations)', () => {
+    expect(commands(step(B.manifest))).toContainEqual(
+      expect.stringMatching(
+        /^pnpm exec tsx tools\/backup\/cli\.ts manifest .*--commit "\$GITHUB_SHA"/,
+      ),
+    )
+  })
+
+  it('makes Sunday’s (UTC) backup the weekly one', () => {
+    const meta = script(B.meta)
+    expect(meta).toContain(`read -r day weekday <<< "$(date -u '+%F %u')"`)
+    expect(meta).toContain('if [ "$weekday" = 7 ]; then kind=weekly; else kind=daily; fi')
+  })
+
+  it('gzips and age-encrypts every file for every recipient — at least two distinct keys', () => {
+    const encrypt = script(B.encrypt)
+    expect(encrypt).toContain('gzip -n "$work/$name"')
+    expect(encrypt).toContain('recipients+=(-r "$key")')
+    expect(encrypt).toContain(
+      'age --encrypt "${recipients[@]}" --output "$upload/$name.gz.age" "$work/$name.gz"',
+    )
+    expect(encrypt).toContain(
+      'age --encrypt "${recipients[@]}" --output "$upload/manifest.json.age" "$work/manifest.json"',
+    )
+    expect(encrypt).toMatch(/if \[ "\$\{#seen\[@\]\}" -lt 2 \]; then\n\s+echo "::error::/)
+    expect(step(B.encrypt).env?.BACKUP_AGE_RECIPIENTS).toBe('${{ vars.BACKUP_AGE_RECIPIENTS }}')
+  })
+
+  it('encrypts, then checks the files, then uploads — never the plaintext', () => {
+    const encryptAt = indexOf(steps, named(B.encrypt), B.encrypt)
+    const checkAt = indexOf(steps, named(B.check), B.check)
+    const uploads = steps.filter((candidate) =>
+      candidate.uses?.startsWith('actions/upload-artifact'),
+    )
+    expect(uploads).toHaveLength(2)
+    expect(encryptAt).toBeLessThan(checkAt)
+    for (const upload of uploads) {
+      expect(steps.indexOf(upload)).toBeGreaterThan(checkAt)
+      expect(upload.uses).toBe('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a')
+      expect(upload.with?.path).toBe('${{ runner.temp }}/backup-upload')
+      expect(upload.with?.['if-no-files-found']).toBe('error')
+    }
+    expect(script(B.check)).toContain(
+      'pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/backup-upload" --auth "$auth"',
+    )
+  })
+
+  it('removes the plaintext dumps and manifest right after the check, before any upload', () => {
+    const checkAt = indexOf(steps, named(B.check), B.check)
+    const shredAt = indexOf(steps, named(B.shred), B.shred)
+    expect(shredAt).toBe(checkAt + 1)
+    expect(script(B.shred)).toBe('set -euo pipefail\nrm -rf "$RUNNER_TEMP/backup"\n')
+    // Nothing after it reads the work directory but the final fallback cleanup.
+    const later = steps.slice(shredAt + 1, -1)
+    expect(later.filter((step) => JSON.stringify(step).includes('RUNNER_TEMP/backup"'))).toEqual([])
+    expect(later.filter((step) => JSON.stringify(step).includes('RUNNER_TEMP/backup/'))).toEqual([])
+  })
+
+  it('keeps Sunday’s artifact 90 days and the others 14 (decision 27)', () => {
+    expect(step(B.weekly)).toMatchObject({
+      if: "steps.meta.outputs.kind == 'weekly'",
+      with: { name: 'db-backup-weekly-${{ steps.meta.outputs.date }}', 'retention-days': 90 },
+    })
+    expect(step(B.daily)).toMatchObject({
+      if: "steps.meta.outputs.kind == 'daily'",
+      with: { name: 'db-backup-daily-${{ steps.meta.outputs.date }}', 'retention-days': 14 },
+    })
+  })
+
+  it('fails when no artifact was uploaded', () => {
+    const uploadedAt = indexOf(steps, named(B.uploaded), B.uploaded)
+    expect(uploadedAt).toBeGreaterThan(indexOf(steps, named(B.daily), B.daily))
+    expect(step(B.uploaded).env).toEqual({
+      WEEKLY_ID: '${{ steps.upload-weekly.outputs.artifact-id }}',
+      DAILY_ID: '${{ steps.upload-daily.outputs.artifact-id }}',
+    })
+    expect(script(B.uploaded)).toMatch(
+      /if \[ -z "\$WEEKLY_ID\$DAILY_ID" \]; then\n\s+echo "::error::/,
+    )
+  })
+})
+
+describe('restore-test.yml', () => {
+  const { steps } = restore
+  const step = (name: string) => stepNamed(steps, name)
+  const script = (name: string) => step(name).run ?? ''
+
+  it('pins actions/checkout, pnpm/action-setup and actions/setup-node (M11)', () => {
+    expect(restore.text).toContain(
+      'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+    )
+    expect(restore.text).toContain(
+      'uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10',
+    )
+    expect(restore.text).toContain(
+      'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+    )
+    expect(restore.text).not.toMatch(/uses: [\w.-]+\/[\w.-]+@v\d/)
+  })
+
+  it('checks out the whole history, so the manifest’s commit is reachable', () => {
+    expect((steps[0] as Step).with?.['fetch-depth']).toBe(0)
+  })
+
+  it('creates every file of backup data readable by its user only (umask 077)', () => {
+    for (const name of DATA_STEPS.restore) {
+      expect(script(name).startsWith('set -euo pipefail\numask 077\n'), name).toBe(true)
+    }
+  })
+
+  it('trusts only artifacts of successful scheduled or dispatched backup.yml runs on main', () => {
+    const find = script(R.find)
+    expect(find).toContain('actions/workflows/backup.yml/runs?branch=main&status=success')
+    expect(find).toContain('select(.event == "schedule" or .event == "workflow_dispatch")')
+    expect(find).toContain('select(.head_branch == "main")')
+    expect(find).toContain('select(.head_repository.full_name == env.REPOSITORY)')
+    expect(find).toContain('test("^db-backup-(daily|weekly)-[0-9]{4}-[0-9]{2}-[0-9]{2}$")')
+    expect(step(R.find).env).toEqual({
+      GH_TOKEN: '${{ github.token }}',
+      REPOSITORY: '${{ github.repository }}',
+    })
+  })
+
+  it('downloads, then checks the downloaded files in a step of its own, before decrypting them', () => {
+    const downloadAt = indexOf(steps, named(R.download), R.download)
+    const checkAt = indexOf(steps, named(R.checkArtifact), R.checkArtifact)
+    const decryptAt = indexOf(steps, named(R.decrypt), R.decrypt)
+    expect(downloadAt).toBeLessThan(checkAt)
+    expect(checkAt).toBeLessThan(decryptAt)
+    expect(commands(step(R.download))).toContainEqual(
+      expect.stringMatching(/^gh run download "\$RUN_ID"/),
+    )
+    expect(commands(step(R.checkArtifact))).toContainEqual(
+      'pnpm exec tsx tools/backup/cli.ts check-artifact --dir "$RUNNER_TEMP/restore/encrypted" --auth optional',
+    )
+  })
+
+  it('downloads with github.token, but the check-artifact step (Node) never holds it (M6, ADR-0005)', () => {
+    expect(step(R.download).env).toEqual({
+      GH_TOKEN: '${{ github.token }}',
+      REPOSITORY: '${{ github.repository }}',
+      RUN_ID: '${{ steps.find.outputs.run_id }}',
+      ARTIFACT: '${{ steps.find.outputs.artifact }}',
+    })
+    expect(step(R.checkArtifact).env).toBeUndefined()
+  })
+
+  it('hands the restore key to the decrypt step only, as a 0600 file removed right after', () => {
+    const holders = steps.filter((candidate) => JSON.stringify(candidate).includes('secrets.'))
+    expect(holders.map((holder) => holder.name)).toEqual([R.decrypt])
+    expect(step(R.decrypt).env).toEqual({ BACKUP_RESTORE_KEY: '${{ secrets.BACKUP_RESTORE_KEY }}' })
+    const decrypt = script(R.decrypt)
+    expect(decrypt).not.toMatch(/\b(pnpm|node|npx|npm|tsx)\b/)
+    expect(decrypt).toContain('key="$RUNNER_TEMP/restore-key.txt"')
+    expect(decrypt).toContain('trap \'rm -f "$key"\' EXIT')
+    expect(decrypt).toContain('printf \'%s\\n\' "${BACKUP_RESTORE_KEY:-}" > "$key"')
+    expect(decrypt).toContain('age --decrypt --identity "$key"')
+    // Removed before anything decrypted is used, not only when the step ends.
+    const lines = commands(step(R.decrypt))
+    expect(lines.indexOf('rm -f "$key"')).toBeGreaterThan(
+      lines.findIndex((line) => line.startsWith('age --decrypt')),
+    )
+  })
+
+  it('restores in order: verify, check out the commit, install, start, reset without seed, load, compare, GoTrue', () => {
+    const at = (predicate: (candidate: Step) => boolean, label: string) =>
+      indexOf(steps, predicate, label)
+    const order = [
+      at(named(R.find), R.find),
+      at(named(R.download), R.download),
+      at(named(R.checkArtifact), R.checkArtifact),
+      at(named(R.decrypt), R.decrypt),
+      at(named(R.verify), R.verify),
+      at(named(R.checkout), R.checkout),
+      at(
+        (candidate) =>
+          candidate.run === 'pnpm install --frozen-lockfile' &&
+          steps.indexOf(candidate) > steps.findIndex(named(R.checkout)),
+        'pnpm install after the checkout',
+      ),
+      at((candidate) => candidate.run === 'pnpm db:start', 'pnpm db:start'),
+      at(named(R.reset), R.reset),
+      at(named(R.load), R.load),
+      at(named(R.compare), R.compare),
+      at(named(R.gotrue), R.gotrue),
+    ]
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(step(R.reset).run).toBe('pnpm exec supabase db reset --no-seed')
+  })
+
+  it('checks out only a commit on main, named by a verified manifest', () => {
+    expect(script(R.verify)).toContain(
+      'pnpm exec tsx tools/backup/cli.ts verify --dir "$RUNNER_TEMP/restore/plain"',
+    )
+    expect(step(R.checkout).env).toEqual({ COMMIT: '${{ steps.verify.outputs.commit }}' })
+    const checkout = script(R.checkout)
+    expect(checkout).toContain('[[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]')
+    expect(checkout).toContain('git merge-base --is-ancestor "$COMMIT" refs/remotes/origin/main')
+    expect(checkout).toContain('git checkout --quiet --detach "$COMMIT"')
+  })
+
+  it('loads auth, then public, in one transaction with session_replication_role = replica', () => {
+    const load = commands(step(R.load)).join('\n')
+    expect(load).toContain(
+      '"$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate -v SHOW_CONTEXT=never --single-transaction -c \'set session_replication_role = replica\' "${files[@]}"',
+    )
+    const script = step(R.load).run ?? ''
+    const auth = 'true) files+=(-f "$plain/auth.sql" -f tools/backup/normalise-auth.sql) ;;'
+    expect(commands(step(R.load))).toContain(auth)
+    expect(script.indexOf(auth)).toBeLessThan(script.indexOf('files+=(-f "$plain/public.sql")'))
+    expect(restore.job.env?.LOCAL_DB_URL).toBe(
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    )
+  })
+
+  it('normalises the restored accounts for GoTrue in the load’s own transaction, right after auth.sql', () => {
+    // The backup never holds GoTrue's token columns; normalise-auth.sql sets the ones GoTrue
+    // reads as non-null strings to '' (ADR-0029). Only for a backup with auth.
+    const lines = commands(step(R.load))
+    expect(lines.filter((line) => line.includes('normalise-auth.sql'))).toEqual([
+      'true) files+=(-f "$plain/auth.sql" -f tools/backup/normalise-auth.sql) ;;',
+    ])
+  })
+
+  it('never prints what psql says while loading, only its SQLSTATE lines', () => {
+    const load = commands(step(R.load)).join('\n')
+    expect(load).toContain('> /dev/null 2> "$RUNNER_TEMP/restore/load.err" || status=$?')
+    expect(load).toContain(
+      'grep -E \'^(psql:[^ ]+:[0-9]+: )?(ERROR|FATAL): +[0-9A-Z]{5}$\' "$RUNNER_TEMP/restore/load.err"',
+    )
+  })
+
+  it('counts every restored table with counts.sql and compares with the manifest', () => {
+    const lines = commands(step(R.compare))
+    expect(lines).toContainEqual(
+      expect.stringMatching(
+        /^"\$PG_BIN\/psql" --dbname="\$LOCAL_DB_URL" -X -q -A -t -F \$'\\t' -v ON_ERROR_STOP=1 -v with_auth="\$INCLUDES_AUTH" -v auth_from=tables -f tools\/backup\/counts\.sql > "\$restore\/restored-counts\.tsv"$/,
+      ),
+    )
+    expect(lines).toContain(
+      'pnpm exec tsx tools/backup/cli.ts compare --manifest "$restore/plain/manifest.json" --counts "$restore/restored-counts.tsv"',
+    )
+    expect(step(R.compare).env).toEqual({
+      INCLUDES_AUTH: '${{ steps.verify.outputs.includes_auth }}',
+    })
+  })
+
+  it('asks the local GoTrue for every restored account by id, printing no row', () => {
+    expect(step(R.gotrue).env).toEqual({
+      INCLUDES_AUTH: '${{ steps.verify.outputs.includes_auth }}',
+    })
+    const lines = commands(step(R.gotrue))
+    // A backup without auth has no account to ask for: said, not silently passed.
+    expect(lines).toContain('if [ "$INCLUDES_AUTH" != true ]; then')
+    expect(lines).toContainEqual(
+      expect.stringMatching(/^echo "::warning::this backup holds no auth accounts/),
+    )
+    // The ids go to a 0600 file (umask 077), never to the log; the check prints counts only.
+    expect(lines).toContain(
+      '"$PG_BIN/psql" --dbname="$LOCAL_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c \'select id from auth.users order by id\' > "$restore/user-ids.txt"',
+    )
+    expect(lines).toContain(
+      'pnpm exec tsx tools/backup/cli.ts check-gotrue --manifest "$restore/plain/manifest.json" --ids "$restore/user-ids.txt"',
+    )
+  })
+})

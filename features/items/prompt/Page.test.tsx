@@ -1,7 +1,17 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { Mode } from '@/lib/content/item-types'
-import { ADMIN, pagePropsFor, promptItem, weeklyPromptItem } from '../fixtures'
+import {
+  ADMIN,
+  FIXTURE_LINKS,
+  outcomeBinding,
+  pagePropsFor,
+  promptItem,
+  SAVED,
+  weeklyPromptItem,
+} from '../fixtures'
+import type { RecordOutcome } from '../outcome'
 import { PromptPage } from './Page'
 import { PromptRow } from './Row'
 
@@ -37,13 +47,13 @@ describe('PromptPage', () => {
   })
 
   it.each<Mode>(['new', 'review', 'redo'])(
-    'shows the same minutes as its Row for the mode %s (context.mode)',
+    'shows the same minutes as its Row for the mode %s (the binding’s mode)',
     (mode) => {
       const item = weeklyPromptItem()
       render(<PromptRow item={item} state={null} mode={mode} href="/x" />)
       const rowMeta = screen.getByRole('link').querySelector('[data-slot="link-row-meta"]')
       const rowMinutes = rowMeta?.textContent?.match(/\d+ phút/)?.[0]
-      render(<PromptPage {...pagePropsFor(item, { context: { mode } })} />)
+      render(<PromptPage {...pagePropsFor(item, { outcome: outcomeBinding(vi.fn(), { mode }) })} />)
       const facts = document.querySelector('[data-slot="item-meta"]')
       expect(rowMinutes).toBe('10 phút')
       expect(facts?.textContent).toContain(rowMinutes)
@@ -64,5 +74,48 @@ describe('PromptPage', () => {
     )
     const main = container.firstElementChild as HTMLElement
     expect(main.firstElementChild?.getAttribute('data-slot')).toBe('banner')
+  })
+})
+
+describe('PromptPage — results and the mock interview (task 5.2c)', () => {
+  it('no "Đã làm xong" without a binding', () => {
+    render(<PromptPage {...pagePropsFor(weeklyPromptItem())} />)
+    expect(screen.queryByRole('button', { name: 'Đã làm xong' })).toBeNull()
+  })
+
+  it('with a binding: "Đã làm xong" with an optional rating sends prompt.completed', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    const item = weeklyPromptItem()
+    render(
+      <PromptPage
+        {...pagePropsFor(item, { outcome: outcomeBinding(record, { itemId: item.id }) })}
+      />,
+    )
+    await user.click(screen.getByRole('radio', { name: '3 — Tốt' }))
+    await user.click(screen.getByRole('button', { name: 'Đã làm xong' }))
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      itemId: item.id,
+      outcome: { type: 'prompt.completed', selfRating: 3 },
+    })
+  })
+
+  it('the mock-interview prompt links the problem mockInterviewProblem picks', () => {
+    const problem = FIXTURE_LINKS['dsa:lc-0015']!
+    render(<PromptPage {...pagePropsFor(promptItem(), { mockInterviewProblem: problem })} />)
+    const link = screen.getByRole('link', { name: /3Sum/ })
+    expect(link.getAttribute('href')).toBe('/t/dsa/items/lc-0015')
+    expect(link.textContent).toContain('Bài cho buổi phỏng vấn thử')
+  })
+
+  it('…or says "Chưa có bài Medium nào đã học" when it picks none', () => {
+    render(<PromptPage {...pagePropsFor(promptItem(), { mockInterviewProblem: null })} />)
+    expect(screen.getByRole('heading', { name: 'Chưa có bài Medium nào đã học' })).toBeTruthy()
+  })
+
+  it('any other prompt shows neither', () => {
+    render(<PromptPage {...pagePropsFor(weeklyPromptItem())} />)
+    expect(screen.queryByText('Bài cho buổi phỏng vấn thử')).toBeNull()
+    expect(screen.queryByText('Chưa có bài Medium nào đã học')).toBeNull()
   })
 })

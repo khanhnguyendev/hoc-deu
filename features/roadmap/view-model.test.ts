@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { toPlanCatalog } from '@/lib/content/plan-catalog'
+import type { ItemState } from '@/lib/domain/state'
 import {
   DSA_8W,
   DSA_TRACK,
@@ -7,7 +9,14 @@ import {
   FIXTURE_ACCESS,
   FIXTURE_CATALOG,
 } from './fixtures'
-import { buildRoadmapView, itemLinkOf, resolveItemLink, type WeekView } from './view-model'
+import {
+  buildRoadmapView,
+  itemLinkOf,
+  resolveItemLink,
+  weakItemsOf,
+  type WeekView,
+} from './view-model'
+import { trackProgressOf } from '@/lib/domain/plan/trackProgress'
 
 const ids = (items: readonly { id: string }[]) => items.map((item) => item.id)
 
@@ -135,10 +144,29 @@ describe('buildRoadmapView — anytime', () => {
     for (const w of view.weeks) expect(ids(w.prompts)).not.toContain('dsa:prompt-mock-interview')
   })
 
-  it('lists the track’s derived decks with the cards that can unlock (retired ones not counted)', () => {
-    expect(english(false).anytime.derivedDecks).toEqual([
-      { deck: FIXTURE_CATALOG.decks['english:explaining-code'], unlocked: 1 },
+  it('lists the track’s derived decks with the cards this learner unlocked: a result on the source (M3 residual)', () => {
+    const deck = FIXTURE_CATALOG.decks['english:explaining-code']
+    const withStates = (items: Readonly<Record<string, Pick<ItemState, 'lastResultOn'>>>) =>
+      buildRoadmapView({
+        track: ENGLISH_TRACK,
+        roadmap: ENGLISH_10W,
+        access: FIXTURE_ACCESS,
+        includeDrafts: false,
+        items,
+      }).anytime.derivedDecks
+    // No result yet: nothing unlocked (was the unlockable count).
+    expect(english(false).anytime.derivedDecks).toEqual([{ deck, unlocked: 0 }])
+    expect(withStates({ 'dsa:lc-0001': { lastResultOn: '2026-09-28' } })).toEqual([
+      { deck, unlocked: 1 },
     ])
+    // A skip (no result) unlocks nothing; the retired card never counts, even with a result.
+    expect(withStates({ 'dsa:lc-0001': { lastResultOn: null } })).toEqual([{ deck, unlocked: 0 }])
+    expect(
+      withStates({
+        'dsa:lc-0001': { lastResultOn: '2026-09-28' },
+        'dsa:lc-0167': { lastResultOn: '2026-09-28' },
+      }),
+    ).toEqual([{ deck, unlocked: 1 }])
     expect(dsa(false).anytime.derivedDecks).toEqual([])
   })
 })
@@ -169,5 +197,70 @@ describe('itemLinkOf / resolveItemLink', () => {
     expect(resolveItemLink(FIXTURE_ACCESS, 'dsa:lc-0015', false)?.id).toBe('dsa:lc-0015')
     expect(resolveItemLink(FIXTURE_ACCESS, 'dsa:lc-9999', true)).toBeNull()
     expect(resolveItemLink(FIXTURE_ACCESS, 'toString', true)).toBeNull()
+  })
+})
+
+/** An item state as a fresh result would leave it (the fields the page reads). */
+const state = (itemId: string, patch: Partial<ItemState> = {}): ItemState => ({
+  itemId,
+  trackId: itemId.split(':')[0]!,
+  topicId: null,
+  itemType: 'problem',
+  level: 1,
+  weak: false,
+  topSuccesses: 0,
+  status: 'ok',
+  dueOn: '2026-10-05',
+  lastResult: 'solved',
+  lastResultOn: '2026-09-28',
+  introducedOn: '2026-09-28',
+  lapses: 0,
+  reps: 1,
+  ...patch,
+})
+
+describe('trackProgressOf (track page, Part B-M3 decision 25)', () => {
+  const catalog = toPlanCatalog(FIXTURE_CATALOG)
+
+  it('week x of N and the introduced active core items of the variant (drafts never count)', () => {
+    // 8w's active core items: lc-0001, lc-0167 (week 1), lc-0121 (week 2); lc-0217 and lc-0020
+    // are drafts.
+    expect(trackProgressOf(catalog, 'dsa', '8w', {})).toEqual({
+      week: 1,
+      weeks: 3,
+      introduced: 0,
+      total: 3,
+    })
+    const items = { 'dsa:lc-0001': state('dsa:lc-0001'), 'dsa:lc-0167': state('dsa:lc-0167') }
+    expect(trackProgressOf(catalog, 'dsa', '8w', items)).toEqual({
+      week: 2,
+      weeks: 3,
+      introduced: 2,
+      total: 3,
+    })
+  })
+
+  it('a variant without its roadmap: week 1 of 0, nothing to count', () => {
+    expect(trackProgressOf(catalog, 'dsa', '10w', {})).toEqual({
+      week: 1,
+      weeks: 0,
+      introduced: 0,
+      total: 0,
+    })
+  })
+})
+
+describe('weakItemsOf', () => {
+  it('keeps the items whose state is Weak, in the given order', () => {
+    const items = ['dsa:lc-0001', 'dsa:lc-0167', 'dsa:lc-0121'].map((id) =>
+      FIXTURE_ACCESS.getItem(id)!,
+    )
+    const states = {
+      'dsa:lc-0001': state('dsa:lc-0001', { status: 'weak', weak: true }),
+      'dsa:lc-0167': state('dsa:lc-0167'),
+      'dsa:lc-0121': state('dsa:lc-0121', { status: 'weak', weak: true }),
+    }
+    expect(ids(weakItemsOf(items, states))).toEqual(['dsa:lc-0001', 'dsa:lc-0121'])
+    expect(weakItemsOf(items, {})).toEqual([])
   })
 })

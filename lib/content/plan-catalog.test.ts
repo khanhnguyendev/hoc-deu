@@ -1,13 +1,14 @@
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { CATALOG as GENERATED_CATALOG } from '@/.generated/catalog'
-import type { ItemMode } from '@/lib/domain/catalog'
+import { throttleRulesSchema, type ItemMode } from '@/lib/domain/catalog'
+import { EVENT_PAYLOADS } from '@/lib/domain/events'
 import type { Enrollment } from '@/lib/domain/plan/types'
 import { RESULT_OUTCOMES, type ResultName } from '@/lib/domain/srs/outcomes'
 import type { Catalog, CatalogItem } from './catalog-types'
 import { ITEM_TYPE_CORES, type Mode } from './item-types'
 import { toEnrollment, toPlanCatalog, type EnrollmentInput } from './plan-catalog'
 import type { ItemStatus } from './schemas/common'
-import type { TrackManifest } from './schemas/manifest'
+import { trackManifestSchema, type TrackManifest } from './schemas/manifest'
 
 // -------------------------------------------------------------------------------------------
 // toPlanCatalog, on the real generated catalog
@@ -336,6 +337,26 @@ describe('toEnrollment', () => {
     expect(result?.throttle).toEqual(PLAN_CATALOG.tracks.english?.defaults.throttle)
   })
 
+  it.each([
+    ['a practice block of 601 minutes', { kind: 'practice', tag: 'weekend-task', minutes: 601 }],
+    ['a review block capped at 601 minutes', { kind: 'review', maxMinutes: 601 }],
+  ])('falls back to the track weekly template for %s (M-4: no unstorable plan)', (_, block) => {
+    const result = toEnrollment(
+      enrollmentInput({ weeklyTemplate: { 'mon-fri': [{ kind: 'new' }], sun: [block] } }),
+      PLAN_CATALOG,
+    )
+    expect(result?.weeklyTemplate).toEqual(PLAN_CATALOG.tracks.english?.weeklyTemplate)
+  })
+
+  it('keeps a custom weekly template at the 600-minute bound', () => {
+    const custom = {
+      sat: [{ kind: 'review', maxMinutes: 600 }],
+      sun: [{ kind: 'practice', tag: 'weekend-task', minutes: 600 }],
+    }
+    const result = toEnrollment(enrollmentInput({ weeklyTemplate: custom }), PLAN_CATALOG)
+    expect(result?.weeklyTemplate).toEqual(custom)
+  })
+
   it('keeps a valid custom weekly template', () => {
     const custom = { sun: [{ kind: 'review' }] }
     const result = toEnrollment(enrollmentInput({ weeklyTemplate: custom }), PLAN_CATALOG)
@@ -375,5 +396,24 @@ describe('toEnrollment', () => {
       includeBonus: true,
       resetOn: '2026-10-05',
     })
+  })
+})
+
+describe('the throttle-rule schema (M-11)', () => {
+  it('is one schema: the manifest, toEnrollment and the track.updated payload import it', () => {
+    expect(trackManifestSchema.shape.defaults.shape.throttle).toBe(throttleRulesSchema)
+    expect(EVENT_PAYLOADS['track.updated'].shape.throttle.unwrap().unwrap()).toBe(
+      throttleRulesSchema,
+    )
+
+    const rules = [{ dueAbove: 30, newPerDay: 2 }]
+    const safeParse = vi.spyOn(throttleRulesSchema, 'safeParse')
+    try {
+      const result = toEnrollment(enrollmentInput({ throttle: rules }), PLAN_CATALOG)
+      expect(safeParse).toHaveBeenCalledWith(rules)
+      expect(result?.throttle).toEqual(rules)
+    } finally {
+      safeParse.mockRestore()
+    }
   })
 })

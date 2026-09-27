@@ -5,7 +5,6 @@
  * `lib/domain` never imports `lib/content` (decision 4); this file is the one place that reads
  * both.
  */
-import { z } from 'zod'
 import {
   ITEM_MODES,
   type PlanCatalog,
@@ -13,11 +12,17 @@ import {
   type PlanItem,
   type PlanRoadmap,
   type PlanTrack,
+  throttleRulesSchema,
 } from '@/lib/domain/catalog'
-import type { Enrollment } from '@/lib/domain/plan/types'
+import { type Enrollment, MAX_BLOCK_MINUTES } from '@/lib/domain/plan/types'
 import type { Catalog, CatalogItem, DeckSummary } from './catalog-types'
 import { ITEM_TYPE_CORES, type Mode } from './item-types'
-import { weeklyTemplateSchema, type TrackEstimates, type TrackManifest } from './schemas/manifest'
+import {
+  type TemplateBlock,
+  type TrackEstimates,
+  type TrackManifest,
+  weeklyTemplateSchema,
+} from './schemas/manifest'
 import type { Roadmap } from './schemas/roadmap'
 import type { ItemType } from './schemas/common'
 
@@ -240,24 +245,29 @@ function isEnrollmentStatus(status: string): status is Enrollment['status'] {
   return (ENROLLMENT_STATUSES as readonly string[]).includes(status)
 }
 
-const throttleRuleSchema = z.strictObject({
-  dueAbove: z.number().int().min(0),
-  newPerDay: z.number().int().min(0),
-})
-const throttleSchema = z.array(throttleRuleSchema)
+/** A practice block's minutes or a review block's cap that a stored plan block can hold (M-4). */
+const fitsAPlanBlock = (block: TemplateBlock): boolean =>
+  (block.kind !== 'practice' || block.minutes <= MAX_BLOCK_MINUTES) &&
+  (block.kind !== 'review' || (block.maxMinutes ?? 0) <= MAX_BLOCK_MINUTES)
+
+/** A learner's stored template: the manifest's rules, and every block storable (M4 final review
+ *  M-4 — a crafted `track.updated` must not produce a plan `day_plans` cannot read back). */
+const enrollmentTemplateSchema = weeklyTemplateSchema.refine((template) =>
+  Object.values(template).every((blocks) => (blocks ?? []).every(fitsAPlanBlock)),
+)
 
 /**
  * Resolves every null / invalid setting to the track default (M2 ruling R14, the reader
  * validates a learner-writable JSON column): `newPerDay` null → `defaults.newPerDay`; `throttle`
- * / `weeklyTemplate` invalid or null → the track's; unknown track or status → null (the row is
- * ignored).
+ * / `weeklyTemplate` invalid or null → the track's (a template block of more than
+ * `MAX_BLOCK_MINUTES` is invalid, M-4); unknown track or status → null (the row is ignored).
  */
 export function toEnrollment(input: EnrollmentInput, catalog: PlanCatalog): Enrollment | null {
   const track = catalog.tracks[input.trackId]
   if (track === undefined || !isEnrollmentStatus(input.status)) return null
 
-  const throttle = throttleSchema.safeParse(input.throttle)
-  const weeklyTemplate = weeklyTemplateSchema.safeParse(input.weeklyTemplate)
+  const throttle = throttleRulesSchema.safeParse(input.throttle)
+  const weeklyTemplate = enrollmentTemplateSchema.safeParse(input.weeklyTemplate)
 
   return {
     trackId: input.trackId,

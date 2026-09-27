@@ -81,6 +81,7 @@ function TrackBudgetFields({
             onValueChange={onVariantChange}
             aria-labelledby={variantLabelId}
             aria-describedby={variantError === undefined ? undefined : variantErrorId}
+            aria-invalid={variantError === undefined ? undefined : true}
           />
         ) : (
           <>

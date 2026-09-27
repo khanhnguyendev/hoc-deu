@@ -50,3 +50,27 @@ export function yearColumns(today: string, weeks = 53): (string | null)[][] {
     }),
   )
 }
+
+/**
+ * The year view's month labels (M1 #9): column 0 always gets a fallback label (its first day, even
+ * mid-month), and every later column whose week contains a real first-of-month gets that month's
+ * label — except one closer than `minGap` columns to the label before it, which is dropped rather
+ * than rendered overlapping. `minGap` (default 3, ~45 px at the 12 px/3 px-gap cell pitch) is more
+ * than any two-character "ThN" label needs, so a kept label never collides with its neighbour.
+ */
+export function pickMonthLabels(
+  columns: readonly (string | null)[][],
+  minGap = 3,
+): { index: number; day: string }[] {
+  const labels: { index: number; day: string }[] = []
+  let lastIndex = -Infinity
+  columns.forEach((column, index) => {
+    const firstOfMonth = column.find((day): day is string => day !== null && day.endsWith('-01'))
+    const day = index === 0 ? (column[0] ?? undefined) : firstOfMonth
+    if (day === undefined) return
+    if (index - lastIndex < minGap) return
+    labels.push({ index, day })
+    lastIndex = index
+  })
+  return labels
+}

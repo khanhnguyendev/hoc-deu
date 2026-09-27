@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from '@/components/ui/toaster'
 import { ThemeToggle } from '../theme-toggle'
 import { AppShell } from '.'
 
@@ -14,6 +15,10 @@ vi.mock('next-themes', () => ({
 beforeEach(() => {
   state.pathname = '/today'
   state.setTheme.mockReset()
+  // sonner's toast queue is a module-level singleton, not tied to one Toaster instance: without
+  // this, a toast a test triggers can still read as present in a later test that renders a fresh
+  // Toaster, regardless of the two tests' order.
+  toast.dismiss()
 })
 
 function renderShell(isAdmin = false) {
@@ -153,6 +158,46 @@ describe('AccountMenu', () => {
     const menu = screen.getByRole('menu')
     await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
     expect(onSignOut).toHaveBeenCalledWith()
+  })
+
+  it('shows no toast when the rejection is the redirect Next raises on a successful sign-out', async () => {
+    // Calling a redirecting action directly (not through useActionState) still rejects the
+    // promise with a NEXT_REDIRECT-digest error, even though the navigation already happened
+    // (server-action-reducer.js) — this must never read as a failure. (Test order does not
+    // matter: `beforeEach` dismisses sonner's module-level toast queue.)
+    const redirectError = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;push;/sign-in;307;',
+    })
+    const onSignOut = vi.fn<() => Promise<void>>(async () => {
+      throw redirectError
+    })
+    const user = userEvent.setup()
+    render(
+      <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin={false} onSignOut={onSignOut}>
+        <p>Nội dung</p>
+      </AppShell>,
+    )
+    await user.click(screen.getAllByRole('button', { name: 'Tài khoản: Nguyễn Văn An' })[0]!)
+    const menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
+    await waitFor(() => expect(onSignOut).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('Không đăng xuất được. Bạn thử lại nhé.')).toBeNull()
+  })
+
+  it('awaits onSignOut and toasts when it rejects (M2 minor)', async () => {
+    const onSignOut = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('network down')
+    })
+    const user = userEvent.setup()
+    render(
+      <AppShell user={{ name: 'Nguyễn Văn An' }} isAdmin={false} onSignOut={onSignOut}>
+        <p>Nội dung</p>
+      </AppShell>,
+    )
+    await user.click(screen.getAllByRole('button', { name: 'Tài khoản: Nguyễn Văn An' })[0]!)
+    const menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
+    expect(await screen.findByText('Không đăng xuất được. Bạn thử lại nhé.')).toBeTruthy()
   })
 })
 

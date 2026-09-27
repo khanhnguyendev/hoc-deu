@@ -22,6 +22,13 @@ describe('PageHeader', () => {
     expect(screen.getByText('Thứ Ba, 3 tháng 2')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Học thêm' })).toBeTruthy()
   })
+
+  it('its h1 is the page-wide focus fallback, focusable by script only (re-review M2)', () => {
+    render(<PageHeader title="Lộ trình DSA" />)
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(h1.getAttribute('tabindex')).toBe('-1')
+    expect(h1.getAttribute('data-focus-fallback')).toBe('page')
+  })
 })
 
 describe('Section', () => {

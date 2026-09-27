@@ -15,6 +15,8 @@ const fake = vi.hoisted(() => ({
     error: { code?: string; message: string } | null
   },
   calls: [] as unknown[][],
+  signOut: { error: null } as { error: Error | null },
+  localSignOut: { error: null } as { error: Error | null },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -46,9 +48,9 @@ vi.mock('@/lib/supabase/server', () => ({
         fake.calls.push(['signInWithPassword', args])
         return fake.password
       },
-      signOut: async () => {
-        fake.calls.push(['signOut'])
-        return { error: null }
+      signOut: async (options?: { scope: 'local' }) => {
+        fake.calls.push(['signOut', options])
+        return options?.scope === 'local' ? fake.localSignOut : fake.signOut
       },
     },
   }),
@@ -71,6 +73,8 @@ beforeEach(() => {
     error: null,
   }
   fake.calls = []
+  fake.signOut = { error: null }
+  fake.localSignOut = { error: null }
 })
 
 describe('signInWithProvider', () => {
@@ -169,9 +173,30 @@ describe('signOut', () => {
     expect(fake.calls).toEqual([])
   })
 
-  it('ends the session and returns to sign-in', async () => {
+  it('ends the (global) session and returns to sign-in', async () => {
     fake.user = { id: 'u1' }
     await expect(signOut()).rejects.toThrow('REDIRECT:/sign-in')
-    expect(fake.calls).toEqual([['signOut']])
+    expect(fake.calls).toEqual([['signOut', undefined]])
+  })
+
+  it('falls back to a local sign-out when the global one fails, then still redirects (M2 minor)', async () => {
+    fake.user = { id: 'u1' }
+    fake.signOut = { error: new Error('network down') }
+    await expect(signOut()).rejects.toThrow('REDIRECT:/sign-in')
+    expect(fake.calls).toEqual([
+      ['signOut', undefined],
+      ['signOut', { scope: 'local' }],
+    ])
+  })
+
+  it('throws (no redirect) when the local fallback also fails (M2 minor)', async () => {
+    fake.user = { id: 'u1' }
+    fake.signOut = { error: new Error('network down') }
+    fake.localSignOut = { error: new Error('cookies unavailable') }
+    await expect(signOut()).rejects.toThrow('cookies unavailable')
+    expect(fake.calls).toEqual([
+      ['signOut', undefined],
+      ['signOut', { scope: 'local' }],
+    ])
   })
 })

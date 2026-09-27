@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { deriveEventId } from '@/lib/events/ids'
+import { deriveEventId, digest } from '@/lib/events/ids'
+import { vi as copy } from '@/lib/i18n/vi'
 import type { SettingsAction } from './schema'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
@@ -31,6 +32,14 @@ const fake = vi.hoisted(() => ({
   failOn: null as { type: string; error: Error } | null,
   /** `deleteAccount`: what the admin API's `deleteUser` returns. */
   deleteUserResult: { error: null as { message: string } | null },
+  /** `deleteAccount`: what its local `signOut` returns. */
+  deleteAccountSignOutResult: { error: null as Error | null },
+  /** Set to make the mocked `signOut` reject instead of returning `{ error }`. */
+  deleteAccountSignOutThrows: null as Error | null,
+  /** What `rebuildTodayIfUntouched` answers (decision 11). */
+  rebuildOutcome: 'rebuilt' as string,
+  /** `rebuildTodayIfUntouched` rejects with this when set. */
+  rebuildFails: null as Error | null,
   calls: [] as unknown[][],
 }))
 
@@ -61,7 +70,8 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signOut: async (options: unknown) => {
         fake.calls.push(['signOut', options])
-        return { error: null }
+        if (fake.deleteAccountSignOutThrows) throw fake.deleteAccountSignOutThrows
+        return fake.deleteAccountSignOutResult
       },
     },
   }),
@@ -92,6 +102,13 @@ vi.mock('./reads', () => ({
     return fake.pausedDays[trackId] ?? null
   },
 }))
+vi.mock('@/lib/plans/rebuild', () => ({
+  rebuildTodayIfUntouched: async (userId: string) => {
+    fake.calls.push(['rebuildTodayIfUntouched', userId])
+    if (fake.rebuildFails) throw fake.rebuildFails
+    return fake.rebuildOutcome
+  },
+}))
 vi.mock('@/lib/events/apply', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/events/apply')>()
   return {
@@ -108,6 +125,7 @@ const { EventError } = await import('@/lib/events/apply')
 const {
   deleteAccount,
   enrollTrack,
+  resetTrack,
   setTrackStatus,
   updateCodeLanguage,
   updateSchedule,
@@ -148,6 +166,10 @@ beforeEach(() => {
   fake.pausedDays = {}
   fake.failOn = null
   fake.deleteUserResult = { error: null }
+  fake.deleteAccountSignOutResult = { error: null }
+  fake.deleteAccountSignOutThrows = null
+  fake.rebuildOutcome = 'rebuilt'
+  fake.rebuildFails = null
   fake.calls = []
 })
 afterEach(() => {
@@ -163,7 +185,9 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('schedule.changed'),
+        id: id(
+          `schedule.changed:${digest({ timezone: 'America/Los_Angeles', dayStartsAt: '04:00' })}`,
+        ),
         type: 'schedule.changed',
         payload: {
           timezone: 'America/Los_Angeles',
@@ -225,7 +249,9 @@ describe('updateSchedule — a change takes effect at the next day start (§5.9)
     const result = await save({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })
     expect(sent()).toEqual([
       {
-        id: id('schedule.changed'),
+        id: id(
+          `schedule.changed:${digest({ timezone: 'Asia/Ho_Chi_Minh', dayStartsAt: '04:00' })}`,
+        ),
         type: 'schedule.changed',
         payload: {
           timezone: 'Asia/Ho_Chi_Minh',
@@ -358,7 +384,7 @@ describe('updateCodeLanguage', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('settings.changed:codeLanguage'),
+        id: id(`settings.changed:${digest({ codeLanguage: 'java' })}`),
         type: 'settings.changed',
         payload: { codeLanguage: 'java' },
       },
@@ -402,7 +428,7 @@ describe('updateTrack — minutes and roadmap variant', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('track.updated:dsa'),
+        id: id(`track.updated:dsa:${digest({ budgetMinutes: 90 })}`),
         type: 'track.updated',
         trackId: 'dsa',
         payload: { budgetMinutes: 90 },
@@ -416,6 +442,18 @@ describe('updateTrack — minutes and roadmap variant', () => {
     await save({ budgetMinutes: '60', roadmapVariant: '10w' })
     expect(sent()).toMatchObject([{ payload: { roadmapVariant: '10w' } }])
     expect((sent()[0] as { payload: object }).payload).not.toHaveProperty('budgetMinutes')
+  })
+
+  it("sends a new id — with the new budget — on an edited resubmit after a partial failure, under the same requestId (M2 RF-2 'digest keys')", async () => {
+    fake.failOn = { type: 'track.updated', error: new EventError('unknown') }
+    await save({ budgetMinutes: '90', roadmapVariant: '8w' })
+    const firstId = (sent()[0] as { id: string }).id
+    fake.calls = []
+    fake.failOn = null
+    await save({ budgetMinutes: '75', roadmapVariant: '8w' })
+    const retryEvent = sent()[0] as { id: string; payload: { budgetMinutes: number } }
+    expect(retryEvent.payload.budgetMinutes).toBe(75)
+    expect(retryEvent.id).not.toBe(firstId)
   })
 
   it('sends nothing when nothing changed', async () => {
@@ -485,7 +523,9 @@ describe('enrollTrack — "Thêm lộ trình"', () => {
     expect(fake.calls[0]).toEqual(['requireOnboarded'])
     expect(sent()).toEqual([
       {
-        id: id('track.enrolled:dsa'),
+        id: id(
+          `track.enrolled:dsa:${digest({ roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' })}`,
+        ),
         type: 'track.enrolled',
         trackId: 'dsa',
         payload: { roadmapVariant: '10w', budgetMinutes: 75, startDate: '2026-09-24' },
@@ -626,6 +666,193 @@ describe('setTrackStatus — pause, resume, remove', () => {
   })
 })
 
+describe("today's plan after a track change (decision 11)", () => {
+  const rebuilds = () => fake.calls.filter(([name]) => name === 'rebuildTodayIfUntouched')
+  const changes = [
+    [
+      'track.updated',
+      () =>
+        updateTrack(
+          null,
+          form({
+            requestId: REQUEST_ID,
+            trackId: 'dsa',
+            budgetMinutes: '90',
+            roadmapVariant: '8w',
+          }),
+        ),
+    ],
+    [
+      'track.enrolled',
+      () => {
+        fake.enrollments = []
+        return enrollTrack(
+          null,
+          form({
+            requestId: REQUEST_ID,
+            trackId: 'dsa',
+            budgetMinutes: '75',
+            roadmapVariant: '10w',
+            startDate: '2026-09-24',
+          }),
+        )
+      },
+    ],
+    [
+      'track.paused',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'english', to: 'paused' })),
+    ],
+    [
+      'track.resumed',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'english', to: 'active' })),
+    ],
+    [
+      'track.removed',
+      () => setTrackStatus(null, form({ requestId: REQUEST_ID, trackId: 'dsa', to: 'removed' })),
+    ],
+  ] as const
+
+  it.each(changes)(
+    'rebuilds it once after a successful %s — after the event, before the re-render',
+    async (_, change) => {
+      expect(await change()).toMatchObject({ ok: true })
+      expect(rebuilds()).toEqual([['rebuildTodayIfUntouched', USER_ID]])
+      const order = fake.calls.map(([name]) => name)
+      expect(order.indexOf('applyLearnerEvent')).toBeLessThan(
+        order.indexOf('rebuildTodayIfUntouched'),
+      )
+      expect(order.indexOf('rebuildTodayIfUntouched')).toBeLessThan(order.indexOf('revalidatePath'))
+    },
+  )
+
+  it.each(changes)('never rebuilds it after a failed %s', async (type, change) => {
+    fake.failOn = { type, error: new EventError('invalid_transition') }
+    expect(await change()).toMatchObject({ ok: false })
+    expect(rebuilds()).toEqual([])
+  })
+
+  it.each(['rebuilt', 'unchanged', 'in_use', 'resume_plan', 'no_plan'])(
+    'keeps the message whatever the rebuild answers (%s)',
+    async (outcome) => {
+      fake.rebuildOutcome = outcome
+      await expect(changes[0][1]()).resolves.toEqual({ ok: true, message: `Đã lưu ${DSA}.` })
+    },
+  )
+
+  it.each(changes)(
+    'still answers success and re-renders when the rebuild after %s throws (the change is saved)',
+    async (_, change) => {
+      fake.rebuildFails = new Error('Could not read the day plan')
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        expect(await change()).toMatchObject({ ok: true })
+        expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+        expect(logged).toHaveBeenCalledWith(
+          '[settings] rebuild failed:',
+          'Error: Could not read the day plan',
+        )
+      } finally {
+        logged.mockRestore()
+      }
+    },
+  )
+
+  it('never rebuilds it after a schedule or code-language change', async () => {
+    await updateSchedule(
+      null,
+      form({ requestId: REQUEST_ID, timezone: 'America/Los_Angeles', dayStartsAt: '04:00' }),
+    )
+    await updateCodeLanguage(null, form({ requestId: REQUEST_ID, codeLanguage: 'go' }))
+    expect(events()).toHaveLength(2)
+    expect(rebuilds()).toEqual([])
+  })
+})
+
+describe('resetTrack — "Bắt đầu lại" (§5.9, Part B-M2 decision 18, task 5.4)', () => {
+  const input = { requestId: REQUEST_ID, trackId: 'dsa' }
+  const rebuilds = () => fake.calls.filter(([name]) => name === 'rebuildTodayIfUntouched')
+
+  it('guards first, records track.reset, rebuilds an untouched plan of today, then re-renders', async () => {
+    expect(await resetTrack(input)).toEqual({
+      ok: true,
+      message: `Đã bắt đầu lại lộ trình ${DSA}.`,
+    })
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(sent()).toEqual([
+      {
+        id: id('track.reset:dsa'),
+        type: 'track.reset',
+        trackId: 'dsa',
+        payload: {},
+      },
+    ])
+    expect(events()[0]?.[1]).toBe('user')
+    expect(rebuilds()).toEqual([['rebuildTodayIfUntouched', USER_ID]])
+    const order = fake.calls.map(([name]) => name)
+    expect(order.indexOf('applyLearnerEvent')).toBeLessThan(
+      order.indexOf('rebuildTodayIfUntouched'),
+    )
+    expect(order.indexOf('rebuildTodayIfUntouched')).toBeLessThan(order.indexOf('revalidatePath'))
+    expect(revalidated()).toEqual([
+      ['revalidatePath', '/settings'],
+      ['revalidatePath', '/t/dsa'],
+      ['revalidatePath', '/today'],
+    ])
+  })
+
+  it('[RF-2] the same tap twice sends the same event id (the database records it once)', async () => {
+    await resetTrack(input)
+    await resetTrack(input)
+    const [first, second] = sent() as { id: string }[]
+    expect(second?.id).toBe(first?.id)
+  })
+
+  it('a removed (or never enrolled) track is stale: a truthful message, no rebuild, the pages re-render', async () => {
+    for (const code of ['invalid_transition', 'track_not_enrolled'] as const) {
+      fake.calls = []
+      fake.failOn = { type: 'track.reset', error: new EventError(code) }
+      // Re-review M2: the page has already re-rendered — never "Bạn tải lại trang nhé".
+      expect(await resetTrack(input)).toEqual({
+        ok: false,
+        message: 'Lộ trình này vừa thay đổi. Trang đã được làm mới.',
+      })
+      expect(rebuilds()).toEqual([])
+      expect(revalidated()).toEqual([
+        ['revalidatePath', '/settings'],
+        ['revalidatePath', '/t/dsa'],
+        ['revalidatePath', '/today'],
+      ])
+    }
+  })
+
+  it('still answers success when the rebuild throws (the reset is saved)', async () => {
+    fake.rebuildFails = new Error('Could not read the day plan')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect(await resetTrack(input)).toMatchObject({ ok: true })
+      expect(logged).toHaveBeenCalledWith(
+        '[settings] rebuild failed:',
+        'Error: Could not read the day plan',
+      )
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it.each([
+    { requestId: 'nope', trackId: 'dsa' },
+    { requestId: REQUEST_ID, trackId: 'DSA' },
+    { requestId: REQUEST_ID, trackId: 'dsa', extra: 1 },
+    null,
+  ])('refuses an invalid input %j, sending nothing', async (bad) => {
+    expect(await resetTrack(bad as unknown as typeof input)).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(fake.calls).toEqual([['requireOnboarded']])
+  })
+})
+
 describe('deleteAccount — §4.6', () => {
   // Assignable to SettingsAction (fewer parameters is fine): called the same way
   // useSettingsAction calls every other settings action.
@@ -646,5 +873,27 @@ describe('deleteAccount — §4.6', () => {
     const result = await run(null, new FormData())
     expect(result).toEqual({ ok: false, message: 'Không xoá được tài khoản. Bạn thử lại nhé.' })
     expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
+  })
+
+  it('still redirects when the local sign-out returns an error, after the account is already deleted (controller ruling, M2 minor)', async () => {
+    fake.deleteAccountSignOutResult = { error: new Error('cookies unavailable') }
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    expect(fake.calls).toEqual([
+      ['requireUser'],
+      ['deleteUser', USER_ID],
+      ['signOut', { scope: 'local' }],
+      ['redirect', '/?account=deleted'],
+    ])
+  })
+
+  it('still redirects when the local sign-out rejects (controller ruling, M2 minor)', async () => {
+    fake.deleteAccountSignOutThrows = new Error('network down')
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    expect(fake.calls).toEqual([
+      ['requireUser'],
+      ['deleteUser', USER_ID],
+      ['signOut', { scope: 'local' }],
+      ['redirect', '/?account=deleted'],
+    ])
   })
 })

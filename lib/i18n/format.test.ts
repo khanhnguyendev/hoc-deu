@@ -3,6 +3,7 @@ import {
   formatDay,
   formatDayLong,
   formatDayTimeIn,
+  formatWeekdayShort,
   formatFinishEstimate,
   formatMinutes,
   formatMonth,
@@ -80,6 +81,9 @@ describe('local-day formatting', () => {
     expect(formatMonth('2026-02-03')).toBe('Tháng 2 năm 2026')
     expect(formatMonthShort('2026-02-03')).toBe('Th2')
     expect(formatMonthShort('2026-12-01')).toBe('Th12')
+    // /progress's day list (UI I-4): the weekday and the day of the month.
+    expect(formatWeekdayShort('2026-09-28')).toBe('Thứ Hai, 28/09')
+    expect(formatWeekdayShort('2026-10-04')).toBe('Chủ Nhật, 04/10')
   })
 
   it.each(['Pacific/Kiritimati', 'Pacific/Pago_Pago', 'Asia/Ho_Chi_Minh'])(

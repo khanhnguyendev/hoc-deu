@@ -33,6 +33,11 @@ export type ItemState = {
 export const CHECK_IN_STATUSES = ['done', 'partial', 'skipped'] as const
 export type CheckInStatus = (typeof CHECK_IN_STATUSES)[number]
 
+/** A check-in that counts as work: the day is completed (§4.1) and the gate opens (§5.2). */
+export function isDoneOrPartial(status: CheckInStatus): boolean {
+  return status === 'done' || status === 'partial'
+}
+
 export type BlockState = {
   readonly planId: string
   readonly blockId: string

@@ -483,8 +483,33 @@ describe('loading derived state for block.checked_in (the loader contract)', () 
   })
 
   it("updates the older day of an edited check-in: its checked_in_on day's row is loaded", () => {
-    // Plan A's block was skipped on DAY and is edited to done on NEXT_DAY: it still counts for
+    // Plan A's block was done on DAY and is edited to skipped on NEXT_DAY: it still counts for
     // DAY (decision 6), so the caller loads DAY's blocks and DAY's row — not NEXT_DAY's.
+    const write = writeFor(
+      { items: [], blocks: [DONE_A], days: [COMPLETED_DAY] },
+      checkIn({
+        localDay: NEXT_DAY,
+        occurredAt: '2026-09-29T10:00:00.000Z',
+        trackId: 'dsa',
+        planId: PLAN_A,
+        blockId: DONE_A.block_id,
+        payload: { status: 'skipped', minutes: 0 },
+      }),
+    )
+    expect(write.expected).toEqual({
+      [`plan_block_state:${PLAN_A}/${DONE_A.block_id}`]: 1,
+      [`daily_activity:${DAY}`]: 1,
+    })
+    expect(write.changes).toContainEqual({
+      table: 'daily_activity',
+      row: { local_day: DAY, minutes_by_track: { dsa: 0 }, items_done: 0, completed: false },
+    })
+  })
+
+  it('M-6 (a): a skipped check-in resumed on a later day moves there, so both days are written', () => {
+    // Plan A's block was skipped on DAY and is edited to done on NEXT_DAY: it now counts for
+    // NEXT_DAY, so the caller loads DAY's blocks and row (DAY loses the block) and NEXT_DAY's
+    // blocks and row (none yet: NEXT_DAY's row is new).
     const skippedA: BlockStateRow = { ...DONE_A, status: 'skipped', minutes: 0, version: 2 }
     const openDay: DailyActivityRow = {
       ...COMPLETED_DAY,
@@ -506,10 +531,19 @@ describe('loading derived state for block.checked_in (the loader contract)', () 
     expect(write.expected).toEqual({
       [`plan_block_state:${PLAN_A}/${DONE_A.block_id}`]: 2,
       [`daily_activity:${DAY}`]: 3,
+      [`daily_activity:${NEXT_DAY}`]: 0,
+    })
+    expect(write.changes).toContainEqual({
+      table: 'plan_block_state',
+      row: expect.objectContaining({ status: 'done', minutes: 20, checked_in_on: NEXT_DAY }),
     })
     expect(write.changes).toContainEqual({
       table: 'daily_activity',
-      row: { local_day: DAY, minutes_by_track: { dsa: 20 }, items_done: 0, completed: true },
+      row: { local_day: DAY, minutes_by_track: {}, items_done: 0, completed: false },
+    })
+    expect(write.changes).toContainEqual({
+      table: 'daily_activity',
+      row: { local_day: NEXT_DAY, minutes_by_track: { dsa: 20 }, items_done: 0, completed: true },
     })
   })
 })

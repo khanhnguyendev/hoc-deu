@@ -47,26 +47,28 @@ describe('setUserStatus', () => {
     ['rejected', 'active', 'Đã kích hoạt lại tài khoản.'],
   ] as const)('%s → %s: "%s", then the list re-renders', async (from, to, message) => {
     fake.rpc = { data: { from, to }, error: null }
-    await expect(setUserStatus(ID, to)).resolves.toEqual({ ok: true, message })
+    await expect(setUserStatus(ID, to, from)).resolves.toEqual({ ok: true, message })
     expect(fake.calls).toEqual([
       ['requireAdmin'],
-      ['rpc', 'admin_set_status', { p_user_id: ID, p_status: to }],
+      ['rpc', 'admin_set_status', { p_user_id: ID, p_status: to, p_expected_from: from }],
       ['revalidatePath', '/admin/users'],
     ])
   })
 
   it('refuses a non-admin before touching the database', async () => {
     fake.admin = false
-    await expect(setUserStatus(ID, 'active')).rejects.toThrow('NOT_FOUND')
+    await expect(setUserStatus(ID, 'active', 'pending')).rejects.toThrow('NOT_FOUND')
     expect(fake.calls).toEqual([['requireAdmin']])
   })
 
   it.each([
-    ['not-a-uuid', 'active'],
-    [ID, 'pending'],
-    [ID, 'deleted'],
-  ])('rejects invalid input (%s, %s) without an RPC', async (id, status) => {
-    const result = await setUserStatus(id, status as 'active')
+    ['not-a-uuid', 'active', 'pending'],
+    [ID, 'pending', 'active'],
+    [ID, 'deleted', 'active'],
+    [ID, 'active', 'deleted'],
+    [ID, 'active', undefined],
+  ])('rejects invalid input (%s, %s, from %s) without an RPC', async (id, status, from) => {
+    const result = await setUserStatus(id, status as 'active', from as 'pending')
     expect(result).toEqual({ ok: false, message: 'Yêu cầu không hợp lệ.' })
     expect(fake.calls).toEqual([['requireAdmin']])
   })
@@ -77,16 +79,22 @@ describe('setUserStatus', () => {
     ['something else', 'Không thực hiện được thao tác. Bạn thử lại nhé.'],
   ])('maps the RPC error %j to Vietnamese, without re-rendering', async (code, message) => {
     fake.rpc = { data: null, error: { message: code } }
-    await expect(setUserStatus(ID, 'active')).resolves.toEqual({ ok: false, message })
+    await expect(setUserStatus(ID, 'active', 'pending')).resolves.toEqual({ ok: false, message })
     expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc'])
   })
 
   it.each([
     ['not_found', 'Không tìm thấy tài khoản này. Bạn tải lại trang nhé.'],
     ['invalid_transition', 'Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.'],
-  ])('maps %j and re-renders the stale list', async (code, message) => {
+    // Task 5.6 (the M2 2.8 minor): the row was rendered pending, another admin rejected it since.
+    ['status_changed', 'Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé.'],
+  ])('maps %j, marks the result stale and re-renders the list', async (code, message) => {
     fake.rpc = { data: null, error: { message: code } }
-    await expect(setUserStatus(ID, 'active')).resolves.toEqual({ ok: false, message })
+    await expect(setUserStatus(ID, 'active', 'pending')).resolves.toEqual({
+      ok: false,
+      message,
+      stale: true,
+    })
     expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc', 'revalidatePath'])
     expect(fake.calls.at(-1)).toEqual(['revalidatePath', '/admin/users'])
   })
@@ -117,6 +125,7 @@ describe('setUserRole', () => {
     await expect(setUserRole(ID, 'admin')).resolves.toEqual({
       ok: false,
       message: 'Tài khoản đã có quyền này. Bạn tải lại trang nhé.',
+      stale: true,
     })
     expect(fake.calls.at(-1)).toEqual(['revalidatePath', '/admin/users'])
   })

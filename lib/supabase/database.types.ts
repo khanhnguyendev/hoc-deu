@@ -172,6 +172,13 @@ export type Database = {
             referencedColumns: ['id']
           },
           {
+            foreignKeyName: 'events_plan_id_user_id_fkey'
+            columns: ['plan_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id', 'user_id']
+          },
+          {
             foreignKeyName: 'events_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
@@ -248,6 +255,27 @@ export type Database = {
           },
         ]
       }
+      ops_metrics: {
+        Row: {
+          id: number
+          key: string
+          recorded_at: string
+          value: number
+        }
+        Insert: {
+          id?: never
+          key: string
+          recorded_at?: string
+          value: number
+        }
+        Update: {
+          id?: never
+          key?: string
+          recorded_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       plan_block_state: {
         Row: {
           auto: boolean
@@ -298,6 +326,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'day_plans'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'plan_block_state_plan_id_user_id_fkey'
+            columns: ['plan_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'day_plans'
+            referencedColumns: ['id', 'user_id']
           },
           {
             foreignKeyName: 'plan_block_state_user_id_fkey'
@@ -467,13 +502,23 @@ export type Database = {
           status: string
         }[]
       }
+      admin_overview: { Args: never; Returns: Json }
       admin_set_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: Json
       }
       admin_set_status: {
-        Args: { p_status: string; p_user_id: string }
+        Args: { p_expected_from?: string; p_status: string; p_user_id: string }
         Returns: Json
+      }
+      admin_track_positions: {
+        Args: never
+        Returns: {
+          learners: number
+          track_id: string
+          variant: string
+          week: number
+        }[]
       }
       apply_derived_changes: {
         Args: {
@@ -498,6 +543,7 @@ export type Database = {
         }
         Returns: Json
       }
+      health: { Args: never; Returns: boolean }
       is_active: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       learner_event_types: { Args: never; Returns: string[] }
@@ -506,6 +552,12 @@ export type Database = {
         Returns: string
       }
       mark_plan_seen: { Args: { p_plan_id: string }; Returns: boolean }
+      ops_prune: { Args: never; Returns: Json }
+      ops_record_db_size: { Args: never; Returns: number }
+      ops_record_metric: {
+        Args: { p_key: string; p_value: number }
+        Returns: undefined
+      }
       plan_lock_key: {
         Args: { p_plan_date: string; p_user_id: string }
         Returns: number

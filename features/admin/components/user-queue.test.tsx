@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi as mock } from 'vitest'
-import type { Role } from '@/lib/auth/dal'
+import type { AccountStatus, Role } from '@/lib/auth/dal'
 import type { AdminActionResult } from '../actions'
 import type { AdminUserRow } from '../queries'
 import { UserQueue } from './user-queue'
@@ -34,7 +34,11 @@ const USERS: AdminUserRow[] = [
 function setup(users: readonly AdminUserRow[] = USERS) {
   const ok: AdminActionResult = { ok: true, message: 'Đã xong.' }
   const setUserStatus = mock.fn<
-    (id: string, status: 'active' | 'rejected' | 'suspended') => Promise<AdminActionResult>
+    (
+      id: string,
+      status: 'active' | 'rejected' | 'suspended',
+      from: AccountStatus,
+    ) => Promise<AdminActionResult>
   >(async () => ok)
   const setUserRole = mock.fn<(id: string, role: Role) => Promise<AdminActionResult>>(
     async () => ok,
@@ -113,9 +117,9 @@ describe('UserQueue', () => {
     ).toBeTruthy()
   })
 
-  it('passes each row’s id to the actions', async () => {
+  it('passes each row’s id and rendered status to the actions', async () => {
     const { setUserStatus, user } = setup()
     await user.click(within(rowOf('Chờ Một')).getByRole('button', { name: 'Duyệt' }))
-    await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith('p1', 'active'))
+    await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith('p1', 'active', 'pending'))
   })
 })

@@ -2,9 +2,18 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { MDXContent } from 'mdx/types'
 import type { ComponentType } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CodeBundle } from '@/lib/content/code-tokens'
-import { ADMIN, NOTE, pagePropsFor, premiumProblemItem, problemItem } from '../fixtures'
+import {
+  ADMIN,
+  NOTE,
+  outcomeBinding,
+  pagePropsFor,
+  premiumProblemItem,
+  problemItem,
+  SAVED,
+} from '../fixtures'
+import type { RecordOutcome } from '../outcome'
 import { ProblemPage } from './Page'
 
 /** A stand-in note body: prose, a bound `<Practice>` and the bound `<Solution />`. */
@@ -143,5 +152,52 @@ describe('ProblemPage — status notice', () => {
     expect(main.firstElementChild?.getAttribute('data-slot')).toBe('banner')
     rerender(<ProblemPage {...pagePropsFor(problemItem(), { data: noted })} />)
     expect(container.querySelector('[data-slot="banner"]')).toBeNull()
+  })
+})
+
+describe('ProblemPage — results (task 5.2c)', () => {
+  it('no outcome UI without a binding (an admin preview, a retired item)', () => {
+    render(<ProblemPage {...pagePropsFor(problemItem(), { data: noted })} />)
+    expect(screen.queryByRole('group', { name: 'Bạn giải bài này thế nào?' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bỏ qua mục này' })).toBeNull()
+    expect(document.querySelector('[data-slot="status-pill"]')).toBeNull()
+  })
+
+  it('with a binding: the status pill, the plan label, the grades and "Bỏ qua mục này"', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    const outcome = outcomeBinding(record, {
+      plan: { blockId: 'b-new', label: 'Trong kế hoạch hôm nay' },
+      blockId: 'b-new',
+    })
+    render(<ProblemPage {...pagePropsFor(problemItem(), { data: noted, outcome })} />)
+    expect(screen.getByText('Chưa học')).toBeTruthy()
+    expect(screen.getByText('Trong kế hoạch hôm nay')).toBeTruthy()
+    expect(screen.getByTestId('note-body')).toBeTruthy()
+    // The note's own "Xem lời giải" nudges the grades (decision 18).
+    await user.click(screen.getByRole('button', { name: 'Xem lời giải' }))
+    expect(screen.getByRole('button', { name: 'Cần gợi ý' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    await user.click(screen.getByRole('button', { name: 'Cần gợi ý' }))
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      itemId: 'dsa:lc-0001',
+      blockId: 'b-new',
+      outcome: { type: 'item.result', result: 'hint' },
+    })
+    expect(screen.getByRole('button', { name: 'Bỏ qua mục này' })).toBeTruthy()
+  })
+
+  it('recall hides the note behind "Xem ghi chú"; a problem without a note grades at once', () => {
+    const outcome = outcomeBinding(vi.fn(), { mode: 'recall' })
+    const { unmount } = render(
+      <ProblemPage {...pagePropsFor(problemItem(), { data: noted, outcome })} />,
+    )
+    expect(screen.queryByTestId('note-body')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Xem ghi chú' })).toBeTruthy()
+    unmount()
+    render(<ProblemPage {...pagePropsFor(premiumProblemItem(), { outcome })} />)
+    expect(screen.getByRole('heading', { name: 'Chưa có ghi chú' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Bạn nhớ bài này đến đâu?' })).toBeTruthy()
   })
 })

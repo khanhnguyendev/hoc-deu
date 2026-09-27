@@ -48,7 +48,13 @@ function TestLoginForm({
         </h2>
         <p className="text-sm text-muted-foreground">{vi.auth.testLoginDescription}</p>
       </div>
-      <form aria-labelledby={titleId} action={formAction} className="flex flex-col gap-4">
+      {/* Its own accessible name (M2 minor: distinct from the section's, so landmark-unique
+          passes — two nested landmarks named "Đăng nhập thử nghiệm" is not one landmark twice). */}
+      <form
+        aria-label={vi.auth.testLoginFormLabel}
+        action={formAction}
+        className="flex flex-col gap-4"
+      >
         {/* Always mounted, so the error is announced when it appears. */}
         <div role="alert">{state.error && <Banner tone="danger">{state.error}</Banner>}</div>
         <FormField id={`${id}-email`} label={vi.auth.email} required>

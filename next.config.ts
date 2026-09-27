@@ -18,12 +18,8 @@ const nextConfig: NextConfig = {
   // OD3: MDX images come from the one allow-listed Supabase Storage bucket; the pattern is built
   // from the same constant the MDX safety check enforces (tools/content/allowlist.ts).
   images: { remotePatterns: contentImageRemotePatterns() },
-  // Decision 13: `/admin` is the approval queue until the admin overview (task 5.6). A routing
-  // redirect, not a page that calls `redirect()`: the AppShell prefetches its "Quản trị" link, and
-  // a prefetched page that redirects kept its render open until the tab closed ("The destination
-  // stream closed early", task 2.8). Access is still decided by the `(admin)` layout at
-  // `/admin/users`: a non-admin gets the 404 there.
-  redirects: async () => [{ source: '/admin', destination: '/admin/users', permanent: false }],
+  // No redirects: M2's `/admin` → `/admin/users` (decision 13, ruling R12) ended with the admin
+  // overview page (task 5.6); the `(admin)` layout decides access there, a non-admin gets the 404.
 }
 
 export default withMDX(nextConfig)

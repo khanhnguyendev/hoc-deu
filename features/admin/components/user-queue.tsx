@@ -16,6 +16,7 @@ type Actions = {
   setUserStatus: (
     userId: string,
     status: 'active' | 'rejected' | 'suspended',
+    expectedFrom: AccountStatus,
   ) => Promise<AdminActionResult>
   setUserRole: (userId: string, role: Role) => Promise<AdminActionResult>
 }

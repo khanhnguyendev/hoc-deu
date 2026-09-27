@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemHref, itemIdFromRoute } from './href'
+import { itemHref, itemHrefFromId, itemIdFromRoute, reviewHref } from './href'
 
 describe('itemHref (decision 24)', () => {
   it('links a catalog item by its local ID under its track', () => {
@@ -35,5 +35,30 @@ describe('itemIdFromRoute', () => {
   it('never throws on a malformed escape: the result matches no item', () => {
     expect(() => itemIdFromRoute('dsa', '%E0%A4%A')).not.toThrow()
     expect(itemIdFromRoute('dsa', '%E0%A4%A')).toBe('dsa:%E0%A4%A')
+  })
+})
+
+describe('itemHrefFromId (m-2: the one item link from an item ID)', () => {
+  it('splits the ID at its first colon: the track, then the local ID (encoded)', () => {
+    expect(itemHrefFromId('dsa:lc-0001')).toBe('/t/dsa/items/lc-0001')
+    expect(itemHrefFromId('english:explaining-code:dsa:lc-0001')).toBe(
+      '/t/english/items/explaining-code%3Adsa%3Alc-0001',
+    )
+  })
+
+  it('adds the query it is given (a plan block, a mode)', () => {
+    expect(itemHrefFromId('dsa:lc-0001', { block: '2026-09-28:dsa:new:1', mode: 'new' })).toBe(
+      '/t/dsa/items/lc-0001?block=2026-09-28%3Adsa%3Anew%3A1&mode=new',
+    )
+    expect(itemHrefFromId('dsa:lc-0001', { mode: 'recall' })).toBe(
+      '/t/dsa/items/lc-0001?mode=recall',
+    )
+  })
+})
+
+describe('reviewHref (m-2: the one /review link)', () => {
+  it('is /review, or /review?track=<id> for one track', () => {
+    expect(reviewHref(null)).toBe('/review')
+    expect(reviewHref('english')).toBe('/review?track=english')
   })
 })

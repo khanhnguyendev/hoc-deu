@@ -204,7 +204,8 @@ test('an admin sees the "Quản trị" row at the top of Cài đặt, leading to
   const adminRow = page.getByRole('main').getByRole('link', { name: /^Quản trị/ })
   await expect(adminRow).toBeVisible()
   await adminRow.click()
-  await expectPath(page, '/admin/users')
-  // Wait for the queue itself, so the test never closes the page mid-render.
-  await expect(page.getByRole('heading', { level: 1, name: 'Người dùng' })).toBeVisible()
+  // Task 5.6 made /admin the overview page (the /admin → /admin/users redirect is gone).
+  await expectPath(page, '/admin')
+  // Wait for the overview itself, so the test never closes the page mid-render.
+  await expect(page.getByRole('heading', { level: 1, name: 'Quản trị' })).toBeVisible()
 })

@@ -16,10 +16,14 @@ import type { LocalDay } from '../time/localDay'
 export const BLOCK_KINDS = ['review', 'new', 'recap', 'practice', 'extra'] as const
 export type BlockKind = (typeof BLOCK_KINDS)[number]
 
+/** The most minutes a stored block or block item may hold; `toEnrollment` rejects a template
+ *  block above it, so the engine never builds a plan it cannot store (M4 final review M-4). */
+export const MAX_BLOCK_MINUTES = 600
+
 export const planBlockItemSchema = z.strictObject({
   itemId: z.string().min(1).max(128),
   mode: z.enum(ITEM_MODES),
-  minutes: z.number().min(0).max(600),
+  minutes: z.number().min(0).max(MAX_BLOCK_MINUTES),
   /** The first new item that exceeds the remaining budget ("dài hơn thời gian dự kiến", §5.4). */
   overBudget: z.literal(true).optional(),
 })
@@ -31,7 +35,7 @@ export const planBlockSchema = z.strictObject({
   trackId: z.string().min(1).max(32),
   kind: z.enum(BLOCK_KINDS),
   /** The sum of the items' minutes; a practice block's fixed length. */
-  estMinutes: z.number().min(0).max(600),
+  estMinutes: z.number().min(0).max(MAX_BLOCK_MINUTES),
   items: z.array(planBlockItemSchema).max(500),
   /** Practice blocks: the template's tag or item type. */
   tag: z.string().min(1).max(32).optional(),

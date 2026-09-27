@@ -208,12 +208,31 @@ from `lib/i18n/vi.ts`.
 - **Layer:** ui
 - **File:** `components/ui/toaster.tsx`
 - **Props:** none; `toast(message)` re-exported from sonner
-- **Variants:** bottom-centre (< 768 px) · bottom-right (≥ 768 px); lifted above the bottom
-  navigation below 1024 px
+- **Variants:** bottom-centre (below `md`) · bottom-right (from `md`); lifted above the bottom
+  navigation below `lg` — both from `useMediaQuery(MEDIA.md / MEDIA.lg)`
+  (`components/ui/use-media-query.ts`, Tailwind's own 48rem / 64rem, the one place a breakpoint
+  is written outside the CSS; false on the server)
 - **States:** hidden, showing (4 s)
 - **Usage:** mount `<Toaster />` once; `toast('Đã lưu')`
 - **Accessibility:** polite live region labelled "Thông báo"; never the only feedback for a failed
   save
+
+### useMediaQuery (hook)
+
+- **Layer:** ui (a hook, not a component: no catalog entry of its own — the Toaster and
+  CheckInSheet demos use it)
+- **Module:** `components/ui/use-media-query.ts` — `useMediaQuery(query): boolean` and `MEDIA`
+- **Props:** `query` — `MEDIA.md` (`(min-width: 48rem)`) or `MEDIA.lg` (`(min-width: 64rem)`)
+- **Variants:** —
+- **States:** false on the server and in the hydrating render (the server snapshot), then the
+  viewport's answer, kept in sync (`useSyncExternalStore` over `matchMedia`)
+- **Usage:** `const desktop = useMediaQuery(MEDIA.md)` (CheckInSheet: Sheet below `md`, Dialog
+  from it; Toaster: position and the bottom-navigation offset)
+- **Documented exception (visual values):** `MEDIA` holds the one pair of `rem` literals outside
+  `app/globals.css`. Script must switch exactly where the `md:` / `lg:` utilities do, and those
+  breakpoints are Tailwind's defaults (48rem, 64rem) with no CSS variable a script can read
+  reliably, so they are written once here — never as `px`, never a second copy (UI m-2,
+  re-review M6). The token guard scans colours, not strings, so this entry is the record.
 
 ### ToggleGroup
 
@@ -238,6 +257,38 @@ from `lib/i18n/vi.ts`.
 
 ## patterns
 
+### ActionFeedback
+
+- **Layer:** pattern (**client**)
+- **File:** `components/patterns/action-feedback.tsx` (`useActionFeedback` + `ActionStatus`;
+  `components/patterns/focus-fallback.ts` holds the focus helpers)
+- **Props:** `useActionFeedback({ focusTarget?: () => HTMLElement | null })` → `{ pending, answer,
+  run(send, onAnswer?), reset() }`; `<ActionStatus feedback={…} spacing?="below" | "none" />`
+- **Variants:** ActionStatus `spacing` (cva): `below` (default: `mt-2` only while it says
+  something, under a control in a gapless column) · `none` (inside a container that spaces its
+  children)
+- **States:** idle · pending (the action and the re-render it causes; a second `run` sends
+  nothing) · success · refused (the server's reason; the control can be pressed again) · thrown (a
+  rejected request — offline, a 5xx — answers "Không lưu được thay đổi. Bạn thử lại nhé." and never
+  reaches the route's error boundary) · navigating (Next's own `redirect()` / `notFound()` from the
+  action — a guard after the session expired: no answer, no toast, no focus move; the router is
+  already leaving — `isNavigationError`, `components/patterns/navigation-error.ts`, shared with
+  `useOutcome` and AccountMenu, M1)
+- **Usage:** `const feedback = useActionFeedback({ focusTarget: () => checkInControlOf(id) })`;
+  `feedback.run(() => action(input))`; `<Button loading={feedback.pending}>…</Button>
+  <ActionStatus feedback={feedback} />`. `run(send, (answer) => (answer.ok ? 'toast' : undefined))`
+  delivers an answer as a toast now (a control that closes itself, CheckInSheet). Used by
+  ResumeButton, CheckInButton, CheckInSheet, ExtraButton and ResetTrackButton (UI I-3)
+- **Accessibility:** the answer goes to **one** place: the control's own polite `role="status"`
+  region (`ActionStatus`, keyed per answer so a repeat is re-announced) once the page's re-render
+  is over — or, when that re-render removed the control (a check-in collapsing its button, a stale
+  plan swapped, the paused view ending), a toast; an answer already shown is never toasted too.
+  When the answer's own re-render removes the control with focus on `<body>`, focus moves to
+  `focusTarget()` (the block's new "Sửa"), else to the page's focus fallback — the heading a
+  `Section` marks with `focusFallback`, else PageHeader's `h1` (DESIGN_SYSTEM §10; M2); focus that
+  is still somewhere stays,
+  and a later unmount (a route change) never moves it (M7)
+
 ### AppShell
 
 - **Layer:** pattern
@@ -250,10 +301,13 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
 - **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
-  menu with "Quản trị" for admins only; "Đăng xuất" is invoked as `() => void onSignOut()` from
-  `DropdownMenuItem onSelect` (Radix passes a non-serializable Event, and `onSignOut` takes none);
-  bottom nav 56 px; `main` and the root scroll padding keep content and focus clear of the top bar
-  and bottom nav
+  menu with "Quản trị" for admins only; "Đăng xuất" is awaited from `DropdownMenuItem onSelect`
+  (Radix passes a non-serializable Event, and `onSignOut` takes none) — a genuine rejection shows a
+  toast instead of failing silently (M2 minor); a successful sign-out also rejects the promise
+  (Next settles a redirecting action called directly, outside `useActionState`, with a
+  `NEXT_REDIRECT`-digest error even though the navigation already happened), and that shape is
+  recognised (`isNavigationError`, shared with ActionFeedback) and never toasted; bottom nav 56 px; `main` and the root scroll padding keep content
+  and focus clear of the top bar and bottom nav
 - **Layout:** `main` stacks the page's children with the section spacing (`gap-6 md:gap-8
   lg:gap-10`, DESIGN_SYSTEM §5) — pages carry no classes, so a page is just its patterns in order
 - **Toasts:** mounts the one `Toaster` of the signed-in pages (task 2.8) — layouts and pages may
@@ -278,11 +332,14 @@ from `lib/i18n/vi.ts`.
   `label: string`
 - **Variants:** year view (≥ 1024 px with a fine pointer, 12 px cells) · month view (below
   1024 px or on touch screens, 44 px cells)
-- **States:** levels 0–4, active-day dots, today ring, focused/selected day, table open
+- **States:** levels 0–4, active-day dots, today ring, focused/selected day (month view: a
+  `ring-primary` distinct from today's `ring-ring`, M1 #8 — a visible state besides colour), table
+  open, empty (no activity at all, M1 #22 — the heatmap still renders, at level 0 throughout)
 - **Usage:** `<CalendarHeatmap days={activity} today={localDay} label="Lịch học" />`
 - **Accessibility:** roving focus with arrows/Home/End; each day labelled with date + minutes;
   a visible detail line (not a live region — the focused day already announces itself); legend;
-  table view ("Xem dạng bảng"); the year view starts scrolled to today
+  table view ("Xem dạng bảng"); the year view starts scrolled to today; its month labels never sit
+  closer than three columns apart, for any start weekday (M1 #9 — `pickMonthLabels`, `dates.ts`)
 
 ### ChoiceCard
 
@@ -337,6 +394,27 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<DataList items={problems} getKey={(p) => p.id} renderItem={…} empty={<EmptyState …/>} />`
 - **Accessibility:** `role="list"` kept; rows ≥ 44 px
 
+### DataTable
+
+- **Layer:** pattern
+- **File:** `components/patterns/data-table.tsx` (`DataTable`, `DataTableHead`,
+  `DataTableHeader`, `DataTableRow`, `DataTableRowHeader`, `DataTableCell`)
+- **Props:** `DataTable`: `label: string`, `children` (a `DataTableHead` and a `tbody`);
+  `DataTableHeader`: `lang?`; `DataTableRow`: `tone?: 'default' | 'danger'` and any `tr` attribute
+  but `className` (`data-state`); `DataTableRowHeader`: `numeric?`, `lang?`; `DataTableCell`:
+  `numeric?`
+- **Variants:** row `tone` (cva): default · danger (`danger-soft` — never colour alone: a cell
+  says why) · cells (cva): header, row header, cell; `numeric` (mono, tabular figures, no wrap)
+- **States:** static; the caller shows its own empty line instead of a table of zeros
+- **Usage:** `<DataTable label="Số mục của DSA theo loại"><DataTableHead><DataTableHeader>Loại
+  </DataTableHeader>…</DataTableHead><tbody><DataTableRow><DataTableRowHeader lang="en">Problem
+  </DataTableRowHeader><DataTableCell numeric>12</DataTableCell></DataTableRow></tbody>
+  </DataTable>` (CatalogStats, ContentCoverage — parked #1: their classes were a module of
+  `features/admin`)
+- **Accessibility:** one focusable (`tabIndex={0}`), labelled `role="region"` per table, so
+  keyboard users can scroll a wide table; `th scope="col"` / `scope="row"`; English item-type
+  names in `lang="en"`
+
 ### DataState
 
 - **Layer:** pattern
@@ -353,7 +431,7 @@ from `lib/i18n/vi.ts`.
 - **Layer:** pattern
 - **File:** `components/patterns/empty-state.tsx`
 - **Props:** `icon`, `title`, `description?`, `action?: { label, href } | { label, onClick }`,
-  `titleAs?: 'h1' | 'h2' | 'h3'`, `layout?: 'inline' | 'page'`
+  `titleAs?: 'h1' | 'h2' | 'h3' | 'h4'`, `layout?: 'inline' | 'page'`
 - **Variants:** inline · page (a centred `main`, e.g. the 404)
 - **States:** with / without action
 - **Usage:** `<EmptyState icon={Inbox} title="Chưa có thẻ nào" action={{ label: '…', href: '/today' }} />`
@@ -374,27 +452,39 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/filter-chip.tsx`
-- **Props:** `status: PillStatus`, `pressed: boolean`, `onPressedChange(pressed)`; wrap chips in
-  `FilterChipGroup` (`label: string`)
-- **Variants:** the StatusPill statuses at 32 px
-- **States:** off, on (`aria-pressed`, 2 px `primary` ring), focus-visible
-- **Usage:** `<FilterChipGroup label="Lọc theo trạng thái"><FilterChip status="weak" pressed={on} onPressedChange={setOn} /></FilterChipGroup>`
-- **Accessibility:** toggle button named by its status label; 32 px visual with a transparent hit
-  area of at least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never
-  overlap
+- **Props:** `FilterChip`: `status: PillStatus`, `pressed: boolean`, `onPressedChange(pressed)`.
+  `FilterChipLink` (task 5.3 review, finding I4 — a filter that is a real navigation, e.g.
+  `/review?track=`, not a client toggle): `href: string`, `label: string`, `count: number`,
+  `current: boolean` (→ `aria-current="page"`). Wrap either in `FilterChipGroup` (`label: string`,
+  `as?: 'div' | 'nav'` — `'nav'` for a group of `FilterChipLink`s, the default `'div'` for a group
+  of `FilterChip` toggles)
+- **Variants:** `FilterChip`: the StatusPill statuses at 32 px. `FilterChipLink`: neutral
+  (`bg-surface-muted`) · current (`bg-primary-soft` + ring) — both share `FilterChip`'s pill shape
+  and 44 px hit area (`pillVariants`, one hit-area class shared by both), so a design-system
+  change to either never drifts between them
+- **States:** `FilterChip`: off, on (`aria-pressed`, 2 px `primary` ring), focus-visible.
+  `FilterChipLink`: not current, current (`aria-current="page"`, the same ring), focus-visible
+- **Usage:** `<FilterChipGroup label="Lọc theo trạng thái"><FilterChip status="weak" pressed={on} onPressedChange={setOn} /></FilterChipGroup>`;
+  `<FilterChipGroup as="nav" label="Lọc theo lộ trình"><FilterChipLink href="/review" label="Tất cả" count={8} current /></FilterChipGroup>`
+- **Accessibility:** `FilterChip` is a toggle button named by its status label. `FilterChipLink` is
+  a real link named by its label and count, in a labelled `nav` (`FilterChipGroup as="nav"`), the
+  one in force marked `aria-current="page"`. Both: 32 px visual with a transparent hit area of at
+  least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never overlap
 
 ### FocusLayout
 
 - **Layer:** pattern
 - **File:** `components/patterns/focus-layout.tsx`
 - **Props:** `children`, `width?: 'narrow' | 'wide'` (`max-w-md` / `max-w-2xl`, default `narrow`),
-  `headerActions?: ReactNode`
+  `headerActions?: ReactNode`, `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
+  the AppShell does for signed-in pages — task 5.6; `false` where the page has its own, the
+  catalog, so no toast shows twice)
 - **Variants:** narrow · wide
 - **States:** static
 - **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
   `/onboarding`)
 - **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
-  landmark
+  landmark; toasts are announced in the Toaster's polite live region
 - **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
   DESIGN_SYSTEM §5)
 
@@ -417,13 +507,22 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern (client)
 - **File:** `components/patterns/form-error-summary.tsx`
-- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`
+- **Props:** `title: string`, `errors: { fieldId: string; message: string }[]`,
+  `submitCount?: number` (default `0`), `onNavigate?: (fieldId: string) => boolean | void`
 - **Variants:** —
 - **States:** empty (renders nothing), has errors
 - **Usage:** `<FormErrorSummary title={vi.forms.errorSummaryTitle} errors={errors} />` (top of long
-  forms, e.g. onboarding)
-- **Accessibility:** `role="alert"`, focused when the error set changes; each message links to
-  `#fieldId`
+  forms, e.g. onboarding) — `submitCount` (incremented once per submission, not per render) makes a
+  repeated identical server error re-focus and re-announce the summary (M2 minor); `onNavigate` lets
+  a multi-step form switch to a field's step before focusing it (the onboarding wizard uses this);
+  without it, a link focuses its field directly instead of a native anchor jump, which some
+  browsers (and jsdom) do not reliably focus — its own catalog demo exercises both, with a "Gửi
+  lại" button that bumps `submitCount`
+- **Accessibility:** `role="alert"`, focused when the error set or `submitCount` changes; each
+  message links to `#fieldId` and moves focus there itself (`onNavigate`, or the field directly)
+  rather than a bare native anchor jump — but never a dead link either (M2 minor): the native jump
+  runs after all when `onNavigate` returns `false` (it found no field for the id) or, without one,
+  the id names no element on the page
 
 ### FormField
 
@@ -440,6 +539,21 @@ from `lib/i18n/vi.ts`.
 - **Accessibility:** label above the field; `aria-describedby` joins the description and error
   ids; required fields marked with "*" plus an sr-only "(Bắt buộc)"; `FormFieldError` is the
   same error line (`text-danger` + icon, never colour alone)
+
+### LinkList
+
+- **Layer:** pattern
+- **File:** `components/patterns/link-list.tsx`
+- **Props:** `variant?: 'spaced' | 'divided'`, `children` (`<li>`s, each usually one LinkRow or a
+  registry Row), and any `ul` attribute but `className` / `role` (`aria-label`,
+  `aria-labelledby`, `data-slot`)
+- **Variants:** `spaced` (default; `gap-1 p-2` — weak topics, admin links, drafts, related items) ·
+  `divided` (`divide-y p-1` — a roadmap week's item rows, Weak items)
+- **States:** static; the caller shows its own empty state instead of an empty list
+- **Usage:** `<LinkList aria-label="Bài liên quan">{items.map((item) => <li key={item.id}><LinkRow
+  … /></li>)}</LinkList>`
+- **Accessibility:** a `ul role="list"` (Safari keeps list semantics without bullets); name it
+  when the page has several; the rows are the links (44 px, global focus ring)
 
 ### LinkRow
 
@@ -475,7 +589,10 @@ from `lib/i18n/vi.ts`.
 - **Variants:** actions right (≥ 768 px) or stacked (mobile)
 - **States:** static
 - **Usage:** `<PageHeader title="Hôm nay học gì?" actions={…} />`
-- **Accessibility:** the page's single `h1`
+- **Accessibility:** the page's single `h1` — also the page-wide focus fallback
+  (`data-focus-fallback="page"`, `tabIndex={-1}`: focusable by script only): where
+  `useActionFeedback` moves focus when an answer's re-render removes its control and no Section is
+  marked (the track page, `/today` without a plan; re-review M2)
 
 ### ProgressRing
 
@@ -492,21 +609,49 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/section.tsx`
-- **Props:** `title`, `description?`, `actions?`, `children`
-- **Variants:** —
+- **Props:** `title`, `description?`, `actions?`, `focusFallback?: boolean`, `children`
+- **Variants:** `focusFallback` — the heading is the page's focus fallback (`tabIndex={-1}`,
+  `data-focus-fallback="section"`): where `useActionFeedback` moves focus when its control
+  disappears with it, before PageHeader's `h1`. One per page (`/today`: the plan section)
 - **States:** static
 - **Usage:** `<Section title="Ôn tập đến hạn">…</Section>`
-- **Accessibility:** a region named by its `h2`
+- **Accessibility:** a region named by its `h2`; a `focusFallback` heading is focusable by script
+  only (never in the tab order)
 
 ### StatCard
 
 - **Layer:** pattern
 - **File:** `components/patterns/stat-card.tsx`
-- **Props:** `label`, `value: number | string`, `hint?`, `icon?`
-- **Variants:** —
-- **States:** static
-- **Usage:** `<StatCard label="Phút tuần này" value={245} icon={Clock} />`
-- **Accessibility:** numbers in vi-VN format, mono with tabular figures
+- **Props:** `label`, `value: number | string`, `hint?`, `icon?`, `href?` (the whole card is one
+  link)
+- **Variants:** a number value (vi-VN digits, `tracking-tight`) · a text value such as "12,4 tuần"
+  (normal tracking: `tracking-tight` is for numerals only, DESIGN_SYSTEM §4.3, M1 #15) · linked
+  (`href`: Card `interactive` — the hover shadow — inside one link; `/today`'s "Cần ôn hôm nay",
+  m-2)
+- **States:** static · linked: hover, focus-visible
+- **Usage:** `<StatCard label="Phút" value={245} icon={Clock} />`; `<StatCard label="Cần ôn hôm
+  nay" value={12} href="/review" />`
+- **Accessibility:** numbers in vi-VN format, mono with tabular figures; never tightened
+  Vietnamese text, so diacritics do not collide; a linked card is named by its label, value and
+  hint and keeps the global focus ring
+
+### TrackProgressCard
+
+- **Layer:** pattern
+- **File:** `components/patterns/track-progress-card.tsx` (with `weekOfWeeks`, `progressPercent`)
+- **Props:** `title: string` (names the ring), `progress: TrackProgressFacts` (`{ week, weeks,
+  introduced, total }` — `trackProgressOf`, `lib/domain/plan/trackProgress.ts`), `accent?`
+  (`data-accent`), `size?: 'md' | 'lg'`, `headline?`, `facts?: (string | null)[]` (joined with
+  " · "), `actions?`
+- **Variants:** `md` (`/today`'s TodayStats: the track's title, "Tuần {w}/{N} · {n} mục cần ôn")
+  · `lg` (the track page's TrackProgress: the week as headline, "{introduced}/{total} bài chính
+  đã học", "Bắt đầu lại") — cva for the card and headline
+- **States:** a new learner (0 %, never NaN) · in progress · no roadmap (`weekOfWeeks` null: no
+  week line)
+- **Usage:** `<TrackProgressCard title={t} accent={a} progress={p} headline={t}
+  facts={[weekOfWeeks(p), due]} />`
+- **Accessibility:** a ProgressRing `tone="track"` named "Tiến độ {title}" (`vi.trackProgress`,
+  the one string pair, m-1) with the percentage printed — never colour alone
 
 ### StatusPill
 
@@ -590,7 +735,8 @@ from `lib/i18n/vi.ts`.
 - **Props:** `trackId: string`, `name: string`, `roadmaps: TrackOption['roadmaps']`,
   `budgetMinutes: number`, `value: string`, `onValueChange: (id) => void`, `aria-labelledby?` /
   `aria-label?` (the group's name — one is needed), `aria-describedby?` (an error line under the
-  group, settings)
+  group, settings), `aria-invalid?: boolean` (a field error — the group carries it, not each radio,
+  ruling R9; settings, M2 minor)
 - **Variants:** with the simulated finish (a track with a projection table, DSA) · without (English)
 - **States:** each roadmap unselected / selected (ChoiceCard)
 - **Usage:** `<VariantPicker trackId="dsa" name="variant-dsa" roadmaps={track.roadmaps}
@@ -619,9 +765,10 @@ from `lib/i18n/vi.ts`.
 - **Layer:** feature (`features/admin`)
 - **File:** `features/admin/components/user-queue.tsx`
 - **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
-  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended') => Promise<AdminActionResult>`,
-  `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the server actions come in as
-  props (passed on to `UserRowActions`), so the catalog passes no-ops
+  `setUserStatus: (userId, 'active' | 'rejected' | 'suspended', expectedFrom: AccountStatus) =>
+  Promise<AdminActionResult>` (`expectedFrom`: the status the row was rendered with —
+  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the
+  server actions come in as props (passed on to `UserRowActions`), so the catalog passes no-ops
 - **Variants:** none
 - **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
   khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
@@ -649,7 +796,9 @@ from `lib/i18n/vi.ts`.
   confirming — "Từ chối", "Tạm khoá" and the role changes open a ConfirmDialog first
   (destructive, except "Đặt làm quản trị"), pending while the action runs; failed — the message
   also stays in the row (`text-danger` + icon), because a toast is never the only feedback for a
-  failure (DESIGN_SYSTEM §9)
+  failure (DESIGN_SYSTEM §9); stale — another admin decided first: the status actions send the
+  row's rendered status (`p_expected_from`), the RPC answers `status_changed` and the row shows
+  "Tài khoản đã đổi trạng thái. Bạn tải lại trang nhé." while the list re-renders (task 5.6)
 - **Usage:** rendered by UserQueue for every row but the admin's own
 - **Accessibility:** the buttons sit in a `group` named "Thao tác với {name}", so each "Duyệt" is
   announced with its account; the result is a toast in the polite live region (the AppShell's
@@ -658,8 +807,11 @@ from `lib/i18n/vi.ts`.
   status or role — moved to another section (a new instance mounts there) or changed in place —
   keyboard focus goes to that row's target (scrolled into view only as far as needed); a
   cancelled dialog or a failure that changes nothing returns focus to the pressed button (the
-  role button is keyed by its slot, so promote ↔ demote keeps the same element); names are
-  inserted literally (a replacer function, so `$&` in a display name stays text)
+  role button is keyed by its slot, so promote ↔ demote keeps the same element). The note of
+  which row to follow is kept **per row** (task 5.6): two interleaved actions on two rows each
+  follow their own row, and a failure that changes nothing clears its note (a stale failure keeps
+  it, so focus follows the re-rendered row); names are inserted literally (a replacer function,
+  so `$&` in a display name stays text)
 
 ### Landing
 
@@ -706,20 +858,25 @@ from `lib/i18n/vi.ts`.
   signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
 - **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
   GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
-  form named by its h2 "Đăng nhập thử nghiệm", with labelled, required e-mail and password fields
-  (`autocomplete` username / current-password) and its error in an always-mounted `role="alert"`
-  region, so it is announced when it appears
+  region named by its h2 "Đăng nhập thử nghiệm" containing a form of its own, named "Biểu mẫu đăng
+  nhập thử nghiệm" — a distinct name from the region's, not the same one twice (M2 minor,
+  landmark-unique) — with labelled, required e-mail and password fields (`autocomplete` username /
+  current-password) and its error in an always-mounted `role="alert"` region, so it is announced
+  when it appears
 
 ### StatusWatcher
 
 - **Layer:** feature (`features/auth`, client)
 - **File:** `features/auth/components/status-watcher.tsx`
-- **Props:** none
+- **Props:** `paused?: boolean` (default `false`) — stops the interval and every listener; the
+  catalog demo sets it, so `/dev/components` runs no live 30 s interval in the background
 - **Variants:** none
 - **States:** renders nothing — it exists only for its effect
 - **Usage:** `<StatusWatcher />` inside `/pending` (`app/(account)/pending/page.tsx`); refreshes
-  the server page (`router.refresh()`) every 30 s, on `focus` and when the tab becomes visible
-  again, so the redirect to the user's home path fires as soon as an admin approves the account
+  the server page (`router.refresh()`) every 30 s while the tab is visible, on `focus` and when the
+  tab becomes visible again, so the redirect to the user's home path fires as soon as an admin
+  approves the account — the interval itself checks `document.visibilityState`, so a hidden tab
+  never refreshes on the tick (M2 minor)
 - **Accessibility:** no visible output, nothing to announce
 
 ### AdminLink
@@ -777,7 +934,11 @@ from `lib/i18n/vi.ts`.
   status buttons sit in a group "Thao tác với {title}". "Tạm dừng" and "Tiếp tục" are one button
   (keyed by its slot), so it keeps focus when the status flips; after a removal the list itself
   (`tabIndex={-1}`) takes focus, since the removed track's buttons are gone (WCAG 2.4.3); results
-  are toasts, failures also stay in the track
+  are toasts, failures also stay in the track. A status-change failure is kept by the list itself,
+  keyed by track id — not by the row (M2 minor): a stale re-render can drop the track from the
+  list before the learner has read why, so the failure (with the track's last known title) still
+  shows as its own line — a dismissible danger Banner (an icon-only close button, its own
+  accessible name per track) — even once the row is gone
 
 ### TrackBudgetFields
 
@@ -814,7 +975,13 @@ from `lib/i18n/vi.ts`.
   requestId={data.requestId} enrollTrack={enrollTrack} />`
 - **Accessibility:** a `form` named "Thêm lộ trình"; the tracks are ChoiceCard radios in a group
   "Lộ trình"; the start date is a labelled date field (today to 60 days ahead, decision 22); when
-  the last candidate is added and the form goes away, its container takes focus
+  the last candidate is added and the form goes away, its container takes focus. Its server field
+  errors show only while they belong to the currently picked candidate (M2 minor): switching the
+  radio before the result arrives (or after a failure) hides a previous candidate's errors at once,
+  so they never show against the next one's fields — the typed minutes and picked variant stay,
+  kept per track id. The submit button itself stays busy for *any* running submission, not only the
+  current candidate's own (a second race M2 minor): switching candidates mid-submit must not free
+  up a second, real submit for the newly picked one
 
 ### CodeLanguageForm
 
@@ -851,10 +1018,14 @@ from `lib/i18n/vi.ts`.
 `/tracks`, the track page `/t/[trackId]` and the item route (task 3.4b). They take plain props —
 `TrackSummary`, `Enrollment` and `VariantLink` from `features/roadmap/queries.ts` (types only) —
 and ReactNode slots, and **never import the item registry** (fix 5): the track page builds each
-row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: null, mode: mode ??
-undefined }))` and the item page its body with `await renderItemPage(…)`, so every component here
-renders in the client catalog with plain nodes. Server-compatible (no `'use client'`). Copy:
-`vi.roadmap`.
+row with `roadmapSlots(view, (item, { mode }) => renderItemRow(item, { state: data.states[item.id]
+?? null, mode: mode ?? undefined, showStatus: enrolled }))` — the learner's state on every row,
+the status pill for an enrolled learner (task 5.4) — so every component here renders in the
+client catalog with plain nodes. TrackProgress, WeakItems and ResetTrackButton (task 5.4) are
+listed under "Extra study components".
+Server-compatible (no `'use client'`). Copy: `vi.roadmap`. `ItemBody` (task 5.1c, ruling M5-R6) is
+not one of these components — a render helper beside `queries.ts` (`features/roadmap/item-body.tsx`,
+not under `components/`), described under ItemView below, the one place it renders.
 
 ### TrackList
 
@@ -893,18 +1064,22 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/track-overview.tsx`
 - **Props:** `track: TrackSummary`, `enrollment: Enrollment | null`, `variants: VariantLink[]`,
-  `template: TemplateDay[]`, `throttle: string[]` (from `getTrackPage()`), `children` (RoadmapView
-  or its empty state)
+  `template: TemplateDay[]`, `throttle: string[]` (from `getTrackPage()`), `learner?: ReactNode`
+  (task 5.4: an enrolled learner's TrackProgress — with ResetTrackButton — and WeakItems),
+  `children` (RoadmapView or its empty state)
 - **Variants:** header action — the status Badge when enrolled, "Thêm trong Cài đặt" for an active
   track the learner does not follow, nothing otherwise · notice — draft (info Banner "Bản nháp:
-  chỉ quản trị viên thấy lộ trình này.") or retired (warning Banner)
+  chỉ quản trị viên thấy lộ trình này.") or retired (warning Banner) · with / without the
+  learner's part (after the notices, before the variants; catalog entry "TrackOverviewLearner" in
+  `entries/extra.tsx`)
 - **States:** static
-- **Usage:** `<TrackOverview track={…} enrollment={…} variants={…} template={…}
-  throttle={…}>{slots ? <RoadmapView slots={slots} /> : <EmptyState … />}</TrackOverview>`
-  (`app/(app)/t/[trackId]/page.tsx`)
-- **Accessibility:** a `contents` wrapper with `data-accent` (keeps the page's section spacing);
-  PageHeader `h1` = the Vietnamese title, its description the English title in `lang="en"`; then
-  VariantLinks and a Section "Mẫu tuần" holding WeeklyTemplatePreview
+- **Usage:** `<TrackOverview track={…} enrollment={…} variants={…} template={…} throttle={…}
+  learner={data.progress && <><TrackProgress … /><WeakItems … /></>}>{slots ? <RoadmapView
+  slots={slots} /> : <EmptyState … />}</TrackOverview>` (`app/(app)/t/[trackId]/page.tsx`)
+- **Accessibility:** a `contents` wrapper with `data-accent` (keeps the page's section spacing;
+  the progress ring's `ring-track` reads it); PageHeader `h1` = the Vietnamese title, its
+  description the English title in `lang="en"`; then the learner's Sections, VariantLinks and a
+  Section "Mẫu tuần" holding WeeklyTemplatePreview
 
 ### VariantLinks
 
@@ -922,7 +1097,9 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 ### WeekSection
 
 - **Layer:** feature (`features/roadmap`, server-compatible; also exports the `RoadmapGroup`,
-  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses)
+  `RowGroup`, `DeckList` and `DeckCard` parts RoadmapView reuses, and `RowList` (a divided
+  LinkList), which WeakItems
+  reuses)
 - **File:** `features/roadmap/components/week-section.tsx`
 - **Props:** `week: WeekSlots` (`roadmapSlots`: `{ week, topics, lessons, core, recap: { row, mode
   }[], bonus, decks: { deck, core, extended }[], exercises, prompts }`, rows as ReactNodes)
@@ -944,7 +1121,8 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 - **Props:** `slots: RoadmapSlots` (`{ variant, weeks: WeekSlots[], anytime: { prompts:
   ReactNode[], derivedDecks: { deck, unlocked }[] } }`)
 - **Variants:** with / without the final Section "Không theo tuần" (repeatable prompts under
-  "Nhiệm vụ"; derived decks under "Bộ thẻ" with "{n} thẻ" and "Mỗi thẻ mở sau khi bạn làm bài
+  "Nhiệm vụ"; derived decks under "Bộ thẻ" with "{n} thẻ" — the cards this learner has unlocked,
+  a result on the source item (task 5.4, the M3 residual) — and "Mỗi thẻ mở sau khi bạn làm bài
   gốc.") — left out when empty
 - **States:** static
 - **Usage:** `<RoadmapView slots={roadmapSlots(view, renderRow)} />` (`/t/[trackId]`)
@@ -955,17 +1133,31 @@ renders in the client catalog with plain nodes. Server-compatible (no `'use clie
 
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/item-view.tsx`
-- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`await
-  renderItemPage(…)`). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the draft /
-  retired notice, so ItemView never renders a second one
-- **Variants:** —
-- **States:** static
-- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={page} />`
-  (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`)
+- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`<ItemBody item viewer
+  resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
+  draft / retired notice, so ItemView never renders a second one
+- **Variants:** the back link: the track · the track list · `/today` (m-9)
+- **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
+  route validates its params and calls `notFound()` before `page` is built, so only this part ever
+  suspends — never the 404 check itself) · ready — `page`
+- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={<ItemBody
+  item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} state={model.state}
+  outcome={…} mockInterviewProblem={model.mockInterviewProblem} />} />`
+  (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`; task 5.2c: `outcome` is `{ ...model.outcome,
+  record: recordOutcome }` — the server action unbound — or `undefined` on a read-only page)
 - **Accessibility:** the back link "Về lộ trình {title}" (44 px, chevron decorative) comes first
   — "Về danh sách lộ trình" when `backHref` is `TRACKS_HREF` (`/tracks`: the loader's choice for
-  a retired track the learner does not follow, whose page is a 404); the page brings its own
+  a retired track the learner does not follow, whose page is a 404), "Về Hôm nay" when it is
+  `TODAY_HREF` (an item opened from a block of the plan `/today` shows, `?block=`, m-9); the page
+  brings its own
   `h1`; a `contents` wrapper keeps the page's spacing
+- **`ItemBody`** (`features/roadmap/item-body.tsx`, task 5.1c, ruling M5-R6): the `page` prop
+  above, not a catalog component — a render helper beside `queries.ts` (like `renderItemPage`
+  beside `features/items`'s own loaders), so it is out of scope for `/dev/components` and has no
+  entry of its own. An async server component: `await renderItemPage(item, { state, viewer,
+  resolveItem, outcome, mockInterviewProblem })` and renders the result (task 5.2c: the learner's
+  state, the route's outcome binding and the mock-interview pick reach the Page through it). It
+  renders only as `ItemView`'s `page`, inside its `<Suspense>` boundary.
 
 ### MDX content components (`features/items/components/mdx`)
 
@@ -1082,10 +1274,12 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 
 - **Layer:** feature (`features/items`, client; `Quiz`, `Question`, `Choice`)
 - **File:** `features/items/components/mdx/quiz.tsx`
-- **Props:** `Quiz`: `onScore?: ({ correct, total, percent }) => void` (percent rounded; 5.2 sends
-  it as `lesson.completed { quizScore }`) · `Question`: `prompt: string`, `answer: string` (a
-  Choice id) · `Choice`: `id: string`, `children`
-- **Variants:** —
+- **Props:** `Quiz`: `onScore?: ({ correct, total, percent }) => void` (percent rounded) — each
+  check also reports the percent to the page's `OutcomeSignalsContext` when a LessonComplete wraps
+  the lesson (task 5.2c sends it as `lesson.completed { quizScore }`) · `Question`: `prompt:
+  string`, `answer: string` (a Choice id) · `Choice`: `id: string`, `children`
+- **Variants:** "Kiểm tra" is `primary` alone, `secondary` inside a lesson with result controls
+  (task 5.2c: "Hoàn thành bài học" is then the view's one primary)
 - **States:** answering; checked ("Kiểm tra": choices locked, a verdict under each question —
   icon + "Chính xác" or "Chưa đúng — đáp án: …" — an unanswered question counts as wrong, the
   score "Đúng {correct}/{total}"); "Làm lại" clears; an empty quiz scores 0/0 (percent 0)
@@ -1114,8 +1308,9 @@ callout labels, language names) is read with `Object.hasOwn`. Samples: `/dev/con
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/mdx/solution-tabs.tsx`
 - **Props:** `solutions: Partial<Record<'python' | 'java' | 'go', HighlightedCode>>`,
-  `defaultLanguage: CodeLanguage`, `onReveal?: () => void` (fires on the first reveal only; 5.2
-  preselects "Cần gợi ý")
+  `defaultLanguage: CodeLanguage`, `onReveal?: () => void` (fires on the first reveal only). The
+  first reveal also tells the page's `OutcomeSignalsContext` (`features/items/outcome-signals.ts`)
+  when a ProblemOutcome wraps the note: task 5.2c preselects "Cần gợi ý" (decision 18)
 - **Variants:** Python / Java / Go tabs — only the languages present, in that order
 - **States:** hidden ("Xem lời giải"; no code in the DOM); open on the viewer's language, else the
   first ("Ẩn lời giải" hides it again); no solutions → nothing
@@ -1217,8 +1412,12 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **File:** `features/items/components/item-page-frame.tsx`
 - **Props:** `status: ItemStatus`, `title?: ReactNode` (the page `h1`; omitted when the body renders
   it — a flashcard's front), `description?`, `actions?`, `meta?: ReactNode[]` (facts; empty ones
-  dropped), `children`
-- **Variants:** with / without title, facts
+  dropped), `outcome?: OutcomeBinding` (task 5.2c), `children`
+- **Variants:** with / without title, facts · with an `outcome` binding: the facts end with the
+  learner's StatusPill ("Chưa học" before any result) and, when the item is in the current plan, a
+  primary Badge with its label ("Trong kế hoạch hôm nay" / "Trong kế hoạch đang dở"); ItemActions
+  follows the body. Without one (a draft an admin previews, a retired item): read-only, none of
+  them
 - **States:** draft / retired notice at the top; active: none. **It owns the notice (M3-R4):** the
   Page passes `item.status`, so the item route (3.4b's `ItemView`) renders no banner of its own —
   it wraps the Page and adds only its back link
@@ -1234,7 +1433,7 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **States:** empty → nothing
 - **Usage:** a lesson's anchor / about / practice problems, a problem's deep-dive lesson —
   `resolveItem(id)` results (an unknown ID is skipped by the page)
-- **Accessibility:** a list named "Bài liên quan"; each a LinkRow — the role label, `#leetcode`
+- **Accessibility:** a LinkList named "Bài liên quan"; each a LinkRow — the role label, `#leetcode`
   and difficulty as text; LeetCode titles in `lang="en"`
 
 ### RubricList
@@ -1256,25 +1455,39 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/flashcard-view.tsx`
 - **Props:** `card: FlashcardSides` (`front`, `back`, `hint?`, `usage?`, `example?`,
-  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3` (1 on the item page)
+  `pronunciation?`, `lang`), `headingLevel?: 1 | 2 | 3 | 4` (1 on the item page; 4 in a plan
+  block on /today), `revealVariant?: 'primary' | 'outline'` ("Xem nghĩa" outline in a view with
+  its own primary, m-12), `defaultOpen?` (starts revealed, grades shown — a remounted card block,
+  parked #8), `onReveal?: () => void` (the first reveal only), `onOpenChange?: (open) => void`,
+  `children?` (task 5.2c: the grade buttons — FlashcardOutcome on the card's page, FlashcardGrades
+  in a CardSession)
 - **Variants:** vocabulary card (usage, example, pronunciation) · recall / derived card (back and
   hint only, each side in its own language)
-- **States:** front only ("Xem nghĩa", primary); revealed (back, hint, "danh từ · trung tính" +
-  note, example, pronunciation; "Ẩn nghĩa", outline). No grade buttons until task 5.2
-- **Usage:** `<FlashcardView card={item.content} headingLevel={1} />` (FlashcardPage)
+- **States:** front only ("Xem nghĩa", `revealVariant`: primary by default); revealed (back, hint, "danh từ · trung tính" +
+  note, example, pronunciation; "Ẩn nghĩa", outline); `children` at the bottom of the card from the
+  first reveal on, kept when the back is hidden again
+- **Usage:** `<FlashcardView card={item.content} headingLevel={1}>{outcome && <FlashcardOutcome
+  binding={outcome} />}</FlashcardView>` (FlashcardPage)
 - **Accessibility:** the front is a heading in the card's front language; the toggle has
   `aria-expanded` / `aria-controls`; nothing of the back is in the DOM until revealed; the example
-  and pronunciation are `lang="en"`; fields are a `<dl>`
+  and pronunciation are `lang="en"`; fields are a `<dl>`. The card takes focus (`tabIndex={-1}`):
+  a click inside keeps focus in it (Safari and Firefox on macOS do not focus a clicked button), and
+  the first reveal focuses the card when focus is outside it — so the grades' keys 1 / 2 / 3 reach
+  the card the learner is using
 
 ### FillBlankExercise
 
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/fill-blank-exercise.tsx`
-- **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`
+- **Props:** `text: string` (holds `{{blank}}` once), `answers: readonly string[]`, `hint?: string`,
+  `onGrade?: (grade: 'pass' | 'close' | 'miss') => void` (every check's grade; task 5.2c:
+  ExerciseOutcome submits it — the answer text is never sent), `pending?: boolean` (the submission
+  saves: "Kiểm tra" busy, a check — click or Enter — ignored, never a grade silently dropped)
 - **Variants:** with / without a hint
 - **States:** answering; checked — pass ("Chính xác", `CircleCheck`, success), close ("Gần đúng —
   bạn đã xem gợi ý", `CircleDot`, warning), miss ("Chưa đúng — đáp án: …", `CircleX`, danger);
-  editing the answer clears the verdict; hint hidden / shown
+  editing the answer clears the verdict; hint hidden / shown; saving (`pending`: "Kiểm tra" busy,
+  a check meanwhile ignored — in the catalog, parked #2)
 - **Usage:** `<FillBlankExercise text={ex.text} answers={ex.answers} hint={ex.hint} />`
   (ExercisePage); grading is `gradeFillBlank` (NFC, case- and whitespace-insensitive, [RF-3])
 - **Accessibility:** the text is `lang="en"`; the blank is a real input with a visually hidden
@@ -1286,10 +1499,13 @@ take plain props (catalog content, never the registry). Copy: `vi.items`.
 - **Layer:** feature (`features/items`, client)
 - **File:** `features/items/components/self-graded-exercise.tsx`
 - **Props:** `text: string`, `sampleAnswers: readonly string[]`, `rubric: readonly string[]`,
-  `rubricLang?: 'en' | 'vi'` (`lang.rubric`, default `vi`)
-- **Variants:** respond · rewrite (same component)
+  `rubricLang?: 'en' | 'vi'` (`lang.rubric`, default `vi`); task 5.2c: `onGrade?: (grade: 'pass'
+  | 'close' | 'miss') => void`, `selectedGrade?` (the saved grade), `pendingGrade?` (the saving one)
+- **Variants:** respond · rewrite (same component) · with `onGrade`: self-grading
 - **States:** answering; samples hidden / shown ("Xem câu trả lời mẫu" / "Ẩn câu trả lời mẫu");
-  what the learner typed stays. Self-grading ("Đạt / Gần đạt / Chưa đạt") arrives with task 5.2
+  what the learner typed stays. With `onGrade`, the samples' first reveal adds GradeButtons "Tự
+  chấm theo tiêu chí": "Đạt / Gần đạt / Chưa đạt" — kept when the samples close; only the grade is
+  sent, so "Câu trả lời không được lưu." stays true
 - **Usage:** `<SelfGradedExercise text={ex.text} sampleAnswers={ex.sampleAnswers}
   rubric={ex.rubric} />` (ExercisePage)
 - **Accessibility:** the text is a `lang="en"` blockquote; the Textarea is labelled "Câu trả lời của
@@ -1303,8 +1519,10 @@ One Page and one Row per item type (platform design §3.2, §7.6), joined with t
 components** — they read topic titles and estimates from the generated catalog — so they render in
 the `/dev/items` gallery (`app/dev/items/page.tsx`, fixture items, e2e + axe) instead of the client
 catalog. Screens never import them or branch on item type: rows come from `renderItemRow(item, {
-state, mode, showStatus })` and pages from `await renderItemPage(item, { state, context, viewer,
-resolveItem })` (`@/features/items`), which runs the type's `load` (problem: note MDX + code;
+state, mode, showStatus, href?, showNoteHint? })` (`href` defaults to the item's page; ruling
+M5-R26) and pages from `await renderItemPage(item, { state, viewer, resolveItem, outcome?,
+mockInterviewProblem? })` (`@/features/items`; `outcome` — the route's binding, task 5.2c —
+replaces M3's never-used `recordResult` and `context`), which runs the type's `load` (problem: note MDX + code;
 lesson: MDX + code; others: nothing) — `tools/guards/item-type-branching.ts` fails any `case` on an
 item type outside the registry (ADR-0009). Every Page starts with ItemPageFrame's draft / retired
 notice; every Row is a LinkRow with the "Bản nháp" / "Đã ngừng" badge and, with `showStatus`, a
@@ -1322,7 +1540,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
   every alternative) · with a deep-dive (`note.deepDiveId` → RelatedItems "Bài học chuyên sâu")
 - **States:** a draft note is hidden from learners ("Chưa có ghi chú") and shown to admins with
   "Bản nháp"; a retired note shows with "Đã ngừng"; an unloaded body reads as no note
-- **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b)
+- **Usage:** via `renderItemPage` (`/t/[trackId]/items/[itemId]`, task 3.4b); with `outcome`
+  (task 5.2c) the note goes through ProblemOutcome (new / redo grades, or a quick recall with the
+  note behind "Xem ghi chú"; the solution-reveal nudge) and ItemPageFrame adds the learner's status
+  and ItemActions
 - **Accessibility:** the `h1` is the English title in `lang="en"`; "Mở trên LeetCode" and the
   alternatives are ExternalLinks styled as 44 px buttons (https only, new tab,
   `rel="noopener noreferrer"`, "(mở trong tab mới)"); `#1`, difficulty and topic are text
@@ -1331,8 +1552,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 
 - **Layer:** feature (`features/items`, server)
 - **File:** `features/items/problem/Row.tsx`
-- **Props:** `ItemRowProps<'problem'>`
-- **Variants:** Premium marker · verification icon when the note is published
+- **Props:** `ItemRowProps<'problem'>` — `showNoteHint?` (ruling M5-R26)
+- **Variants:** Premium marker · verification icon when the note is published · with
+  `showNoteHint`, a problem whose note a learner cannot see (none, or a draft) says "Chưa có ghi
+  chú" (`NotebookPen` + text, in the row's details — part of the link's name; §5.9, RF-4)
 - **States:** status pill with `showStatus`; draft / retired badge
 - **Usage:** via `renderItemRow`
 - **Accessibility:** LinkRow: title `lang="en"`, meta "#1 · Easy · Arrays & Hashing"
@@ -1345,7 +1568,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Variants:** format badge (`vi.items.lessonFormat`: "Pattern", "Deep-dive"; another format
   shows its ID) · topic · RelatedItems for `anchor` ("Bài mẫu"), `about` ("Bài được phân tích")
   and `practice` ("Bài luyện tập") that `resolveItem` knows
-- **States:** an unloaded body → EmptyState "Bài học chưa có nội dung"
+- **States:** an unloaded body → EmptyState "Bài học chưa có nội dung" · with `outcome` (task 5.2c)
+  LessonComplete follows the body ("Hoàn thành bài học", with the Quiz's score)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the lesson title is the `h1`; `<Section>`s bring their `h2`s
 
@@ -1366,7 +1590,8 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Props:** `ItemPageProps<'flashcard'>` (no `data`)
 - **Variants:** tier badge ("Cốt lõi" primary · "Mở rộng" · "Giải thích code") · vocabulary,
   recall and derived cards
-- **States:** see FlashcardView
+- **States:** see FlashcardView · with `outcome` (task 5.2c) FlashcardOutcome grades the card once
+  revealed ("Biết" / "Chưa chắc" / "Không biết", keys 1 / 2 / 3)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the card front is the page `h1`, in the card's front language
 
@@ -1385,9 +1610,10 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **Layer:** feature (`features/items`, server; renders client exercises)
 - **File:** `features/items/exercise/Page.tsx`
 - **Props:** `ItemPageProps<'exercise'>` (no `data`)
-- **Variants:** fill-blank → FillBlankExercise · respond / rewrite → SelfGradedExercise (the rubric
-  in `lang.rubric`); kind badge ("Điền từ" / "Trả lời" / "Viết lại")
-- **States:** see the two exercise components
+- **Variants:** through ExerciseOutcome: fill-blank → FillBlankExercise · respond / rewrite →
+  SelfGradedExercise (the rubric in `lang.rubric`); kind badge ("Điền từ" / "Trả lời" / "Viết lại")
+- **States:** see the two exercise components · with `outcome` (task 5.2c) every check's grade —
+  or the learner's own grade against the rubric — is submitted (`exercise.submitted`)
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one below in `lang="en"`
 
@@ -1407,9 +1633,12 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **File:** `features/items/prompt/Page.tsx`
 - **Props:** `ItemPageProps<'prompt'>` (no `data`)
 - **Variants:** tag badge (`vi.template.tags`; an unknown tag shows its ID) · minutes (its own, else
-  `estimates.prompt`, for `context.mode` — the same as its Row for that mode) · RubricList in
-  `lang.rubric` when the rubric is not empty
-- **States:** static (completion is recorded from task 5.2)
+  `estimates.prompt`, for the binding's `mode` — the same as its Row for that mode) · RubricList in
+  `lang.rubric` when the rubric is not empty · the mock-interview prompt (`mockInterviewProblem`
+  set, §5.6): RelatedItems "Bài cho buổi phỏng vấn thử" with the picked problem, or EmptyState "Chưa
+  có bài Medium nào đã học"
+- **States:** read-only without `outcome`; with it (task 5.2c) PromptOutcome — "Đã làm xong" with
+  an optional 1–3 self-rating
 - **Usage:** via `renderItemPage`
 - **Accessibility:** the Vietnamese instruction is the `h1`, the English one in `lang="en"`
 
@@ -1422,3 +1651,802 @@ StatusPill (`null` state → "Chưa học"). Props: `ItemPageProps<K>` / `ItemRo
 - **States:** status pill with `showStatus`; draft / retired badge
 - **Usage:** via `renderItemRow`
 - **Accessibility:** LinkRow
+
+### Today components (`features/today/components`)
+
+Task 5.1b (5.2b and 5.4 later) adds these entries below this line (Part B-M5 decision 3).
+
+`/today` (task 5.1b). The page builds each block's rows through the registry and hands them over
+as slots — `todaySlots(page)` (`features/today/rows.tsx`, server-only: `renderItemRow(item, {
+state, mode, href, showStatus, showNoteHint })` — the learner's state, the block's mode, the
+`?block=&mode=` href, and the Row's own note hint (ruling M5-R26: no item-type decision in the
+screen) — plus, for a card-only block, the cards its session grades, task 5.4) — so every
+component here takes plain props and ReactNodes and renders in the client catalog. Server-compatible unless marked client; the client leaves take the
+server actions as unbound props from the page. Data: `TodayPage` / `BlockView` /
+`TrackProgressView` / `WeakTopicView` (`features/today/view-model.ts`), `TodaySlots`
+(`features/today/slots.ts`). Loading is the route's `loading.tsx` (LoadingState `variant="page"`),
+a thrown load the route's `error.tsx` (ErrorState "Không tải được kế hoạch hôm nay" + "Thử lại").
+Copy: `vi.today`.
+
+### TodayView
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-view.tsx`
+- **Props:** `page: TodayPage` (`getToday(block)`), `slots: TodaySlots` (`todaySlots(page)`),
+  `markPlanSeen: (planId) => Promise<void>`, `resumeToday: () => Promise<ResumeResult>`,
+  `checkIn: (input: CheckInInput) => Promise<CheckInResult>`, `addExtra: (input: { requestId,
+  trackId }) => Promise<ExtraResult>`, `record: RecordOutcome` (the server actions, unbound; the
+  last two task 5.4)
+- **Variants:** by `page.data.state.kind` — `plan` (throttle notices, "Kế hoạch hôm nay" with "{n}
+  khối · {minutes}", PlanBlockCards, TodayStats + WeakAreas; marks the plan seen) · `resumed` (an
+  info Banner "Bạn đã tiếp tục lộ trình hôm nay — kế hoạch mới có vào ngày mai.", "Kế hoạch ngày
+  {date}" with its check-ins) · `paused` (PausedBanner above "Phần còn dang dở": the active
+  tracks' unfinished blocks) · `notStarted` / `noTracks` (TodayEmpty) · `unreadable`
+  (UnreadablePlan). Each block without a check-in gets a CheckInButton in its `actions` slot
+  (check-ins go to the plan shown — the paused plan while the gate is closed, decision 13);
+  `page.openBlockId` (`/today?block=<id>`, a block the dashboard shows) opens its CheckInSheet.
+  Task 5.4: a card-only block grades its cards inline (CardBlock in PlanBlockCard's `cards`
+  slot, decision 19), and in the plan and resumed states a Section "Học thêm" under the blocks
+  lists an ExtraButton per active, started track (`page.extra`). No mode badge in v1.0
+  (decision 12)
+- **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
+  error (`unreadable`; `error.tsx`: ErrorState `h1` "Không tải được kế hoạch hôm nay" + "Thử lại")
+  · ready — all in the catalog (m-3)
+- **Usage:** `<TodayView page={page} slots={todaySlots(page)} markPlanSeen={markPlanSeen}
+  resumeToday={resumeTodayAction} checkIn={checkInBlock} addExtra={addExtraAction}
+  record={recordOutcome} />` (`app/(app)/today/page.tsx`)
+- **Accessibility:** PageHeader `h1` "Hôm nay" with the long date; each column part is a Section
+  (a region named by its `h2`); the plan section's heading is the page's focus fallback
+  (`focusFallback`: where focus goes when an action control disappears with it, UI I-3); blocks
+  are a `role="list"`; DESIGN_SYSTEM §5 order — banners → blocks (2/3 column from 1024 px) → stats
+  and weak areas (1/3 column)
+
+### PlanBlockCard
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/plan-block-card.tsx`
+- **Props:** `view: BlockView`, `slots?: BlockSlots` (`{ items: BlockItemSlot[], sentences:
+  ShadowingSentence[], cards: CardSessionCard[] | null }`), `actions?: ReactNode` (the one-tap
+  CheckInButton while the block has no check-in), `cards?: ReactNode` (a card-only block's
+  CardBlock, task 5.4), `paused?: boolean` (the paused view: a skipped block's M-6 lines)
+- **Variants:** item rows (BlockItemList) · card-only block (`cards` set: its card session
+  instead of the rows, decision 19) · shadowing block (`block.shadowing` set:
+  ShadowingSentences instead) · over budget (a warning Badge "Dài hơn thời gian dự kiến": a new
+  item flagged `overBudget`, or a practice block longer than the track budget, M4-R10) · not
+  checked in (the `actions` slot: CheckInButton) · checked in (collapses into CheckInStatus —
+  "Đã check-in", StatusPill `block-done|partial|skipped`, minutes, "tự động" for an auto
+  check-in, "Sửa" → `view.editHref`; paused + skipped adds "Đã bỏ qua — bấm Sửa khi bạn làm
+  xong" and the owner's line)
+- **States:** with rows · empty ("Khối này chưa có bài nào.")
+- **Usage:** `<PlanBlockCard view={view} slots={slots[view.block.id]} actions={<CheckInButton
+  … />} paused={state.kind === 'paused'} />`
+- **Accessibility:** an `article` named by its `h3` (the kind label) and the track chip (Badge
+  `tone="track"` in `data-accent`, the Vietnamese track title — the track is never colour alone);
+  the 4 px `bg-track` stripe is decorative; minutes with a decorative clock icon
+
+### BlockItemList
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/block-item-list.tsx`
+- **Props:** `items: BlockItemSlot[]` (`{ itemId, row }`: the registry row — a note-less problem
+  says "Chưa có ghi chú" in its own row, `showNoteHint`, ruling M5-R26; §5.9, RF-4)
+- **Variants:** —
+- **States:** with rows · empty ("Khối này chưa có bài nào.")
+- **Usage:** `<BlockItemList items={slots.items} />` (PlanBlockCard; CardBlock once every card is
+  handled)
+- **Accessibility:** a `role="list"`; each row is its type's LinkRow (44 px, one link)
+
+### ShadowingSentences
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/shadowing-sentences.tsx`
+- **Props:** `sentences: ShadowingSentence[]` (`{ itemId, text }`: the block's cards' example
+  sentences, §5.6)
+- **Variants:** —
+- **States:** with sentences · empty ("Chưa có câu mẫu cho khối này.")
+- **Usage:** `<ShadowingSentences sentences={slots.sentences} />` (PlanBlockCard)
+- **Accessibility:** an ordered `role="list"` named by "Đọc to các câu sau"; each sentence is
+  `lang="en"`
+
+### PausedBanner
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/paused-banner.tsx`
+- **Props:** `planDate: LocalDay`, `offerResume: boolean`, `resume: () => Promise<ResumeResult>`
+- **Variants:** with / without ResumeButton ("Học tiếp hôm nay" only when the last seen plan is
+  more than 2 local days old, §5.8)
+- **States:** static
+- **Usage:** `<PausedBanner planDate={state.plan.planDate} offerResume={state.offerResume}
+  resume={resumeToday} />` (TodayView)
+- **Accessibility:** a `warning` Banner — icon + "Lộ trình đang tạm dừng — hoàn thành ít nhất một
+  phần để tiếp tục." + "Kế hoạch ngày {date}" + one action
+
+### ResumeButton
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/resume-button.tsx`
+- **Props:** `resume: () => Promise<ResumeResult>` (`resumeTodayAction`, unbound)
+- **Variants:** —
+- **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
+  `aria-busy`, a second click sends nothing) · answered — the action revalidates `/today`, so a
+  success or "not offered" (the one "Kế hoạch vừa thay đổi. Trang đã được làm mới.") usually
+  replaces the paused view and the button: a toast, focus on the plan's heading; while the button
+  stays, its own region · failed request ("Không lưu được thay đổi…" beside the button, never the
+  error boundary)
+- **Usage:** `<ResumeButton resume={resume} />` (PausedBanner)
+- **Accessibility:** a 44 px `outline` Button "Học tiếp hôm nay" (a banner action; the paused
+  view's primaries are the one-tap check-ins — one primary per view, m-12); the answer in a polite
+  `role="status"` region (ActionStatus) or a toast, never both
+
+### MarkPlanSeen
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/mark-plan-seen.tsx`
+- **Props:** `planId: string`, `markPlanSeen: (planId) => Promise<void>` (the server action,
+  unbound)
+- **Variants:** —
+- **States:** renders nothing; calls the action once per plan id in `useEffect` after mount
+  (never in a render or a prefetch, ADR-0039); a failed call is swallowed and retried on the next
+  effect run or visit
+- **Usage:** `<MarkPlanSeen planId={page.markSeenPlanId} markPlanSeen={markPlanSeen} />`
+  (TodayView, `plan` state only)
+- **Accessibility:** —
+
+### TodayStats
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-stats.tsx`
+- **Props:** `streak: number`, `tracks: TrackProgressView[]`
+- **Variants:** DESIGN_SYSTEM §5 order — the StreakBadge, a TrackProgressCard per active track
+  (m-1: the track page's card and its `trackProgressOf` numbers; "Tuần {w}/{weeks} · {n} mục cần
+  ôn"; the week left out without a roadmap; a track that has
+  not started reads "Bắt đầu vào {date}" instead of a due count), then the due reviews StatCard —
+  the due counts are those of the tracks the engine plans today (`eligibleTracks`), so the total
+  is `/review`'s (UI I-2)
+- **States:** ready · a new learner (0 streak, 0 due, 0 % rings — never NaN) · no active track
+  (streak and due only)
+- **Usage:** `<TodayStats streak={page.streak} tracks={page.tracks} />`
+- **Accessibility:** a Section "Tiến độ"; StreakBadge reads "{n} ngày liên tiếp"; the due
+  reviews are a StatCard with `href="/review"` (one link: hover shadow, global focus ring); each ring is a labelled `progressbar` "Tiến độ {title}" with its percentage printed
+
+### WeakAreas
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/weak-areas.tsx`
+- **Props:** `topics: WeakTopicView[]` (`{ trackId, topicId, title, trackTitle, count }`, §5.7:
+  ≥ 2 Weak items, of the tracks the engine plans today — as `/review` — most first; keyed by
+  track and topic ID)
+- **Variants:** —
+- **States:** with topics · empty ("Chưa có chủ đề nào cần củng cố.")
+- **Usage:** `<WeakAreas topics={page.weakTopics} />`
+- **Accessibility:** a Section "Chủ đề cần củng cố"; a LinkList, each topic a LinkRow to `/t/<track>`
+  with "{track} · {n} mục yếu" and the "Yếu" StatusPill (icon + label)
+
+### ThrottleNotice
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/throttle-notice.tsx`
+- **Props:** `track: TrackProgressView`
+- **Variants:** throttled (a `warning` Banner with `throttleMessage` — "Kế hoạch này được lập khi
+  bạn có 52 mục cần ôn — tạm giảm bài mới.", the plan snapshot's own count in the past tense, §5.5
+  — "mục" (the count is the whole due queue), "bài mới" (as "Học thêm"), re-review M3;
+  the live count is TodayStats' — and "Ôn tập" to `reviewHref(trackId)`) · not throttled (renders
+  nothing). The one place `/today` explains the throttle (UI I-5): ExtraButton only says "Hôm nay
+  tạm dừng bài mới."
+- **States:** static
+- **Usage:** `{page.tracks.map((track) => <ThrottleNotice key={track.trackId} track={track} />)}`
+- **Accessibility:** icon + one sentence + one action; the link's name carries the track title
+  (`sr-only`), so several notices stay distinct
+
+### TodayEmpty
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/today-empty.tsx`
+- **Props:** `{ kind: 'notStarted'; startDate: LocalDay } | { kind: 'noTracks' } | { kind:
+  'noBlocks'; due: number }` (`due`: TodayStats' total)
+- **Variants:** notStarted ("Bắt đầu vào {date}", "Xem lộ trình" → `/tracks`) · noTracks ("Bạn
+  chưa học lộ trình nào", "Mở Cài đặt" → `/settings`) · noBlocks ("Hôm nay không có bài nào", `h3`
+  inside the plan Section): with items due, "Bạn có thể ôn lại các mục đến hạn." and "Mở Ôn tập" →
+  `/review` (m-11); with none, "Bạn có thể xem trước lộ trình của mình." and "Xem lộ trình" →
+  `/tracks` — never `/review`'s own empty state, which links back here (M4)
+- **States:** empty (RF-4)
+- **Usage:** `<TodayEmpty kind="notStarted" startDate={state.startDate} />`
+- **Accessibility:** EmptyState — decorative icon, a heading, one action link
+
+### UnreadablePlan
+
+- **Layer:** feature (`features/today`, **client**)
+- **File:** `features/today/components/unreadable-plan.tsx`
+- **Props:** —
+- **Variants:** —
+- **States:** error (today's stored plan cannot be read and is in use, so it was not rebuilt —
+  M-4, decision 10): ErrorState "Không đọc được kế hoạch hôm nay", what to do when it keeps
+  failing (never a promise that it repairs itself, M5-R26), and "Thử lại" (`router.refresh()`:
+  `ensureToday` runs again)
+- **Usage:** `{state.kind === 'unreadable' && <UnreadablePlan />}` (TodayView)
+- **Accessibility:** ErrorState — `role="alert"`, a heading, a 44 px "Thử lại" button
+
+### Check-in components (`features/checkin/components`)
+
+Task 5.2b adds these entries below this line (Part B-M5 decision 3).
+
+The check-in UI (§5.5; DESIGN_SYSTEM §3.3, §9, §10). The page passes `checkInBlock` unbound; the
+client components build its `CheckInInput` (`{ requestId, planId, blockId, status, minutes?,
+note? }`) with the page's per-render request ID (decision 16: the same tap twice is one event).
+Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `vi.checkIn`.
+
+### CheckInButton
+
+- **Layer:** feature (`features/checkin`, **client**)
+- **File:** `features/checkin/components/check-in-button.tsx`
+- **Props:** `action: CheckInAction` (`checkInBlock`, unbound), `requestId: string`, `planId:
+  string`, `blockId: string`, `blockLabel: string` ("{kind} · {track}")
+- **Variants:** —
+- **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
+  `aria-busy`; a second tap sends nothing, RF-2) · answered — the action revalidates `/today`: a
+  success collapses the card into CheckInStatus and a stale answer ("Kế hoạch vừa thay đổi. Trang
+  đã được làm mới.") swaps the plan, so the answer is a toast and focus moves to the block's "Sửa"
+  / one-tap on the new page, else the plan's heading; while the button stays, its own region ·
+  refused / failed request (the message beside the button, never the error boundary; tap again).
+  The button carries `data-check-in-button="<blockId>"` (`checkInControlOf`)
+- **Usage:** `<CheckInButton action={checkIn} requestId={page.requestId} planId={plan.id}
+  blockId={view.block.id} blockLabel={blockLabel(view)} />` (PlanBlockCard's `actions`)
+- **Accessibility:** a full-width 48 px `primary` Button "Check-in" (the biggest target, one
+  primary per card) named "Check-in: {kind} · {track}" (`aria-label` starting with the visible
+  label, WCAG 2.5.3, so several stay distinct); the answer in a polite `role="status"` region
+  (ActionStatus) or a toast, never both
+
+### CheckInStatus
+
+- **Layer:** feature (`features/checkin`, server-compatible)
+- **File:** `features/checkin/components/check-in-status.tsx`
+- **Props:** `checkIn: { status, minutes, auto }`, `editHref: string` (`/today?block=<id>`),
+  `blockId: string` (marks the link `data-check-in-edit`, where the sheet and the one-tap put
+  focus back), `blockLabel: string`, `paused?: boolean`
+- **Variants:** done / partial / skipped (StatusPill `block-*`: Xong `Check` · Một phần `Clock` ·
+  Bỏ qua `SkipForward`) · auto ("· tự động") · paused + skipped ("Đã bỏ qua — bấm Sửa khi bạn làm
+  xong" and "Sửa sau giờ bắt đầu ngày sẽ tính cho hôm nay; ngày trước vẫn chưa hoàn thành.",
+  ruling M-6 a)
+- **States:** static
+- **Usage:** `<CheckInStatus checkIn={view.checkIn} editHref={view.editHref}
+  blockId={view.block.id} blockLabel={label} paused />` (PlanBlockCard)
+- **Accessibility:** status by icon + label, never colour alone; "Sửa" is a 44 px outline link
+  named "Sửa {kind} · {track}" (`sr-only`), `scroll={false}` so the page keeps its place
+
+### CheckInSheet
+
+- **Layer:** feature (`features/checkin`, **client**)
+- **File:** `features/checkin/components/check-in-sheet.tsx`
+- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `block:
+  CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
+  status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
+- **Variants:** a bottom Sheet below `md`, a Dialog from `md` (`useMediaQuery(MEDIA.md)`) · new
+  check-in (Xong, the block's `oneTapMinutes`: its estimate less the items skipped for the plan,
+  ruling M5-R39 #3 — what the one-tap records) · edit (pre-filled with the block's check-in).
+  It renders on the server too (`/today?block=<id>` loaded as a new page): nothing in its render
+  reads `document` (UI I-1)
+- **States:** through ActionFeedback (UI I-3): idle · saving (submit `loading`) · error (a danger
+  Banner with the message — "Không lưu được thay đổi. Bạn thử lại nhé." for a failed request — and
+  "Thử lại", the sheet kept open) · stale (the re-render drops the sheet: the answer is a toast) ·
+  invalid (minutes outside 0–600, or a note over 280 graphemes / the
+  payload bound: the error under the field, submit disabled) · success (toast, back to `/today`)
+- **Usage:** `{open && <CheckInSheet key={open.block.id} action={checkIn} requestId={…}
+  planId={plan.id} block={…} />}` (TodayView, from `page.openBlockId`)
+- **Accessibility:** a modal dialog named by its title "Check-in: {kind}"; focus moves to the
+  title on open, is trapped, and `Esc` / "Đóng" / "Huỷ" close it (`router.replace`, so the back
+  button never reopens it, §2.4); closing returns focus to the control that opened it, else (a
+  deep link) to the block's "Sửa" or one-tap, else the plan's heading; a click on that "Sửa" while the replace is still pending
+  reopens it; the status is a ToggleGroup `radiogroup` "Trạng thái" (icons +
+  labels); the minutes stepper's −/+ are 44 px icon buttons "Bớt 5 phút" / "Thêm 5 phút"; the
+  note's live "n/280" counter and error are in its `aria-describedby`, and a crossed limit (note
+  or minutes — both, when both are crossed, parked #3) is announced in an `sr-only` polite live
+  region, so the disabled submit always has its reasons; the save result is in a polite `role="status"` live region (a success is a toast)
+
+### Item outcome components (`features/items/components/outcome`)
+
+Task 5.2c adds these entries below this line (Part B-M5 decision 3).
+
+The result controls of the item pages (platform design §4.4, §5.5–§5.7; Part B-M5 decisions 14,
+16–19; ADR-0036). Client components. A Page gets an `outcome?: OutcomeBinding`
+(`features/items/outcome.ts`) from the item route — the resolved `mode`, the plan context, the
+learner's `state`, `due`, the render's `requestId`, the item and block ids and `record`, the
+`recordOutcome` server action passed **unbound** — and builds each `OutcomeInput` itself
+(`outcomeInput`); no binding = read-only (a draft an admin previews, a retired item). Every send
+goes through `useOutcome` (`use-outcome.ts`): one at a time, in a transition, the server's answer
+(or "Chưa lưu được kết quả. Bạn thử lại nhé.") in a polite live region; a retry in the same render
+resends the same request id, so the event is recorded once. Results stay self-reported; there is no
+offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). The note's
+`<Solution />` and a lesson's `<Quiz>` report to the controls through `OutcomeSignalsContext`
+(`features/items/outcome-signals.ts`), which ProblemOutcome and LessonComplete provide.
+
+### GradeButtons
+
+- **Layer:** feature (`features/items`, client; also exports `OutcomeMessage`)
+- **File:** `features/items/components/outcome/grade-buttons.tsx`
+- **Props:** `label: string` (the group's name), `grades: { value, label, shortcut? }[]`,
+  `onGrade(value)`, `selected?` (pressed: the saved grade or a preselected one), `pending?` (the
+  saving one), `disabled?`, `description?` (a nudge, key hints) · `OutcomeMessage`: `result: { ok,
+  message, seq? } | null`, `label?` (what was sent: the grade, "Bỏ qua mục này", …), `ref?` (makes it
+  focusable, `tabIndex={-1}`)
+- **Variants:** the selected grade `primary` + `aria-pressed="true"`, the others `outline` — at
+  most one primary · a key cap per grade with a `shortcut` (from `md`) · OutcomeMessage tones idle /
+  saved (`CircleCheck`, success) / failed (`CircleAlert`, danger)
+- **States:** none chosen · chosen (preselected or saved) · saving (that button busy, the others
+  disabled) · disabled · OutcomeMessage empty until an answer
+- **Usage:** `<GradeButtons label="Bạn giải bài này thế nào?" grades={…} selected={saved ??
+  suggested} pending={pending} onGrade={grade} />` · `<OutcomeMessage result={sent} />`
+- **Accessibility:** a `role="group"` named by its visible label and described by `description`;
+  44 px Buttons; a press sends at once (pressing the preselected grade records it); shortcuts in
+  `aria-keyshortcuts`, key caps `aria-hidden`; OutcomeMessage is an always-present polite
+  `role="status"` — icon + text, never colour alone — reading "{label}: {message}"; each answer
+  (`seq`) is a new text node, so a repeated message is announced again
+
+### ProblemOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/problem-outcome.tsx`
+- **Props:** `binding: OutcomeBinding`, `hasNote: boolean` (a visible note to hide in a recall),
+  `children` (the page's note section, or its "Chưa có ghi chú")
+- **Variants:** new — the note, then "Tự giải được" / "Cần gợi ý" / "Chưa giải được" (`solved` /
+  `hint` / `failed`, no mode) · redo — the same with `mode: 'redo'` · recall / explain-aloud
+  (decision 17) — first "Nêu pattern, cách làm và độ phức tạp" with the note behind "Xem ghi chú",
+  then "Nhớ rõ" / "Nhớ một phần" / "Không nhớ" with `mode: 'recall'` (no visible note: the grades
+  at once); "Làm lại từ đầu" switches a recall to a redo in place (§5.5)
+- **States:** the nudge (decision 18): opening the note's "Xem lời giải" before a grade is saved
+  preselects the `hint` grade, with "Bạn đã xem lời giải nên "Cần gợi ý" được chọn sẵn — bấm để
+  lưu, hoặc chọn mức khác." — any grade can still be chosen · saving · saved (pressed; pressing it
+  again sends nothing but says "Kết quả này đã được lưu.", m-10; "Tự giải được: …" with the
+  server's message, e.g. "… tự động check-in") · failed (the message; every grade available) ·
+  redo: "Giải lại trên LeetCode từ đầu, không mở lời giải, rồi tự chấm." above the note. A grade
+  is keyed by the mode it was sent in (parked #2): after "Làm lại từ đầu" the recall's answer keeps
+  its label ("Nhớ rõ: …"), no redo grade shows pressed, and the redo's grade is a new result
+- **Usage:** ProblemPage: `<ProblemOutcome binding={outcome} hasNote={…}>{noteSection}</ProblemOutcome>`
+- **Accessibility:** the recall prompt is an `h2` section; "Xem ghi chú" has `aria-expanded` /
+  `aria-controls`; "Làm lại từ đầu" is a link-styled button (an in-page switch, not a navigation);
+  see GradeButtons
+
+### FlashcardGrades
+
+- **Layer:** feature (`features/items`, client; also exports `FlashcardOutcome`)
+- **File:** `features/items/components/outcome/flashcard-grades.tsx`
+- **Props:** `onGrade(grade: 'know' | 'unsure' | 'dont_know')`, `selected?`, `pending?`,
+  `disabled?`
+- **Variants:** —
+- **States:** ready (keys 1 / 2 / 3 listened to on its card) · saving or disabled (keys ignored) ·
+  a grade pressed
+- **Usage:** `<FlashcardView card={sides}><FlashcardGrades onGrade={grade} /></FlashcardView>`
+  (CardSession); presentational — the caller records
+- **Accessibility:** GradeButtons "Bạn nhớ thẻ này không?" — "Biết" / "Chưa chắc" / "Không biết"
+  (DESIGN_SYSTEM §9) with `aria-keyshortcuts` 1 / 2 / 3 and the key hint as its description; the
+  keydown listener sits on its card (its FlashcardView, else the buttons), so a key grades the card
+  focus is in — never another card, never one when focus is on the page outside every card —
+  without a modifier, never while typing or composing (FlashcardView keeps focus in the card)
+
+### FlashcardOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/flashcard-grades.tsx`
+- **Props:** `binding: OutcomeBinding`
+- **Variants:** —
+- **States:** FlashcardGrades + OutcomeMessage: saving, saved (the grade pressed), failed
+- **Usage:** FlashcardPage: `<FlashcardView card={…} headingLevel={1}>{outcome && <FlashcardOutcome
+  binding={outcome} />}</FlashcardView>` — shown in the card from the first "Xem nghĩa"
+- **Accessibility:** see FlashcardGrades and GradeButtons
+
+### CardSession
+
+- **Layer:** feature (`features/items`, client; exported from `@/features/items` for /review (5.3)
+  and card blocks on /today (5.4))
+- **File:** `features/items/components/outcome/card-session.tsx`
+- **Props:** `CardSessionProps` — `cards: { itemId, sides: FlashcardSides, blockId? }[]`,
+  `requestId: string`, `record: RecordOutcome` (the unbound `recordOutcome`), `headingLevel?: 2 |
+  3 | 4` (2 under a page `h1`, 3 under /review's "Thẻ", 4 in a /today plan block — parked #7),
+  `revealVariant?`, `initialRevealed?: string | null` (the first card starts revealed if it is
+  that one), `onRevealChange?: (itemId, open) => void`. The sides come from `cardSidesOf(item)`
+  (features/items, m-5: the one "is this a card, and its sides", for /today, /review's loader and
+  rows) or `flashcardSides` (the flashcard page)
+- **Variants:** `revealVariant` primary (/review) · outline (/today's card blocks, m-12)
+- **States:** empty (no cards: EmptyState "Không có thẻ nào để ôn") · grading ("Còn {n} thẻ",
+  FlashcardView then FlashcardGrades once revealed) · saving (the grade busy) · error (the card
+  stays; ErrorState "Chưa lưu được kết quả" + the reason + "Thử lại", which resends the same input)
+  · end ("Đã ôn xong", "Bạn đã chấm {n} thẻ.")
+- **Usage:** `<CardSession cards={due} requestId={page.requestId} record={recordOutcome} />`
+- **Accessibility:** decision 19 — the cards are kept in state from mount (a revalidation that
+  drops a graded card never shifts the session) and the mount's request id is used throughout;
+  after a grade focus moves to the next card's "Xem nghĩa" (or the end state), and a polite
+  `role="status"` says "Đã lưu thẻ {front}: {grade}." (the front in its language; new text for every
+  card, so equal grades are announced again); keys 1 / 2 / 3 on the card
+
+### LessonComplete
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/lesson-complete.tsx`
+- **Props:** `binding: OutcomeBinding`, `children` (the lesson body)
+- **Variants:** without / with a checked Quiz ("Kèm điểm kiểm tra nhanh: 50%": `quizScore` 0–100,
+  the latest check, is sent)
+- **States:** ready · saving · saved (a check icon on the button; the server's message; the same
+  completion — same score — again sends nothing but says "Kết quả này đã được lưu." (m-10), a new
+  quiz score does) · failed
+- **Usage:** LessonPage: `<LessonComplete binding={outcome}>{body}</LessonComplete>`
+- **Accessibility:** "Hoàn thành bài học" is the view's one primary Button (`lg`) — the lesson's
+  Quiz check steps down to `secondary` inside it; the answer in the OutcomeMessage live region
+
+### ExerciseOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/exercise-outcome.tsx`
+- **Props:** `exercise: Exercise` (catalog content), `binding?: OutcomeBinding`
+- **Variants:** fill-blank (every "Kiểm tra" submits its grade `pass` / `close` / `miss`) ·
+  respond / rewrite (the self-grade after the samples) · read-only (no binding: the exercise alone)
+- **States:** saving ("Kiểm tra" busy — a check then is ignored, not dropped) · saved (the
+  self-grade pressed; "{grade}: {message}"; the same grade again sends nothing) · failed
+- **Usage:** ExercisePage: `<ExerciseOutcome exercise={item.content} binding={outcome} />`
+- **Accessibility:** sends `exercise.submitted { kind, grade }` only — the answer text never
+  leaves the page ("Câu trả lời không được lưu." stays true); see the two exercise components
+
+### PromptOutcome
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/prompt-outcome.tsx`
+- **Props:** `binding: OutcomeBinding`
+- **Variants:** without / with a self-rating ("1 — Chưa tốt", "2 — Tạm được", "3 — Tốt"; choosing
+  the chosen one again clears it)
+- **States:** ready · saving · saved (a check icon on the button; "Đã làm xong (3 — Tốt): …"; the
+  same rating again sends nothing, a changed one does) · failed
+- **Usage:** PromptPage: `{outcome && <PromptOutcome binding={outcome} />}`
+- **Accessibility:** the rating is a single-choice ToggleGroup (a `radiogroup` named "Tự đánh giá
+  (không bắt buộc)", arrow keys); "Đã làm xong" is the view's one primary Button (`lg`)
+
+### ItemActions
+
+- **Layer:** feature (`features/items`, client)
+- **File:** `features/items/components/outcome/item-actions.tsx`
+- **Props:** `binding: OutcomeBinding` (`itemActionsFor(binding)` decides)
+- **Variants:** "Bỏ qua mục này" (ghost, `SkipForward`) while the item is not introduced or is due
+  → ConfirmDialog "Bỏ qua mục này?" → `item.skipped` · "Ôn lại" (outline, `RotateCcw`) on a mastered
+  item → `item.readded` (§5.7)
+- **States:** nothing when neither applies · confirming · saving · the answer, kept after the page
+  re-renders without the action
+- **Usage:** rendered by ItemPageFrame under the body when the page has a binding
+- **Accessibility:** the skip is confirmed in an alert dialog (cancel returns focus to the opener;
+  a confirmed skip moves focus to the answer, since the button goes away when the page re-renders);
+  the answer in the OutcomeMessage live region
+
+### Review components (`features/review/components`)
+
+`/review` (task 5.3; §2.4, §5.4 step 3, §5.5, §5.7; RF-4): the cross-track review queue, Weak
+first (`reviewQueue`, `features/review/view-model.ts` — `dueQueue` per eligible track, merged with
+`lib/domain/plan/queues.ts`'s exported `compareDueEntries`; track eligibility is the plan engine's
+own `eligibleTracks`, not merely `status === 'active'`). The page renders the other due items' rows
+through the registry (`reviewRows`, server-only: `features/review/rows.tsx`, the roadmap's fix-5
+pattern, `renderItemRow`) and hands the slots to ReviewList, so the components here never import
+the registry and render in the client catalog with plain nodes. Data: `ReviewPage` / `ReviewCard` /
+`ReviewTrack` (`features/review/queries.ts`), `ReviewEntry` (`features/review/view-model.ts`, pure:
+`reviewQueue`), `ReviewItemSlot` (`features/review/slots.ts`, `{ itemId, row }`). Loading is the
+route's `loading.tsx` (LoadingState `variant="page"`), a thrown load the route's `error.tsx`
+(ErrorState + "Thử lại"). Copy: `vi.review`.
+
+**Revalidation (task 5.3 review, finding I3):** `recordOutcome` (features/checkin) revalidates
+`/today` and the item's own page — never `/review` — but any `revalidatePath` call inside a server
+action still carries a fresh render of the page the action was called *from* in its response, so
+`/review` re-renders with new props after every grade regardless. `ReviewSession` is the client leaf
+that must not react to that: which sections show (the filter chips, "Thẻ", the empty state and
+which of its two lines) are decided once at mount and kept for the life of that mount; `ReviewView`
+keys `ReviewSession` by `page.track` so a genuine filter change (a different `?track=`, a real
+navigation) starts a fresh session while a same-filter revalidation reuses the instance. **The
+PageHeader's count is the one thing that stays live**, following the current filter rather than the
+grand total (a deliberate choice, task 5.3 review finding M3 — either is defensible; the chips
+already show the grand-total-vs-per-track breakdown).
+
+### ReviewFilters
+
+- **Layer:** feature (`features/review`, server-compatible)
+- **File:** `features/review/components/review-filters.tsx`
+- **Props:** `tracks: ReviewFiltersTrack[]` (`{ id, title, count }`, every eligible track —
+  unfiltered due counts), `active: string | null` (the `?track=` in force, or null — all)
+- **Variants:** —
+- **States:** "Tất cả" current (no track chosen) · a track current
+- **Usage:** `<ReviewFilters tracks={page.tracks} active={page.track} />`
+- **Accessibility:** `FilterChipGroup as="nav"` (labelled "Lọc theo lộ trình") of `FilterChipLink`s
+  (`components/patterns/filter-chip.tsx`, task 5.3 review finding I4) — real links with an `href`
+  (`/review`, `/review?track=<id>`), a Next.js client-side navigation that changes the URL and
+  re-renders `/review` with fresh server data (never a full browser reload, but also never a
+  client-state toggle — corrected from the round 1 report's "a full page load", finding I2); the
+  current one `aria-current="page"`
+
+### ReviewList
+
+- **Layer:** feature (`features/review`, server-compatible)
+- **File:** `features/review/components/review-list.tsx`
+- **Props:** `items: ReviewItemSlot[]` (`{ itemId, row }` — `reviewRows(page.entries)`, built by
+  the page; the "Yếu" pill and "Chưa có ghi chú" hint live inside each row's own link now, task 5.3
+  review finding M5 — `reviewRows` passes them to `renderItemRow`, not a separate line under the
+  row)
+- **Variants:** —
+- **States:** with items (each row) · empty (renders nothing — the card session or the page's
+  EmptyState covers that instead)
+- **Usage:** `<ReviewList items={reviewRows(page.entries)} />`
+- **Accessibility:** a `role="list"`; each row is a LinkRow (its own accessible name already
+  includes "Yếu" / "Chưa có ghi chú" when they apply, so the links rotor hears them)
+
+### ReviewSession
+
+- **Layer:** feature (`features/review`, client — the mount-time freeze below needs `useState`)
+- **File:** `features/review/components/review-session.tsx`
+- **Props:** `page: ReviewPage`, `rows: ReviewItemSlot[]` (`reviewRows(page.entries)`, built by the
+  page), `record: RecordOutcome` (`recordOutcome`, unbound, from the page)
+- **Variants:** —
+- **States:** decided once at mount, from that render's `page` (task 5.3 review, findings I2/I3/M2):
+  the filter chips show only when some eligible track has something due (unfiltered) · "Thẻ" shows
+  only when mounted with due flashcards · with nothing at all due (unfiltered), the RF-4 EmptyState
+  "Không có mục nào cần ôn hôm nay" linking to `/today` · with the current filter's own due items at
+  0 while another track still has some, the filter-specific line "Lộ trình này không có mục nào cần
+  ôn hôm nay" instead (finding M3) · otherwise "Thẻ" (CardSession, `headingLevel={3}` under this
+  section's own `h2`, task 5.3 review finding M8) and, while `rows` has entries (a live check, not
+  frozen — the row list has no session state to lose), a "Mục cần ôn" Section with ReviewList
+- **Usage:** `<ReviewSession key={page.track ?? 'all'} page={page} rows={rows} record={record} />`
+  (`review-view.tsx`, keyed so a filter change remounts fresh)
+- **Accessibility:** each shown part is a Section (a region named by its `h2`) or the labelled
+  `nav`; the flashcard grades take keys 1 / 2 / 3 (CardSession, task 5.2c)
+
+### ReviewView
+
+- **Layer:** feature (`features/review`, server-compatible)
+- **File:** `features/review/components/review-view.tsx`
+- **Props:** `page: ReviewPage` (`getReview(track)`), `rows: ReviewItemSlot[]`
+  (`reviewRows(page.entries)`, built by the page), `record: RecordOutcome` (`recordOutcome`,
+  unbound, from the page)
+- **Variants:** —
+- **States:** PageHeader "Ôn tập" + the total due under the current filter, then `ReviewSession`
+  (its own states, above)
+- **Usage:** `<ReviewView page={page} rows={reviewRows(page.entries)} record={recordOutcome} />`
+  (`app/(app)/review/page.tsx`)
+- **Accessibility:** PageHeader `h1` "Ôn tập"
+
+### Progress components (`features/progress/components`)
+
+Task 5.5 adds these entries below this line (Part B-M5 decision 3).
+
+### ProgressView
+
+- **Layer:** features
+- **File:** `features/progress/components/progress-view.tsx`
+- **Props:** `page: ProgressPage` (`relation: 'current' | 'previous' | 'earlier'` names the week
+  shown; `previousWeek` is null at the first whole week of the history read, m-7)
+- **Variants:** —
+- **States:** with activity (streak, the heatmap of the last 53 weeks, then the week shown —
+  WeeklySummary titled "Tuần này · {range}" only for the current week, "Tuần trước · {range}" or
+  "Tuần {range}" otherwise (UI I-4), WeekNav above its cards) · empty (RF-4: no `daily_activity`
+  row at all — an EmptyState, "Chưa có ngày học nào — bắt đầu từ trang Hôm nay") · loading
+  (`app/(app)/progress/loading.tsx`: LoadingState `page`) · error (`error.tsx`: ErrorState `h1`,
+  "Thử lại") — all four in the catalog
+- **Usage:** `<ProgressView page={page} />`
+- **Accessibility:** one `h1` (PageHeader); the week is an `h2` region named by the week; see
+  CalendarHeatmap, WeeklySummary and WeekNav
+
+### WeeklySummary
+
+- **Layer:** features
+- **File:** `features/progress/components/weekly-summary.tsx`
+- **Props:** `week: WeeklySummary` (`lib/domain/stats/weeklySummary`), `tracks: { id, title, accent
+  }[]`, `title: string` (the week's name, from ProgressView), `today: LocalDay`, `nav?: ReactNode`
+  (WeekNav)
+- **Variants:** —
+- **States:** the week's Section: `nav` first, the stat cards under neutral labels ("Phút", "Ngày
+  hoàn thành", "Mục đã học" — the section names the week, UI I-4), bars per enrolled track (value
+  label at the bar end, scaled to the busiest track) · no tracks (a plain message, no bars) · the
+  per-day list: "Thứ Hai, 28/09", the minutes and "Hoàn thành" / "Chưa hoàn thành" (the day's plan
+  completed — the stat card's count; never "Chưa học" beside minutes studied), icon + label; a day
+  after `today` reads only "—" (screen readers: "Chưa tới"; re-review M8)
+- **Usage:** `<WeeklySummary week={page.week} tracks={page.tracks} title={…} nav={<WeekNav … />} />`
+- **Accessibility:** a region named by its `h2` (the week); the bars' list "Phút theo lộ trình",
+  each a labelled `progressbar` (`components/ui/progress.tsx`) in its track accent; the days' list
+  "Theo ngày" never relies on colour alone
+
+### WeekNav
+
+- **Layer:** features
+- **File:** `features/progress/components/week-nav.tsx`
+- **Props:** `previousWeek: LocalDay | null`, `nextWeek: LocalDay | null`
+- **Variants:** —
+- **States:** default · "Tuần sau" disabled (not hidden) at the current week · "Tuần trước"
+  disabled at the first whole week of the history read (m-7)
+- **Usage:** `<WeekNav previousWeek={page.previousWeek} nextWeek={page.nextWeek} />`
+- **Accessibility:** a labelled `nav`; a disabled control stays a real (disabled) button, never a
+  removed link; both controls are Button `size="md"` (44 px) — never `sm` (36 px, desktop-only),
+  because this row renders on mobile too
+
+### Extra study components (`features/today`, `features/roadmap`)
+
+Task 5.4 adds these entries below this line (Part B-M5 decision 3).
+
+"Học thêm" and the card blocks on `/today` (decisions 19, 20), and the learner's part of the track
+page (Part B-M3 decision 25; §5.9 "Bắt đầu lại"). The client leaves take their server actions
+unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`). Data:
+`ExtraView` (`features/today/view-model.ts`), `CardSessionCard` (`features/items/outcome.ts`),
+`TrackProgressData` (`features/roadmap/view-model.ts`). Copy: `vi.extra`. Catalog:
+`app/dev/components/entries/extra.tsx`.
+
+### ExtraButton
+
+- **Layer:** feature (`features/today`, client)
+- **File:** `features/today/components/extra-button.tsx`
+- **Props:** `view: ExtraView` (`{ trackId, trackTitle, accent, newPaused: boolean }`),
+  `requestId: string` (the page's), `action: AddExtraAction` (`addExtraAction`, unbound)
+- **Variants:** available (the track chip and an outline "Học thêm" button) · new items paused —
+  the plan's snapshot caps the track at 0 new items (§5.5): one line, "Hôm nay tạm dừng bài mới.",
+  no button and no link — the ThrottleNotice banner above says why, with the plan-time count and
+  the track's "Ôn tập" link, so the throttle is shown once (UI I-5)
+- **States:** through ActionFeedback (UI I-3): default, pending (the button busy; a second click
+  sends nothing), answered — the button stays, so the answer is in its own region only (m-4):
+  "Đã thêm bài mới vào kế hoạch.", "Bạn đã học hết bài mới của lộ trình này."; a stale answer whose
+  re-render removes "Học thêm" is a toast; a failed request is said beside the button, never the
+  error boundary
+- **Usage:** `<ExtraButton view={extra} requestId={page.requestId} action={addExtra} />`
+  (TodayView's Section "Học thêm", plan and resumed states: one per track `extraTrackIds` gives —
+  the plan engine's eligibility, the same the server applies). The surface is `Card`
+- **Accessibility:** in the track's `data-accent`, the track named by its chip (never colour
+  alone); the button's accessible name carries the track title (`sr-only`), so several are
+  distinct (a paused card has no button and no link — the throttle banner holds the "Ôn tập"
+  link, UI I-5); a polite `role="status"` for the answer; 44 px targets
+
+### CardBlock
+
+- **Layer:** feature (`features/today`, client)
+- **File:** `features/today/components/card-block.tsx`
+- **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
+  `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
+  (`recordOutcome`, unbound)
+- **Variants:** session (CardSession with `headingLevel={4}` — under the block's `h3`, parked #7 —
+  and an outline "Xem nghĩa", the block's "Check-in" being the view's primary, m-12;
+  FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows (every card was handled before the
+  page rendered: BlockItemList)
+- **States:** grading · saving · error (CardSession's ErrorState + "Thử lại") · end ("Đã ôn xong":
+  a session keeps its deck to the end while the revalidated page drops the graded cards) ·
+  handled (the rows) · grown (the block's items changed — "Học thêm", an off-plan result: the deck
+  starts again from the cards not handled yet, the current card first — still revealed if it was,
+  parked #8 — then the appended ones; ruling M5-R33 I-1)
+- **Usage:** `<PlanBlockCard … cards={slots.cards && <CardBlock cards={slots.cards}
+  items={slots.items} requestId={page.requestId} record={record} />} />` (TodayView)
+- **Accessibility:** CardSession's (focus to the next card's "Xem nghĩa", the polite "Đã lưu thẻ
+  …" region); keys 1 / 2 / 3 grade only the card focus is in — two card blocks on one page never
+  both take a key
+
+### TrackProgress
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/track-progress.tsx`
+- **Props:** `title: string` (the track title), `progress: TrackProgressData` (`{ week, weeks,
+  introduced, total }`, `trackProgressOf` on the enrolled variant), `actions?: ReactNode`
+  (ResetTrackButton)
+- **Variants:** with a roadmap ("Tuần {x}/{N}", "{introduced}/{total} bài chính đã học") ·
+  without one (the enrolled variant's roadmap file is missing: only the ring, at 0 %)
+- **States:** new learner (0 %) · in progress
+- **Usage:** `<TrackProgress title={track.title} progress={data.progress} actions={<ResetTrackButton
+  … />} />` (TrackOverview's `learner` slot)
+- **Accessibility:** a Section (region "Tiến độ của bạn") holding the `lg` TrackProgressCard
+  (m-1: the card `/today` uses too); ProgressRing `tone="track"`, `size="lg"`, a `progressbar`
+  named "Tiến độ {title}" with the percentage printed (never colour alone); needs TrackOverview's
+  `data-accent`
+
+### WeakItems
+
+- **Layer:** feature (`features/roadmap`, server-compatible)
+- **File:** `features/roadmap/components/weak-items.tsx`
+- **Props:** `rows: ReactNode[]` (the track's Weak items' registry rows with the learner's state
+  and status pill, built by the page)
+- **Variants:** —
+- **States:** with rows · empty ("Chưa có mục yếu nào trong lộ trình này.")
+- **Usage:** `<WeakItems rows={data.weakItems.map((item) => row(item))} />` (TrackOverview's
+  `learner` slot)
+- **Accessibility:** a Section (region "Mục yếu"); the rows in WeekSection's divided LinkList
+  `role="list"` (`RowList`), each one link (44 px); the status pill carries icon and label
+
+### ResetTrackButton
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/reset-track-button.tsx`
+- **Props:** `action: ResetTrackAction` (`resetTrack` of `features/settings`, unbound),
+  `requestId: string` (the page's), `trackId: string`
+- **Variants:** —
+- **States:** default · asking (a destructive ConfirmDialog "Xoá tiến độ của lộ trình này?" /
+  "Lịch sử học và chuỗi ngày vẫn được giữ." / "Bắt đầu lại") · pending (the dialog busy, it cannot
+  close) · answered, through ActionFeedback (UI I-3): the dialog closes; the button stays, so the
+  message is in its own region only, not also a toast (m-4); a failed request is said there too,
+  never the error boundary · stale (the track was removed in another tab: "Lộ trình này vừa thay
+  đổi. Trang đã được làm mới." — `resetTrack` re-rendered the page, whose learner part and this
+  button are gone: a toast, focus on the page's `h1`; re-review M2)
+- **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
+  trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
+- **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps
+  focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
+
+### Admin overview components (`features/admin/components`)
+
+Task 5.6 adds these entries below this line (Part B-M5 decision 3). The view models are
+`features/admin/overview.ts` (`/admin`) and `features/admin/content.ts` (`/admin/content`, the
+coverage horizon of decision 25); the two tables share `features/admin/components/table.ts`.
+
+### AdminOverview
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/admin-overview.tsx`
+- **Props:** `page: AdminOverviewPage` (`getAdminOverview()`)
+- **Variants:** —
+- **States:** with warnings · no warning; each metric with a value or "chưa có dữ liệu" — before the
+  first cron run with the hint "Có sau lần chạy đầu tiên của cron bảo trì.", after it (no
+  successful backup / restore test read) with "Cron bảo trì đã chạy nhưng chưa thấy lần chạy thành
+  công nào."; a DB size not measured for 36 h says "Không có số liệu mới trong 36 giờ qua (đo lúc
+  …)"; loading — `app/(admin)/admin/loading.tsx` (in the catalog, m-3); error — the `(admin)`
+  error boundary
+- **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
+- **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
+  by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
+  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam);
+  "Trang quản trị" (a LinkList of LinkRows to `/admin/users` and `/admin/content` with one-line
+  summaries)
+- **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
+  named (§4.5)
+
+### AdminWarnings
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/admin-warnings.tsx`
+- **Props:** `warnings: readonly AdminWarning[]` (red and critical first)
+- **Variants:** Banner `danger` (danger-soft: the red content-coverage warning, DB ≥ 450 MB) ·
+  Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
+  "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days, and —
+  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào")
+- **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
+- **Usage:** rendered by AdminOverview
+- **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link
+  styled as an outline Button, 44 px); GitHub links open in a new tab and say so ("(mở trong tab
+  mới)", screen readers only); never colour alone
+
+### CatalogStats
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/catalog-stats.tsx`
+- **Props:** `stats: TrackStats`
+- **Variants:** —
+- **States:** a table of items by listed type × status (Đang dùng / Bản nháp / Đã ngừng), plus the
+  verification line for a track with problems ("Kiểm chứng lời giải: n đã kiểm thử · n chỉ biên
+  dịch · n chưa có ghi chú") · empty ("Lộ trình này chưa có mục nào.", no table)
+- **Usage:** `<CatalogStats stats={track.stats} />` (`app/(admin)/admin/content/page.tsx`)
+- **Accessibility:** an `h3`; the table (the DataTable pattern, parked #1) sits in a focusable
+  `region` named "Số mục của {track} theo
+  loại và trạng thái" (keyboard horizontal scroll); row headers are the item types (`lang="en"`);
+  numbers in mono with tabular figures
+
+### ContentCoverage
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/content-coverage.tsx`
+- **Props:** `coverage: RoadmapCoverage` (one track variant)
+- **Variants:** columns follow the item types the track lists — Bài học, Ghi chú (bài chính),
+  Thẻ (core + extended), Exercise, Prompt; always Tuần, Học viên, Tình trạng
+- **States:** rows `red` (a week up to the highest learner week + 2 with a missing pattern lesson
+  or an unnoted placed problem — decision 25: `danger-soft`, an icon and "Cần bổ sung"), `gap`
+  (a gap further ahead: "Còn thiếu"), `covered` ("Đủ"); a line naming the horizon, or "Chưa học
+  viên nào có kế hoạch trong 14 ngày qua…"; a variant without its roadmap file ("Chưa có tệp lộ
+  trình cho biến thể này.", no table); `/admin/content` loading — `app/(admin)/admin/content/
+  loading.tsx`, shown in this entry's catalog demos (m-3)
+- **Usage:** `{track.roadmaps.map((r) => <ContentCoverage key={r.variant} coverage={r} />)}`
+- **Accessibility:** an `h3`; a DataTable (parked #1) — a focusable `region` named "Độ phủ theo
+  tuần của {track}, {variant}";
+  week numbers are row headers; a missing lesson says "(thiếu)" and a red row says "Cần bổ sung"
+  with an icon — never colour alone; English column headers carry `lang="en"`
+
+### DraftsList
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/drafts-list.tsx`
+- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`)
+- **Variants:** —
+- **States:** groups "Lộ trình nháp (n)", "Mục nháp (n)", "Ghi chú nháp (n)" (an empty group is left
+  out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
+  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)." — no publish button in v1.0 (§6.6)
+- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts} /></Section>`
+- **Accessibility:** each group a LinkList, each entry a LinkRow (44 px) to its page — admins see
+  drafts; LeetCode
+  titles and English card fronts carry `lang="en"`; group titles are `h3`

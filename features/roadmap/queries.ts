@@ -7,10 +7,26 @@
 import 'server-only'
 import { cache } from 'react'
 import { itemIdFromRoute } from '@/features/items/href'
-import type { ItemLink, ItemViewer } from '@/features/items/types'
-import { requireOnboarded } from '@/lib/auth/dal'
+import { isDue, resolveMode, type OutcomeContext } from '@/features/items/outcome'
+import { MOCK_INTERVIEW_TAG } from '@/features/items/prompt/tag'
+import type { ItemLink, ItemStateView, ItemViewer } from '@/features/items/types'
+import { requireOnboarded, type SessionUser } from '@/lib/auth/dal'
 import { catalogAccess } from '@/lib/content/catalog'
 import type { CatalogItem } from '@/lib/content/catalog-types'
+import { own } from '@/lib/domain/compare'
+import { blocksWithItem } from '@/lib/domain/plan/checkin'
+import { mockInterviewProblem } from '@/lib/domain/plan/practice'
+import type { ItemState } from '@/lib/domain/state'
+import { loadItemStates } from '@/lib/events/load-derived'
+import { vi } from '@/lib/i18n/vi'
+import { planCatalog } from '@/lib/plans/catalog'
+import { currentPlan } from '@/lib/plans/current'
+import {
+  readEnrollments as readPlanEnrollments,
+  readItemStates,
+  readScheduleVersions,
+  todayOf,
+} from '@/lib/plans/reads'
 import type { ItemStatus } from '@/lib/content/schemas/common'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
 import {
@@ -18,10 +34,20 @@ import {
   describeWeeklyTemplate,
   type TemplateDay,
 } from '@/lib/content/weekly-template'
+import { trackProgressOf } from '@/lib/domain/plan/trackProgress'
 import { defaultVariant } from '@/lib/domain/plan/variant'
 import { variantLabel } from '@/lib/i18n/format'
 import { createClient } from '@/lib/supabase/server'
-import { buildRoadmapView, resolveItemLink, TRACKS_HREF, type RoadmapView } from './view-model'
+import {
+  buildRoadmapView,
+  isListed,
+  resolveItemLink,
+  TODAY_HREF,
+  TRACKS_HREF,
+  weakItemsOf,
+  type RoadmapView,
+  type TrackProgressData,
+} from './view-model'
 
 export type TrackSummary = {
   id: string
@@ -60,6 +86,15 @@ export type TrackPageData = {
   /** Null when the variant's roadmap file does not exist yet (decision 4). */
   view: RoadmapView | null
   isAdmin: boolean
+  /** The learner's state of this track's items (task 5.4): every row of the page shows it. */
+  states: Readonly<Record<string, ItemStateView>>
+  /** The learner's progress on the enrolled variant; null without an active or paused
+   *  enrollment (task 5.4, Part B-M3 decision 25). */
+  progress: TrackProgressData | null
+  /** The track's Weak items (§5.7) the viewer may see, for an enrolled learner; [] otherwise. */
+  weakItems: CatalogItem[]
+  /** Per render (decision 16): "Bắt đầu lại" derives its event id from it. */
+  requestId: string
 }
 
 export type ItemPageModel = {
@@ -68,6 +103,17 @@ export type ItemPageModel = {
   viewer: ItemViewer
   backHref: string
   resolveItem: (id: string) => ItemLink | null
+  /** The learner's state for the item; null before any result, and on a read-only page. */
+  state: ItemStateView | null
+  /**
+   * The result controls' context (task 5.2c): the resolved mode, the plan context, the state and
+   * a per-render request id — the route adds `record` (the server action, unbound). Null when the
+   * page is read-only: a draft an admin previews, a retired item, an item of a track that is not
+   * active.
+   */
+  outcome: OutcomeContext | null
+  /** The mock-interview prompt only (§5.6): the problem `mockInterviewProblem` picks, or null. */
+  mockInterviewProblem?: ItemLink | null
 }
 
 const ENROLLMENT_STATUSES: readonly Enrollment['status'][] = ['active', 'paused', 'removed']
@@ -113,6 +159,12 @@ async function readEnrollments(
   )
 }
 
+const stateView = (state: ItemState): ItemStateView => ({
+  status: state.status,
+  level: state.level,
+  dueOn: state.dueOn,
+})
+
 /** An active or paused enrollment; a removed one is no enrollment. */
 const followed = (enrollment: Enrollment | undefined): enrollment is Enrollment =>
   enrollment !== undefined && enrollment.status !== 'removed'
@@ -141,7 +193,11 @@ export async function getTracksOverview(): Promise<TracksOverview> {
  * variants and the chosen variant's roadmap. Null (→ 404) for an unknown track, a draft track for
  * a learner, and a retired track the learner does not follow. The variant is the parameter when
  * the manifest lists it, else the enrolled one, else `defaultVariant` at the track's default
- * budget (2.9). Wrapped in `cache()`: `generateMetadata` and the page share one read.
+ * budget (2.9). Task 5.4 (Part B-M3 decision 25): every `item_state` row of the learner (paged,
+ * `readItemStates` — a derived card unlocks from another track's item), so the rows show their
+ * state, a derived deck counts the cards this learner unlocked, and an enrolled learner gets the
+ * progress on the enrolled variant and the track's Weak items; plus a per-render request id for
+ * "Bắt đầu lại". Wrapped in `cache()`: `generateMetadata` and the page share one read.
  */
 export const getTrackPage = cache(
   async (trackId: string, variant: string | undefined): Promise<TrackPageData | null> => {
@@ -163,6 +219,10 @@ export const getTrackPage = cache(
         ? enrolled
         : defaultVariant(track.roadmaps, track.defaults.budgetMinutes)
     const roadmap = catalogAccess.getRoadmap(track.id, current)
+    const items = await readItemStates(supabase, user.id)
+    const trackItems = catalogAccess
+      .getTrackItems(track.id)
+      .filter((item) => isListed(item.status, user.isAdmin))
 
     return {
       track: summaryOf(track),
@@ -183,22 +243,120 @@ export const getTrackPage = cache(
               roadmap,
               access: catalogAccess,
               includeDrafts: user.isAdmin,
+              items,
             }),
       isAdmin: user.isAdmin,
+      states: Object.fromEntries(
+        Object.values(items)
+          .filter((state) => state.trackId === track.id)
+          .map((state) => [state.itemId, stateView(state)]),
+      ),
+      progress:
+        enrollment === null
+          ? null
+          : trackProgressOf(planCatalog(), track.id, enrollment.roadmapVariant, items),
+      weakItems: enrollment === null ? [] : weakItemsOf(trackItems, items),
+      requestId: crypto.randomUUID(),
     }
   },
 )
+
+type ReadOnly = Pick<ItemPageModel, 'state' | 'outcome'>
+const READ_ONLY: ReadOnly = { state: null, outcome: null }
+
+/**
+ * The learner's side of an item page (task 5.2c; decisions 13, 14, 16): today from the schedule,
+ * the plan check-ins and results go to (`currentPlan`, active tracks only — M-5 A), the item's own
+ * state (one row; every row — paged — only for the mock-interview prompt, whose problem pick reads
+ * them all), the block that lists the item (`?block=` chooses among several, else the first), the
+ * mode (`resolveMode`) and a fresh request id. Only for an active item of an active track that the
+ * engine's catalog knows; anything else is read-only. No guard of its own: `getItemPage` calls it
+ * after `requireOnboarded`, with the signed-in user.
+ */
+async function learnerContext(
+  user: SessionUser,
+  item: CatalogItem,
+  trackActive: boolean,
+  query: { readonly block: string | undefined; readonly mode: string | undefined },
+): Promise<Pick<ItemPageModel, 'state' | 'outcome' | 'mockInterviewProblem'>> {
+  const catalog = planCatalog()
+  const planItem = own(catalog.items, item.id)
+  if (!trackActive || item.status !== 'active' || planItem === undefined) return READ_ONLY
+
+  const mockInterview = planItem.tag === MOCK_INTERVIEW_TAG
+  const supabase = await createClient()
+  const [versions, enrollments, items] = await Promise.all([
+    readScheduleVersions(supabase, user.id),
+    readPlanEnrollments(supabase, user.id, catalog),
+    mockInterview
+      ? readItemStates(supabase, user.id)
+      : loadItemStates(supabase, user.id, [item.id]),
+  ])
+  const today = todayOf(versions, new Date())
+  const active = new Set(
+    enrollments
+      .filter((enrollment) => enrollment.status === 'active')
+      .map((enrollment) => enrollment.trackId),
+  )
+  const current = await currentPlan(supabase, user.id, today, active)
+  const blocks = current === null ? [] : blocksWithItem(current.plan, item.id)
+  const block = blocks.find((candidate) => candidate.id === query.block) ?? blocks[0]
+  const planMode = block?.items.find((entry) => entry.itemId === item.id)?.mode ?? null
+  const itemState = own(items, item.id) ?? null
+  const state = itemState === null ? null : stateView(itemState)
+  const label = current?.kind === 'today' ? vi.outcomes.plan.today : vi.outcomes.plan.earlier
+
+  return {
+    state,
+    outcome: {
+      mode: resolveMode({
+        item: planItem,
+        requested: query.mode,
+        planMode,
+        state: itemState,
+        today,
+      }),
+      plan: block === undefined ? null : { blockId: block.id, label },
+      state,
+      due: itemState !== null && isDue(planItem, itemState, today),
+      requestId: crypto.randomUUID(),
+      itemId: item.id,
+      ...(block !== undefined && { blockId: block.id }),
+    },
+    ...(mockInterview && { mockInterviewProblem: mockInterviewLink(user, item, items) }),
+  }
+}
+
+/** The problem `mockInterviewProblem` picks for the mock interview (§5.6), as a link; or null. */
+function mockInterviewLink(
+  user: SessionUser,
+  item: CatalogItem,
+  items: Readonly<Record<string, ItemState>>,
+): ItemLink | null {
+  const pick = mockInterviewProblem({ trackId: item.trackId, items, catalog: planCatalog() })
+  return pick === null ? null : resolveItemLink(catalogAccess, pick, user.isAdmin)
+}
 
 /**
  * `/t/[trackId]/items/[itemId]` (§2.4, decision 24): the item for the route's parameters (the
  * local ID is decoded — derived IDs hold colons), its track, who is looking and the links it may
  * resolve. Null (→ 404) for an unknown item or track, and for a draft item or an item of a draft
  * track when a learner asks; retired items stay viewable (their page shows the notice), and link
- * back to `/tracks` when their retired track's page would be a 404. The page loads the item's MDX
- * and code itself (`renderItemPage`). Wrapped in `cache()` like `getTrackPage`.
+ * back to `/tracks` when their retired track's page would be a 404 — or to `/today` when opened
+ * from a block of the plan the dashboard shows (`?block=`, m-9). The page loads the item's MDX
+ * and code itself (`renderItemPage`). Task 5.2c adds the learner's side (`learnerContext`): the
+ * state, the result controls' context — `block` and `mode` are the route's `?block=` and `?mode=` —
+ * and, for the mock-interview prompt, its problem. Wrapped in `cache()` like `getTrackPage`: the
+ * route's `generateMetadata` and page pass the same primitive arguments and share one read (and
+ * one request id).
  */
 export const getItemPage = cache(
-  async (trackId: string, itemParam: string): Promise<ItemPageModel | null> => {
+  async (
+    trackId: string,
+    itemParam: string,
+    block?: string,
+    mode?: string,
+  ): Promise<ItemPageModel | null> => {
     const user = await requireOnboarded()
     const track = catalogAccess.getTrack(trackId)
     if (track === null || (track.status === 'draft' && !user.isAdmin)) return null
@@ -215,9 +373,14 @@ export const getItemPage = cache(
       if (!followed(row)) backHref = TRACKS_HREF
     }
 
+    const learner = await learnerContext(user, item, track.status === 'active', { block, mode })
+    // m-9: opened from a plan block (`?block=`) while the item is in the plan /today shows — the
+    // way back is the dashboard, not the track.
+    if (block !== undefined && learner.outcome?.plan) backHref = TODAY_HREF
     return {
       item,
       track: summaryOf(track),
+      ...learner,
       viewer: {
         // A learner without a code language (English only) still gets a solution tab order.
         codeLanguage: user.codeLanguage ?? track.codeLanguages?.[0] ?? 'python',

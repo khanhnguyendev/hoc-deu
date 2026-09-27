@@ -1,10 +1,6 @@
 /** Recap history (platform design §5.6): which roadmap weeks' recap a track has done. */
-import { blockKey, type BlockState } from '../state'
+import { blockKey, type BlockState, isDoneOrPartial } from '../state'
 import type { Enrollment, StoredPlan } from './types'
-
-function doneOrPartial(status: BlockState['status']): boolean {
-  return status === 'done' || status === 'partial'
-}
 
 /** Track → roadmap weeks whose recap is done (§5.6): a `recap` block of that track with a
  *  `recapWeek`, checked in `done` or `partial`, in a plan whose `tracks[trackId].variant` is the
@@ -33,7 +29,7 @@ export function recapWeeksDone(
       if (enrollment.resetOn !== null && plan.planDate < enrollment.resetOn) continue
 
       const state = blocks[blockKey(plan.id, block.id)]
-      if (state === undefined || !doneOrPartial(state.status)) continue
+      if (state === undefined || !isDoneOrPartial(state.status)) continue
 
       result[enrollment.trackId]?.add(block.recapWeek)
     }

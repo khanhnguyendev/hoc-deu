@@ -7,6 +7,7 @@ import TrackPage, { generateMetadata } from './page'
 const state = vi.hoisted(() => ({
   data: null as unknown,
   calls: [] as unknown[][],
+  resetTrack: async () => ({ ok: true, message: '' }),
 }))
 
 vi.mock('@/features/roadmap', async (importOriginal) => ({
@@ -16,10 +17,12 @@ vi.mock('@/features/roadmap', async (importOriginal) => ({
     return state.data
   },
 }))
+vi.mock('@/features/settings', () => ({ resetTrack: state.resetTrack }))
+vi.mock('@/components/ui/toaster', () => ({ toast: () => {} }))
 vi.mock('@/features/items', () => ({
   renderItemRow: (
     item: { id: string; title: string },
-    props: { state: unknown; mode?: string },
+    props: { state: unknown; mode?: string; showStatus?: boolean },
   ) => {
     state.calls.push(['renderItemRow', item.id, props])
     return (
@@ -34,6 +37,8 @@ vi.mock('next/navigation', () => ({
     throw new Error('NEXT_HTTP_ERROR_FALLBACK;404')
   },
 }))
+
+const TWO = problemItem({ id: 'dsa:lc-0002', localId: 'lc-0002', title: 'Add Two Numbers' })
 
 const DATA: TrackPageData = {
   track: {
@@ -57,7 +62,7 @@ const DATA: TrackPageData = {
         week: 1,
         topics: [{ id: 'arrays-hashing', title: 'Arrays & Hashing' }],
         lessons: [lessonItem()],
-        core: [problemItem()],
+        core: [problemItem(), TWO],
         recap: [{ item: problemItem(), mode: 'recall' }],
         bonus: [],
         decks: [],
@@ -68,6 +73,10 @@ const DATA: TrackPageData = {
     anytime: { prompts: [promptItem()], derivedDecks: [] },
   },
   isAdmin: false,
+  states: { 'dsa:lc-0001': { status: 'weak', level: 1, dueOn: '2026-10-05' } },
+  progress: { week: 2, weeks: 8, introduced: 20, total: 64 },
+  weakItems: [problemItem()],
+  requestId: 'c0ffee00-1234-4abc-8def-0123456789ab',
 }
 
 const props = (trackId: string, search: Record<string, string | string[]> = {}) => ({
@@ -113,8 +122,45 @@ describe('/t/[trackId]', () => {
     expect(within(core).getByRole('link', { name: 'Two Sum' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Không theo tuần' })).toBeTruthy()
     const rows = state.calls.filter((call) => call[0] === 'renderItemRow')
-    expect(rows).toContainEqual(['renderItemRow', 'dsa:lc-0001', { state: null, mode: 'recall' }])
-    expect(rows).toContainEqual(['renderItemRow', 'dsa:lc-0001', { state: null, mode: undefined }])
+    const weak = { status: 'weak', level: 1, dueOn: '2026-10-05' }
+    // Task 5.4: every row with the learner's state, and the status pill for an enrolled learner.
+    expect(rows).toContainEqual([
+      'renderItemRow',
+      'dsa:lc-0001',
+      { state: weak, mode: 'recall', showStatus: true },
+    ])
+    expect(rows).toContainEqual([
+      'renderItemRow',
+      'dsa:lc-0001',
+      { state: weak, mode: undefined, showStatus: true },
+    ])
+    expect(rows).toContainEqual([
+      'renderItemRow',
+      'dsa:lc-0002',
+      { state: null, mode: undefined, showStatus: true },
+    ])
+  })
+
+  it('task 5.4: an enrolled learner’s progress, Weak items and "Bắt đầu lại"', async () => {
+    render(await TrackPage(props('dsa')))
+    const progress = screen.getByRole('region', { name: 'Tiến độ của bạn' })
+    expect(within(progress).getByText('Tuần 2/8')).toBeTruthy()
+    expect(within(progress).getByText('20/64 bài chính đã học')).toBeTruthy()
+    expect(within(progress).getByRole('button', { name: 'Bắt đầu lại' })).toBeTruthy()
+    const weak = screen.getByRole('region', { name: 'Mục yếu' })
+    expect(within(weak).getByRole('link', { name: 'Two Sum' })).toBeTruthy()
+  })
+
+  it('task 5.4: no learner part and no status pills without an enrollment', async () => {
+    state.data = { ...DATA, enrollment: null, progress: null, weakItems: [] }
+    render(await TrackPage(props('dsa')))
+    expect(screen.queryByRole('region', { name: 'Tiến độ của bạn' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Mục yếu' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bắt đầu lại' })).toBeNull()
+    const rows = state.calls.filter((call) => call[0] === 'renderItemRow')
+    expect(rows.every((call) => (call[2] as { showStatus: boolean }).showStatus === false)).toBe(
+      true,
+    )
   })
 
   it('[RF-4] shows the empty state with a link to /tracks when the roadmap file is missing', async () => {

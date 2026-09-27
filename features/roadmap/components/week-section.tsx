@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import type * as React from 'react'
+import { LinkList } from '@/components/patterns/link-list'
 import { Section } from '@/components/patterns/section'
 import { Badge } from '@/components/ui/badge'
 import { fill, formatNumber } from '@/lib/i18n/format'
@@ -27,19 +28,16 @@ function RoadmapGroup({
   )
 }
 
-/** Item rows (registry Rows, each one link) as a bordered list; `role="list"` survives Safari. */
+/** Item rows (registry Rows, each one link) as a divided LinkList. WeakItems (task 5.4) lists
+ *  the Weak items the same way. */
 function RowList({ rows, labelledBy }: { rows: React.ReactNode[]; labelledBy?: string }) {
   return (
-    <ul
-      role="list"
-      aria-labelledby={labelledBy}
-      className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface p-1"
-    >
+    <LinkList variant="divided" aria-labelledby={labelledBy}>
       {rows.map((row, index) => (
         // Rows are a fixed, ordered list; one item may appear twice (core, then recap).
         <li key={index}>{row}</li>
       ))}
-    </ul>
+    </LinkList>
   )
 }
 
@@ -150,4 +148,4 @@ function WeekSection({ week }: { week: WeekSlots }) {
   )
 }
 
-export { DeckCard, DeckList, RoadmapGroup, RowGroup, WeekSection }
+export { DeckCard, DeckList, RoadmapGroup, RowGroup, RowList, WeekSection }

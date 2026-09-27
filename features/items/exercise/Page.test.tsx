@@ -1,7 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
-import { ADMIN, fillBlankItem, pagePropsFor, respondItem, rewriteItem } from '../fixtures'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  ADMIN,
+  fillBlankItem,
+  outcomeBinding,
+  pagePropsFor,
+  respondItem,
+  rewriteItem,
+  SAVED,
+} from '../fixtures'
+import type { RecordOutcome } from '../outcome'
 import { ExercisePage } from './Page'
 
 describe('ExercisePage', () => {
@@ -54,5 +63,31 @@ describe('ExercisePage', () => {
     )
     const main = container.firstElementChild as HTMLElement
     expect(main.firstElementChild?.getAttribute('data-slot')).toBe('banner')
+  })
+})
+
+describe('ExercisePage — results (task 5.2c)', () => {
+  it('no self-grading without a binding', async () => {
+    const user = userEvent.setup()
+    render(<ExercisePage {...pagePropsFor(respondItem())} />)
+    await user.click(screen.getByRole('button', { name: 'Xem câu trả lời mẫu' }))
+    expect(screen.queryByRole('group', { name: 'Tự chấm theo tiêu chí' })).toBeNull()
+  })
+
+  it('with a binding: a fill-blank check submits exercise.submitted { kind, grade }', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    const item = fillBlankItem()
+    render(
+      <ExercisePage
+        {...pagePropsFor(item, { outcome: outcomeBinding(record, { itemId: item.id }) })}
+      />,
+    )
+    await user.type(screen.getByRole('textbox', { name: 'Từ còn thiếu' }), 'blocked')
+    await user.click(screen.getByRole('button', { name: 'Kiểm tra' }))
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      itemId: item.id,
+      outcome: { type: 'exercise.submitted', kind: 'fill-blank', grade: 'pass' },
+    })
   })
 })

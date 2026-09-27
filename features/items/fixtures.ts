@@ -16,6 +16,7 @@ import type { Exercise } from '@/lib/content/item-types/exercise'
 import type { Prompt } from '@/lib/content/item-types/prompt'
 import type { ItemType } from '@/lib/content/schemas/common'
 import { itemHref } from './href'
+import type { OutcomeBinding, RecordOutcome } from './outcome'
 import type { ItemLink, ItemPageProps, ItemViewer } from './types'
 
 /** Top-level fields to override, plus a shallow patch of `content`. */
@@ -393,10 +394,39 @@ export function pagePropsFor<K extends ItemType>(
   return {
     item,
     state: null,
-    context: {},
     viewer: LEARNER,
     data: { Body: null, code: null },
     resolveItem: resolveFixtureItem,
+    ...patch,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Outcome bindings (task 5.2c)
+// ---------------------------------------------------------------------------------------------
+
+/** A fixed per-render request id (decision 16). */
+export const REQUEST_ID = '5f0c8a4e-2b1d-4c3a-9e8f-7a6b5c4d3e2f'
+
+/** A result that saved, as `recordOutcome` answers it. */
+export const SAVED = { ok: true, message: 'Đã lưu kết quả.', autoCheckedIn: [] } as const
+
+/**
+ * The route's binding for Two Sum as a new item, not in a plan, not studied yet — patch what the
+ * test is about. `record` is the test's (a spy) or the catalog's (a fake that resolves).
+ */
+export function outcomeBinding(
+  record: RecordOutcome,
+  patch: Partial<Omit<OutcomeBinding, 'record'>> = {},
+): OutcomeBinding {
+  return {
+    mode: 'new',
+    plan: null,
+    state: null,
+    due: false,
+    requestId: REQUEST_ID,
+    itemId: 'dsa:lc-0001',
+    record,
     ...patch,
   }
 }

@@ -10,6 +10,7 @@ import type { CodeBundle } from '@/lib/content/code-tokens'
 import type { AuthoredByType, ItemTypeCore, Mode } from '@/lib/content/item-types'
 import type { Difficulty } from '@/lib/content/item-types/problem'
 import type { CodeLanguage, ItemType } from '@/lib/content/schemas/common'
+import type { OutcomeBinding } from './outcome'
 
 export type { CatalogItem, ItemType, Mode }
 
@@ -36,24 +37,27 @@ export type ItemLink = {
 /** Loaded by the type's `load` before the Page renders: the MDX body and highlighted code. */
 export type ItemPageData = { Body: MDXContent | null; code: CodeBundle | null }
 
-/** Records a result (§4.4); arrives with task 5.2. */
-export type RecordResultAction = (input: {
-  itemId: string
-  result: string
-  mode?: Mode
-}) => Promise<{ ok: boolean; message: string }>
-
 export type ItemPageProps<K extends ItemType> = {
   item: CatalogItem<K>
   /** `null` until item state exists (decision 25). */
   state: ItemStateView | null
-  context: { planBlockId?: string; mode?: Mode }
   viewer: ItemViewer
   /** Preloaded by the route through the type's `load`. */
   data: ItemPageData
   /** Practice, anchor, deep-dive and recap links; `null` for an unknown or hidden item. */
   resolveItem: (id: string) => ItemLink | null
-  recordResult?: RecordResultAction
+  /**
+   * The learner's result controls (task 5.2c): the resolved mode, the plan context, the state,
+   * the render's request id and the unbound `recordOutcome`. Absent for admins previewing drafts
+   * and for retired items — read-only.
+   */
+  outcome?: OutcomeBinding
+  /**
+   * The mock-interview prompt's problem (§5.6; M4 decision 24: `mockInterviewProblem`) — set by
+   * the loader for the prompt tagged `mock-interview` only; `null` when no Medium problem is
+   * learned yet.
+   */
+  mockInterviewProblem?: ItemLink | null
 }
 
 export type ItemRowProps<K extends ItemType> = {
@@ -63,6 +67,11 @@ export type ItemRowProps<K extends ItemType> = {
   href: string
   /** Show the learner's status pill ("Chưa học" when `state` is null). */
   showStatus?: boolean
+  /**
+   * Ruling M5-R26: a problem without a visible note says "Chưa có ghi chú" in its row (§5.9,
+   * RF-4). Other types ignore it: their content is always there.
+   */
+  showNoteHint?: boolean
 }
 
 export type ItemTypeDef<K extends ItemType> = ItemTypeCore<AuthoredByType[K]> & {

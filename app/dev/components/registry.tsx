@@ -3,7 +3,6 @@
 import { Clock, Inbox, Info, MapIcon, Plus, Settings, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
-import type * as React from 'react'
 import { AppShell } from '@/components/patterns/app-shell'
 import { Banner } from '@/components/patterns/banner'
 import { CalendarHeatmap, type HeatmapDay } from '@/components/patterns/calendar-heatmap'
@@ -13,8 +12,7 @@ import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
-import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
-import { FocusLayout } from '@/components/patterns/focus-layout'
+import { FilterChip, FilterChipGroup, FilterChipLink } from '@/components/patterns/filter-chip'
 import { FormActions } from '@/components/patterns/form-actions'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField } from '@/components/patterns/form-field'
@@ -81,10 +79,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { AdminActionResult } from '@/features/admin/actions'
-import { UserQueue } from '@/features/admin/components/user-queue'
-import { UserRowActions } from '@/features/admin/components/user-row-actions'
-import type { AdminUserRow } from '@/features/admin/queries'
 import { Landing } from '@/features/auth/components/landing'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
@@ -112,13 +106,16 @@ import { RelatedItems } from '@/features/items/components/related-items'
 import { RubricList } from '@/features/items/components/rubric-list'
 import { SelfGradedExercise } from '@/features/items/components/self-graded-exercise'
 import { VerificationBadge } from '@/features/items/components/verification-badge'
+import { FlashcardGrades } from '@/features/items/components/outcome/flashcard-grades'
 import {
   cardItem,
   derivedCardItem,
   FIXTURE_LINKS,
   fillBlankItem,
+  outcomeBinding,
   rewriteItem,
 } from '@/features/items/fixtures'
+import type { RecordOutcome } from '@/features/items/outcome'
 import { mdxComponents as Md } from '@/features/items/mdx/components'
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard'
 import { ItemView } from '@/features/roadmap/components/item-view'
@@ -130,7 +127,7 @@ import { VariantLinks } from '@/features/roadmap/components/variant-links'
 import { WeekSection } from '@/features/roadmap/components/week-section'
 import type { Enrollment, TrackSummary, VariantLink } from '@/features/roadmap/queries'
 import type { RoadmapSlots, WeekSlots } from '@/features/roadmap/slots'
-import { TRACKS_HREF } from '@/features/roadmap/view-model'
+import { TODAY_HREF, TRACKS_HREF } from '@/features/roadmap/view-model'
 import type { OnboardingState } from '@/features/onboarding/schema'
 import { AddTrackForm } from '@/features/settings/components/add-track-form'
 import { AdminLink } from '@/features/settings/components/admin-link'
@@ -146,14 +143,15 @@ import { codeBlockKey, type CodeBundle } from '@/lib/content/code-tokens'
 import type { TrackOption } from '@/lib/content/track-options'
 import { vi } from '@/lib/i18n/vi'
 import { GO_SAMPLE, JAVA_SAMPLE, LONG_LINE_SAMPLE, PYTHON_SAMPLE } from './code-samples'
-
-/**
- * Every component with its variants and states (platform design §7.7). `file` must match the
- * component's path: tools/guards/component-catalog.test.ts checks both directions, and
- * e2e/components.spec.ts runs axe over the rendered page in light and dark mode.
- */
-type Demo = { title: string; render: () => React.ReactNode }
-type Entry = { name: string; layer: 'ui' | 'patterns' | 'features'; file: string; demos: Demo[] }
+import { TODAY_ENTRIES } from './entries/today'
+import { CHECK_IN_ENTRIES } from './entries/check-in'
+import { OUTCOME_ENTRIES } from './entries/outcomes'
+import { REVIEW_ENTRIES } from './entries/review'
+import { PROGRESS_ENTRIES } from './entries/progress'
+import { EXTRA_ENTRIES } from './entries/extra'
+import { ADMIN_ENTRIES } from './entries/admin'
+import { PATTERN_ENTRIES } from './entries/patterns'
+import type { Entry } from './types'
 
 const DEMO_TODAY = '2026-02-04'
 const DEMO_USER = 'Nguyễn Văn An'
@@ -252,6 +250,18 @@ function FilterChipDemo() {
   )
 }
 
+function FilterChipLinkDemo() {
+  return (
+    <div className="max-w-xs">
+      <FilterChipGroup as="nav" label="Lọc theo lộ trình">
+        <FilterChipLink href="/review" label="Tất cả" count={8} current />
+        <FilterChipLink href="/review?track=dsa" label="DSA" count={5} current={false} />
+        <FilterChipLink href="/review?track=english" label="English" count={3} current={false} />
+      </FilterChipGroup>
+    </div>
+  )
+}
+
 function ConfirmDemo() {
   const [open, setOpen] = useState(false)
   return (
@@ -323,6 +333,49 @@ function FormFieldDemo() {
   )
 }
 
+/**
+ * `submitCount` and `onNavigate` (M2 minor): "Gửi lại" bumps `submitCount` and re-focuses the
+ * summary even though the errors read exactly the same as last time; each link focuses its own
+ * field directly (no wizard here to switch steps first) and reports which one below.
+ */
+function FormErrorSummaryNavigateDemo() {
+  const [submitCount, setSubmitCount] = useState(1)
+  const [lastNavigated, setLastNavigated] = useState<string | null>(null)
+  const errors = [
+    { fieldId: 'demo-summary-nav-minutes', message: 'Chọn từ 10 đến 240 phút.' },
+    { fieldId: 'demo-summary-nav-timezone', message: 'Chọn một múi giờ hợp lệ.' },
+  ]
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-4">
+      <FormErrorSummary
+        title={vi.forms.errorSummaryTitle}
+        errors={errors}
+        submitCount={submitCount}
+        onNavigate={(fieldId) => {
+          setLastNavigated(fieldId)
+          document.getElementById(fieldId)?.focus()
+        }}
+      />
+      <FormField
+        id="demo-summary-nav-minutes"
+        label="Số phút mỗi ngày"
+        error="Chọn từ 10 đến 240 phút."
+      >
+        {(control) => <Input {...control} inputMode="numeric" />}
+      </FormField>
+      <FormField id="demo-summary-nav-timezone" label="Múi giờ" error="Chọn một múi giờ hợp lệ.">
+        {(control) => <Input {...control} />}
+      </FormField>
+      <Button variant="outline" onClick={() => setSubmitCount((count) => count + 1)}>
+        Gửi lại (submitCount: {submitCount})
+      </Button>
+      {lastNavigated && (
+        <p className="text-sm text-muted-foreground">onNavigate({lastNavigated})</p>
+      )}
+    </div>
+  )
+}
+
 function ChoiceCardDemo() {
   const [checked, setChecked] = useState(true)
   return (
@@ -356,51 +409,6 @@ const PROBLEMS = [
 ]
 
 const emptyCards = <EmptyState icon={Inbox} title="Không có thẻ nào đến hạn" />
-
-/** The admin actions as no-ops: they "succeed" and toast, but nothing changes. */
-const demoSetUserStatus = async (): Promise<AdminActionResult> => ({
-  ok: true,
-  message: vi.admin.results.approved,
-})
-const demoSetUserRole = async (): Promise<AdminActionResult> => ({
-  ok: true,
-  message: vi.admin.results.promoted,
-})
-const demoFailure = async (): Promise<AdminActionResult> => ({
-  ok: false,
-  message: vi.admin.errors.changed,
-})
-
-const demoUser = (user: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): AdminUserRow => ({
-  email: `${user.id}@example.test`,
-  displayName: null,
-  role: 'learner',
-  status: 'active',
-  createdAt: '2026-01-12T02:00:00Z',
-  approvedAt: null,
-  onboardedAt: null,
-  isSelf: false,
-  ...user,
-})
-
-// Row names are constants: e2e/components.spec.ts reads every quoted `name` property in this
-// file as a catalog entry name.
-const DEMO_LEARNER = 'Trần Thị Bình'
-const DEMO_OTHER_ADMIN = 'Lê Văn Dũng'
-
-const DEMO_ADMIN_USERS: AdminUserRow[] = [
-  demoUser({
-    id: 'binh',
-    displayName: DEMO_LEARNER,
-    status: 'pending',
-    createdAt: '2026-02-02T09:30:00Z',
-  }),
-  demoUser({ id: 'cuong', status: 'pending', createdAt: '2026-02-03T20:00:00Z' }),
-  demoUser({ id: 'an', displayName: DEMO_USER, role: 'admin', isSelf: true }),
-  demoUser({ id: 'dung', displayName: DEMO_OTHER_ADMIN, role: 'admin' }),
-  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
-  demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
-]
 
 /** The two real tracks as the onboarding loader returns them (`loadTrackOptions()`). */
 const DEMO_TRACKS: TrackOption[] = [
@@ -500,6 +508,27 @@ const DEMO_ADDABLE_TRACKS: SettingsTrack[] = [
   { option: DEMO_ENGLISH, enrollment: null },
 ]
 
+/**
+ * A status-change failure whose track leaves the list before the learner reads it (a stale
+ * re-render — someone else changed it first, M2 minor): the failure survives as its own,
+ * dismissible line.
+ */
+function TrackSettingsOrphanFailureDemo() {
+  const [tracks, setTracks] = useState(DEMO_SETTINGS_TRACKS)
+  const setTrackStatus: SettingsAction = async () => {
+    setTracks((current) => current.filter((track) => track.option.id !== 'dsa'))
+    return { ok: false, message: vi.errors.invalidTransition }
+  }
+  return (
+    <TrackSettings
+      tracks={tracks}
+      requestId={DEMO_REQUEST_ID}
+      updateTrack={demoSettingsSave}
+      setTrackStatus={setTrackStatus}
+    />
+  )
+}
+
 function TrackBudgetFieldsDemo({ track, minutes }: { track: TrackOption; minutes: string }) {
   const [typed, setTyped] = useState(minutes)
   const [variant, setVariant] = useState(track.roadmaps[0]?.id ?? '')
@@ -560,6 +589,13 @@ const DEMO_CODE: CodeBundle = {
   },
 }
 const PROSE = 'w-full max-w-prose space-y-4'
+
+/** A stand-in `recordOutcome` for the item components' demos (task 5.2c): saves at once. */
+const recordNothing: RecordOutcome = async () => ({
+  ok: true,
+  message: vi.checkIn.outcome.saved,
+  autoCheckedIn: [],
+})
 /** MDX marks a fence's language on its `code` element (not a Tailwind class). */
 const fenceClass = (lang: string) => `language-${lang}`
 
@@ -704,6 +740,10 @@ const DEMO_SLOTS: RoadmapSlots = {
   },
 }
 
+/**
+ * Every component with its variants and states (platform design §7.7): the entries below, then each
+ * M5 area's `entries/<area>.tsx` (Part B-M5 decision 3). See `types.ts` for what the guards check.
+ */
 export const CATALOG: Entry[] = [
   {
     name: 'Badge',
@@ -1167,7 +1207,9 @@ export const CATALOG: Entry[] = [
             <Banner tone="danger">
               Tuần 4 (DSA) chưa có ghi chú — 1 học viên sẽ tới trong 9 ngày.
             </Banner>
-            <Banner tone="info">Đang có 52 thẻ cần ôn — tạm giảm thẻ mới.</Banner>
+            <Banner tone="info">
+              Kế hoạch này được lập khi bạn có 52 mục cần ôn — tạm giảm bài mới.
+            </Banner>
           </div>
         ),
       },
@@ -1181,6 +1223,10 @@ export const CATALOG: Entry[] = [
       {
         title: 'Year view (≥ 1024 px, mouse) and month view (below, or touch)',
         render: () => <CalendarHeatmap days={DEMO_DAYS} today={DEMO_TODAY} label="Lịch học mẫu" />,
+      },
+      {
+        title: 'Trống (M1 #22): chưa có ngày học nào',
+        render: () => <CalendarHeatmap days={[]} today={DEMO_TODAY} label="Lịch học mẫu (trống)" />,
       },
     ],
   },
@@ -1313,32 +1359,9 @@ export const CATALOG: Entry[] = [
         title: 'Status filters: 32 px chips, 44 px hit areas, wrapping',
         render: () => <FilterChipDemo />,
       },
-    ],
-  },
-  {
-    name: 'FocusLayout',
-    layer: 'patterns',
-    file: 'components/patterns/focus-layout.tsx',
-    demos: [
       {
-        title: 'Wordmark, skip link, centred main (narrow)',
-        render: () => (
-          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
-            <FocusLayout>
-              <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
-            </FocusLayout>
-          </div>
-        ),
-      },
-      {
-        title: 'Wide, with header actions',
-        render: () => (
-          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
-            <FocusLayout width="wide" headerActions={<Button variant="outline">Trợ giúp</Button>}>
-              <p className="text-center text-sm text-muted-foreground">Nội dung trang rộng.</p>
-            </FocusLayout>
-          </div>
-        ),
+        title: 'FilterChipLink: a labelled nav of real links, one current (`/review`, task 5.3)',
+        render: () => <FilterChipLinkDemo />,
       },
     ],
   },
@@ -1384,6 +1407,10 @@ export const CATALOG: Entry[] = [
             />
           </div>
         ),
+      },
+      {
+        title: 'submitCount và onNavigate (M2 minor): "Gửi lại" vẫn tập trung lại',
+        render: () => <FormErrorSummaryNavigateDemo />,
       },
     ],
   },
@@ -1508,6 +1535,20 @@ export const CATALOG: Entry[] = [
             <StatCard label="Phút tuần này" value={245} icon={Clock} hint="Mục tiêu 300 phút" />
             <StatCard label="Thẻ đã thuộc" value={1234} />
             <StatCard label="Dự kiến xong" value="12,4 tuần" />
+          </div>
+        ),
+      },
+      {
+        title: 'href: cả thẻ là một liên kết (hover, focus ring)',
+        render: () => (
+          <div className="w-full max-w-xs">
+            <StatCard
+              label="Cần ôn hôm nay"
+              value={12}
+              icon={Clock}
+              hint="Mở Ôn tập"
+              href="/dev/components#statcard"
+            />
           </div>
         ),
       },
@@ -1645,82 +1686,6 @@ export const CATALOG: Entry[] = [
     ],
   },
   {
-    name: 'UserQueue',
-    layer: 'features',
-    file: 'features/admin/components/user-queue.tsx',
-    demos: [
-      {
-        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn không có thao tác',
-        render: () => (
-          <div className="flex w-full flex-col gap-6">
-            <UserQueue
-              users={DEMO_ADMIN_USERS}
-              setUserStatus={demoSetUserStatus}
-              setUserRole={demoSetUserRole}
-            />
-          </div>
-        ),
-      },
-      {
-        title: 'Không có tài khoản nào chờ duyệt',
-        render: () => (
-          <div className="flex w-full flex-col gap-6">
-            <UserQueue
-              // Own ids: each row's id is its focus target, and ids are unique on the page.
-              users={DEMO_ADMIN_USERS.filter((user) => user.status !== 'pending').map((user) => ({
-                ...user,
-                id: `empty-queue-${user.id}`,
-              }))}
-              setUserStatus={demoSetUserStatus}
-              setUserRole={demoSetUserRole}
-            />
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    name: 'UserRowActions',
-    layer: 'features',
-    file: 'features/admin/components/user-row-actions.tsx',
-    demos: [
-      {
-        title:
-          'Theo trạng thái: chờ duyệt, đang hoạt động (học viên, quản trị), tạm khoá, bị từ chối',
-        render: () => (
-          <div className="flex flex-col gap-4">
-            {(
-              [
-                ['pending', 'learner'],
-                ['active', 'learner'],
-                ['active', 'admin'],
-                ['suspended', 'learner'],
-                ['rejected', 'learner'],
-              ] as const
-            ).map(([status, role]) => (
-              <UserRowActions
-                key={`${status}-${role}`}
-                user={{ id: `${status}-${role}`, name: DEMO_LEARNER, status, role }}
-                setUserStatus={demoSetUserStatus}
-                setUserRole={demoSetUserRole}
-              />
-            ))}
-          </div>
-        ),
-      },
-      {
-        title: 'Thao tác thất bại: thông báo trong hàng và toast',
-        render: () => (
-          <UserRowActions
-            user={{ id: 'failed', name: DEMO_OTHER_ADMIN, status: 'pending', role: 'learner' }}
-            setUserStatus={demoFailure}
-            setUserRole={demoFailure}
-          />
-        ),
-      },
-    ],
-  },
-  {
     name: 'StatusWatcher',
     layer: 'features',
     file: 'features/auth/components/status-watcher.tsx',
@@ -1729,7 +1694,8 @@ export const CATALOG: Entry[] = [
         title: 'Không có giao diện — làm mới trang mỗi 30 giây, khi focus lại hoặc hiện lại',
         render: () => (
           <div className="text-sm text-muted-foreground">
-            <StatusWatcher />
+            {/* paused: the catalog runs no live 30 s interval in the background (M2 minor). */}
+            <StatusWatcher paused />
             <p>Không hiển thị gì (features/auth/components/status-watcher.tsx).</p>
           </div>
         ),
@@ -2049,6 +2015,22 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Mở từ một khối của kế hoạch (?block=): liên kết "Về Hôm nay" (m-9)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-6">
+            <ItemView
+              backHref={TODAY_HREF}
+              trackTitle={DEMO_DSA_SUMMARY.title}
+              page={
+                <ItemPageFrame status="active" title={<span lang="en">Two Sum</span>}>
+                  <Md.p>Nội dung của mục.</Md.p>
+                </ItemPageFrame>
+              }
+            />
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -2134,6 +2116,14 @@ export const CATALOG: Entry[] = [
               updateTrack={demoSettingsSave}
               setTrackStatus={demoSettingsSave}
             />
+          </div>
+        ),
+      },
+      {
+        title: 'Bấm "Tạm dừng" trên DSA: lộ trình biến mất trước khi lỗi hiển thị (M2 minor)',
+        render: () => (
+          <div className="w-full">
+            <TrackSettingsOrphanFailureDemo />
           </div>
         ),
       },
@@ -2636,6 +2626,25 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title:
+          'Có binding kết quả (5.2c): trạng thái học, "Trong kế hoạch hôm nay", "Bỏ qua mục này"',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <ItemPageFrame
+              status="active"
+              title={<span lang="en">Two Sum</span>}
+              meta={['#1', <DifficultyBadge key="difficulty" difficulty="E" />]}
+              outcome={outcomeBinding(recordNothing, {
+                plan: { blockId: 'b-new', label: vi.outcomes.plan.today },
+                blockId: 'b-new',
+              })}
+            >
+              <Md.p>Nội dung của mục.</Md.p>
+            </ItemPageFrame>
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -2697,6 +2706,28 @@ export const CATALOG: Entry[] = [
           </div>
         ),
       },
+      {
+        title: 'Kèm nút chấm (5.2c): hiện trong thẻ sau lần "Xem nghĩa" đầu tiên',
+        render: () => (
+          <div className="w-full max-w-prose">
+            <FlashcardView card={cardItem().content} headingLevel={3}>
+              <FlashcardGrades onGrade={() => {}} />
+            </FlashcardView>
+          </div>
+        ),
+      },
+      {
+        title:
+          'Trong khối của /today: "Xem nghĩa" outline, tiêu đề h4; mở sẵn khi khối được thêm thẻ (#7, #8)',
+        render: () => (
+          <div className="flex w-full max-w-prose flex-col gap-3">
+            <FlashcardView card={cardItem().content} headingLevel={4} revealVariant="outline" />
+            <FlashcardView card={cardItem().content} headingLevel={4} defaultOpen>
+              <FlashcardGrades onGrade={() => {}} />
+            </FlashcardView>
+          </div>
+        ),
+      },
     ],
   },
   {
@@ -2705,7 +2736,8 @@ export const CATALOG: Entry[] = [
     file: 'features/items/components/fill-blank-exercise.tsx',
     demos: [
       {
-        title: 'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng"',
+        title:
+          'Điền "blocked" rồi "Kiểm tra"; "Xem gợi ý" trước thì thành "Gần đúng" (mỗi lần kiểm tra báo onGrade)',
         render: () => {
           const { content } = fillBlankItem()
           return content.kind === 'fill-blank' ? (
@@ -2714,6 +2746,24 @@ export const CATALOG: Entry[] = [
                 text={content.text}
                 answers={content.answers}
                 hint={content.hint}
+                onGrade={() => {}}
+              />
+            </div>
+          ) : null
+        },
+      },
+      {
+        title: 'Đang lưu (pending, 5.2c): "Kiểm tra" bận, một lần kiểm tra nữa bị bỏ qua',
+        render: () => {
+          const { content } = fillBlankItem()
+          return content.kind === 'fill-blank' ? (
+            <div className="w-full max-w-prose">
+              <FillBlankExercise
+                text={content.text}
+                answers={content.answers}
+                hint={content.hint}
+                onGrade={() => {}}
+                pending
               />
             </div>
           ) : null
@@ -2742,6 +2792,33 @@ export const CATALOG: Entry[] = [
           )
         },
       },
+      {
+        title:
+          'Tự chấm (5.2c): sau "Xem câu trả lời mẫu" — Đạt / Gần đạt / Chưa đạt; đã lưu "Gần đạt"',
+        render: () => {
+          const { content } = rewriteItem()
+          return content.kind === 'fill-blank' ? null : (
+            <div className="w-full max-w-prose">
+              <SelfGradedExercise
+                text={content.text}
+                sampleAnswers={content.sampleAnswers}
+                rubric={content.rubric}
+                rubricLang={content.lang.rubric}
+                onGrade={() => {}}
+                selectedGrade="close"
+              />
+            </div>
+          )
+        },
+      },
     ],
   },
+  ...TODAY_ENTRIES,
+  ...CHECK_IN_ENTRIES,
+  ...OUTCOME_ENTRIES,
+  ...REVIEW_ENTRIES,
+  ...PROGRESS_ENTRIES,
+  ...EXTRA_ENTRIES,
+  ...ADMIN_ENTRIES,
+  ...PATTERN_ENTRIES,
 ]

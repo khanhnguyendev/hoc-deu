@@ -2,7 +2,8 @@
  * Stale-plan resume, "Học tiếp hôm nay" (platform design §5.8; Part B-M4 decision 25, RF-5): when
  * the gate is closed and the last seen plan is old (`gateStatus().offerResume`, `gate.ts`), M5 builds
  * today's plan from the stale plan's unfinished new items and today's due reviews — so the roadmap
- * pointer never advances past the stale plan. The per-track rules are `buildPlan.ts`'s.
+ * pointer never advances past the stale plan. The per-track rules are `buildPlan.ts`'s, shared
+ * through `track.ts`.
  */
 import type { PlanTemplateBlock } from '../catalog'
 import {
@@ -17,7 +18,7 @@ import {
   type TrackEntry,
   type TrackPlan,
   trackSetup,
-} from './buildPlan'
+} from './track'
 import type { DayPlan, PlanContext, StoredPlan } from './types'
 
 type ReviewTemplateBlock = Extract<PlanTemplateBlock, { kind: 'review' }>

@@ -1,3 +1,4 @@
+import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { vi } from '@/lib/i18n/vi'
 import type { ItemLink } from '../types'
@@ -12,12 +13,7 @@ export type RelatedItem = { label: string; link: ItemLink }
 function RelatedItems({ items }: { items: readonly RelatedItem[] }) {
   if (items.length === 0) return null
   return (
-    <ul
-      role="list"
-      aria-label={vi.items.related}
-      data-slot="related-items"
-      className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1"
-    >
+    <LinkList aria-label={vi.items.related} data-slot="related-items">
       {items.map(({ label, link }) => (
         <li key={`${label}:${link.id}`}>
           <LinkRow
@@ -32,7 +28,7 @@ function RelatedItems({ items }: { items: readonly RelatedItem[] }) {
           />
         </li>
       ))}
-    </ul>
+    </LinkList>
   )
 }
 

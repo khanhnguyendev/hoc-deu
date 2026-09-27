@@ -9,7 +9,7 @@ select plan(76);
 -- (platform design §2.3, §4.3, §4.4, §5.4, §5.5; implementation plan Part B-M4 decisions 10, 12,
 -- 30, 33). The server calls it with the secret key, so every call here runs as service_role.
 
--- A system event as lib/events/apply.ts sends it: snake_case keys, rules_version 2 (override it
+-- A system event as lib/events/apply.ts sends it: snake_case keys, rules_version 3 (override it
 -- with `|| '{"rules_version": 1}'`).
 create function tests.sys_event(
   p_id text, p_type text, p_payload jsonb default '{}'::jsonb, p_plan text default null,
@@ -18,7 +18,7 @@ create function tests.sys_event(
   select jsonb_strip_nulls(jsonb_build_object(
       'id', p_id, 'type', p_type, 'plan_id', p_plan, 'block_id', p_block, 'track_id', p_track,
       'local_day', p_local_day))
-    || jsonb_build_object('payload', p_payload, 'rules_version', 2)
+    || jsonb_build_object('payload', p_payload, 'rules_version', 3)
 $$;
 
 -- A learner event (apply_event, 4.9b), as 071 builds it.
@@ -29,7 +29,7 @@ create function tests.learner_event(
   select jsonb_strip_nulls(jsonb_build_object(
       'id', p_id, 'type', p_type, 'track_id', p_track, 'item_id', p_item, 'plan_id', p_plan,
       'block_id', p_block))
-    || jsonb_build_object('payload', p_payload, 'rules_version', 2)
+    || jsonb_build_object('payload', p_payload, 'rules_version', 3)
 $$;
 
 -- plan.generated's payload.
@@ -385,7 +385,7 @@ select results_eq(
     :'plan_today'
   ),
   format(
-    $$values (2, 'baseline'::text, '2026-01-02T00:00:00Z'::timestamptz, 2, tests.blocks(%L, 45),
+    $$values (2, 'baseline'::text, '2026-01-02T00:00:00Z'::timestamptz, 3, tests.blocks(%L, 45),
               tests.weeks(2))$$,
     :'today'
   ),
@@ -749,7 +749,7 @@ select results_eq(
       from public.plan_block_state where plan_id = %L and block_id = %L$$,
     :'plan_today', :'today' || ':dsa:new:1'
   ),
-  format($$values (%L::uuid, 'done'::text, 45, true, %L::date, 1, 2)$$, :'learner', :'today'),
+  format($$values (%L::uuid, 'done'::text, 45, true, %L::date, 1, 3)$$, :'learner', :'today'),
   '... stores the check-in for the user: auto true, checked_in_on the event''s local day'
 );
 select results_eq(
@@ -1048,7 +1048,7 @@ select is(
 );
 
 -- Every other system type stays not_implemented, before any lock or lookup (its owning task:
--- plan.extra_added 5.4, plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
+-- plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
 -- admin.bot_token_rotated 6.3, item.snapshot the compaction job; the admin decisions have their
 -- own functions).
 select results_eq(
@@ -1056,7 +1056,8 @@ select results_eq(
     $$select t, tests.system_error(%L, jsonb_build_object(
           'id', gen_random_uuid(), 'type', t, 'payload', '{}'::jsonb))
       from unnest(public.system_event_types()) as t
-      where t not in ('onboarding.completed', 'plan.generated', 'block.checked_in')
+      where t not in (
+        'onboarding.completed', 'plan.generated', 'plan.extra_added', 'block.checked_in')
       order by 1$$,
     :'learner'
   ),
@@ -1065,11 +1066,11 @@ select results_eq(
       'admin.ai_flag_changed', 'admin.bootstrapped', 'admin.bot_token_rotated',
       'admin.role_changed', 'admin.user_approved', 'admin.user_rejected', 'admin.user_suspended',
       'item.snapshot', 'plan.ai_applied', 'plan.ai_proposed', 'plan.ai_skipped',
-      'plan.extra_added', 'roadmap.override_resumed', 'roadmap.override_revoked',
+      'roadmap.override_resumed', 'roadmap.override_revoked',
       'roadmap.override_set', 'roadmap.override_suspended', 'user_item.created',
       'user_item.hidden', 'user_item.retired'
     ]) as t order by 1$$,
-  'every other system type (19) raises not_implemented'
+  'every other system type (18) raises not_implemented (plan.extra_added: task 5.0b, 073)'
 );
 
 select * from finish();

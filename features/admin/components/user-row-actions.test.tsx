@@ -20,9 +20,9 @@ function setup(status: AccountStatus, role: Role = 'learner', result?: AdminActi
   run += 1
   done = `Đã xong (${run}).`
   const ok: AdminActionResult = result ?? { ok: true, message: done }
-  const setUserStatus = mock.fn<(id: string, status: StatusTarget) => Promise<AdminActionResult>>(
-    async () => ok,
-  )
+  const setUserStatus = mock.fn<
+    (id: string, status: StatusTarget, from: AccountStatus) => Promise<AdminActionResult>
+  >(async () => ok)
   const setUserRole = mock.fn<(id: string, role: Role) => Promise<AdminActionResult>>(
     async () => ok,
   )
@@ -91,7 +91,8 @@ describe('UserRowActions — immediate actions', () => {
     const { setUserStatus, setUserRole, user } = setup('pending')
     await user.click(screen.getByRole('button', { name: 'Duyệt' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith(ID, 'active'))
+    // The status the row was rendered with goes along (p_expected_from, task 5.6).
+    await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith(ID, 'active', 'pending'))
     expect(setUserStatus).toHaveBeenCalledTimes(1)
     expect(setUserRole).not.toHaveBeenCalled()
     expect(await screen.findByText(done)).toBeTruthy()
@@ -103,7 +104,7 @@ describe('UserRowActions — immediate actions', () => {
       const { setUserStatus, user } = setup(status)
       await user.click(screen.getByRole('button', { name: 'Kích hoạt lại' }))
       expect(screen.queryByRole('alertdialog')).toBeNull()
-      await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith(ID, 'active'))
+      await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith(ID, 'active', status))
     },
   )
 })
@@ -127,7 +128,8 @@ describe('UserRowActions — confirmed actions', () => {
       await user.click(within(dialog).getByRole('button', { name: button }))
       const action = kind === 'status' ? setUserStatus : setUserRole
       const other = kind === 'status' ? setUserRole : setUserStatus
-      await waitFor(() => expect(action).toHaveBeenCalledWith(ID, target))
+      const args = kind === 'status' ? [ID, target, status] : [ID, target]
+      await waitFor(() => expect(action).toHaveBeenCalledWith(...args))
       expect(action).toHaveBeenCalledTimes(1)
       expect(other).not.toHaveBeenCalled()
       await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
@@ -256,12 +258,88 @@ describe('UserRowActions — keyboard focus follows the row (WCAG 2.4.3)', () =>
 
   it('focuses the row when a failed action re-renders it in another state (a stale list)', async () => {
     const user = userEvent.setup()
-    const failed: AdminActionResult = { ok: false, message: 'Đã đổi.' }
+    // `stale`: the action revalidated the list, which now shows the account's current status.
+    const failed: AdminActionResult = { ok: false, message: 'Đã đổi.', stale: true }
     const { rerender } = render(<Row key="pending" status="pending" result={failed} />)
     await user.click(screen.getByRole('button', { name: 'Duyệt' }))
     await screen.findAllByText('Đã đổi.')
     // Another admin had rejected the account; the revalidated list shows it there.
     rerender(<Row key="rejected" status="rejected" result={failed} />)
     expect(document.activeElement).toBe(screen.getByTestId('row'))
+  })
+})
+
+describe('UserRowActions — one focus note per row (task 5.6, the M2 2.8 minor)', () => {
+  const A = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a1a'
+  const B = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a1b'
+  const ok = async (): Promise<AdminActionResult> => ({ ok: true, message: 'Xong.' })
+
+  /** Two rows as UserQueue renders them; a new key remounts a row, as moving it does. */
+  function Rows({ a, b }: { a: AccountStatus; b: AccountStatus }) {
+    return (
+      <>
+        {[
+          { id: A, status: a, name: 'An' },
+          { id: B, status: b, name: 'Bình' },
+        ].map((row) => (
+          <div
+            key={`${row.id}-${row.status}`}
+            id={userRowId(row.id)}
+            tabIndex={-1}
+            data-testid={row.name}
+          >
+            <UserRowActions
+              user={{ id: row.id, name: row.name, status: row.status, role: 'learner' }}
+              setUserStatus={ok}
+              setUserRole={ok}
+            />
+          </div>
+        ))}
+      </>
+    )
+  }
+
+  it('two interleaved actions keep their own focus targets', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<Rows a="pending" b="pending" />)
+    await user.click(within(screen.getByTestId('An')).getByRole('button', { name: 'Duyệt' }))
+    await user.click(within(screen.getByTestId('Bình')).getByRole('button', { name: 'Duyệt' }))
+    // An's move arrives first: focus follows An, although Bình's action was pressed later.
+    rerender(<Rows a="active" b="pending" />)
+    expect(document.activeElement).toBe(screen.getByTestId('An'))
+    rerender(<Rows a="active" b="active" />)
+    expect(document.activeElement).toBe(screen.getByTestId('Bình'))
+  })
+
+  it('a failed action clears its note: a later change of that row does not take focus', async () => {
+    const user = userEvent.setup()
+    const failed = async (): Promise<AdminActionResult> => ({ ok: false, message: 'Không được.' })
+    const Row = ({ status }: { status: AccountStatus }) => (
+      <div key={status} id={userRowId(A)} tabIndex={-1} data-testid="row">
+        <UserRowActions
+          user={{ id: A, name: 'An', status, role: 'learner' }}
+          setUserStatus={failed}
+          setUserRole={failed}
+        />
+      </div>
+    )
+    const { rerender } = render(
+      <>
+        <Row key="pending" status="pending" />
+        <button type="button">Ở chỗ khác</button>
+      </>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Duyệt' }))
+    await screen.findByText('Không được.')
+    // Later the list shows the account suspended (another admin); the admin works elsewhere.
+    const elsewhere = screen.getByRole('button', { name: 'Ở chỗ khác' })
+    elsewhere.focus()
+    rerender(
+      <>
+        <Row key="suspended" status="suspended" />
+        <button type="button">Ở chỗ khác</button>
+      </>,
+    )
+    expect(document.activeElement).toBe(elsewhere)
   })
 })

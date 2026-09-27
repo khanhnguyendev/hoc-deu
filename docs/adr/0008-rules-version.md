@@ -33,7 +33,8 @@ Options considered:
   `tools/db/sql-sync.test.ts` compares the constant with the last `rules_version()` definition in
   the migrations; from task 4.9a a pgTAP assertion checks that the running database returns it,
   and a sql-sync case keeps that pgTAP literal equal to the constant (decision 18). Version 1 has
-  no plan or SRS rules (M2); version 2 is the first with them (M4, task 4.9a).
+  no plan or SRS rules (M2); version 2 is the first with them (M4, task 4.9a); 3 = owner ruling
+  M-6 (a): a skipped check-in corrected on a later day counts for that day (task 5.0b).
 - **Replay is an explicit choice of rules.** `replay(events, catalog, { rulesVersion })`
   (`lib/domain/projection/replay.ts`) takes the version to replay under. Only the current rules
   exist in code, so it must equal `RULES_VERSION` (the default); replay re-derives every event,

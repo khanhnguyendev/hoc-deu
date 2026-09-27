@@ -22,6 +22,9 @@ type VariantPickerProps = {
   'aria-label'?: string
   /** The id of an error line under the group (settings, task 2.11). */
   'aria-describedby'?: string
+  /** Set when a field error applies to the group (settings, M2 minor: the group carries it, not
+   *  each radio — DESIGN_SYSTEM §5, ruling R9). */
+  'aria-invalid'?: boolean
 }
 
 /**

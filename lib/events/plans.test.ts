@@ -6,6 +6,8 @@ import { vi as copy } from '@/lib/i18n/vi'
 import type { Database } from '@/lib/supabase/database.types'
 import { EventError, type EventErrorCode } from './apply'
 import {
+  addExtraItems,
+  EXTRA_ITEM_IDS,
   storedPlanFromRow,
   storePlan,
   type DayPlanRow,
@@ -281,6 +283,180 @@ describe('storePlan (plan.generated through apply_system_event)', () => {
     expect(error.code).toBe('invalid_event')
     expect(calls).toEqual([])
   })
+})
+
+describe('addExtraItems (plan.extra_added through apply_system_event)', () => {
+  const EXTRA_BLOCK: PlanBlock = {
+    id: `${DAY}:dsa:extra:1`,
+    trackId: 'dsa',
+    kind: 'extra',
+    estMinutes: 55,
+    items: [
+      { itemId: 'dsa:lc-0101', mode: 'new', minutes: 20 },
+      { itemId: 'dsa:lc-0102', mode: 'new', minutes: 35 },
+    ],
+  }
+  const INPUT = {
+    eventId: EVENT_ID,
+    planId: PLAN_ID,
+    planDate: DAY,
+    trackId: 'dsa',
+    block: EXTRA_BLOCK,
+    itemIds: ['dsa:lc-0102'],
+    expectedVersion: 3,
+    localDay: DAY,
+  } as const
+
+  it('sends plan_id, track_id, payload { itemIds }, local_day, the block change and p_expected', async () => {
+    const { client, calls } = fakeClient(
+      answer({ outcome: 'applied', plan_id: PLAN_ID, versions: { [`day_plans:${DAY}`]: 4 } }),
+    )
+    await expect(addExtraItems(client, USER_ID, INPUT)).resolves.toEqual({
+      outcome: 'applied',
+      version: 4,
+    })
+    expect(calls).toEqual([
+      {
+        fn: 'apply_system_event',
+        args: {
+          p_user_id: USER_ID,
+          p_event: {
+            id: EVENT_ID,
+            type: 'plan.extra_added',
+            plan_id: PLAN_ID,
+            track_id: 'dsa',
+            local_day: DAY,
+            payload: { itemIds: ['dsa:lc-0102'] },
+            rules_version: RULES_VERSION,
+          },
+          p_changes: [{ table: 'day_plan_block', row: EXTRA_BLOCK }],
+          p_expected: { [`day_plans:${DAY}`]: 3 },
+        },
+      },
+    ])
+  })
+
+  it('keys p_expected by the plan date, and local_day is the day the caller computed', async () => {
+    const { client, calls } = fakeClient(
+      answer({ outcome: 'applied', plan_id: PLAN_ID, versions: { 'day_plans:2026-09-27': 2 } }),
+    )
+    await expect(
+      addExtraItems(client, USER_ID, {
+        ...INPUT,
+        planDate: '2026-09-27',
+        block: { ...EXTRA_BLOCK, id: '2026-09-27:dsa:extra:1' },
+        expectedVersion: 1,
+      }),
+    ).resolves.toEqual({ outcome: 'applied', version: 2 })
+    expect(calls[0]?.args).toMatchObject({
+      p_event: { local_day: DAY },
+      p_expected: { 'day_plans:2026-09-27': 1 },
+    })
+  })
+
+  it('maps duplicate (the event id was already recorded) to a null version', async () => {
+    const { client } = fakeClient(answer({ outcome: 'duplicate', versions: {} }))
+    await expect(addExtraItems(client, USER_ID, INPUT)).resolves.toEqual({
+      outcome: 'duplicate',
+      version: null,
+    })
+  })
+
+  it.each([
+    { outcome: 'applied', plan_id: PLAN_ID },
+    { outcome: 'applied', plan_id: PLAN_ID, versions: { 'day_plans:2026-09-27': 4 } },
+    { outcome: 'applied', plan_id: PLAN_ID, versions: { [`day_plans:${DAY}`]: '4' } },
+    { outcome: 'plan_exists', plan_id: PLAN_ID, versions: {} },
+    null,
+    [],
+  ])('treats the response %j as unknown', async (data) => {
+    const { client } = fakeClient(answer(data))
+    const error = await eventError(addExtraItems(client, USER_ID, INPUT))
+    expect(error.code).toBe('unknown')
+  })
+
+  it.each<[EventErrorCode, string]>([
+    ['version_conflict', copy.errors.saveFailed],
+    ['day_changed', copy.errors.saveFailed],
+    ['invalid_event', copy.errors.saveFailed],
+    ['inactive', copy.errors.notAllowed],
+    ['id_conflict', copy.errors.saveFailed],
+  ])('maps the RPC error %s to an EventError', async (code, userMessage) => {
+    const { client } = fakeClient(failed(code, code === 'inactive' ? '42501' : 'P0001'))
+    const error = await eventError(addExtraItems(client, USER_ID, INPUT))
+    expect(error.code).toBe(code)
+    expect(error.userMessage).toBe(userMessage)
+  })
+
+  it('maps the 128 KB check constraint error to unknown', async () => {
+    const { client } = fakeClient(
+      failed(
+        'new row for relation "day_plans" violates check constraint "day_plans_blocks_check"',
+        '23514',
+      ),
+    )
+    const error = await eventError(addExtraItems(client, USER_ID, INPUT))
+    expect(error.code).toBe('unknown')
+  })
+
+  it.each<[string, unknown]>([
+    ['a block of an unknown kind', { ...EXTRA_BLOCK, kind: 'bonus' }],
+    ['a block with an unknown key', { ...EXTRA_BLOCK, note: 'x' }],
+    ['a block over 600 minutes', { ...EXTRA_BLOCK, estMinutes: 601 }],
+    [
+      'an item with an unknown mode',
+      { ...EXTRA_BLOCK, items: [{ itemId: 'dsa:lc-0102', mode: 'skim', minutes: 5 }] },
+    ],
+  ])('refuses %s (planBlockSchema) before calling the database', async (_, block) => {
+    const { client, calls } = fakeClient(answer({ outcome: 'applied', plan_id: PLAN_ID }))
+    const error = await eventError(
+      addExtraItems(client, USER_ID, { ...INPUT, block: block as PlanBlock }),
+    )
+    expect(error.code).toBe('invalid_event')
+    expect(calls).toEqual([])
+  })
+
+  // Ruling M5-R2: the SQL bound (1–20 distinct ids of 1–128 characters), checked here first; the
+  // plan.extra_added Zod payload schema stays as it is.
+  it.each<[string, readonly string[]]>([
+    ['no item ids', []],
+    [
+      `${EXTRA_ITEM_IDS.max + 1} item ids`,
+      Array.from({ length: EXTRA_ITEM_IDS.max + 1 }, (_, i) => `dsa:x-${i}`),
+    ],
+    ['a repeated item id', ['dsa:lc-0102', 'dsa:lc-0102']],
+    ['an empty item id', ['']],
+    [`an item id over ${EXTRA_ITEM_IDS.maxLength} characters`, ['x'.repeat(129)]],
+  ])('refuses %s before calling the database', async (_, itemIds) => {
+    const { client, calls } = fakeClient(answer({ outcome: 'applied', plan_id: PLAN_ID }))
+    const error = await eventError(addExtraItems(client, USER_ID, { ...INPUT, itemIds }))
+    expect(error.code).toBe('invalid_event')
+    expect(calls).toEqual([])
+  })
+
+  // The bound itself. 20 ids of 128 characters would not fit the 2048-byte payload cap
+  // (ADR-0030), which parseEventPayload applies as well.
+  it.each<[string, readonly string[]]>([
+    ['20 distinct ids', Array.from({ length: 20 }, (_, i) => `dsa:lc-${1000 + i}`)],
+    ['an id of 128 characters', ['x'.repeat(128)]],
+  ])('accepts %s', async (_, itemIds) => {
+    const { client, calls } = fakeClient(
+      answer({ outcome: 'applied', plan_id: PLAN_ID, versions: { [`day_plans:${DAY}`]: 4 } }),
+    )
+    await addExtraItems(client, USER_ID, { ...INPUT, itemIds })
+    expect(calls).toHaveLength(1)
+    expect(EXTRA_ITEM_IDS).toEqual({ max: 20, maxLength: 128 })
+  })
+
+  it.each([0, 1.5, -1])(
+    'refuses the expected version %s before calling the database',
+    async (expectedVersion) => {
+      const { client, calls } = fakeClient(answer({ outcome: 'applied', plan_id: PLAN_ID }))
+      const error = await eventError(addExtraItems(client, USER_ID, { ...INPUT, expectedVersion }))
+      expect(error.code).toBe('invalid_event')
+      expect(calls).toEqual([])
+    },
+  )
 })
 
 describe('storedPlanFromRow', () => {

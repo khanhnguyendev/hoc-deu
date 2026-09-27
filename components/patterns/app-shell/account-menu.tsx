@@ -14,7 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { toast } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
+import { isNavigationError } from '../navigation-error'
 import { initial } from './initial'
 
 /** Name, theme, "Quản trị" (admins only) and "Đăng xuất" (DESIGN_SYSTEM §5). */
@@ -60,9 +62,15 @@ export function AccountMenu({
         )}
         <DropdownMenuItem
           disabled={!onSignOut}
-          // Radix's onSelect passes a non-serializable Event; onSignOut takes none.
+          // Radix's onSelect passes a non-serializable Event; onSignOut takes none. Awaited (not
+          // fire-and-forget, M2 minor): a genuine rejection shows a toast, since the menu has
+          // otherwise already closed with no other sign of failure — a redirect-shaped rejection
+          // (the ordinary, successful path) never does.
           onSelect={() => {
-            if (onSignOut) void onSignOut()
+            onSignOut?.().catch((error: unknown) => {
+              // A successful sign-out rejects with Next's redirect (`isNavigationError`).
+              if (!isNavigationError(error)) toast.error(vi.account.signOutFailed)
+            })
           }}
         >
           <LogOut aria-hidden="true" strokeWidth={1.75} />

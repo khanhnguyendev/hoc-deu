@@ -303,4 +303,62 @@ describe('TrackSettings — pause, resume, remove', () => {
       ).toContain('Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.'),
     )
   })
+
+  it('keeps a status-change failure visible when the row itself disappears (M2 minor)', async () => {
+    const message = 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.'
+    const { view, updateTrack, setTrackStatus, user } = setup(
+      {},
+      { status: { ok: false, message } },
+    )
+    await user.click(within(actions(DSA_TITLE)).getByRole('button', { name: 'Tạm dừng' }))
+    await waitFor(() => expect(setTrackStatus).toHaveBeenCalledTimes(1))
+    await screen.findByText(message)
+
+    // A stale re-render (§4.1): the track is gone from the fresh data (someone else removed it
+    // first) — the row itself is gone too, but the failure the learner has not read yet stays.
+    const [, ...rest] = TRACKS
+    view.rerender(
+      <>
+        <TrackSettings
+          tracks={rest}
+          requestId={REQUEST_ID}
+          updateTrack={updateTrack}
+          setTrackStatus={setTrackStatus}
+        />
+        <Toaster />
+      </>,
+    )
+    expect(screen.queryByRole('region', { name: DSA_TITLE })).toBeNull()
+    expect(screen.getByText(DSA_TITLE)).toBeTruthy()
+    expect(screen.getByText(message)).toBeTruthy()
+  })
+
+  it('the orphaned failure is dismissible, with a distinct accessible name per track, and returns focus to the list', async () => {
+    const message = 'Lộ trình đang ở trạng thái khác. Bạn tải lại trang nhé.'
+    const { view, updateTrack, setTrackStatus, user } = setup(
+      {},
+      { status: { ok: false, message } },
+    )
+    await user.click(within(actions(DSA_TITLE)).getByRole('button', { name: 'Tạm dừng' }))
+    await waitFor(() => expect(setTrackStatus).toHaveBeenCalledTimes(1))
+    await screen.findByText(message)
+    const [, ...rest] = TRACKS
+    view.rerender(
+      <>
+        <TrackSettings
+          tracks={rest}
+          requestId={REQUEST_ID}
+          updateTrack={updateTrack}
+          setTrackStatus={setTrackStatus}
+        />
+        <Toaster />
+      </>,
+    )
+    await screen.findByText(message)
+    const closeButton = screen.getByRole('button', { name: `Đóng thông báo về ${DSA_TITLE}` })
+    await user.click(closeButton)
+    expect(screen.queryByText(message)).toBeNull()
+    expect(screen.queryByText(DSA_TITLE)).toBeNull()
+    expect(document.activeElement).toBe(document.querySelector('[data-slot="track-settings"]'))
+  })
 })
