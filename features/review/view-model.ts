@@ -1,19 +1,22 @@
 /**
  * `/review`'s pure engine (platform design §2.4, §5.4 step 3, §5.5, §5.7; RF-4; Part B-M5 task
- * 5.3): the cross-track review queue — every active track's due items merged, Weak first → items
- * of a weak topic → most overdue → lowest level → ID (§5.4 step 3, widened across tracks, since
- * `dueQueue` sorts one track at a time) — with `?track=` filtering (an unknown or inactive value
- * reads as all). No React, no I/O: `catalog`, `enrollments`, `items` and `today` all come in as
- * plain data; `queries.ts` reads them and loads a due flashcard's sides.
+ * 5.3): the cross-track review queue — `dueQueue` per eligible track, with that track's own weak
+ * topics, merged with the exported `compareDueEntries` — with `?track=` filtering (an unknown or
+ * ineligible value reads as all). No React, no I/O: `catalog`, `enrollments`, `items` and `today`
+ * all come in as plain data; `queries.ts` reads them and loads a due flashcard's sides.
+ *
+ * Track eligibility is the plan engine's own (`eligibleTracks`, §5.4 steps 1-2 — active
+ * enrollment, started, catalog track active), not merely `status === 'active'`, so `/review` and
+ * `/today` never disagree about which track's items count (review round 1, M7).
  */
 import { itemHref } from '@/features/items/href'
-import type { ItemMode, PlanCatalog, PlanItem } from '@/lib/domain/catalog'
-import { compareIds } from '@/lib/domain/compare'
-import { reviewMode } from '@/lib/domain/plan/reviewMode'
-import type { Enrollment } from '@/lib/domain/plan/types'
+import type { ItemMode, PlanCatalog } from '@/lib/domain/catalog'
+import { compareDueEntries, dueQueue, type DueEntry } from '@/lib/domain/plan/queues'
+import { eligibleTracks } from '@/lib/domain/plan/track'
+import type { Enrollment, PlanContext } from '@/lib/domain/plan/types'
 import type { ItemState } from '@/lib/domain/state'
 import { weakTopics } from '@/lib/domain/stats/weakTopics'
-import { daysBetween, type LocalDay } from '@/lib/domain/time/localDay'
+import type { LocalDay } from '@/lib/domain/time/localDay'
 
 export type ReviewEntry = {
   readonly itemId: string
@@ -25,53 +28,68 @@ export type ReviewEntry = {
   readonly href: string
 }
 
-/** A due item before it is sorted (mirrors `dueQueue`'s `DueEntry`, across every active track). */
-type Candidate = {
-  readonly itemId: string
-  readonly item: PlanItem
-  readonly state: ItemState
-  readonly overdueDays: number
-  readonly mode: ItemMode
-}
-
 /** `itemId`'s local ID (after its track's prefix): `itemHref`'s `localId` (decision 24 of 5.1b). */
 function localIdOf(itemId: string): string {
   return itemId.slice(itemId.indexOf(':') + 1)
 }
 
 /** `/t/<track>/items/<local id>?mode=<mode>` — a plain item page, no plan block (off-plan). */
-function hrefOf(entry: Candidate): string {
+function hrefOf(entry: DueEntry): string {
   const path = itemHref({ trackId: entry.item.trackId, localId: localIdOf(entry.itemId) })
   return `${path}?${new URLSearchParams({ mode: entry.mode }).toString()}`
 }
 
-/** The same tie-break order as `dueQueue`'s (private) comparator, widened across tracks. */
-function compareCandidates(weakTopicIds: ReadonlySet<string>) {
-  return (a: Candidate, b: Candidate): number => {
-    const weakDiff = Number(b.state.weak) - Number(a.state.weak)
-    if (weakDiff !== 0) return weakDiff
-
-    const aWeakTopic = a.item.topicId !== null && weakTopicIds.has(a.item.topicId)
-    const bWeakTopic = b.item.topicId !== null && weakTopicIds.has(b.item.topicId)
-    const topicDiff = Number(bWeakTopic) - Number(aWeakTopic)
-    if (topicDiff !== 0) return topicDiff
-
-    const overdueDiff = b.overdueDays - a.overdueDays
-    if (overdueDiff !== 0) return overdueDiff
-
-    const levelDiff = a.state.level - b.state.level
-    if (levelDiff !== 0) return levelDiff
-
-    return compareIds(a.itemId, b.itemId)
+function toReviewEntry(entry: DueEntry): ReviewEntry {
+  return {
+    itemId: entry.itemId,
+    trackId: entry.item.trackId,
+    mode: entry.mode,
+    minutes: entry.minutes,
+    weak: entry.state.weak,
+    overdueDays: entry.overdueDays,
+    href: hrefOf(entry),
   }
 }
 
 /**
- * Due entries of every active track — `dueOn ≤ today`, status not mastered or skipped, catalog
- * item active with `srs` (as `dueQueue`, one track at a time) — merged and sorted Weak first →
- * items of a weak topic (of the active tracks) → most overdue → lowest level → ID. `track`, when
- * it names an active track, filters to it; any other value (missing, unknown, paused, removed)
- * reads as all.
+ * The tracks a review queue draws from — active, started, catalog-active — the plan engine's own
+ * rule (`eligibleTracks`, §5.4 steps 1-2), not merely `status === 'active'` (M7): a track removed
+ * and re-enrolled with a future start date keeps its old `item_state` rows (only `track.reset`
+ * deletes them) but is not yet eligible, so its due items stay off `/review` until its plan does.
+ */
+export function reviewTrackIds(input: {
+  readonly catalog: PlanCatalog
+  readonly enrollments: readonly Enrollment[]
+  readonly today: LocalDay
+}): ReadonlySet<string> {
+  const ctx: PlanContext = {
+    planDate: input.today,
+    catalog: input.catalog,
+    enrollments: input.enrollments,
+    items: {},
+    recapDone: {},
+  }
+  return new Set(eligibleTracks(ctx).map(({ enrollment }) => enrollment.trackId))
+}
+
+/**
+ * `track`, when it names one of `trackIds`, else null (a missing, unknown or ineligible value
+ * reads as all). Shared by `reviewQueue` and `queries.ts`'s reported `page.track`, so the two
+ * never derive "which filter is in force" differently (review round 1, M10).
+ */
+export function resolveReviewTrack(
+  trackIds: ReadonlySet<string>,
+  track: string | undefined,
+): string | null {
+  return track !== undefined && trackIds.has(track) ? track : null
+}
+
+/**
+ * Due entries of every eligible track (`reviewTrackIds`), `dueQueue` per track with that track's
+ * own weak topics — never a second copy of the due rule or a topic id shared across tracks
+ * (review round 1, I1) — merged with the exported `compareDueEntries`: Weak first → items of a
+ * weak topic → most overdue → lowest level → ID. `track` filters to it when eligible; any other
+ * value reads as all (`resolveReviewTrack`).
  */
 export function reviewQueue(input: {
   readonly catalog: PlanCatalog
@@ -81,49 +99,38 @@ export function reviewQueue(input: {
   readonly track?: string
 }): ReviewEntry[] {
   const { catalog, enrollments, items, today, track } = input
+  const trackIds = reviewTrackIds({ catalog, enrollments, today })
 
-  const activeTrackIds = new Set(
-    enrollments
-      .filter((enrollment) => enrollment.status === 'active')
-      .map((enrollment) => enrollment.trackId),
+  const weakTopicsByTrack = new Map(
+    [...trackIds].map((trackId) => [
+      trackId,
+      new Set(weakTopics(items, catalog, new Set([trackId])).map((topic) => topic.topicId)),
+    ]),
   )
-  const weakTopicIds = new Set(
-    weakTopics(items, catalog, activeTrackIds).map((topic) => topic.topicId),
+
+  const dueEntries = [...trackIds].flatMap((trackId) =>
+    dueQueue({
+      trackId,
+      items,
+      catalog,
+      today,
+      weakTopicIds: weakTopicsByTrack.get(trackId) ?? new Set(),
+    }),
   )
 
-  const candidates: Candidate[] = []
-  for (const [itemId, state] of Object.entries(items)) {
-    if (!activeTrackIds.has(state.trackId)) continue
-    if (state.dueOn === null) continue
-    if (daysBetween(state.dueOn, today) < 0) continue
-    if (state.status === 'mastered' || state.status === 'skipped') continue
+  // Each entry's own track's weak topics: a shared literal topic id across tracks never leaks
+  // (weakTopics keys its groups by trackId/topicId; `weakTopicsByTrack` keeps that separation).
+  const isWeakTopic = (entry: DueEntry): boolean =>
+    entry.item.topicId !== null &&
+    (weakTopicsByTrack.get(entry.item.trackId)?.has(entry.item.topicId) ?? false)
 
-    const item = catalog.items[itemId]
-    if (item === undefined || item.status !== 'active' || item.srs === null) continue
+  dueEntries.sort(compareDueEntries(isWeakTopic))
 
-    candidates.push({
-      itemId,
-      item,
-      state,
-      overdueDays: daysBetween(state.dueOn, today),
-      mode: reviewMode(item, state),
-    })
-  }
-  candidates.sort(compareCandidates(weakTopicIds))
-
-  const validTrack = track !== undefined && activeTrackIds.has(track) ? track : null
+  const validTrack = resolveReviewTrack(trackIds, track)
   const filtered =
     validTrack === null
-      ? candidates
-      : candidates.filter((entry) => entry.item.trackId === validTrack)
+      ? dueEntries
+      : dueEntries.filter((entry) => entry.item.trackId === validTrack)
 
-  return filtered.map((entry) => ({
-    itemId: entry.itemId,
-    trackId: entry.item.trackId,
-    mode: entry.mode,
-    minutes: entry.item.minutes[entry.mode],
-    weak: entry.state.weak,
-    overdueDays: entry.overdueDays,
-    href: hrefOf(entry),
-  }))
+  return filtered.map(toReviewEntry)
 }

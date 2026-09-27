@@ -1,8 +1,12 @@
+import { ErrorState } from '@/components/patterns/error-state'
 import { LinkRow } from '@/components/patterns/link-row'
+import { LoadingState } from '@/components/patterns/loading-state'
+import { StatusPill } from '@/components/patterns/status-pill'
 import { cardItem, REQUEST_ID } from '@/features/items/fixtures'
 import type { RecordOutcome } from '@/features/items/outcome'
 import { ReviewFilters, type ReviewFiltersTrack } from '@/features/review/components/review-filters'
 import { ReviewList } from '@/features/review/components/review-list'
+import { ReviewSession } from '@/features/review/components/review-session'
 import { ReviewView } from '@/features/review/components/review-view'
 import type { ReviewPage } from '@/features/review/queries'
 import type { ReviewItemSlot } from '@/features/review/slots'
@@ -27,11 +31,21 @@ const DEMO_TRACKS: readonly ReviewFiltersTrack[] = [
   { id: 'english', title: 'Tiếng Anh cho môi trường IT', count: 1 },
 ]
 
-/** The registry's rows are plain LinkRows here (the page builds the real ones, `reviewRows`). */
+/**
+ * The registry's rows are plain LinkRows here (the page builds the real ones through
+ * `renderItemRow`, `reviewRows`) — the "Yếu" pill lives inside the row's own link, as the real
+ * rows do (task 5.3 review, finding M5).
+ */
 const row = (itemId: string, title: string, meta: string[], weak = false): ReviewItemSlot => ({
   itemId,
-  row: <LinkRow href={`/t/dsa/items/${itemId}`} title={title} meta={meta} />,
-  weak,
+  row: (
+    <LinkRow
+      href={`/t/dsa/items/${itemId}`}
+      title={title}
+      meta={meta}
+      trailing={weak ? <StatusPill status="weak" /> : undefined}
+    />
+  ),
 })
 
 const DEMO_ROWS: ReviewItemSlot[] = [
@@ -89,6 +103,17 @@ const DEMO_EMPTY_PAGE: ReviewPage = {
   requestId: REQUEST_ID,
 }
 
+const DEMO_FILTERED_EMPTY_PAGE: ReviewPage = {
+  entries: [],
+  cards: [],
+  tracks: [
+    { id: 'dsa', title: 'Cấu trúc dữ liệu & Giải thuật', count: 0 },
+    { id: 'english', title: 'Tiếng Anh cho môi trường IT', count: 3 },
+  ],
+  track: 'dsa',
+  requestId: REQUEST_ID,
+}
+
 export const REVIEW_ENTRIES: Entry[] = [
   {
     name: 'ReviewFilters',
@@ -115,6 +140,25 @@ export const REVIEW_ENTRIES: Entry[] = [
     ],
   },
   {
+    name: 'ReviewSession',
+    layer: 'features',
+    file: 'features/review/components/review-session.tsx',
+    demos: [
+      {
+        title: 'Có bài cần ôn: thẻ và danh sách',
+        render: () => <ReviewSession page={DEMO_PAGE} rows={DEMO_ROWS} record={saves} />,
+      },
+      {
+        title: 'Trống (RF-4): không có bài nào cần ôn hôm nay',
+        render: () => <ReviewSession page={DEMO_EMPTY_PAGE} rows={[]} record={saves} />,
+      },
+      {
+        title: 'Một lộ trình không có bài (lộ trình khác vẫn còn, task 5.3 review M3)',
+        render: () => <ReviewSession page={DEMO_FILTERED_EMPTY_PAGE} rows={[]} record={saves} />,
+      },
+    ],
+  },
+  {
     name: 'ReviewView',
     layer: 'features',
     file: 'features/review/components/review-view.tsx',
@@ -126,6 +170,14 @@ export const REVIEW_ENTRIES: Entry[] = [
       {
         title: 'Trống (RF-4): không có bài nào cần ôn hôm nay',
         render: () => <ReviewView page={DEMO_EMPTY_PAGE} rows={[]} record={saves} />,
+      },
+      {
+        title: 'Đang tải (app/(app)/review/loading.tsx)',
+        render: () => <LoadingState variant="page" />,
+      },
+      {
+        title: 'Lỗi (app/(app)/review/error.tsx)',
+        render: () => <ErrorState titleAs="h1" onRetry={() => {}} />,
       },
     ],
   },

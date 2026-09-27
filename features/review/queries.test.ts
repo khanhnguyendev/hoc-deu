@@ -5,7 +5,11 @@ import type { ItemState } from '@/lib/domain/state'
 const fake = vi.hoisted(() => ({
   user: { id: 'me' },
   versions: [] as unknown[],
-  enrollments: [] as { trackId: string; status: 'active' | 'paused' | 'removed' }[],
+  enrollments: [] as {
+    trackId: string
+    status: 'active' | 'paused' | 'removed'
+    startDate: string
+  }[],
   items: {} as Record<string, ItemState>,
   calls: [] as unknown[][],
 }))
@@ -129,8 +133,8 @@ beforeEach(() => {
   fake.user = { id: 'me' }
   fake.versions = []
   fake.enrollments = [
-    { trackId: 'dsa', status: 'active' },
-    { trackId: 'english', status: 'active' },
+    { trackId: 'dsa', status: 'active', startDate: '2020-01-01' },
+    { trackId: 'english', status: 'active', startDate: '2020-01-01' },
   ]
   fake.items = {
     'dsa:p1': {

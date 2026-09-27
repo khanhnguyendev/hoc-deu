@@ -1,8 +1,5 @@
-import Link from 'next/link'
-import { pillVariants } from '@/components/patterns/status-pill'
-import { formatNumber } from '@/lib/i18n/format'
+import { FilterChipGroup, FilterChipLink } from '@/components/patterns/filter-chip'
 import { vi } from '@/lib/i18n/vi'
-import { cn } from '@/lib/utils'
 
 const copy = vi.review.filters
 
@@ -18,12 +15,14 @@ function chipHref(trackId: string | null): string {
 }
 
 /**
- * The `?track=` filter chips (§2.4): "Tất cả" (every active track's due count) plus one per
- * active track, each showing its own due count. Not `components/patterns/FilterChip` — that
- * pattern's `status` is one of the fixed `PillStatus` labels, not an arbitrary track id and
- * title, so this reuses only its visual mechanics (`pillVariants`, the same 44 px hit-area
- * technique) as plain navigation links (`?track=`, a real page load — never a client toggle), with
- * `aria-current="page"` marking the one in force.
+ * The `?track=` filter chips (§2.4): "Tất cả" (every eligible track's due count) plus one per
+ * eligible track, each showing its own due count — `FilterChipLink`/`FilterChipGroup as="nav"`
+ * (`components/patterns/filter-chip.tsx`), so this copies no class strings (task 5.3 review,
+ * finding I4). Each is a real link with an `href` (`?track=`) — a Next.js client-side navigation
+ * that changes the URL and re-renders `/review` with fresh server data, not a full browser
+ * reload, but also never a client-state toggle (a plain link works with the browser's back
+ * button, opening in a new tab, and so on) — the review round 1 fix corrected the earlier "a full
+ * page load" wording (finding I2). `aria-current="page"` marks the one in force.
  */
 function ReviewFilters({
   tracks,
@@ -33,31 +32,24 @@ function ReviewFilters({
   active: string | null
 }) {
   const total = tracks.reduce((sum, track) => sum + track.count, 0)
-  const chips: ReviewFiltersTrack[] = [
-    { id: '', title: copy.all, count: total },
-    ...tracks.map((track) => ({ id: track.id, title: track.title, count: track.count })),
-  ]
   return (
-    <nav aria-label={copy.label} className="flex flex-wrap gap-x-2 gap-y-5">
-      {chips.map((chip) => {
-        const trackId = chip.id === '' ? null : chip.id
-        const isActive = trackId === active
-        return (
-          <Link
-            key={chip.id}
-            href={chipHref(trackId)}
-            aria-current={isActive ? 'page' : undefined}
-            className={cn(
-              pillVariants({ size: 'md' }),
-              'relative bg-surface-muted text-foreground before:absolute before:inset-x-0 before:-inset-y-2',
-              isActive && 'bg-primary-soft text-primary-soft-foreground ring-2 ring-primary',
-            )}
-          >
-            {chip.title} <span className="font-mono tabular-nums">{formatNumber(chip.count)}</span>
-          </Link>
-        )
-      })}
-    </nav>
+    <FilterChipGroup as="nav" label={copy.label}>
+      <FilterChipLink
+        href={chipHref(null)}
+        label={copy.all}
+        count={total}
+        current={active === null}
+      />
+      {tracks.map((track) => (
+        <FilterChipLink
+          key={track.id}
+          href={chipHref(track.id)}
+          label={track.title}
+          count={track.count}
+          current={track.id === active}
+        />
+      ))}
+    </FilterChipGroup>
   )
 }
 

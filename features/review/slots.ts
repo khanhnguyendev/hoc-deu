@@ -6,11 +6,9 @@
  */
 import type * as React from 'react'
 
-/** One due, non-flashcard item: its registry row, and whether it is Weak (a pill under the row —
- *  the registry's own status pill would need the full learner state `ReviewEntry` does not carry,
- *  as `BlockItemSlot.noNote` is a pill `todaySlots` adds beside a problem's row). */
+/** One due, non-flashcard item: its registry row (mode, href, "Chưa có ghi chú" and, when Weak,
+ *  the "Yếu" pill — all inside the row's own link, task 5.3 review, findings M4/M5). */
 export type ReviewItemSlot = {
   readonly itemId: string
   readonly row: React.ReactNode
-  readonly weak: boolean
 }

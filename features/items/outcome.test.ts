@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanItem } from '@/lib/domain/catalog'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
-import { isDue, itemActionsFor, modesFor, outcomeInput, resolveMode } from './outcome'
+import { cardItem, derivedCardItem } from './fixtures'
+import {
+  flashcardSides,
+  isDue,
+  itemActionsFor,
+  modesFor,
+  outcomeInput,
+  resolveMode,
+} from './outcome'
 
 const TODAY = '2026-10-05'
 const item = (id: string): PlanItem => {
@@ -133,5 +141,33 @@ describe('outcomeInput (the OutcomeInput a control sends)', () => {
     const input = outcomeInput(target, { type: 'item.skipped' })
     expect(input).toEqual({ requestId: 'r', itemId: 'dsa:p2', outcome: { type: 'item.skipped' } })
     expect(input).not.toHaveProperty('blockId')
+  })
+})
+
+describe('flashcardSides (the one FlashcardContent → FlashcardSides mapping, task 5.3 review M4)', () => {
+  it('picks the sides FlashcardView renders, nothing else', () => {
+    const card = cardItem().content
+    expect(flashcardSides(card)).toEqual({
+      front: card.front,
+      back: card.back,
+      hint: card.hint,
+      usage: card.usage,
+      example: card.example,
+      pronunciation: card.pronunciation,
+      lang: card.lang,
+    })
+  })
+
+  it('a derived card (no hint, no usage) maps just as plainly', () => {
+    const card = derivedCardItem().content
+    expect(flashcardSides(card)).toEqual({
+      front: card.front,
+      back: card.back,
+      hint: card.hint,
+      usage: card.usage,
+      example: card.example,
+      pronunciation: card.pronunciation,
+      lang: card.lang,
+    })
   })
 })

@@ -8,6 +8,8 @@ export const review = {
   },
   cardsTitle: 'Thẻ',
   itemsTitle: 'Bài cần ôn',
-  /** RF-4: nothing at all due today — an EmptyState linking to /today. */
+  /** RF-4: nothing at all due today (the unfiltered total is 0) — an EmptyState linking to /today. */
   emptyTitle: 'Không có bài nào cần ôn hôm nay',
+  /** A `?track=` filter has 0 due while another track still does (task 5.3 review, finding M3). */
+  emptyFilteredTitle: 'Lộ trình này không có bài nào cần ôn hôm nay',
 } as const

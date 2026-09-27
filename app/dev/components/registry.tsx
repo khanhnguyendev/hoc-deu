@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { DataList } from '@/components/patterns/data-list'
 import { DataState } from '@/components/patterns/data-state'
 import { EmptyState } from '@/components/patterns/empty-state'
-import { FilterChip, FilterChipGroup } from '@/components/patterns/filter-chip'
+import { FilterChip, FilterChipGroup, FilterChipLink } from '@/components/patterns/filter-chip'
 import { FormActions } from '@/components/patterns/form-actions'
 import { FormErrorSummary } from '@/components/patterns/form-error-summary'
 import { FormField } from '@/components/patterns/form-field'
@@ -244,6 +244,18 @@ function FilterChipDemo() {
             }
           />
         ))}
+      </FilterChipGroup>
+    </div>
+  )
+}
+
+function FilterChipLinkDemo() {
+  return (
+    <div className="max-w-xs">
+      <FilterChipGroup as="nav" label="Lọc theo lộ trình">
+        <FilterChipLink href="/review" label="Tất cả" count={8} current />
+        <FilterChipLink href="/review?track=dsa" label="DSA" count={5} current={false} />
+        <FilterChipLink href="/review?track=english" label="English" count={3} current={false} />
       </FilterChipGroup>
     </div>
   )
@@ -1343,6 +1355,10 @@ export const CATALOG: Entry[] = [
       {
         title: 'Status filters: 32 px chips, 44 px hit areas, wrapping',
         render: () => <FilterChipDemo />,
+      },
+      {
+        title: 'FilterChipLink: a labelled nav of real links, one current (`/review`, task 5.3)',
+        render: () => <FilterChipLinkDemo />,
       },
     ],
   },

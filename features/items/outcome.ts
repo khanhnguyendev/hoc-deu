@@ -10,11 +10,29 @@ import type { ItemMode, PlanItem } from '@/lib/domain/catalog'
 import { reviewMode } from '@/lib/domain/plan/reviewMode'
 import type { ItemState } from '@/lib/domain/state'
 import type { LocalDay } from '@/lib/domain/time/localDay'
+import type { FlashcardContent } from '@/lib/content/catalog-types'
 import type { FlashcardSides } from './components/flashcard-view'
 import type { ItemStateView, Mode } from './types'
 
 export type { FlashcardSides } from './components/flashcard-view'
 export type { Outcome, OutcomeInput, OutcomeResult }
+
+/**
+ * A flashcard's sides, plain and serialisable (`FlashcardView`, `CardSession`): the one mapping
+ * from its catalog content to `FlashcardSides`, shared by the flashcard page and `/review`'s
+ * loader (task 5.3 review, finding M4 — each had its own copy).
+ */
+export function flashcardSides(content: FlashcardContent): FlashcardSides {
+  return {
+    front: content.front,
+    back: content.back,
+    hint: content.hint,
+    usage: content.usage,
+    example: content.example,
+    pronunciation: content.pronunciation,
+    lang: content.lang,
+  }
+}
 
 /**
  * The server action itself (`recordOutcome`, 5.2a), passed **unbound** as a prop from the page (a
@@ -52,6 +70,11 @@ export type CardSessionProps = {
   readonly cards: readonly CardSessionCard[]
   readonly requestId: string
   readonly record: RecordOutcome
+  /** The card front's heading level — 2 (default) on its own screen (e.g. /today's card-only
+   *  blocks); 3 under a section heading (e.g. /review's "Thẻ") so the outline nests correctly.
+   *  Also sets the empty/end EmptyState titles, so they stay siblings of the card front, not of
+   *  the section heading (task 5.3 review, finding M8). */
+  readonly headingLevel?: 2 | 3
 }
 
 const PROBLEM_MODES: readonly ItemMode[] = ['new', 'recall', 'redo', 'explain-aloud']

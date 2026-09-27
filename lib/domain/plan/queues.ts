@@ -20,14 +20,20 @@ export type DueEntry = {
   readonly minutes: number
 }
 
-function compareDueEntries(weakTopicIds: ReadonlySet<string>) {
+/**
+ * The due queue's tie-break (§5.4 step 3): Weak first → items of a weak topic → most overdue →
+ * lowest level → ID. `isWeakTopic` decides the second step for one entry — `dueQueue` checks its
+ * own track's weak topics; a cross-track merge (`/review`, task 5.3) must check each entry's own
+ * track's weak topics instead, since topic ids are unique only within a track
+ * (`weakTopics` keys its groups by `trackId/topicId`). Exported so that merge reuses this exact
+ * order rather than a second copy (Part B-M5 task 5.3 review, finding I1).
+ */
+export function compareDueEntries(isWeakTopic: (entry: DueEntry) => boolean) {
   return (a: DueEntry, b: DueEntry): number => {
     const weakDiff = Number(b.state.weak) - Number(a.state.weak)
     if (weakDiff !== 0) return weakDiff
 
-    const aWeakTopic = a.item.topicId !== null && weakTopicIds.has(a.item.topicId)
-    const bWeakTopic = b.item.topicId !== null && weakTopicIds.has(b.item.topicId)
-    const topicDiff = Number(bWeakTopic) - Number(aWeakTopic)
+    const topicDiff = Number(isWeakTopic(b)) - Number(isWeakTopic(a))
     if (topicDiff !== 0) return topicDiff
 
     const overdueDiff = b.overdueDays - a.overdueDays
@@ -38,6 +44,12 @@ function compareDueEntries(weakTopicIds: ReadonlySet<string>) {
 
     return compareIds(a.itemId, b.itemId)
   }
+}
+
+/** `entry`'s own track's weak topics: whether its topic (if any) is in `weakTopicIds`. */
+function weakTopicOf(weakTopicIds: ReadonlySet<string>) {
+  return (entry: DueEntry): boolean =>
+    entry.item.topicId !== null && weakTopicIds.has(entry.item.topicId)
 }
 
 /**
@@ -75,5 +87,5 @@ export function dueQueue(input: {
     })
   }
 
-  return entries.sort(compareDueEntries(weakTopicIds))
+  return entries.sort(compareDueEntries(weakTopicOf(weakTopicIds)))
 }

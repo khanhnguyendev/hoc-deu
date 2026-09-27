@@ -10,6 +10,7 @@ export { mdxComponents } from './mdx/components'
 export { mdxComponentsFor, type MdxBindings, type PracticeTarget } from './mdx/bind'
 export { isItemOfType } from './narrow'
 export { getItemType, ITEM_REGISTRY } from './registry'
+export { flashcardSides } from './outcome'
 export type {
   CardSessionCard,
   CardSessionProps,

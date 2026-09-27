@@ -25,9 +25,12 @@ type Announcement = { readonly card: CardSessionCard; readonly grade: FlashcardG
  * outcome }` with the mount's request id and moves to the next card (focus on its "Xem nghĩa"); the
  * remaining count and a polite live region ("Đã lưu thẻ {front}: {grade}.") follow. A failed save keeps the card and shows the
  * error state — "Thử lại" resends the same input (the same event id, decision 16) — and the
- * end state "Đã ôn xong" takes focus after the last card. No cards: an empty state.
+ * end state "Đã ôn xong" takes focus after the last card. No cards: an empty state. `headingLevel`
+ * (default 2) sets the card front's and every EmptyState's heading level, so a caller nesting this
+ * under its own section heading (e.g. /review's "Thẻ", task 5.3) can pass 3 (review round 1, M8).
  */
-function CardSession({ cards, requestId, record }: CardSessionProps) {
+function CardSession({ cards, requestId, record, headingLevel = 2 }: CardSessionProps) {
+  const titleAs = headingLevel === 3 ? 'h3' : 'h2'
   const [deck] = useState<readonly CardSessionCard[]>(() => [...cards])
   const [session] = useState(requestId)
   const [index, setIndex] = useState(0)
@@ -76,7 +79,7 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
   }
 
   if (deck.length === 0) {
-    return <EmptyState icon={Layers} title={copy.emptyTitle} />
+    return <EmptyState icon={Layers} title={copy.emptyTitle} titleAs={titleAs} />
   }
 
   return (
@@ -87,6 +90,7 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
             icon={CircleCheckBig}
             title={copy.doneTitle}
             description={fill(copy.doneBody, { count: deck.length })}
+            titleAs={titleAs}
           />
         </div>
       ) : (
@@ -94,7 +98,7 @@ function CardSession({ cards, requestId, record }: CardSessionProps) {
           <p className="text-sm font-medium text-muted-foreground">
             {fill(copy.remaining, { count: deck.length - index })}
           </p>
-          <FlashcardView key={card.itemId} card={card.sides}>
+          <FlashcardView key={card.itemId} card={card.sides} headingLevel={headingLevel}>
             <FlashcardGrades onGrade={grade} pending={pending ? grading : null} />
           </FlashcardView>
           {failure !== null && (

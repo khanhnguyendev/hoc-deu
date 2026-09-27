@@ -197,4 +197,26 @@ describe('CardSession (decision 19)', () => {
     // Focus follows to the end state (the graded card's buttons are gone).
     expect(document.activeElement?.contains(done)).toBe(true)
   })
+
+  it('forwards `headingLevel` to the card front and the end-state title (task 5.3 review, M8)', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    render(
+      <CardSession
+        cards={CARDS.slice(0, 1)}
+        requestId={REQUEST_ID}
+        record={record}
+        headingLevel={3}
+      />,
+    )
+    expect(screen.getByRole('heading', { level: 3, name: 'blocker' })).toBeTruthy()
+    await reveal(user)
+    await user.click(screen.getByRole('button', { name: /^Biết/ }))
+    expect(await screen.findByRole('heading', { level: 3, name: 'Đã ôn xong' })).toBeTruthy()
+  })
+
+  it('forwards `headingLevel` to the empty-state title for a session without cards (M8)', () => {
+    render(<CardSession cards={[]} requestId={REQUEST_ID} record={vi.fn()} headingLevel={3} />)
+    expect(screen.getByRole('heading', { level: 3, name: 'Không có thẻ nào để ôn' })).toBeTruthy()
+  })
 })

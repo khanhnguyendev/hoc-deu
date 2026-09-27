@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemState } from '../state'
-import { CATALOG, itemState, statesOf, withItems } from './__tests__/fixtures'
-import { dueQueue } from './queues'
+import { CATALOG, itemState, planItem, statesOf, withItems } from './__tests__/fixtures'
+import { compareDueEntries, dueQueue, type DueEntry } from './queues'
+
+/** An `ItemState` for a `DueEntry` fixture, independent of any catalog. */
+function state(itemId: string, trackId: string, patch: Partial<ItemState> = {}): ItemState {
+  return {
+    itemId,
+    trackId,
+    topicId: null,
+    itemType: 'problem',
+    level: 1,
+    weak: false,
+    topSuccesses: 0,
+    status: 'ok',
+    dueOn: '2026-10-10',
+    lastResult: 'solved',
+    lastResultOn: '2026-10-01',
+    introducedOn: '2026-10-01',
+    lapses: 0,
+    reps: 1,
+    ...patch,
+  }
+}
 
 const TODAY = '2026-10-10'
 const WEAK_ARRAYS = new Set(['arrays'])
@@ -138,5 +159,76 @@ describe('dueQueue (platform design §5.4 step 3)', () => {
         weakTopicIds: new Set(),
       }),
     ).toEqual([])
+  })
+})
+
+describe('compareDueEntries (exported for a cross-track merge, task 5.3 review I1)', () => {
+  /** A due entry; pass what the test is about. */
+  function entry(patch: {
+    itemId: string
+    trackId?: string
+    topicId?: string | null
+    weak?: boolean
+    overdueDays?: number
+    level?: number
+  }): DueEntry {
+    const {
+      itemId,
+      trackId = 'dsa',
+      topicId = null,
+      weak = false,
+      overdueDays = 0,
+      level = 1,
+    } = patch
+    return {
+      itemId,
+      item: planItem({ id: itemId, trackId, itemType: 'problem', topicId }),
+      state: state(itemId, trackId, { weak, level }),
+      overdueDays,
+      mode: 'recall',
+      minutes: 5,
+    }
+  }
+
+  it('sorts Weak first, regardless of the weak-topic predicate or how overdue the other is', () => {
+    const weakItem = entry({ itemId: 'dsa:a', weak: true, overdueDays: 0 })
+    const overdueItem = entry({ itemId: 'dsa:b', weak: false, overdueDays: 20 })
+    const isWeakTopic = () => false
+    expect(
+      [overdueItem, weakItem].sort(compareDueEntries(isWeakTopic)).map((e) => e.itemId),
+    ).toEqual(['dsa:a', 'dsa:b'])
+  })
+
+  it('the weak-topic step asks the predicate per entry, not a shared topic-id set — the same topic id in two tracks can answer differently', () => {
+    // Same literal topicId ("arrays"), two different tracks: only the dsa one is a weak topic.
+    const dsaWeakTopic = entry({
+      itemId: 'dsa:z',
+      trackId: 'dsa',
+      topicId: 'arrays',
+      overdueDays: 0,
+    })
+    const englishSameTopicId = entry({
+      itemId: 'english:a',
+      trackId: 'english',
+      topicId: 'arrays',
+      overdueDays: 5,
+    })
+    const isWeakTopic = (e: DueEntry) => e.item.trackId === 'dsa' && e.item.topicId === 'arrays'
+    const result = [englishSameTopicId, dsaWeakTopic].sort(compareDueEntries(isWeakTopic))
+    // Without a per-entry predicate, the shared string "arrays" would promote both or neither;
+    // here only the dsa entry is a weak topic, so it sorts first despite being less overdue.
+    expect(result.map((e) => e.itemId)).toEqual(['dsa:z', 'english:a'])
+  })
+
+  it('then most overdue, then lowest level, then ID', () => {
+    const a = entry({ itemId: 'dsa:p9', overdueDays: 3, level: 2 })
+    const b = entry({ itemId: 'dsa:p2', overdueDays: 3, level: 1 })
+    const c = entry({ itemId: 'dsa:p1', overdueDays: 1, level: 1 })
+    const isWeakTopic = () => false
+    expect([c, a, b].sort(compareDueEntries(isWeakTopic)).map((e) => e.itemId)).toEqual([
+      'dsa:p2',
+      'dsa:p9',
+      'dsa:p1',
+    ])
   })
 })

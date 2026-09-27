@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { FlashcardView } from '../components/flashcard-view'
 import { ItemPageFrame } from '../components/item-page-frame'
 import { FlashcardOutcome } from '../components/outcome/flashcard-grades'
+import { flashcardSides } from '../outcome'
 import type { ItemPageProps } from '../types'
 import { tierLabel } from './tier'
 
@@ -23,18 +24,7 @@ export function FlashcardPage({ item, outcome }: ItemPageProps<'flashcard'>) {
         </Badge>,
       ]}
     >
-      <FlashcardView
-        card={{
-          front: card.front,
-          back: card.back,
-          hint: card.hint,
-          usage: card.usage,
-          example: card.example,
-          pronunciation: card.pronunciation,
-          lang: card.lang,
-        }}
-        headingLevel={1}
-      >
+      <FlashcardView card={flashcardSides(card)} headingLevel={1}>
         {outcome && <FlashcardOutcome binding={outcome} />}
       </FlashcardView>
     </ItemPageFrame>

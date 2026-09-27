@@ -380,14 +380,24 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/filter-chip.tsx`
-- **Props:** `status: PillStatus`, `pressed: boolean`, `onPressedChange(pressed)`; wrap chips in
-  `FilterChipGroup` (`label: string`)
-- **Variants:** the StatusPill statuses at 32 px
-- **States:** off, on (`aria-pressed`, 2 px `primary` ring), focus-visible
-- **Usage:** `<FilterChipGroup label="Lọc theo trạng thái"><FilterChip status="weak" pressed={on} onPressedChange={setOn} /></FilterChipGroup>`
-- **Accessibility:** toggle button named by its status label; 32 px visual with a transparent hit
-  area of at least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never
-  overlap
+- **Props:** `FilterChip`: `status: PillStatus`, `pressed: boolean`, `onPressedChange(pressed)`.
+  `FilterChipLink` (task 5.3 review, finding I4 — a filter that is a real navigation, e.g.
+  `/review?track=`, not a client toggle): `href: string`, `label: string`, `count: number`,
+  `current: boolean` (→ `aria-current="page"`). Wrap either in `FilterChipGroup` (`label: string`,
+  `as?: 'div' | 'nav'` — `'nav'` for a group of `FilterChipLink`s, the default `'div'` for a group
+  of `FilterChip` toggles)
+- **Variants:** `FilterChip`: the StatusPill statuses at 32 px. `FilterChipLink`: neutral
+  (`bg-surface-muted`) · current (`bg-primary-soft` + ring) — both share `FilterChip`'s pill shape
+  and 44 px hit area (`pillVariants`, one hit-area class shared by both), so a design-system
+  change to either never drifts between them
+- **States:** `FilterChip`: off, on (`aria-pressed`, 2 px `primary` ring), focus-visible.
+  `FilterChipLink`: not current, current (`aria-current="page"`, the same ring), focus-visible
+- **Usage:** `<FilterChipGroup label="Lọc theo trạng thái"><FilterChip status="weak" pressed={on} onPressedChange={setOn} /></FilterChipGroup>`;
+  `<FilterChipGroup as="nav" label="Lọc theo lộ trình"><FilterChipLink href="/review" label="Tất cả" count={8} current /></FilterChipGroup>`
+- **Accessibility:** `FilterChip` is a toggle button named by its status label. `FilterChipLink` is
+  a real link named by its label and count, in a labelled `nav` (`FilterChipGroup as="nav"`), the
+  one in force marked `aria-current="page"`. Both: 32 px visual with a transparent hit area of at
+  least 44 px; chips ≥ 8 px apart in a row and 20 px between rows so hit areas never overlap
 
 ### FocusLayout
 
@@ -1935,42 +1945,79 @@ offline queue (ADR-0036). Copy: `vi.outcomes` (`lib/i18n/strings/outcomes.ts`). 
 ### Review components (`features/review/components`)
 
 `/review` (task 5.3; §2.4, §5.4 step 3, §5.5, §5.7; RF-4): the cross-track review queue, Weak
-first. The page renders the other due items' rows through the registry (`reviewRows`,
-server-only: `features/review/rows.tsx`, the roadmap's fix-5 pattern) and hands the slots to
-ReviewList, so the components here never import the registry and render in the client catalog with
-plain nodes. Data: `ReviewPage` / `ReviewCard` / `ReviewTrack` (`features/review/queries.ts`),
-`ReviewEntry` (`features/review/view-model.ts`, pure: `reviewQueue`), `ReviewItemSlot`
-(`features/review/slots.ts`). Loading is the route's `loading.tsx` (LoadingState `variant="page"`),
-a thrown load the route's `error.tsx` (ErrorState + "Thử lại"). Copy: `vi.review`.
+first (`reviewQueue`, `features/review/view-model.ts` — `dueQueue` per eligible track, merged with
+`lib/domain/plan/queues.ts`'s exported `compareDueEntries`; track eligibility is the plan engine's
+own `eligibleTracks`, not merely `status === 'active'`). The page renders the other due items' rows
+through the registry (`reviewRows`, server-only: `features/review/rows.tsx`, the roadmap's fix-5
+pattern, `renderItemRow`) and hands the slots to ReviewList, so the components here never import
+the registry and render in the client catalog with plain nodes. Data: `ReviewPage` / `ReviewCard` /
+`ReviewTrack` (`features/review/queries.ts`), `ReviewEntry` (`features/review/view-model.ts`, pure:
+`reviewQueue`), `ReviewItemSlot` (`features/review/slots.ts`, `{ itemId, row }`). Loading is the
+route's `loading.tsx` (LoadingState `variant="page"`), a thrown load the route's `error.tsx`
+(ErrorState + "Thử lại"). Copy: `vi.review`.
+
+**Revalidation (task 5.3 review, finding I3):** `recordOutcome` (features/checkin) revalidates
+`/today` and the item's own page — never `/review` — but any `revalidatePath` call inside a server
+action still carries a fresh render of the page the action was called *from* in its response, so
+`/review` re-renders with new props after every grade regardless. `ReviewSession` is the client leaf
+that must not react to that: which sections show (the filter chips, "Thẻ", the empty state and
+which of its two lines) are decided once at mount and kept for the life of that mount; `ReviewView`
+keys `ReviewSession` by `page.track` so a genuine filter change (a different `?track=`, a real
+navigation) starts a fresh session while a same-filter revalidation reuses the instance. **The
+PageHeader's count is the one thing that stays live**, following the current filter rather than the
+grand total (a deliberate choice, task 5.3 review finding M3 — either is defensible; the chips
+already show the grand-total-vs-per-track breakdown).
 
 ### ReviewFilters
 
 - **Layer:** feature (`features/review`, server-compatible)
 - **File:** `features/review/components/review-filters.tsx`
-- **Props:** `tracks: ReviewFiltersTrack[]` (`{ id, title, count }`, every active track — unfiltered
-  due counts), `active: string | null` (the `?track=` in force, or null — all)
+- **Props:** `tracks: ReviewFiltersTrack[]` (`{ id, title, count }`, every eligible track —
+  unfiltered due counts), `active: string | null` (the `?track=` in force, or null — all)
 - **Variants:** —
 - **States:** "Tất cả" current (no track chosen) · a track current
 - **Usage:** `<ReviewFilters tracks={page.tracks} active={page.track} />`
-- **Accessibility:** a labelled `nav` ("Lọc theo lộ trình") of real links (`/review`,
-  `/review?track=<id>`, a page load — never a client toggle), the current one `aria-current="page"`;
-  not `components/patterns/FilterChip` — that pattern's `status` is one of the fixed `PillStatus`
-  labels, not an arbitrary track id and title, so this reuses only its visual mechanics
-  (`pillVariants`, the same 44 px hit-area technique)
+- **Accessibility:** `FilterChipGroup as="nav"` (labelled "Lọc theo lộ trình") of `FilterChipLink`s
+  (`components/patterns/filter-chip.tsx`, task 5.3 review finding I4) — real links with an `href`
+  (`/review`, `/review?track=<id>`), a Next.js client-side navigation that changes the URL and
+  re-renders `/review` with fresh server data (never a full browser reload, but also never a
+  client-state toggle — corrected from the round 1 report's "a full page load", finding I2); the
+  current one `aria-current="page"`
 
 ### ReviewList
 
 - **Layer:** feature (`features/review`, server-compatible)
 - **File:** `features/review/components/review-list.tsx`
-- **Props:** `items: ReviewItemSlot[]` (`{ itemId, row, weak }` — `reviewRows(page.entries)`, built
-  by the page)
+- **Props:** `items: ReviewItemSlot[]` (`{ itemId, row }` — `reviewRows(page.entries)`, built by
+  the page; the "Yếu" pill and "Chưa có ghi chú" hint live inside each row's own link now, task 5.3
+  review finding M5 — `reviewRows` passes them to `renderItemRow`, not a separate line under the
+  row)
 - **Variants:** —
-- **States:** with items (each row, a "Yếu" pill under a Weak one — as `BlockItemList` shows a
-  problem's "Chưa có ghi chú") · empty (renders nothing — the card session or the page's
+- **States:** with items (each row) · empty (renders nothing — the card session or the page's
   EmptyState covers that instead)
 - **Usage:** `<ReviewList items={reviewRows(page.entries)} />`
-- **Accessibility:** a `role="list"`; each row is a LinkRow (own accessible name); the "Yếu" pill
-  is `StatusPill`, never colour alone
+- **Accessibility:** a `role="list"`; each row is a LinkRow (its own accessible name already
+  includes "Yếu" / "Chưa có ghi chú" when they apply, so the links rotor hears them)
+
+### ReviewSession
+
+- **Layer:** feature (`features/review`, client — the mount-time freeze below needs `useState`)
+- **File:** `features/review/components/review-session.tsx`
+- **Props:** `page: ReviewPage`, `rows: ReviewItemSlot[]` (`reviewRows(page.entries)`, built by the
+  page), `record: RecordOutcome` (`recordOutcome`, unbound, from the page)
+- **Variants:** —
+- **States:** decided once at mount, from that render's `page` (task 5.3 review, findings I2/I3/M2):
+  the filter chips show only when some eligible track has something due (unfiltered) · "Thẻ" shows
+  only when mounted with due flashcards · with nothing at all due (unfiltered), the RF-4 EmptyState
+  "Không có bài nào cần ôn hôm nay" linking to `/today` · with the current filter's own due items at
+  0 while another track still has some, the filter-specific line "Lộ trình này không có bài nào cần
+  ôn hôm nay" instead (finding M3) · otherwise "Thẻ" (CardSession, `headingLevel={3}` under this
+  section's own `h2`, task 5.3 review finding M8) and, while `rows` has entries (a live check, not
+  frozen — the row list has no session state to lose), a "Bài cần ôn" Section with ReviewList
+- **Usage:** `<ReviewSession key={page.track ?? 'all'} page={page} rows={rows} record={record} />`
+  (`review-view.tsx`, keyed so a filter change remounts fresh)
+- **Accessibility:** each shown part is a Section (a region named by its `h2`) or the labelled
+  `nav`; the flashcard grades take keys 1 / 2 / 3 (CardSession, task 5.2c)
 
 ### ReviewView
 
@@ -1978,17 +2025,13 @@ a thrown load the route's `error.tsx` (ErrorState + "Thử lại"). Copy: `vi.re
 - **File:** `features/review/components/review-view.tsx`
 - **Props:** `page: ReviewPage` (`getReview(track)`), `rows: ReviewItemSlot[]`
   (`reviewRows(page.entries)`, built by the page), `record: RecordOutcome` (`recordOutcome`,
-  unbound, from the page — it does not revalidate `/review`, so the CardSession keeps its list,
-  decision 19)
+  unbound, from the page)
 - **Variants:** —
-- **States:** with due items (PageHeader "Ôn tập" + the total due; ReviewFilters when there is a
-  track to filter by; a "Thẻ" Section with CardSession over the due flashcards; a "Bài cần ôn"
-  Section with ReviewList when other items are due) · empty (RF-4: nothing at all due — an
-  EmptyState "Không có bài nào cần ôn hôm nay" linking to `/today`)
+- **States:** PageHeader "Ôn tập" + the total due under the current filter, then `ReviewSession`
+  (its own states, above)
 - **Usage:** `<ReviewView page={page} rows={reviewRows(page.entries)} record={recordOutcome} />`
   (`app/(app)/review/page.tsx`)
-- **Accessibility:** PageHeader `h1` "Ôn tập"; each part is a Section (a region named by its `h2`);
-  the flashcard grades take keys 1 / 2 / 3 (CardSession, task 5.2c)
+- **Accessibility:** PageHeader `h1` "Ôn tập"
 
 ### Progress components (`features/progress/components`)
 
