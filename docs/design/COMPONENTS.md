@@ -299,7 +299,9 @@ from `lib/i18n/vi.ts`.
 - **Variants:** sidebar (≥ 1024 px, collapsible 240 → 64 px) · top bar + bottom nav (< 1024 px)
 - **States:** current route (`aria-current="page"`, `primary-soft`), collapsed, admin / learner
 - **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
-- **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
+- **Accessibility:** skip link to `#main`; the expanded sidebar shows `LogoMark` before the
+  "Học Đều" title (task 6.0b, decorative — collapsed sidebar shows the toggle only); nav landmarks
+  "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
   menu with "Quản trị" for admins only; "Đăng xuất" is awaited from `DropdownMenuItem onSelect`
   (Radix passes a non-serializable Event, and `onSignOut` takes none) — a genuine rejection shows a
@@ -483,7 +485,8 @@ from `lib/i18n/vi.ts`.
 - **States:** static
 - **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
   `/onboarding`)
-- **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
+- **Accessibility:** skip link to `#main`; header wordmark links to `/`, `LogoMark` before the
+  text (task 6.0b) — the link's accessible name stays "Học Đều"; `main#main` is the page's
   landmark; toasts are announced in the Toaster's polite live region
 - **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
   DESIGN_SYSTEM §5)
@@ -700,7 +703,17 @@ from `lib/i18n/vi.ts`.
 
 ### Brand (`components/patterns/logo-mark.tsx`)
 
-Task 6.0b adds these entries below this line (Part B-M6 decision 3).
+### LogoMark
+
+- **Layer:** pattern
+- **File:** `components/patterns/logo-mark.tsx`
+- **Props:** `className?: string`
+- **Variants:** —
+- **States:** static — the fill classes swap heat ramps under `dark:` (no separate dark prop)
+- **Usage:** `<LogoMark />` before the "Học Đều" text in `FocusLayout`'s header link and the
+  sidebar title (`docs/design/brand-kit/README.md` "Wiring it into the app")
+- **Accessibility:** decorative (`aria-hidden="true"`); the wordmark text beside it carries the
+  accessible name "Học Đều", never this mark alone
 
 ## features
 

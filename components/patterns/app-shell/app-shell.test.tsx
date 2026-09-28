@@ -91,6 +91,13 @@ describe('AppShell navigation', () => {
     ).toBe('false')
   })
 
+  it('draws the LogoMark before the "Học Đều" title in the sidebar, decorative (task 6.0b)', () => {
+    renderShell()
+    const title = screen.getByText('Học Đều', { selector: 'span' })
+    expect(title.firstElementChild?.tagName.toLowerCase()).toBe('svg')
+    expect(title.firstElementChild?.getAttribute('aria-hidden')).toBe('true')
+  })
+
   it('starts with a skip link to the main content', () => {
     renderShell()
     expect(screen.getByRole('link', { name: 'Bỏ qua đến nội dung' }).getAttribute('href')).toBe(

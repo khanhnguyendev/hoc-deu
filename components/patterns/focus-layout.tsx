@@ -3,6 +3,7 @@ import type * as React from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
+import { LogoMark } from './logo-mark'
 
 const WIDTH = { narrow: 'max-w-md', wide: 'max-w-2xl' } as const
 
@@ -34,7 +35,8 @@ function FocusLayout({
         {vi.common.skipToContent}
       </a>
       <header className="flex items-center justify-between px-4 py-4 md:px-6 lg:px-8">
-        <Link href="/" className="text-lg font-semibold text-foreground">
+        <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <LogoMark />
           Học Đều
         </Link>
         {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}

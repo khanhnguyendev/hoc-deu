@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
+import { LogoMark } from '../logo-mark'
 import { AccountMenu } from './account-menu'
 import { ADMIN_ITEMS, isCurrent, NAV_ITEMS } from './nav-items'
 import { SidebarLink } from './nav-link'
@@ -36,7 +37,12 @@ export function Sidebar({
       <div
         className={cn('flex items-center gap-2', collapsed ? 'justify-center' : 'justify-between')}
       >
-        {!collapsed && <span className="px-3 text-lg font-semibold">Học Đều</span>}
+        {!collapsed && (
+          <span className="flex items-center gap-2 px-3 text-lg font-semibold">
+            <LogoMark />
+            Học Đều
+          </span>
+        )}
         <Button
           variant="ghost"
           size="icon"
