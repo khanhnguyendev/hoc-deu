@@ -3,11 +3,12 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(113);
+select plan(122);
 
 -- Task 6.2a: the bot tables, the per-user AI tables, content_publish_requests, day_plans' AI
--- columns and the ratelimit.fail_open metric with ops_bump_metric (platform design §4.1, §4.2,
--- §4.5, §4.6, §6.10; implementation plan Part B-M6 decisions 5, 18, 22).
+-- columns, the ratelimit.fail_open metric with ops_bump_metric, and the parked M5-R12 bound on a
+-- learner's block-state insert (platform design §4.1, §4.2, §4.5, §4.6, §6.10; implementation
+-- plan Part B-M6 decisions 5, 18, 22, 27).
 
 select tests.create_user('bot-learner@hocdeu.test') as learner \gset
 select tests.create_user('bot-other@hocdeu.test') as other \gset
@@ -105,6 +106,10 @@ select has_column('public', 'day_plans', 'bot_run_id', 'day_plans has bot_run_id
 select fk_ok(
   'public', 'day_plans', 'bot_run_id', 'public', 'bot_runs', 'id',
   'day_plans.bot_run_id references bot_runs'
+);
+select triggers_are(
+  'public', 'plan_block_state', array['check_in_day', 'known_block', 'local_day_bound_insert'],
+  'plan_block_state has the check-in-day, known-block and local-day insert triggers'
 );
 
 -- ---------------------------------------------------------------------------------------------
@@ -622,7 +627,92 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------------------------
--- 9. Deletion cascade (§4.6): a user's bot_run_users, user_items and roadmap_overrides go; a
+-- 9. M5-R12 (decision 27): a learner's direct INSERT of a block state is bounded to their local
+--    day; known_block fires first (name order), so unknown_block keeps its precedence.
+-- ---------------------------------------------------------------------------------------------
+select tests.authenticate_as(:'learner');
+select throws_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'b1', auth.uid(), 'dsa', 'done', 10, %L)$$,
+    :'yesterday'
+  ),
+  'P0001', 'invalid_event', 'a learner''s block state with yesterday''s checked_in_on is refused'
+);
+select throws_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'b1', auth.uid(), 'dsa', 'done', 10,
+              %L::date + 1)$$,
+    :'today'
+  ),
+  'P0001', 'invalid_event', '... and so is tomorrow''s'
+);
+select lives_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'b1', auth.uid(), 'dsa', 'done', 10, %L)$$,
+    :'today'
+  ),
+  '... today''s is accepted'
+);
+select throws_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'nope', auth.uid(), 'dsa', 'done', 10, %L)$$,
+    :'yesterday'
+  ),
+  'P0001', 'unknown_block', 'an unknown block with a wrong day still raises unknown_block first'
+);
+select throws_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'b2', %L, 'dsa', 'done', 10, %L)$$,
+    :'other', :'yesterday'
+  ),
+  '42501', 'new row violates row-level security policy for table "plan_block_state"',
+  'a row for another user is left to RLS'
+);
+-- The UPDATE rule of 20260927000100 is unchanged: a skipped block moves forward to today only.
+select tests.clear_authentication();
+insert into public.plan_block_state
+  (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on) values
+  ('90000000-0000-4000-8000-0000000000a1', 'b3', :'learner', 'dsa', 'skipped', 0, :'yesterday');
+select tests.authenticate_as(:'learner');
+select throws_ok(
+  format(
+    $$update public.plan_block_state set checked_in_on = %L::date - 1 where block_id = 'b3'$$,
+    :'yesterday'
+  ),
+  'P0001', 'invalid_event', 'an update of checked_in_on backwards is still refused'
+);
+select lives_ok(
+  format(
+    $$update public.plan_block_state set status = 'done', checked_in_on = %L where block_id = 'b3'$$,
+    :'today'
+  ),
+  '... and skipped to done on today still allowed'
+);
+-- service_role (the server's secret key) and postgres are not bounded.
+select tests.authenticate_as_service_role();
+select lives_ok(
+  format(
+    $$insert into public.plan_block_state
+        (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
+      values ('90000000-0000-4000-8000-0000000000a1', 'b4', %L, 'dsa', 'done', 10, %L)$$,
+    :'learner', :'yesterday'
+  ),
+  'service_role may insert a block state for another day'
+);
+select tests.clear_authentication();
+
+-- ---------------------------------------------------------------------------------------------
+-- 10. Deletion cascade (§4.6): a user's bot_run_users, user_items and roadmap_overrides go; a
 --     deleted requester's publish request stays with requested_by null; bot_runs stay.
 -- ---------------------------------------------------------------------------------------------
 delete from auth.users where id = :'learner';

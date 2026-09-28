@@ -77,8 +77,9 @@ select triggers_are(
   'day_plans has the permanence and updated_at triggers'
 );
 select triggers_are(
-  'public', 'plan_block_state', array['check_in_day', 'known_block'],
-  'plan_block_state has the check-in-day (task 5.0b) and known-block triggers'
+  'public', 'plan_block_state', array['check_in_day', 'known_block', 'local_day_bound_insert'],
+  'plan_block_state has the check-in-day (task 5.0b), known-block and local-day insert (task 6.2a) '
+  'triggers'
 );
 select triggers_are('public', 'item_state', array['limit_rows'], 'item_state has the row-cap trigger');
 select triggers_are(
@@ -472,11 +473,13 @@ select throws_ok(
   'P0001', 'unknown_block',
   '... and so does a block another user''s plan lists (only the ownership check rejects it)'
 );
+-- Task 6.2a (M5-R12): a learner's own insert names their local day (local_day_bound_insert, which
+-- fires after known_block, so the unknown_block cases above keep their fixed past day).
 select lives_ok(
   $$insert into public.plan_block_state
       (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
     values ('70000000-0000-4000-8000-000000000001', '2026-09-25:dsa:new:1', auth.uid(), 'dsa',
-            'partial', 15, '2026-09-25')$$,
+            'partial', 15, public.user_local_day(auth.uid(), now()))$$,
   'a block the learner''s own plan lists is accepted'
 );
 select results_eq(

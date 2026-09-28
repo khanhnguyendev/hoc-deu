@@ -7,6 +7,7 @@
 -- 6. content_publish_requests: admins read; writes go through 6.2b's functions.
 -- 7. day_plans.rationale and bot_run_id.
 -- 8. ops_metrics' ratelimit.fail_open key and ops_bump_metric (decision 22).
+-- 9. M5-R12: a learner's direct INSERT of a block state only for their local day (decision 27).
 -- Task 6.2b adds every M6 SQL function on top of these tables, in its own migration.
 -- Table privileges: `revoke all … from anon, authenticated`, then exactly the grants below (the
 -- default privileges of 20260925000100 already revoke; this states it). backup_reader reads every
@@ -222,3 +223,49 @@ end $$;
 revoke execute on function public.ops_bump_metric(text)
 from public, anon, authenticated, service_role;
 grant execute on function public.ops_bump_metric(text) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- 9. Parked M5-R12 (decision 27): the learner may not INSERT a block state for another day.
+--    authenticated holds INSERT on plan_block_state (the invoker apply_event writes it as the
+--    learner), and apply_derived_changes always inserts the event's local day, which the events
+--    trigger computes from now() — so a learner's insert must name user_local_day(now()). A row
+--    for another user is left to RLS (as known_block does). The UPDATE branch is the body of
+--    20260927000100, unchanged; check_in_day keeps firing it on UPDATE OF checked_in_on.
+--    Postgres fires same-event triggers in name order: known_block < local_day_bound_insert, so
+--    an unknown block still raises unknown_block first (070's expectations stay as they are).
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function public.plan_block_state_check_in_day() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    if current_user <> 'authenticated' or new.user_id is distinct from (select auth.uid()) then
+      return new;
+    end if;
+    if new.checked_in_on is not distinct from public.user_local_day(new.user_id, now()) then
+      return new;
+    end if;
+    raise exception 'invalid_event';
+  end if;
+
+  if current_user <> 'authenticated'
+    or new.checked_in_on is not distinct from old.checked_in_on
+  then
+    return new;
+  end if;
+  if old.status = 'skipped' and new.status in ('done', 'partial')
+    and new.checked_in_on > old.checked_in_on
+    and new.checked_in_on = public.user_local_day(new.user_id, now())
+  then
+    return new;
+  end if;
+  raise exception 'invalid_event';
+end $$;
+
+create trigger local_day_bound_insert before insert on public.plan_block_state
+  for each row execute function public.plan_block_state_check_in_day();
+
+-- create or replace keeps the function's ACL (20260927000100: no grants, trigger function); the
+-- revoke restates it.
+revoke execute on function public.plan_block_state_check_in_day()
+from public, anon, authenticated, service_role;

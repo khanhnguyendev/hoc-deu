@@ -489,8 +489,8 @@ select results_eq(
   '... leaves that plan unchanged and writes no event'
 );
 
--- A check-in row that no event names (a learner may insert one directly, within the 4.9a bounds)
--- makes a plan touched too.
+-- A check-in row that no event names (a learner may insert one directly, within the 4.9a bounds
+-- and, since task 6.2a, only for their local day) makes a plan touched too.
 select tests.authenticate_as_service_role();
 select public.apply_system_event(
   :'learner',
@@ -504,8 +504,8 @@ select lives_ok(
   format(
     $$insert into public.plan_block_state
         (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
-      values (%L, '2026-01-10:dsa:review:1', %L, 'dsa', 'done', 15, '2026-01-10')$$,
-    :'plan_older', :'learner'
+      values (%L, '2026-01-10:dsa:review:1', %L, 'dsa', 'done', 15, %L)$$,
+    :'plan_older', :'learner', :'today'
   ),
   'the learner inserts a check-in row for a third plan directly, with no event'
 );
