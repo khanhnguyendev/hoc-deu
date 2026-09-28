@@ -27,7 +27,7 @@ Nếu hai cây con đã trả lời xong câu hỏi của chúng, node hiện t�
 
 <Section kind="analogy">
 
-Ban giám đốc muốn biết công ty có bao nhiêu cấp quản lý. Giám đốc không tự đi đếm từng phòng; bà hỏi hai phó giám đốc: "Dưới anh có bao nhiêu cấp?". Mỗi phó giám đốc lại hỏi các trưởng phòng dưới mình, cứ thế cho tới nhân viên không quản lý ai, người trả lời "0 cấp". Mỗi người nhận câu trả lời của cấp dưới, lấy số lớn hơn, cộng thêm 1 cho chính mình rồi báo lên trên.
+Ban giám đốc muốn biết công ty có bao nhiêu cấp quản lý. Giám đốc không tự đi đếm từng phòng; bà hỏi hai phó giám đốc: "Tính cả anh, nhánh của anh có bao nhiêu cấp?". Mỗi phó giám đốc lại hỏi các trưởng phòng dưới mình, cứ thế cho tới nhân viên không quản lý ai, người trả lời "1 cấp, chỉ tôi". Mỗi người nhận câu trả lời của cấp dưới, lấy số lớn hơn, cộng thêm 1 cho chính mình rồi báo lên trên.
 
 Không ai cần biết cả sơ đồ công ty: mỗi người chỉ tin câu trả lời của cấp dưới trực tiếp và ghép lại. Đó là cách một hàm đệ quy trên cây làm việc.
 
@@ -79,7 +79,7 @@ Chứng minh bằng <Term vi="quy nạp">induction</Term> theo chiều cao: hàm
 - **Invert Binary Tree** và **Same Tree:** cùng khuôn "hỏi hai cây con, ghép lại"; Same Tree duyệt hai cây song song.
 - **Binary Tree Level Order Traversal** và **Binary Tree Right Side View:** BFS với queue; đầu mỗi vòng, queue chứa đúng một tầng.
 - **Validate Binary Search Tree:** truyền **xuống** một khoảng `(low, high)` thay vì chỉ nhận kết quả **lên**.
-- **Kth Smallest Element in a BST:** in-order bằng stack, dừng ở node thứ `k`.
+- **Kth Smallest Element in a BST:** in-order bằng <Term vi="ngăn xếp">stack</Term>, dừng ở node thứ `k`.
 - **Diameter of Binary Tree** và **Binary Tree Maximum Path Sum** dùng bước cuối cùng ở trên: đó là phần để bạn tự khám phá.
 
 </Section>
@@ -91,13 +91,19 @@ Lời giải Python của Maximum Depth of Binary Tree. Bản Java và Go nằm 
 ```python
 from typing import Optional
 
+# Definition for a binary tree node (LeetCode provides it; the verifier injects it).
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right
+
 
 class Solution:
     def maxDepth(self, root: Optional[TreeNode]) -> int:
-        # Base case: an empty tree has depth 0.
+        # Depth of a tree = 1 + the deeper of its two subtrees; an empty tree has depth 0.
         if root is None:
             return 0
-        # Trust the recursive calls on both subtrees, then combine at this node.
         return 1 + max(self.maxDepth(root.left), self.maxDepth(root.right))
 ```
 
@@ -163,7 +169,7 @@ Thử Diameter of Binary Tree: đường dài nhất có thể không đi qua g�
 
 <Choice id="a">Đủ, vì tính chất đó lan truyền xuống cả cây</Choice>
 
-<Choice id="b">Không: một node sâu hơn vẫn có thể vi phạm giới hạn của một tổ tiên xa hơn, như 6 nằm trong cây con phải của 10</Choice>
+<Choice id="b">Không: một node sâu hơn vẫn có thể vi phạm giới hạn của một tổ tiên xa hơn, như trong cây [10, 5, 15, null, null, 6, 20]: 6 nhỏ hơn cha 15 nhưng nằm trong cây con phải của 10</Choice>
 
 </Question>
 

@@ -36,7 +36,7 @@ Kết quả là `[[6], [2, 9], [1, 4, 7]]`.
 
 <Callout tone="warning" title="Chốt size trước vòng lặp trong">
 
-Nếu vòng lặp trong đọc `len(queue)` mỗi lần lặp, nó sẽ thấy cả các con vừa được thêm vào và trộn hai tầng làm một. Lưu kích thước vào một biến **trước** khi bắt đầu tầng. Trong Python, dùng `collections.deque` để lấy ra ở đầu trong `O(1)`; `list.pop(0)` tốn `O(n)`.
+Nếu vòng lặp trong đọc `len(queue)` mỗi lần lặp, nó sẽ thấy cả các con vừa được thêm vào và trộn hai tầng làm một. Lưu kích thước vào một biến **trước** khi bắt đầu tầng. Bản Go làm cách tương đương: duyệt hết `queue` của tầng hiện tại và gom các con vào một slice `next` riêng, rồi thay `queue` bằng `next`. Trong Python, dùng `collections.deque` để lấy ra ở đầu trong `O(1)`; `list.pop(0)` tốn `O(n)`.
 
 </Callout>
 

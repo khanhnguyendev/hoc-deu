@@ -38,7 +38,7 @@ Node 6 nhỏ hơn cha 15 nên đúng chỗ so với cha, nhưng nó nằm trong 
 <Callout tone="warning" title="Ba cái bẫy">
 
 - Chỉ so node với con trực tiếp: bỏ sót ví dụ ở trên.
-- Dùng `<=`: bài này không cho phép giá trị trùng, nên `[2, null, 2]` là sai.
+- Dùng `<=`: định nghĩa BST ở đây là chặt, nên giá trị bằng nhau làm cây sai: `[2, null, 2]` trả về `false`.
 - Dùng `Integer.MIN_VALUE` / `MAX_VALUE` làm cận: một node có đúng giá trị đó sẽ bị loại nhầm. Bản Java dùng `long`, bản Go dùng `math.MinInt64` / `math.MaxInt64`, còn Python dùng `float("inf")`.
 
 </Callout>

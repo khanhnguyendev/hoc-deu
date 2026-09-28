@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Hai cây giống nhau khi chúng có cùng hình dạng và cùng giá trị ở mọi vị trí. Điều kiện này tự chia nhỏ: hai gốc bằng nhau, **và** hai cây con trái giống nhau, **và** hai cây con phải giống nhau. Vì thế ta duyệt hai cây song song bằng <Term vi="đệ quy">recursion</Term>, từng cặp node ở cùng vị trí. Mấu chốt nằm ở base case: nếu có ít nhất một bên là `null`, hai bên chỉ giống nhau khi **cả hai** đều `null`.
+Hai cây giống nhau khi chúng có cùng hình dạng và cùng giá trị ở mọi vị trí. Điều kiện này tự chia nhỏ: hai gốc bằng nhau, **và** hai cây con trái giống nhau, **và** hai cây con phải giống nhau. Vì thế ta duyệt hai cây song song bằng <Term vi="đệ quy">recursion</Term>, từng cặp node ở cùng vị trí. Mấu chốt nằm ở <Term vi="trường hợp cơ sở">base case</Term>: nếu có ít nhất một bên là `null`, hai bên chỉ giống nhau khi **cả hai** đều `null`.
 
 ## Cách làm
 
