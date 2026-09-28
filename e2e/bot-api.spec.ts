@@ -65,6 +65,10 @@ import { countEvents, createTestUser, deleteTestUser, seedLearnerSetup } from '.
  * about this file's own learners, mapped from refs to user ids through `bot_run_users` with the
  * secret key. Each case writes a fresh token (the 120 / 10 min limit is per token).
  *
+ * **It flips global bot settings** (the kill switch, dry-run, the token) for as long as it runs,
+ * so it never runs alongside the browser projects: CI runs it in its own job, and `pnpm
+ * verify:full` runs `--project=desktop --project=mobile` first, then `--project=bot-api` apart.
+ *
  * **The rate limit** (429, fail open) is not in this suite: a case makes far fewer than 120
  * requests and the server has no test-only knob (decision 22) — 6.1's and 6.3's unit tests cover
  * it.
