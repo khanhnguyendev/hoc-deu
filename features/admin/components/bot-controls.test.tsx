@@ -95,6 +95,27 @@ describe('BotControls (§6.2)', () => {
     expect((cap() as HTMLInputElement).value).toBe('42')
   })
 
+  it('keeps an edit typed before the re-render arrives, with its error', async () => {
+    const updateBotSettings = mock.fn<(input: BotSettingsInput) => Promise<AdminActionResult>>()
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <BotControls controls={CONTROLS} updateBotSettings={updateBotSettings} />,
+    )
+    await user.clear(cap())
+    await user.type(cap(), '101')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+    expect(screen.getByText('Nhập một số nguyên từ 1 đến 100.')).toBeTruthy()
+    rerender(
+      <BotControls
+        controls={{ ...CONTROLS, perRunUserCap: 11 }}
+        updateBotSettings={updateBotSettings}
+      />,
+    )
+    expect((cap() as HTMLInputElement).value).toBe('101')
+    expect(screen.getByText('Nhập một số nguyên từ 1 đến 100.')).toBeTruthy()
+    expect(updateBotSettings).not.toHaveBeenCalled()
+  })
+
   it('on a failed save goes back to the saved state and says why beside the control', async () => {
     const { user } = setup(CONTROLS, { ok: false, message: 'Không lưu được (y).' })
     await user.click(control('Bật bot'))

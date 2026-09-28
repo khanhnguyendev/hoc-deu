@@ -68,11 +68,15 @@ function CapForm({ saved, max, update }: { saved: number; max: number; update: U
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  // The page re-rendered with another saved cap (this save, or another admin's): follow it.
+  // The page re-rendered with another saved cap (this save, or another admin's): follow it — unless
+  // the admin has typed something else since, which stays, with its error (the save's re-render can
+  // land after the next edit: e2e fix round 2).
   if (saved !== lastSaved) {
     setLastSaved(saved)
-    setValue(String(saved))
-    setInvalid(false)
+    if (value === String(lastSaved) || value === String(saved)) {
+      setValue(String(saved))
+      setInvalid(false)
+    }
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
