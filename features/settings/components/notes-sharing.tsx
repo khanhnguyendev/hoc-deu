@@ -1,10 +1,8 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Banner } from '@/components/patterns/banner'
 import { Section } from '@/components/patterns/section'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { SwitchField } from '@/components/patterns/switch-field'
 import { vi } from '@/lib/i18n/vi'
 import type { SettingsAction } from '../schema'
 import { failureOf, useSettingsAction } from './use-settings-action'
@@ -25,10 +23,10 @@ type NotesSharingProps = {
 
 /**
  * "Chia sẻ ghi chú với bot AI" (§4.6, §6.3): a switch that saves as soon as it is flipped (no
- * separate "Lưu" button), the same immediate-run pattern as TrackSettings' pause/resume. Turning
- * the AI flag off later leaves the stored value as it is — the bot context reads it only for AI
- * users (task 6.4b) — so nothing here needs to change when `aiPersonalization` flips; the section
- * simply stops rendering until it is on again.
+ * separate "Lưu" button), the same immediate-run pattern as TrackSettings' pause/resume. A failed
+ * save puts the switch back on the saved value, so it never shows a consent that was not stored.
+ * Turning the AI flag off clears `share_notes_with_ai` too (decision 34, `admin_set_ai_flag`), and
+ * the section stops rendering until the flag is on again — then it starts from "off".
  */
 function NotesSharing({
   aiPersonalization,
@@ -46,6 +44,12 @@ function NotesSharing({
   }
   const { result, pending, run } = useSettingsAction(updateNotesSharing)
   const failure = failureOf(result)
+  // A new answer: a failed save goes back to the saved value (a failed "off" is still shared).
+  const [answered, setAnswered] = useState(result)
+  if (answered !== result) {
+    setAnswered(result)
+    if (result?.ok === false) setChecked(shareNotesWithAi)
+  }
 
   if (!aiPersonalization) return null
 
@@ -58,13 +62,18 @@ function NotesSharing({
   }
 
   return (
-    <Section title={copy.title} description={copy.description}>
-      <div data-slot="notes-sharing" className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Switch id={uid} checked={checked} disabled={pending} onCheckedChange={toggle} />
-          <Label htmlFor={uid}>{copy.title}</Label>
-        </div>
-        <div role="alert">{failure !== null && <Banner tone="danger">{failure}</Banner>}</div>
+    <Section title={copy.title}>
+      <div data-slot="notes-sharing">
+        <SwitchField
+          id={uid}
+          label={copy.title}
+          description={copy.description}
+          error={failure}
+          checked={checked}
+          disabled={pending}
+          pending={pending}
+          onCheckedChange={toggle}
+        />
       </div>
     </Section>
   )

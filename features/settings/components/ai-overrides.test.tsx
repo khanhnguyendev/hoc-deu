@@ -49,7 +49,9 @@ describe('AiOverrides ("Điều chỉnh lộ trình bởi AI", §5.12)', () => {
     ] as const) {
       expect(row.textContent).toContain(view.text)
       expect(row.textContent).toContain(DSA)
-      expect(within(row).getByRole('button', { name: `Thu hồi: ${view.text}` })).toBeTruthy()
+      expect(
+        within(row).getByRole('button', { name: `Thu hồi: ${view.text} (${DSA})` }),
+      ).toBeTruthy()
     }
   })
 
@@ -82,7 +84,7 @@ describe('AiOverrides ("Điều chỉnh lộ trình bởi AI", §5.12)', () => {
       message: 'Đã thu hồi. Thay đổi có hiệu lực từ kế hoạch ngày mai.',
     }))
     render(<AiOverrides overrides={[INSERT]} requestId={REQUEST_ID} revokeAiOverride={action} />)
-    await user.click(screen.getByRole('button', { name: `Thu hồi: ${INSERT.text}` }))
+    await user.click(screen.getByRole('button', { name: `Thu hồi: ${INSERT.text} (${DSA})` }))
     const dialog = screen.getByRole('alertdialog', { name: 'Thu hồi điều chỉnh này?' })
     expect(dialog.textContent).toContain('Thay đổi có hiệu lực từ kế hoạch ngày mai.')
     await user.click(within(dialog).getByRole('button', { name: 'Thu hồi' }))
@@ -100,7 +102,7 @@ describe('AiOverrides ("Điều chỉnh lộ trình bởi AI", §5.12)', () => {
     const user = userEvent.setup()
     const action = vi.fn(async () => ({ ok: true, message: '' }))
     render(<AiOverrides overrides={[INSERT]} requestId={REQUEST_ID} revokeAiOverride={action} />)
-    await user.click(screen.getByRole('button', { name: `Thu hồi: ${INSERT.text}` }))
+    await user.click(screen.getByRole('button', { name: `Thu hồi: ${INSERT.text} (${DSA})` }))
     await user.click(screen.getByRole('button', { name: 'Huỷ' }))
     expect(action).not.toHaveBeenCalled()
   })

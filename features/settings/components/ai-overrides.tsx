@@ -65,6 +65,7 @@ function AiOverrides({ overrides, requestId, revokeAiOverride }: AiOverridesProp
                 trackId={o.trackId}
                 overrideKey={o.key}
                 title={o.text}
+                trackTitle={o.trackTitle}
               />
             </div>
           )}

@@ -70,7 +70,9 @@ test('an AI adjustment shapes today, is listed in /settings and revoked from the
   await expect(section.getByText('Cấu trúc dữ liệu & Giải thuật')).toBeVisible()
   await expectNoAxeViolationsInBothThemes(page)
 
-  await section.getByRole('button', { name: `Thu hồi: ${line}` }).click()
+  await section
+    .getByRole('button', { name: `Thu hồi: ${line} (Cấu trúc dữ liệu & Giải thuật)` })
+    .click()
   const dialog = page.getByRole('alertdialog', { name: 'Thu hồi điều chỉnh này?' })
   await expect(dialog).toContainText('Thay đổi có hiệu lực từ kế hoạch ngày mai.')
   await expectNoAxeViolationsInBothThemes(page, { disableRules: ['aria-hidden-focus'] })

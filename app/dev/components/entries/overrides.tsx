@@ -108,6 +108,7 @@ export const OVERRIDES_ENTRIES: Entry[] = [
             trackId="dsa"
             overrideKey="ah-extra-practice"
             title={DEMO[0]!.text}
+            trackTitle={DEMO[0]!.trackTitle}
           />
         ),
       },
@@ -120,6 +121,7 @@ export const OVERRIDES_ENTRIES: Entry[] = [
             trackId="dsa"
             overrideKey="ah-extra-practice"
             title={DEMO[0]!.text}
+            trackTitle={DEMO[0]!.trackTitle}
           />
         ),
       },

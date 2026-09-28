@@ -56,6 +56,11 @@ describe('NotesSharing', () => {
     ).toBeTruthy()
     const toggle = screen.getByRole('switch', { name: 'Chia sẻ ghi chú với bot AI' })
     expect(toggle.getAttribute('aria-checked')).toBe('true')
+    // The §4.6 sentence describes the switch itself.
+    const describedBy = toggle.getAttribute('aria-describedby')!
+    expect(document.getElementById(describedBy)?.textContent).toBe(
+      'Bot AI và người vận hành bot có thể xem ghi chú bạn chia sẻ.',
+    )
   })
 
   it('reflects shareNotesWithAi false as unchecked', () => {
@@ -87,7 +92,7 @@ describe('NotesSharing', () => {
     })
   })
 
-  it('shows a failure in an always-mounted alert region, and keeps the flipped position', async () => {
+  it('shows a failure in an always-mounted alert region, and goes back to the saved position', async () => {
     const { user } = setup(
       { shareNotesWithAi: false },
       { ok: false, message: 'Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.' },
@@ -98,6 +103,23 @@ describe('NotesSharing', () => {
       expect(screen.getByRole('alert').textContent).toContain(
         'Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.',
       ),
+    )
+    // Never shows a consent that was not saved (review item 1).
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(toggle.getAttribute('aria-describedby')).toContain(
+      document.querySelector('[data-slot="form-field-error"]')!.id,
+    )
+  })
+
+  it('a failed "off" goes back to on: the notes are still shared', async () => {
+    const { user } = setup(
+      { shareNotesWithAi: true },
+      { ok: false, message: 'Không lưu được thay đổi. Bạn thử lại nhé.' },
+    )
+    const toggle = screen.getByRole('switch')
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Không lưu được thay đổi.'),
     )
     expect(toggle.getAttribute('aria-checked')).toBe('true')
   })

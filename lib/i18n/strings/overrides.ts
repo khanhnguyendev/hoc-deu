@@ -20,8 +20,8 @@ export const overrides = {
   suspended: 'Tạm dừng (đã tắt cá nhân hoá AI)',
   revoke: {
     action: 'Thu hồi',
-    /** The button's accessible name: the action and the override's line. */
-    actionLabel: 'Thu hồi: {title}',
+    /** The button's accessible name: the action, the override's line and its track (unique). */
+    actionLabel: 'Thu hồi: {title} ({track})',
     title: 'Thu hồi điều chỉnh này?',
     description: 'Thay đổi có hiệu lực từ kế hoạch ngày mai.',
     confirm: 'Thu hồi',

@@ -96,6 +96,8 @@ test('a learner whose AI flag is on turns sharing on; it survives a reload', asy
     'aria-checked',
     'true',
   )
+  // The checked state is scanned too (review item 1).
+  await expectNoAxeViolationsInBothThemes(page)
 
   // Turning it back off saves too (always allowed, whatever the AI flag, §4.5).
   await page.getByRole('switch', { name: 'Chia sẻ ghi chú với bot AI' }).click()
@@ -115,5 +117,8 @@ test('the AI flag turning off after the page loaded refuses the save (§4.5)', a
   await expect(
     page.getByText('Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.'),
   ).toBeVisible()
+  // A failed save never shows a consent that was not stored: back to off (review item 1).
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
   expect(await getShareNotesWithAi(learner.id)).toBe(false)
+  await expectNoAxeViolationsInBothThemes(page)
 })

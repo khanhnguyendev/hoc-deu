@@ -200,8 +200,8 @@ const notesSharingInputSchema = z.object({
  * as soon as it is flipped. The database's `guard_share_notes` trigger is the source of truth
  * for "only while ai_personalization is on" (§4.5): a stale page (the flag turned off in another
  * tab) still gets `ai_personalization_off`, mapped to its own sentence in `record()`. Turning
- * sharing off is always allowed, whatever the flag; turning the flag off later leaves the stored
- * value as it is (the bot context reads it only for AI users, task 6.4b).
+ * sharing off is always allowed, whatever the flag; turning the flag off clears
+ * `share_notes_with_ai` as well (decision 34, `admin_set_ai_flag`).
  */
 export async function updateNotesSharing(
   _previous: SettingsResult | null,
