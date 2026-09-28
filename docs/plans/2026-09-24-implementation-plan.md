@@ -12355,11 +12355,20 @@ subagent-driven, one task after another): a fresh implementer and a fresh review
 tasks of one wave in separate worktrees, then one whole-branch review on the most capable model, one
 fix pass and one re-review. **M6 stops for the owner's review before merge.**
 
-**Branch:** `feat/m6-bot-api` from `main` at `712cf88`; this section is its first commit. One pull
-request, "M6: admin AI controls + bot API", merged only after the owner's review — which covers every
-change under `supabase/**`, `lib/auth/**`, `lib/bot/**`, `app/api/**`, `.github/**` and
-`content/**` (the week-4 content: the owner checks every `tests.yaml` example against LeetCode's,
-as in M3).
+**Two pull requests** (owner answers 2026-09-28, decision 40), **both stop for the owner's review;
+the owner merges:**
+
+- **PR C — "M6: content-verify M3b/M3c and W4–W5 content"**, branch `feat/m6-content` from `main`
+  (not from this branch: it carries no plan text), integration worktree
+  `/Users/ryan/ws/hoc-deu-int-m6c`. Tasks 6.9a, 6.9b, 6.10L/T/H, 6.11L/T/H, started now and run in
+  parallel with the bot waves (they share no file with them). The PR lists **5 randomly chosen
+  `tests.yaml` items** (problem, case, input → output, the LeetCode URL) for the owner's
+  spot-check against LeetCode's examples, and every (a) report's example table.
+- **PR B — "M6: admin AI controls + bot API"**, branch `feat/m6-bot-api` from `main` at `712cf88`;
+  this section is its first commit; integration worktree `/Users/ryan/ws/hoc-deu-int-m6`. Every
+  other task. The owner's review covers every change under `supabase/**`, `lib/auth/**`,
+  `lib/bot/**`, `app/api/**` and `.github/**`. Once PR C is merged, PR B merges `main` in (a merge
+  commit on the branch, never a rebase of reviewed commits) before its final review.
 
 **Scope.** The v1.1 AI layer's server side, per spec §6 and §5.12: the bot tables and their SQL
 (§4.1, §4.2), the bot API (`/api/bot/v1/*`, §6.4) behind `requireBotToken` (hash in the database,
@@ -12383,10 +12392,6 @@ and `/admin` says so (decision 22). **The one exception, for the owner's sign-of
 rate limits of the OAuth callback (20 / 10 min per IP), account deletion (3 / day per user) and admin
 actions (60 / min per admin) apply in production from the merge.
 
-**Timing trigger for the week-4 content** (owner answer 3 kept): if `/admin` shows a learner within
-14 days of roadmap week 4 before M6 merges, the controller ships 6.9–6.11 (already cherry-picked
-onto the branch) as a separate pull request from `main` first.
-
 **Owner answers — 2026-09-27** (AskUserQuestion at the start of M6; ledger ruling M6-R1):
 
 1. **Method:** subagent-driven, parallel waves in git worktrees (as M3–M5).
@@ -12397,11 +12402,17 @@ onto the branch) as a separate pull request from `main` first.
 4. **Brand kit:** a small wave-0 task (6.0b) wires favicons, app icons, the Open Graph image, the
    web manifest and an inline `LogoMark`.
 
-**Open points the owner may overturn** (each is a decision below, applied unless the owner says
-otherwise at the review of this section): **Q1** "Chạy ngay" moves to M7 task 7.4 (decision 20);
-**Q2** the §6.10 contract suite runs as Playwright request-level specs against the local stack, not
-Vitest (decision 23); **Q3** override expiry is computed from the plans, never stored (decision 18);
-**Q4** the parked M5-R12 bound is folded into 6.2a (decision 27).
+**Owner answers — 2026-09-28** (review of this section; pasted answers confirmed through
+AskUserQuestion; ledger ruling M6-R3): Part B-M6 approved. **Q1** yes — "Chạy ngay" moves to M7
+task 7.4 (decision 20). **Q2** yes — the §6.10 contract suite runs as Playwright request-level
+specs, **in its own required CI job** (decision 23); per-route unit tests stay. **Q3** yes — and
+`'expired'` is **removed** from `roadmap_overrides.status`'s check, so the database enforces "never
+stored" (decision 18). **Q4** yes — M5-R12 in 6.2a as written. **In-memory rate limits in
+production from the merge: signed off**; thresholds stay generous (decision 22). **Storage:** the
+M7 dry-run week measures `bot_run_users.writes` and adds it to spec §8 (decision 41). **Two pull
+requests** (decision 40); the self-merge of the content PR offered in the pasted text was **not**
+adopted — asked back, the owner chose "stop for my review" for both PRs. The merged `feat/m0…m5`
+remote branches stay for now (owner, 2026-09-28).
 
 **Execution schedule.** A task starts when every task it depends on has been cherry-picked onto
 `feat/m6-bot-api`; the waves below apply that rule in lockstep. "Stack" = the task uses the single
@@ -12432,7 +12443,7 @@ re-reviews).
 | 6.7a content signals, publish requests | 6.4a | e2e | Opus | `lib/bot/signals.ts` (+ test), `lib/bot/contract/signals.ts`, `app/api/bot/v1/runs/[runId]/content-signals/route.ts`, `app/api/content/publish-requests/route.ts` (+ tests), `lib/ops/{maintenance,github}.ts` (+ tests), `features/admin/**`, `app/(admin)/admin/content/page.tsx`, `e2e/admin.spec.ts`, `docs/adr/{0024,0025,0040}-*.md` |
 | 6.5b AI plans: `PUT …/plan`, the mode badge and rationale, the stale-version check | 6.4b, 6.6a, 6.5a | e2e | Opus | `lib/bot/plan.ts` (+ test), `features/checkin/**` (the rendered plan version, decision 36), `lib/bot/contract/plan.ts`, `app/api/bot/v1/runs/[runId]/users/[userRef]/plan/route.ts` (+ test), `lib/events/plans.ts` (+ test), `lib/domain/plan/types.ts` (`StoredPlan.rationale?`), `features/today/**`, `app/(app)/today/**`, `e2e/{ai-plan,today}.spec.ts`, `docs/adr/0018-*.md` |
 | 6.6c overrides: `PUT …/overrides`, the plan engine's inputs, revoke, the context's override fields | 6.4b, 6.6a, 6.6b | e2e | Opus | `lib/bot/overrides.ts` (+ test), `lib/bot/contract/overrides.ts`, `app/api/bot/v1/runs/[runId]/users/[userRef]/overrides/route.ts` (+ test), `lib/bot/context.ts` (+ test: `overrides`, `constraints.overrides.remainingActive`, `templateToday`'s insert blocks), `lib/plans/{day.ts,reads.ts}` (+ tests), `lib/events/overrides.ts` (+ test), `features/settings/**` (6.7b's `queries.ts`, `actions.ts`, `index.ts` edited only for `revokeAiOverride`), `app/(app)/settings/page.tsx`, `e2e/overrides.spec.ts` |
-| 6.8 contract suite (§6.10) | every task above | e2e | Opus | `e2e/bot-api.spec.ts`, `e2e/support/bot.ts`, `e2e/fixtures/malicious-note.ts` |
+| 6.8 contract suite (§6.10) | every PR B task above | e2e | Opus | `e2e/bot-api.spec.ts`, `e2e/support/bot.ts`, `e2e/fixtures/malicious-note.ts`, `playwright.config.ts` (the `bot-api` project), `.github/workflows/ci.yml` (the `bot-contract` job), `tools/guards/*` tests that pin `ci.yml` |
 
 Each task also owns, without listing them, the files it creates and **its own area's** block of the
 split hot files (decision 3): `lib/i18n/strings/<area>.ts` (+ its test),
@@ -12443,15 +12454,27 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
 | Wave | Parallel tasks (one worktree each) | Stack users | Controller at the end of the wave |
 | --- | --- | --- | --- |
 | 0 | 6.0 (controller, integration worktree), then 6.0b | e2e: 6.0b | `pnpm verify`, `pnpm test:e2e e2e/app-shell.spec.ts` |
-| 1 | 6.2a ‖ 6.5a ‖ 6.6b ‖ 6.9a | DB: 6.2a; verify: 6.9a | `pnpm verify`, `pnpm db:reset && pnpm test:db`, `pnpm test:sim`, `pnpm content:verify` |
-| 2 | 6.2b ‖ 6.1 ‖ 6.9b | DB: 6.2b; verify: 6.9b | `pnpm verify`, `pnpm db:reset && pnpm test:db`, `pnpm content:verify` |
-| 3 | 6.3 ‖ 6.7b ‖ 6.10L ‖ 6.10T ‖ 6.10H | e2e: 6.3, 6.7b; verify: 6.10* | `pnpm verify`, `pnpm test:e2e`, `pnpm content:verify` |
-| 4 | 6.4a ‖ 6.11L ‖ 6.11T ‖ 6.11H | e2e: 6.4a | `pnpm verify`, `pnpm test:e2e`; commit `ids.lock` |
+| 1 | 6.2a ‖ 6.5a ‖ 6.6b | DB: 6.2a | `pnpm verify`, `pnpm db:reset && pnpm test:db`, `pnpm test:sim` |
+| 2 | 6.2b ‖ 6.1 | DB: 6.2b | `pnpm verify`, `pnpm db:reset && pnpm test:db` |
+| 3 | 6.3 ‖ 6.7b | e2e: 6.3, 6.7b | `pnpm verify`, `pnpm test:e2e` |
+| 4 | 6.4a | e2e: 6.4a | `pnpm verify`, `pnpm test:e2e` |
 | 5 | 6.6a ‖ 6.7a | e2e: 6.6a, 6.7a | `pnpm verify`, `pnpm test:e2e` |
 | 6 | 6.4b | — | `pnpm verify` |
 | 7 | 6.5b ‖ 6.6c | e2e: 6.5b, 6.6c | `pnpm verify:full` |
 | 8 | 6.8 | e2e | `pnpm verify:full` |
-| 9 | — | controller | whole-branch review, one fix pass, re-review, `verify:full`, PR, CI, **STOP** |
+| 9 | — | controller | merge `main` (PR C) in, whole-branch review, one fix pass, re-review, `verify:full`, PR, CI, **STOP** |
+
+**PR C's waves** (`feat/m6-content`, integration worktree `/Users/ryan/ws/hoc-deu-int-m6c`; they run
+alongside PR B's waves — decision 40 — and count towards the five-agent cap of the PR B wave they
+overlap; `content:verify` needs no stack lock):
+
+| Wave | Parallel tasks | Controller at the end of the wave |
+| --- | --- | --- |
+| C1 | 6.9a | `pnpm verify`, `pnpm content:verify` |
+| C2 | 6.9b | `pnpm verify`, `pnpm content:verify` |
+| C3 | 6.10L ‖ 6.10T ‖ 6.10H | `pnpm verify`, `pnpm content:verify` |
+| C4 | 6.11L ‖ 6.11T ‖ 6.11H | `pnpm content:build` → commit `ids.lock`; `pnpm verify`, `pnpm content:verify` (`compile-only 0`) |
+| C5 | — | whole-branch review (content + harness), one fix pass, re-review, PR C with the 5-item spot-check list, CI, **STOP** |
 
 - **Same-wave tasks share no file,** except the split hot files, where each task edits only its own
   area's file or section (decision 3). New files belong to the task that creates them. Waves are
@@ -12587,8 +12610,8 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
     its previous start is within the 21-day cooldown); a
     `reorder_topics` until revoked or replaced (a finished reorder still counts towards the three
     active overrides until the bot revokes it — conservative). The `status` column stays `active` /
-    `revoked` / `suspended`; `expired` is allowed by its check for a later sweep, never written in
-    v1.1. SQL (6.2b) and TypeScript (6.6b) compute the same rule; a parity test pins it.
+    `revoked` / `suspended`; its check does not allow `expired` (owner Q3, 2026-09-28): expiry is
+    computed, and the database refuses to store it. SQL (6.2b) and TypeScript (6.6b) compute the same rule; a parity test pins it.
 19. **Content signals** (§6.4.7, 6.7a): aggregates only, from a `SECURITY DEFINER` reader over the
     last 90 days of `item.result` events; `highFail` only for items with at least 5 distinct users;
     no text ever; the notes never feed it.
@@ -12614,7 +12637,10 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
     Checked while writing: `@upstash/ratelimit` 2.2.0's types expose the `timeout` option and
     `reason: 'timeout'`; 6.1 confirms in its report that Vercel sets `x-forwarded-for` itself (a
     client-sent value is not trusted as the first entry) — if not, it uses Vercel's
-    `x-real-ip`.
+    `x-real-ip`. **Thresholds stay generous** (owner, 2026-09-28): an admin approving many accounts
+    must never lock themselves out — 60 admin actions a minute per admin is one a second, far above
+    a click-driven queue, and the in-memory limiter is best-effort per instance (a new instance
+    starts empty), so it can only be looser than the numbers, never stricter.
 23. **The §6.10 contract suite runs as Playwright request-level specs** (Q2) against the local stack
     and a production build (`e2e/bot-api.spec.ts`, 6.8): the invariants it names — idempotent
     replays, dry-run writes nothing, the lazy timeout, precedence under a concurrent result — live
@@ -12623,7 +12649,12 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
     })`) and runs in the `desktop` project only: run keys are per date and global, so two parallel
     workers would share today's run. It deletes `bot_runs` rows (cascading to `bot_run_users`) and
     resets `bot_settings` in `beforeAll` / `afterAll` with the secret key — today's run keys
-    only. **E2E isolation across files** (Playwright is `fullyParallel`): every other spec seeds
+    only. **Its own required CI job** (owner Q2): a Playwright project `bot-api` (`testMatch:
+    'bot-api.spec.ts'`, desktop device) that the `desktop` and `mobile` projects `testIgnore`; the
+    `e2e` job runs `--project=desktop --project=mobile`, a new `bot-contract` job in `ci.yml` runs
+    `--project=bot-api` against the same local stack; `bot-contract` joins the `main` ruleset's
+    required checks right after PR B merges (M5 decision 29's reason). **E2E isolation across
+    files** (Playwright is `fullyParallel`): every other spec seeds
     runs only under past keys (`run_2000-01-0N`, one N per spec) and deletes only its own rows; only
     6.8 changes `bot_settings.enabled`, `dry_run` and the token (`admin-bot.spec.ts` toggles
     `content_proposals` and the cap, and restores them); publish-request assertions are "does not
@@ -12677,7 +12708,8 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
 29. **No new dependencies** beyond the two Upstash packages (owner answer 2). The bot HMAC, token
     hashes and body hashes use `node:crypto`; canonical JSON is a local helper.
 30. **M7 prerequisites stay as they are:** the sandbox-audit tests keep running as root in CI (5.0c);
-    M6 adds no workflow and changes none, so 7.3's SHA pinning scope is unchanged.
+    M6 adds no workflow file — 6.8 adds one job (`bot-contract`) to `ci.yml`, whose actions 7.3
+    pins with the rest.
 31. **Admin audit:** token rotation writes `admin.bot_token_rotated`, the AI flag writes
     `admin.ai_flag_changed` (+ `roadmap.override_suspended` / `resumed`); the bot settings toggles
     write no event (they are visible with `updated_at` and `updated_by` on the row) — adding an
@@ -12714,6 +12746,16 @@ of components it changes), its own `e2e/<area>.spec.ts` and `e2e/support/<area>.
 39. **The `user:` item URL** (6.6a): `/t/<trackId>/items/<encodeURIComponent(itemId)>` — built by
     `itemHref` in `features/items/href.ts` and decoded by the item route; repository items keep
     their local-id form.
+40. **Two pull requests** (owner, 2026-09-28): PR C (content: 6.9a, 6.9b, 6.10, 6.11) from `main`,
+    started at once, and PR B (everything else) on this branch; both stop for the owner. The
+    content tasks leave PR B's waves; they run in their own waves C1–C4 below, in parallel with the
+    bot waves (no shared file: `tools/content-verify/**`, `lib/content/{verification.ts,
+    schemas/tests.ts}` and `content/tracks/dsa/**` are no PR B task's). PR B's 6.4a changes
+    `tools/content/**` (the catalog version), which PR C does not touch.
+41. **`bot_run_users` storage** (owner, 2026-09-28): M7's dry-run week (7.5) measures the bytes of
+    `bot_run_users.writes` and `detail` per run and adds the number to spec §8's budget; if it
+    matters, `bot_prune_details` (6.2b) is extended then to trim `writes` of runs older than 30
+    days to their outcomes. M6 builds `bot_prune_details` as written (detail only).
 
 **Review focus for M6** — inputs the spec implies but no happy-path test exercises; each line's test
 is in the task named:
@@ -12746,8 +12788,10 @@ bullet gains "M6: step-level detail in Part B-M6 (subagent-driven, parallel wave
 2026-09-27)"; the Execution methods table moves M6 out of the "M2, M6" row into its own row
 "Subagent-driven, parallel waves in git worktrees (owner answer 2026-09-27)"; under the M6 table a
 note "**Part B-M6 changes to this table**" (decisions 2, 20, 24–26); the backlog gains row **L9**
-(decision 27) and M7's row 7.4 gains "Chạy ngay" (decision 20); the "Before any learner reaches week
-4" paragraph says it is scheduled in M6 (6.9–6.11). Spec: §6.10's "Contract tests (Vitest)" is
+(decision 27), M7's row 7.4 gains "Chạy ngay" (decision 20) and row 7.5 "measure
+`bot_run_users.writes` / `detail` per run and add it to §8; if it matters, `bot_prune_details` trims
+`writes` older than 30 days to their outcomes" (decision 41); the "Before any learner reaches week
+4" paragraph says it is scheduled in M6 as PR C (6.9–6.11, decision 40). Spec: §6.10's "Contract tests (Vitest)" is
 annotated with decision 23; §5.12's expiry with decision 18 (`study_days_left` is built as
 `study_days`, the used days are counted from the plans); §6.6 / §2.4 `/admin/content` with decision
 20 ("Chạy ngay" in M7); §4.2 `bot_settings` with the seeded values (decision 5); §2.3 rate limits
@@ -13012,7 +13056,7 @@ create table public.roadmap_overrides (
   params jsonb not null
     check (jsonb_typeof(params) = 'object' and octet_length(params::text) <= 2048),
   status text not null default 'active'
-    check (status in ('active', 'expired', 'revoked', 'suspended')),
+    check (status in ('active', 'revoked', 'suspended')),        -- never 'expired' (decision 18)
   until_local_day date,
   study_days integer check (study_days between 1 and 5),
   start_local_day date not null,
@@ -14187,7 +14231,8 @@ chủ đề sắp tới"), and "Thu hồi" (`ConfirmDialog`: "Thay đổi có hi
 ### Task 6.8: The bot API contract suite (§6.10)
 
 **Source:** Part A 6.8; decision 23; spec §6.10's list, item for item. **Files:** Create
-`e2e/bot-api.spec.ts`, `e2e/fixtures/malicious-note.ts`; Modify `e2e/support/bot.ts` (helpers: `useBotToken()` computes a token and writes its hash into
+`e2e/bot-api.spec.ts`, `e2e/fixtures/malicious-note.ts`; Modify `playwright.config.ts`,
+`.github/workflows/ci.yml` (+ the guard test that pins it), `e2e/support/bot.ts` (helpers: `useBotToken()` computes a token and writes its hash into
 `bot_settings` with the secret key — the spec's own global state, restored in `afterAll`;
 `setBotSettings(partial)`; `call(method, path, body?, idempotencyKey?)`; AI learners with plans,
 results and notes built through the existing `e2e/support/{users,plans,results}.ts`).
@@ -14238,28 +14283,38 @@ case rotates to a fresh token (the 120 / 10 min limit):
     learner; the context returns it sanitised under `untrusted.notes`, and every out-of-bounds plan,
     custom item and override body built from it is `invalid` — the fixture file holds those bodies.
 
+- [ ] **Step 0: the required CI job** (owner Q2, decision 23): `playwright.config.ts` gains the
+  `bot-api` project (`testMatch: 'bot-api.spec.ts'`, Desktop Chrome) and the `desktop` / `mobile`
+  projects `testIgnore` it; `ci.yml`'s `e2e` job runs `--project=desktop --project=mobile`, a new
+  `bot-contract` job (same local-stack setup as `e2e`) runs `pnpm test:e2e --project=bot-api`; a
+  guard test pins both (the job exists, always runs, and the `e2e` job does not run the bot spec).
 - [ ] **Step 1:** write the spec against the merged branch (every case must pass — a failure is a
   bug report to the controller, not a spec change); **Step 2:** with the stack lock `pnpm test:e2e
-  e2e/bot-api.spec.ts`, then the whole suite once (the bot spec must not disturb others: it only
+  e2e/bot-api.spec.ts --project=bot-api`, then the whole suite once (the bot spec must not disturb others: it only
   touches its own users and the bot tables). **Commit** `test(bot): the §6.10 contract suite`.
 
 ### M6 finish
 
-- [ ] After wave 4: the controller runs `pnpm content:build` in the integration worktree and commits
-  `content/ids.lock` (`chore(content): record W4–W5 IDs in ids.lock`); `pnpm content:verify` shows
-  `compile-only 0`; `/admin/content` shows no red row for weeks 4–5 on a local learner at week 3.
+- [ ] **PR C** (after wave C4): the controller runs `pnpm content:build` in
+  `/Users/ryan/ws/hoc-deu-int-m6c` and commits `content/ids.lock` (`chore(content): record W4–W5
+  IDs in ids.lock`); `pnpm content:verify` shows `compile-only 0`; `/admin/content` shows no red
+  row for weeks 4–5 on a local learner at week 3; a whole-branch review of the harness and the
+  content; one fix pass; re-review; `pnpm verify`; push `feat/m6-content`, open PR C with 5
+  randomly chosen `tests.yaml` items (seeded choice recorded in the ledger) and the (a) reports'
+  example tables; CI green (verify, e2e, db, content-build, content-verify, CodeQL); **STOP for
+  the owner's review; the owner merges.**
+- [ ] **PR B**: once PR C is merged, merge `origin/main` into `feat/m6-bot-api` in the
+  integration worktree (a merge commit), `pnpm verify`.
 - [ ] Whole-branch review (`scripts/review-package` over `712cf88..HEAD`) on the most capable model,
   **split by area** as in M5: data and SQL (6.2a, 6.2b, `lib/events`, `lib/plans`), bot API and
-  security (`lib/auth`, `lib/bot`, `app/api`, 6.1), UI (features, pages, a11y), content (6.9–6.11,
-  with the owner's LeetCode check left to the PR); one fix pass; one re-review. Plan-mandated
+  security (`lib/auth`, `lib/bot`, `app/api`, 6.1), UI (features, pages, a11y); one fix pass; one re-review. Plan-mandated
   findings are ruled on in the ledger and the plan text is amended in a `docs:` commit before the
   fix round.
 - [ ] With the stack lock, `pnpm db:reset && pnpm verify:full` in the integration worktree; `pnpm
   content:verify`.
 - [ ] Push `feat/m6-bot-api`, open the PR "M6: admin AI controls + bot API" (summary, decisions,
-  the owner's answers and Q1–Q4, the "nothing turns on" checklist, the W4–W5 example table for the
-  owner's LeetCode check, the post-merge steps); CI green: verify (unit suite as root), sim, e2e,
-  db, content-build, content-verify, CodeQL.
+  the owner's answers, the "nothing turns on" checklist, the post-merge steps); CI green: verify
+  (unit suite as root), sim, e2e, bot-contract, db, content-build, content-verify, CodeQL.
 - [ ] **STOP for the owner's review. The owner merges.**
 
 **After the merge** (controller, stopping at every owner step): staging then production per
@@ -14269,5 +14324,6 @@ smoke (a bot run row, `plan.ai_proposed` over an untouched plan, a custom item, 
 flag off → suspended, everything rolled back). Production env stays as it is (`BOT_API_ENABLED`
 unset, no Upstash) until the owner's pre-launch review; the owner then adds `BOT_REF_SECRET`,
 `UPSTASH_*` and `BOT_API_ENABLED`, creates the first token in `/admin/bot` and turns their own AI
-flag on — the M7 dry-run week's start (M7). Archive the ledger, update the memory file, write the M7
+flag on — the M7 dry-run week's start (M7). Add `bot-contract` to the `main` ruleset's required
+checks (decision 23). Archive the ledger, update the memory file, write the M7
 hand-off ("Chạy ngay" in 7.4, the contract index for `pnpm bot`).
