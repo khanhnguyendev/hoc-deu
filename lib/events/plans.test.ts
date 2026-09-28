@@ -470,6 +470,8 @@ describe('storedPlanFromRow', () => {
     roadmap_weeks: JSON.parse(JSON.stringify(TRACKS)) as DayPlanRow['roadmap_weeks'],
     rules_version: RULES_VERSION,
     seen_at: '2026-09-28T01:02:03.000Z',
+    rationale: null,
+    bot_run_id: null,
     created_at: '2026-09-27T21:00:00.000Z',
     updated_at: '2026-09-27T21:05:00.000Z',
   }

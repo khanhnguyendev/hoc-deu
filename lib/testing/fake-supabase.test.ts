@@ -21,6 +21,8 @@ const plan = (id: string, planDate: string, blocks: unknown[], seenAt: string | 
   version: 1,
   source: 'baseline',
   seen_at: seenAt,
+  rationale: null,
+  bot_run_id: null,
   rules_version: 3,
   created_at: '2026-09-01T00:00:00Z',
   updated_at: '2026-09-01T00:00:00Z',

@@ -114,6 +114,8 @@ export function planRow(input: {
     version: input.version ?? 1,
     source: 'baseline',
     seen_at: input.seenAt ?? null,
+    rationale: null,
+    bot_run_id: null,
     rules_version: RULES_VERSION,
     created_at: CREATED,
     updated_at: CREATED,

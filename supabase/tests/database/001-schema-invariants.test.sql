@@ -23,7 +23,9 @@ create extension if not exists pgtap with schema extensions;
 -- health (SECURITY INVOKER, `select true`: /api/health's cheap query); the ops_* functions are
 -- service_role only (080). 5.6 adds admin_overview and admin_track_positions (aggregate readers,
 -- each checks is_admin() itself) and replaces admin_set_status(uuid, text) with
--- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051).
+-- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051). 6.2a
+-- adds none: ops_bump_metric is service_role only, and plan_block_state_check_in_day (now also
+-- the local_day_bound_insert trigger's function) keeps no grants (090).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -41,7 +43,7 @@ insert into _authenticated_allowlist (proname) values
 create temporary table _anon_allowlist (proname text) on commit drop;
 insert into _anon_allowlist (proname) values ('health');
 
-select plan(11);
+select plan(12);
 
 -- 1. Every table (relkind r, p) in public has row level security enabled.
 select is_empty(
@@ -253,6 +255,45 @@ select is(
    group by n.nspowner),
   'postgres:2',
   'schema backup is owned by postgres and holds the two auth readers'
+);
+
+-- 12. Task 6.2a's tables (platform design §4.5): what authenticated may do on each and its
+--     policies. The bot tables have no grant and no policy (the server's secret key and 6.2b's
+--     functions only); user_items and roadmap_overrides are owner read-only;
+--     content_publish_requests is admin read-only. Checks 1, 3 and 7 cover RLS, anon and
+--     backup_reader for them like every table. The name columns are C-collated, so they are
+--     compared under the default collation.
+select results_eq(
+  $$
+  select c.relname::text collate "default",
+         array(
+           select p.privilege from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
+                                                'REFERENCES', 'TRIGGER']) as p (privilege)
+           where has_table_privilege('authenticated', c.oid, p.privilege)
+         )::text[],
+         has_any_column_privilege('authenticated', c.oid, 'INSERT,UPDATE,REFERENCES'),
+         array(
+           select format('%s:%s', pol.polname, pol.polcmd) from pg_policy pol
+           where pol.polrelid = c.oid order by pol.polname
+         )::text[] collate "default"
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname in ('bot_settings', 'bot_runs', 'bot_run_users', 'user_items',
+                      'roadmap_overrides', 'content_publish_requests')
+  order by c.relname
+  $$,
+  $$
+  values
+    ('bot_run_users'::text, '{}'::text[], false, '{}'::text[]),
+    ('bot_runs', '{}', false, '{}'),
+    ('bot_settings', '{}', false, '{}'),
+    ('content_publish_requests', '{SELECT}', false, '{content_publish_requests_select_admin:r}'),
+    ('roadmap_overrides', '{SELECT}', false, '{roadmap_overrides_select_own:r}'),
+    ('user_items', '{SELECT}', false, '{user_items_select_own:r}')
+  $$,
+  'task 6.2a''s tables: authenticated reads user_items, roadmap_overrides and '
+  'content_publish_requests (one select policy each) and nothing of the bot tables'
 );
 
 select * from finish();
