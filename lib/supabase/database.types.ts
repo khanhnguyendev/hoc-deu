@@ -869,6 +869,13 @@ export type Database = {
         Args: { p_plan_date: string; p_user_id: string }
         Returns: number
       }
+      roadmap_override_active: {
+        Args: {
+          o: Database['public']['Tables']['roadmap_overrides']['Row']
+          p_today: string
+        }
+        Returns: boolean
+      }
       rules_version: { Args: never; Returns: number }
       system_event_types: { Args: never; Returns: string[] }
       user_local_day: {

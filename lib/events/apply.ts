@@ -45,6 +45,14 @@ export type EventErrorCode =
   | 'too_many_pending_schedules'
   | 'version_conflict'
   | 'day_changed'
+  // The M6 system events (task 6.2b): the AI flag off, a custom item's slug in use, an override
+  // key the learner revoked, the extra_week cooldown, a quota, a track the user is not in.
+  | 'ai_off'
+  | 'slug_taken'
+  | 'revoked_key'
+  | 'cooldown'
+  | 'limit_reached'
+  | 'not_enrolled'
   | 'unknown'
 
 const USER_MESSAGES = {
@@ -65,6 +73,13 @@ const USER_MESSAGES = {
   // Retried by withRetry first; shown only when every attempt conflicted.
   version_conflict: vi.errors.saveFailed,
   day_changed: vi.errors.saveFailed,
+  // The bot path turns these into its own outcomes; a learner never causes them.
+  ai_off: vi.errors.saveFailed,
+  slug_taken: vi.errors.saveFailed,
+  revoked_key: vi.errors.saveFailed,
+  cooldown: vi.errors.saveFailed,
+  limit_reached: vi.errors.saveFailed,
+  not_enrolled: vi.errors.invalidTransition,
   unknown: vi.errors.saveFailed,
 } as const satisfies Record<EventErrorCode, string>
 
