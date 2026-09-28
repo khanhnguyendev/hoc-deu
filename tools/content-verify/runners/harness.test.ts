@@ -12,8 +12,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testsFileSchema } from '@/lib/content/schemas/tests'
 import { discoverProblems, type ProblemUnderTest } from '../discover'
-import { generateGoHarness, goHarness } from './go'
-import { generateJavaMain, javaHarness } from './java'
+import { generateGoHarness, goConstructorCall, goHarness } from './go'
+import { generateJavaMain, javaHarness, javaParameterTypes } from './java'
 import { pythonHarness } from './python'
 
 const TWO_SUM = testsFileSchema.parse({
@@ -308,7 +308,7 @@ describe('prepare', () => {
   it('go: compile-only adds a main stub, vets, and checks the type, Constructor and methods', () => {
     const prepared = goHarness.prepare(fixture('demo:lc-9004'), workDir)
     expect(readFileSync(join(workDir, 'main_stub.go'), 'utf8')).toBe(
-      'package main\n\nfunc main() {}\n',
+      'package main\n\nfunc main() {\n\tvar harnessObject MinStack = Constructor()\n\t_ = harnessObject\n}\n',
     )
     expect(existsSync(join(workDir, 'main_harness.go'))).toBe(false)
     expect(prepared.compileOnly.map((command) => [command.cmd, ...command.args])).toEqual([
@@ -350,5 +350,68 @@ describe('prepare', () => {
       'solution.go: no func Constructor(',
       'solution.go: no method (*MinStack) GetMin(',
     ])
+  })
+})
+
+describe('the Java List<String> bridge (M3 follow-up: 139, 127, 271)', () => {
+  it('reads the declared parameter types of a method, generics and modifiers included', () => {
+    const source = `import java.util.*;
+class Solution {
+    // wordBreak(String s) is only a comment
+    public boolean wordBreak(final String s, List<String> wordDict) {
+        return helper(s, wordDict);
+    }
+    private int ladderLength(String beginWord, String endWord, java.util.List<String> wordList) throws Exception {
+        return 0;
+    }
+    int pairs(Map<String, List<Integer>> index, @Deprecated int[][] grid) { return 0; }
+}`
+    expect(javaParameterTypes(source, 'wordBreak')).toEqual(['String', 'List<String>'])
+    expect(javaParameterTypes(source, 'ladderLength')).toEqual([
+      'String',
+      'String',
+      'java.util.List<String>',
+    ])
+    expect(javaParameterTypes(source, 'pairs')).toEqual(['Map<String, List<Integer>>', 'int[][]'])
+    expect(javaParameterTypes(source, 'missing')).toBeNull()
+  })
+
+  it('passes a string[] as a mutable List<String> when the solution asks for one', () => {
+    const problem = fixture('demo:lc-9008')
+    const source = readFileSync(join(problem.dir, 'Solution.java'), 'utf8')
+    expect(generateJavaMain(problem.tests, source)).toContain(`    // example-1
+    private static Object case0() {
+        java.util.List<String> arg0 = new java.util.ArrayList<String>(java.util.Arrays.<String>asList("a","abc","ab"));
+        int arg1 = 2;
+        return new Solution().keepLonger(arg0, arg1);
+    }`)
+  })
+
+  it('keeps arrays without a source (or when the solution declares an array)', () => {
+    const problem = fixture('demo:lc-9008')
+    expect(generateJavaMain(problem.tests)).toContain(
+      'String[] arg0 = new String[]{"a","abc","ab"};',
+    )
+  })
+})
+
+describe('Go design classes are created through Constructor() (M3 follow-up)', () => {
+  it('renders the Constructor call, never a struct literal', () => {
+    expect(goConstructorCall([])).toBe('Constructor()')
+    expect(goConstructorCall(['10', '"x"'])).toBe('Constructor(10, "x")')
+  })
+
+  it('compile-only: the main stub creates the class through Constructor (typed, zero arguments)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cv-harness-'))
+    try {
+      const workDir = join(root, 'unit')
+      mkdirSync(workDir)
+      goHarness.prepare(fixture('demo:lc-9009'), workDir)
+      expect(readFileSync(join(workDir, 'main_stub.go'), 'utf8')).toBe(
+        'package main\n\nfunc main() {\n\tvar harnessObject Counter = Constructor(*new(int))\n\t_ = harnessObject\n}\n',
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

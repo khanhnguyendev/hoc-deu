@@ -7,7 +7,7 @@ import { discoverProblems } from './discover'
 const FIXTURES = join(import.meta.dirname, '__fixtures__', 'tracks')
 
 describe('discoverProblems — fixtures', () => {
-  it('finds the seven demo problems, sorted by ID, with every solution language present', () => {
+  it('finds the demo problems, sorted by ID, with every solution language present', () => {
     const { problems, issues } = discoverProblems(FIXTURES)
     expect(issues).toEqual([])
     expect(problems.map((problem) => problem.id)).toEqual([
@@ -18,6 +18,8 @@ describe('discoverProblems — fixtures', () => {
       'demo:lc-9005',
       'demo:lc-9006',
       'demo:lc-9007',
+      'demo:lc-9008',
+      'demo:lc-9009',
     ])
     for (const problem of problems) {
       expect(problem.languages).toEqual(['python', 'java', 'go'])

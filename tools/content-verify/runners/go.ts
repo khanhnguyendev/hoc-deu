@@ -7,9 +7,9 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { TestsFile } from '@/lib/content/schemas/tests'
+import { parseValueType, type TestsFile } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
-import { goLiteral } from '../literals'
+import { goLiteral, goType } from '../literals'
 import {
   caseArguments,
   caseName,
@@ -26,6 +26,35 @@ const STATIC_DIR = join(import.meta.dirname, 'go')
 const SOLUTION = SOLUTION_FILES.go
 const GO_MOD = 'module verify\n\ngo 1.22\n'
 const MAIN_STUB = 'package main\n\nfunc main() {}\n'
+
+/** How the harness creates a design class in Go: LeetCode's Go convention is a package-level
+ * `func Constructor(…) <Class>` — never a struct literal, which would skip the constructor's work
+ * (a map it makes, a capacity it stores). `args` are Go expressions. */
+export function goConstructorCall(args: readonly string[]): string {
+  return `Constructor(${args.join(', ')})`
+}
+
+/** The compile-only `main` stub. For a design class it creates the class through `Constructor`
+ * with a zero value per constructor parameter (`*new(T)`), typed as the class, so `go vet` fails
+ * when `Constructor` is missing, takes other parameters or returns another type. */
+export function goMainStub(tests: TestsFile): string {
+  const { signature } = tests
+  if (signature.kind !== 'design-class') return MAIN_STUB
+  const zeros = Object.entries(signature.constructor).map(([name, text]) => {
+    const type = parseValueType(text)
+    if (type === null) throw new Error(`constructor parameter "${name}": unknown type "${text}"`)
+    return `*new(${goType(type)})`
+  })
+  return [
+    'package main',
+    '',
+    'func main() {',
+    `\tvar harnessObject ${signature.className} = ${goConstructorCall(zeros)}`,
+    '\t_ = harnessObject',
+    '}',
+    '',
+  ].join('\n')
+}
 
 /** `main_harness.go` for a `function` signature. */
 export function generateGoHarness(tests: TestsFile): string {
@@ -139,7 +168,7 @@ export const goHarness: Harness = {
     if (modeOf(problem) === 'compile-only') {
       const source = readFileSync(join(workDir, SOLUTION), 'utf8')
       if (!/^func\s+main\s*\(/m.test(stripComments(source))) {
-        writeFileSync(join(workDir, 'main_stub.go'), MAIN_STUB)
+        writeFileSync(join(workDir, 'main_stub.go'), goMainStub(problem.tests))
       }
       return {
         compile: [],

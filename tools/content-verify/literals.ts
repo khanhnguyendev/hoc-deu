@@ -132,3 +132,61 @@ export function goLiteral(value: unknown, type: ValueType): string {
   const inner: ValueType = { base: type.base, dims: (type.dims - 1) as 0 | 1 }
   return `${goType(type)}${arrayBody(value as unknown[], inner, goScalarLiteral)}`
 }
+
+const JAVA_BOXED: Record<ScalarType, string> = {
+  int: 'Integer',
+  long: 'Long',
+  double: 'Double',
+  bool: 'Boolean',
+  string: 'String',
+  char: 'Character',
+}
+
+/** Collection types a Java solution may declare for a `tests.yaml` array, the qualified name its
+ * variable is declared with and the class it is built from (mutable: a solution may edit it). */
+const JAVA_COLLECTIONS: Record<string, { qualified: string; build: string }> = {
+  List: { qualified: 'java.util.List', build: 'java.util.ArrayList' },
+  ArrayList: { qualified: 'java.util.ArrayList', build: 'java.util.ArrayList' },
+  LinkedList: { qualified: 'java.util.LinkedList', build: 'java.util.LinkedList' },
+  Collection: { qualified: 'java.util.Collection', build: 'java.util.ArrayList' },
+  Iterable: { qualified: 'java.lang.Iterable', build: 'java.util.ArrayList' },
+}
+
+const JAVA_COLLECTION_TYPE = /^(?:java\.(?:util|lang)\.)?(\w+)\s*<\s*(.+?)\s*>$/
+
+/** `{ container, element }` when `declared` is a supported collection type, e.g.
+ * `'List<String>'` → List of `'String'`. */
+function javaCollection(declared: string | null) {
+  const match = declared === null ? null : JAVA_COLLECTION_TYPE.exec(declared.trim())
+  if (match === null) return null
+  const container = JAVA_COLLECTIONS[match[1] ?? '']
+  return container === undefined ? null : { container, element: match[2] ?? '' }
+}
+
+/**
+ * A Java variable type and initialiser for `value` at `type`, bridged to what the solution
+ * declares (M3 follow-up, problems 139, 127, 271): `tests.yaml` has arrays only, but a LeetCode
+ * Java signature often takes `List<String>` — then the argument is a mutable `java.util.List`
+ * (nested for `List<List<String>>`, boxed for `List<Integer>`). Anything else, or no declaration
+ * (`null`), keeps the array literal.
+ */
+export function javaArgument(
+  value: unknown,
+  type: ValueType,
+  declared: string | null,
+): { type: string; expression: string } {
+  const collection = type.dims > 0 ? javaCollection(declared) : null
+  if (collection === null) return { type: javaType(type), expression: javaLiteral(value, type) }
+  const elementType: ValueType = { base: type.base, dims: (type.dims - 1) as 0 | 1 }
+  const items = (value as unknown[]).map((item) =>
+    javaArgument(item, elementType, collection.element),
+  )
+  const element =
+    elementType.dims === 0
+      ? JAVA_BOXED[elementType.base]
+      : javaArgument([], elementType, collection.element).type
+  return {
+    type: `${collection.container.qualified}<${element}>`,
+    expression: `new ${collection.container.build}<${element}>(java.util.Arrays.<${element}>asList(${items.map((item) => item.expression).join(',')}))`,
+  }
+}

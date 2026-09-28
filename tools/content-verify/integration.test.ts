@@ -341,6 +341,35 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     expect(java.detail).toMatch(/Solution\.java:\d+: error: ';' expected/)
   })
 
+  it('passes a string[] to the Java solution as the List<String> it declares (M3 follow-up)', () => {
+    expect(language('demo:lc-9008', 'java')).toMatchObject({ status: 'tested' })
+  })
+
+  it('creates the Go design class through Constructor(start) in the compile-only stub', () => {
+    expect(language('demo:lc-9009', 'go')).toMatchObject({ status: 'compile-only' })
+  })
+
+  it('fails a Go design class whose Constructor does not return the class', async () => {
+    const problem = discoverProblems(FIXTURES, { ids: ['demo:lc-9009'] }).problems[0]
+    if (problem === undefined || workRoot === undefined) throw new Error('fixture lc-9009 missing')
+    const dir = mkdtempSync(join(workRoot, 'pointer-'))
+    writeFileSync(
+      join(dir, 'solution.go'),
+      readFileSync(join(problem.dir, 'solution.go'), 'utf8')
+        .replace('func Constructor(start int) Counter {', 'func Constructor(start int) *Counter {')
+        .replace('return Counter{', 'return &Counter{'),
+    )
+    const unitRoot = mkdtempSync(join(workRoot, 'units-'))
+    const [result] = await verifyProblems([{ ...problem, dir, languages: ['go'] }], {
+      jobs: 1,
+      workRoot: unitRoot,
+      sandbox,
+      tools: resolveToolchains(['go'], sandbox).tools,
+    })
+    expect(result?.languages[0]).toMatchObject({ lang: 'go', status: 'failed' })
+    expect(result?.languages[0]?.detail).toMatch(/cannot use Constructor\(\*new\(int\)\)/)
+  }, 180_000)
+
   it('runs an unsupported kind compile-only, the signature check passing', () => {
     expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })
   })
