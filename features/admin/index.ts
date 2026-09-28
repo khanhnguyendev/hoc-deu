@@ -4,6 +4,8 @@
  * files directly.
  */
 export {
+  cancelPublish,
+  requestPublish,
   rotateBotToken,
   setAiFlag,
   setUserRole,
@@ -20,8 +22,10 @@ export { BotToken } from './components/bot-token'
 export { CatalogStats } from './components/catalog-stats'
 export { ContentCoverage } from './components/content-coverage'
 export { DraftsList } from './components/drafts-list'
+export { PublishButton } from './components/publish-button'
+export { PublishRequests } from './components/publish-requests'
 export { UserQueue } from './components/user-queue'
-export type { ContentPage, TrackContent } from './content'
+export type { ContentPage, PublishRequestsView, TrackContent } from './content'
 export type { AdminOverviewPage } from './overview'
 export {
   getAdminBot,

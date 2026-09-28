@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, type AccountStatus, type Role } from '@/lib/auth/dal'
 import { newBotToken } from '@/lib/bot/token'
+import { getCatalog } from '@/lib/content/catalog'
+import { PUBLISH_TARGET_PATTERN, targetStatus } from '@/lib/content/publish-targets'
 import { vi } from '@/lib/i18n/vi'
 import { checkLimit } from '@/lib/rate-limit'
 import type { Database } from '@/lib/supabase/database.types'
@@ -233,4 +235,71 @@ export async function setAiFlag(userId: string, on: boolean): Promise<AdminActio
     ok: true,
     message: input.data.on ? vi.adminBot.results.aiOn : vi.adminBot.results.aiOff,
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Publish requests (task 6.7a; §2.4 /admin/content, §6.6, ADR-0024; Part B-M6 decision 20). Each:
+// requireAdmin, then the admin-action rate limit, then the input; the RPCs run with the admin's own
+// session. The app holds no GitHub write token: a request waits for the next publish run.
+// ---------------------------------------------------------------------------------------------
+
+const publishCopy = vi.publish
+
+/**
+ * "Xuất bản" (§6.6): a pending `content_publish_requests` row for a **draft** item or draft note
+ * (`<itemId>#note`) of the deployed catalog — anything else is refused before the RPC.
+ * `admin_request_publish` returns the pending request that already exists for the target, so a
+ * second click is harmless. The admin ticked the publish checklist in the dialog first.
+ */
+export async function requestPublish(target: string): Promise<AdminActionResult> {
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+  if (
+    typeof target !== 'string' ||
+    !PUBLISH_TARGET_PATTERN.test(target) ||
+    targetStatus(getCatalog(), target) !== 'draft'
+  ) {
+    return { ok: false, message: publishCopy.errors.notDraft }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_request_publish', { p_target: target })
+  if (error) {
+    return {
+      ok: false,
+      message: error.message === 'forbidden' ? vi.errors.notAllowed : publishCopy.errors.failed,
+    }
+  }
+  revalidatePath('/admin/content')
+  return { ok: true, message: publishCopy.results.requested }
+}
+
+const requestId = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
+
+/**
+ * "Huỷ" (§6.6): a pending request → cancelled. When it is no longer pending (merged, or cancelled
+ * by another admin) the answer is stale and `/admin/content` re-renders with its current state.
+ */
+export async function cancelPublish(id: number): Promise<AdminActionResult> {
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+  const input = requestId.safeParse(id)
+  if (!input.success) return { ok: false, message: vi.admin.errors.invalid }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_cancel_publish', { p_id: input.data })
+  if (error) {
+    if (error.message === 'not_found' || error.message === 'invalid_transition') {
+      revalidatePath('/admin/content')
+      return { ok: false, message: publishCopy.errors.changed, stale: true }
+    }
+    return {
+      ok: false,
+      message: error.message === 'forbidden' ? vi.errors.notAllowed : publishCopy.errors.failed,
+    }
+  }
+  revalidatePath('/admin/content')
+  return { ok: true, message: publishCopy.results.cancelled }
 }

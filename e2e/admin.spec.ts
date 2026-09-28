@@ -5,6 +5,7 @@ import { getAiFlag, setAiFlagOff } from './support/bot'
 import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { seedPlan, snapshot } from './support/plans'
+import { deletePublishRequest, seedPublishRequest, uniqueTarget } from './support/publish'
 import { expect, test } from './support/test'
 import {
   createTestUser,
@@ -326,6 +327,57 @@ test.describe('/admin (task 5.6)', () => {
       'href',
       '/admin/content',
     )
+  })
+})
+
+test.describe('publish requests (task 6.7a, §6.6)', () => {
+  /** The public endpoint's targets (no session): `200 {"targets":[…]}`, cached for a minute. */
+  async function publicTargets(page: Page): Promise<string[]> {
+    const response = await page.request.get('/api/content/publish-requests')
+    expect(response.status()).toBe(200)
+    expect(response.headers()['cache-control']).toBe('public, max-age=60')
+    const body = (await response.json()) as { targets: string[] }
+    expect(Object.keys(body)).toEqual(['targets'])
+    return body.targets
+  }
+
+  test('the public endpoint lists a pending target only once its request exists', async ({
+    page,
+  }) => {
+    // Never an empty-list assertion: other specs create requests in parallel (decision 23).
+    const target = uniqueTarget()
+    expect(await publicTargets(page)).not.toContain(target)
+    const id = await seedPublishRequest(target)
+    try {
+      expect(await publicTargets(page)).toContain(target)
+    } finally {
+      await deletePublishRequest(id)
+    }
+    expect(await publicTargets(page)).not.toContain(target)
+  })
+
+  test('/admin/content: the drafts list and the "Yêu cầu xuất bản" section with a pending request', async ({
+    page,
+  }) => {
+    const target = uniqueTarget()
+    const id = await seedPublishRequest(target)
+    try {
+      await openAsAdmin(page, '/admin/content')
+      // The content has no draft today (M5-R7's waiver): the unit tests cover "Xuất bản".
+      const drafts = page.getByRole('region', { name: 'Bản nháp', exact: true })
+      await expect(drafts.getByText('Không có bản nháp nào.')).toBeVisible()
+      const requests = page.getByRole('region', { name: 'Yêu cầu xuất bản', exact: true })
+      await expect(requests).toBeVisible()
+      const table = requests.getByRole('region', { name: 'Các yêu cầu xuất bản' })
+      const row = table.getByRole('row').filter({ hasText: target })
+      // A target the catalog does not have: its ID as text, pending, no PR yet.
+      await expect(row).toContainText('Đang chờ')
+      await expect(row.locator('[data-status="pending"]')).toBeVisible()
+      await expect(row.getByRole('link')).toHaveCount(0)
+      await expectNoAxeViolationsInBothThemes(page)
+    } finally {
+      await deletePublishRequest(id)
+    }
   })
 })
 

@@ -2473,15 +2473,22 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 
 - **Layer:** feature (`features/admin`)
 - **File:** `features/admin/components/drafts-list.tsx`
-- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`)
+- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`; an item or note entry carries its
+  publish `target`, `checklist`, `verification` and pending `request` — task 6.7a),
+  `requestPublish?`, `cancelPublish?` (the server actions; without them — the catalog — the
+  pending state shows, no button)
 - **Variants:** —
 - **States:** groups "Lộ trình nháp (n)", "Mục nháp (n)", "Ghi chú nháp (n)" (an empty group is left
   out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
-  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)." — no publish button in v1.0 (§6.6)
-- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts} /></Section>`
+  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)."; v1.1 (§6.6): beside each draft
+  item and note a `PublishButton` ("Xuất bản", or "Đang chờ xuất bản" with its PR and "Huỷ"); a
+  draft note shows its verification badge — "Đã kiểm thử", "Chỉ biên dịch", or for a note the bot
+  wrote "Đã kiểm thử (test do bot viết)" (ADR-0040, `warning` tone with a bot icon)
+- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts}
+  requestPublish={requestPublish} cancelPublish={cancelPublish} /></Section>`
 - **Accessibility:** each group a LinkList, each entry a LinkRow (44 px) to its page — admins see
-  drafts; LeetCode
-  titles and English card fronts carry `lang="en"`; group titles are `h3`
+  drafts; the publish controls sit beside the link, never inside it; LeetCode titles and English
+  card fronts carry `lang="en"`; group titles are `h3`; a badge is an icon and words
 
 ### Admin bot components (`features/admin/components`)
 
@@ -2584,6 +2591,49 @@ Task 6.6c adds these entries below this line (Part B-M6 decision 3).
 ### Publish components (`features/admin/components`)
 
 Task 6.7a adds these entries below this line (Part B-M6 decision 3).
+
+### PublishButton
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/publish-button.tsx`
+- **Props:** `target: string` (the item ID or `<itemId>#note`), `title: string`, `titleLang?`,
+  `checklist: 'problem' | 'item'`, `request: PendingPublish | null` (`{ requestId, pr }`),
+  `requestPublish?: (target) => Promise<AdminActionResult>`, `cancelPublish?: (requestId) =>
+  Promise<AdminActionResult>` (the server actions, props so the catalog passes stubs; without them
+  only the state shows)
+- **Variants:** —
+- **States:** draft — an outline "Xuất bản" button (accessible name "Xuất bản {title}") that opens
+  the publish checklist (§6.6): "Xuất bản {title}?", a fieldset "Danh sách kiểm tra trước khi xuất
+  bản" with three Checkboxes — for a problem or note: the `tests.yaml` examples match LeetCode, the
+  explanation and complexity are right, the bilingual line reads naturally; for any other item the
+  same checks in its terms — and "Xuất bản" disabled with "Đánh dấu đủ ba mục để xuất bản." until
+  all three are ticked (a reopened dialog starts unticked); loading while the request is saved;
+  pending — "Đang chờ xuất bản" with a clock icon, "PR #n" (new tab) once a publish run included
+  the request, and "Huỷ" (accessible name "Huỷ yêu cầu xuất bản {title}"); every answer is a toast
+- **Usage:** rendered by `DraftsList` beside each draft item and note
+- **Accessibility:** the dialog is labelled by its title (the title in `lang="en"` for a LeetCode
+  title), each checkbox by its line (44 px hit area), the disabled confirm is described by the
+  hint; focus returns to "Xuất bản" on a close, and after a request or a cancel moves to the
+  control that replaces the one used (WCAG 2.4.3)
+
+### PublishRequests
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/publish-requests.tsx`
+- **Props:** `requests: PublishRequestsView` (`{ state: 'ready', rows }` · `{ state: 'empty' }` ·
+  `{ state: 'error' }`, from `getAdminContent()`)
+- **Variants:** —
+- **States:** ready — a DataTable "Các yêu cầu xuất bản": pending first, then the 20 latest merged
+  or cancelled, newest first; per row the item (a link to its page, its kind and target in `code`;
+  a target the catalog no longer has is plain text), the status with its icon ("Đang chờ", "Đã
+  xuất bản", "Đã huỷ"), the publish run's PR ("PR #41", new tab, or "—") and "Yêu cầu lúc"
+  (`{time}, {day}`, Asia/Ho_Chi_Minh); loading — the page's `loading.tsx`; empty — EmptyState
+  "Chưa có yêu cầu xuất bản nào"; error — ErrorState "Không đọc được yêu cầu xuất bản" (the drafts
+  above stay usable)
+- **Usage:** `<Section title="Yêu cầu xuất bản" description={…}><PublishRequests
+  requests={page.publishRequests} /></Section>` (`app/(admin)/admin/content/page.tsx`)
+- **Accessibility:** the table is a focusable, labelled scroll region; each row's item is its row
+  header; status is an icon and words, never colour alone; the PR link says it opens a new tab
 
 ### Notes sharing components (`features/settings/components`)
 

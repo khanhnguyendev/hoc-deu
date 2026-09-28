@@ -1,14 +1,16 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getCatalog } from '@/lib/content/catalog'
+import { targetStatus } from '@/lib/content/publish-targets'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
-import { lastSuccessfulRun, type WorkflowFile } from './github'
+import { lastSuccessfulRun, pullRequestState, type WorkflowFile } from './github'
 
 export type StepOutcome = 'ok' | 'failed'
 export type MaintenanceReport = {
   readonly ok: boolean
   readonly steps: Readonly<
-    Record<'dbSize' | 'prune' | 'botRuns' | 'botDetails' | 'backups', StepOutcome>
+    Record<'dbSize' | 'prune' | 'botRuns' | 'botDetails' | 'publish' | 'backups', StepOutcome>
   >
 }
 
@@ -40,11 +42,66 @@ function check(name: string, result: { error: { message: string } | null }): voi
 }
 
 /**
+ * At most this many pull requests are looked up per run: the unauthenticated API allows 60
+ * requests an hour per address (shared on Vercel), and the rest waits for the next day.
+ */
+const MAX_PULL_LOOKUPS = 10
+
+const PR_NUMBER = /\/pull\/([1-9][0-9]{0,6})$/
+
+/**
+ * The publish step (§2.3, §6.6 lifecycle; Part B-M6 decision 20), over the pending
+ * `content_publish_requests`: a request whose target the deployed catalog shows `active` →
+ * `merged` (`publish_mark_merged`); a request with a `pr_url` whose pull request the public
+ * GitHub API reports closed unmerged → `pr_url` cleared (`publish_clear_pr`), so the next publish
+ * run picks it up again. A PR merged on GitHub but not deployed yet leaves its requests pending
+ * until the catalog shows the flip. A PR that cannot be read fails the step after the others are
+ * cleared.
+ */
+async function publishStep(admin: SupabaseClient<Database>, fetchImpl: typeof fetch) {
+  const pending = await admin
+    .from('content_publish_requests')
+    .select('id, target, pr_url')
+    .eq('status', 'pending')
+  if (pending.error) throw new Error(`content_publish_requests: ${pending.error.message}`)
+  const catalog = getCatalog()
+  const rows = pending.data ?? []
+
+  const merged = rows.filter((row) => targetStatus(catalog, row.target) === 'active')
+  if (merged.length > 0) {
+    const ids = merged.map((row) => row.id)
+    check('publish_mark_merged', await admin.rpc('publish_mark_merged', { p_ids: ids }))
+  }
+
+  const byPull = new Map<number, number[]>()
+  for (const row of rows) {
+    if (merged.includes(row) || row.pr_url === null) continue
+    const match = PR_NUMBER.exec(row.pr_url)
+    if (match === null) continue
+    const pull = Number(match[1])
+    byPull.set(pull, [...(byPull.get(pull) ?? []), row.id])
+  }
+  const pulls = [...byPull.keys()].sort((a, b) => a - b).slice(0, MAX_PULL_LOOKUPS)
+  const closed: number[] = []
+  let unread = 0
+  for (const pull of pulls) {
+    const state = await pullRequestState(pull, fetchImpl).catch(() => null)
+    if (state === null) unread += 1
+    else if (state === 'closed') closed.push(...(byPull.get(pull) ?? []))
+  }
+  if (closed.length > 0) {
+    check('publish_clear_pr', await admin.rpc('publish_clear_pr', { p_ids: closed }))
+  }
+  if (unread > 0) throw new Error(`${unread} pull request(s) could not be read`)
+}
+
+/**
  * The daily maintenance (§2.3, §8.4 item 3; ADR-0034), called by `/api/cron/maintenance` after
  * `requireCronSecret`. Every step runs, each in its own try/catch: the DB size, the prune of old
  * `event_quota` and `ops_metrics` rows, the bot sweeps (timed-out runs failed, the detail of runs
- * older than 30 days dropped — task 6.4a), and the last successful backup and restore test from the
- * public GitHub API. Then `cron.last_run_at` is recorded. Running twice or skipping a day is
+ * older than 30 days dropped — task 6.4a), the publish requests (merged marking and closed-PR
+ * clearing — task 6.7a), and the last successful backup and restore test from the public GitHub
+ * API. Then `cron.last_run_at` is recorded. Running twice or skipping a day is
  * harmless: each step records the current value or deletes what is already old. It never builds
  * plans (plans stay lazy, §2.3).
  *
@@ -77,6 +134,7 @@ export async function runMaintenance(
   const botDetails = await attempt('botDetails', async () => {
     check('bot_prune_details', await admin().rpc('bot_prune_details'))
   })
+  const publish = await attempt('publish', () => publishStep(admin(), fetchImpl))
   const backups = await attempt('backups', async () => {
     const results = await Promise.allSettled(
       WORKFLOW_METRICS.map(async ([file, key]) => {
@@ -92,7 +150,7 @@ export async function runMaintenance(
   })
   const lastRun = await attempt('lastRun', () => record('cron.last_run_at', epochSeconds(now)))
 
-  const steps = { dbSize, prune, botRuns, botDetails, backups }
+  const steps = { dbSize, prune, botRuns, botDetails, publish, backups }
   const ok = Object.values(steps).every((outcome) => outcome === 'ok') && lastRun === 'ok'
   return { ok, steps }
 }

@@ -2,8 +2,8 @@
 
 - **Status:** accepted
 - **Date:** 2026-09-26
-- **Spec:** platform design §2.3, §2.5, §4.2, §4.5, §8.4 items 3 and 5; implementation plan
-  Part B-M5 decision 26 (task 5.7a)
+- **Spec:** platform design §2.3, §2.5, §4.2, §4.5, §6.2, §6.6, §8.4 items 3 and 5; implementation
+  plan Part B-M5 decision 26 (task 5.7a), Part B-M6 decisions 20 and 41 (tasks 6.4a, 6.7a)
 
 ## Context
 
@@ -51,6 +51,20 @@ Constraints:
      The step fails when either run cannot be read — an API error, a rate limit or no successful
      run yet — and still records the one it could read.
 
+  4. `botRuns` (v1.1, task 6.4a) — `bot_timeout_runs()` marks plan and publish runs still
+     `running` after 2 hours `failed` / `timeout` (the lazy timeout's guaranteed sweep, §6.2).
+  5. `botDetails` (v1.1, task 6.4a) — `bot_prune_details()` drops `bot_run_users.detail` of runs
+     older than 30 days (dry-run proposals, invalid details; Part B-M6 decision 41).
+  6. `publish` (v1.1, task 6.7a; ADR-0024) — over the pending `content_publish_requests`: a
+     request whose target the deployed catalog shows `active` → `merged`
+     (`publish_mark_merged`); a request with a `pr_url` whose pull request the public GitHub API
+     (`GET /repos/<repository>/pulls/<n>`, no token, at most 10 pull requests a run) reports
+     closed unmerged → `pr_url` cleared (`publish_clear_pr`), so the next publish run retries it.
+     A PR merged but not yet deployed leaves its requests pending. The step fails when the
+     requests cannot be read or written, or when a pull request cannot be read — after clearing
+     the ones it could.
+
+  The steps run in the order `dbSize`, `prune`, `botRuns`, `botDetails`, `publish`, `backups`.
   Then `cron.last_run_at` records the run itself, so `/admin` can tell a silent cron from a quiet
   one. Running twice records the same values twice; skipping a day only leaves one more day of
   quota rows and a staler timestamp, which `/admin` shows as its age.
@@ -68,16 +82,17 @@ Constraints:
   writes it but the three `SECURITY DEFINER` functions, which only `service_role` (the secret key)
   may execute. `/admin` (task 5.6) reads the database only.
 - **The response** is `200` with the step outcomes and nothing else
-  (`{ ok, steps: { dbSize, prune, backups } }`), `Cache-Control: no-store`. Failures are logged by
+  (`{ ok, steps: { dbSize, prune, botRuns, botDetails, publish, backups } }`),
+  `Cache-Control: no-store`. Failures are logged by
   step name, never with a secret.
 - **It never builds plans** — plans stay lazy (§2.3, §8.4 item 3).
 - **`/api/health`** is the cron's public sibling: `publicRoute()`, then `health()` (`select true`,
   `SECURITY INVOKER`, the only function `anon` may execute) through PostgREST with the publishable
   key and no session, with a 5 s limit; `200 {"ok":true}` or `503 {"ok":false}`, nothing else.
-- **v1.1 adds** the bot and publish sweeps to the same cron (§2.3): timed-out bot runs marked
-  failed, `bot_run_users.detail` pruned after 30 days, merged publish requests marked, `pr_url`
-  cleared for PRs closed unmerged. The event compaction job (ADR-0031) joins it only when the
-  350 MB warning fires.
+- **v1.1 (M6) added** the bot and publish sweeps to the same cron (§2.3) — steps 4–6 above:
+  timed-out bot runs marked failed, `bot_run_users.detail` pruned after 30 days, merged publish
+  requests marked, `pr_url` cleared for PRs closed unmerged. The event compaction job (ADR-0031)
+  joins it only when the 350 MB warning fires.
 
 ## Consequences
 

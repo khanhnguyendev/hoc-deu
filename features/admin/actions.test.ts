@@ -42,8 +42,42 @@ vi.mock('@/lib/bot/token', () => ({
   },
 }))
 
-const { rotateBotToken, setAiFlag, setUserRole, setUserStatus, updateBotSettings } =
-  await import('./actions')
+/** The deployed catalog: a draft problem, a problem with a draft note, an active lesson. */
+vi.mock('@/lib/content/catalog', () => ({
+  getCatalog: () => ({
+    items: {
+      'dsa:lc-0146': {
+        id: 'dsa:lc-0146',
+        type: 'problem',
+        status: 'draft',
+        content: { note: null },
+      },
+      'dsa:lc-0206': {
+        id: 'dsa:lc-0206',
+        type: 'problem',
+        status: 'active',
+        content: { note: { status: 'draft' } },
+      },
+      'dsa:lc-0001': {
+        id: 'dsa:lc-0001',
+        type: 'problem',
+        status: 'active',
+        content: { note: { status: 'active' } },
+      },
+      'dsa:lesson-trees': { id: 'dsa:lesson-trees', type: 'lesson', status: 'active', content: {} },
+    },
+  }),
+}))
+
+const {
+  cancelPublish,
+  requestPublish,
+  rotateBotToken,
+  setAiFlag,
+  setUserRole,
+  setUserStatus,
+  updateBotSettings,
+} = await import('./actions')
 
 beforeEach(() => {
   fake.admin = true
@@ -383,6 +417,107 @@ describe('setAiFlag (§2.4 /admin/users, decision 34)', () => {
       ok: false,
       message: copy.rateLimit.tooMany,
     })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+})
+
+describe('requestPublish (§6.6 "Xuất bản"; decision 20)', () => {
+  it.each(['dsa:lc-0146', 'dsa:lc-0206#note'])(
+    'records a request for the draft %s, then /admin/content re-renders',
+    async (target) => {
+      fake.rpc = { data: { id: 7, target, status: 'pending' }, error: null }
+      await expect(requestPublish(target)).resolves.toEqual({
+        ok: true,
+        message: 'Đã ghi yêu cầu xuất bản.',
+      })
+      expect(fake.calls).toEqual([
+        ['requireAdmin'],
+        ['rpc', 'admin_request_publish', { p_target: target }],
+        ['revalidatePath', '/admin/content'],
+      ])
+    },
+  )
+
+  it.each([
+    ['an active item', 'dsa:lc-0001'],
+    ['an active note', 'dsa:lc-0001#note'],
+    ['an active lesson', 'dsa:lesson-trees'],
+    ['an unknown item', 'dsa:lc-9999'],
+    ['a problem without a note', 'dsa:lc-0146#note'],
+    ['a malformed target', 'DSA LC 1'],
+  ])('refuses %s before the RPC', async (_, target) => {
+    await expect(requestPublish(target)).resolves.toEqual({
+      ok: false,
+      message: copy.publish.errors.notDraft,
+    })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('refuses a non-admin before anything else', async () => {
+    fake.admin = false
+    await expect(requestPublish('dsa:lc-0146')).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('a database error says so and does not re-render', async () => {
+    fake.rpc = { data: null, error: { message: 'boom' } }
+    await expect(requestPublish('dsa:lc-0146')).resolves.toEqual({
+      ok: false,
+      message: copy.publish.errors.failed,
+    })
+    fake.rpc = { data: null, error: { message: 'forbidden' } }
+    await expect(requestPublish('dsa:lc-0146')).resolves.toEqual({
+      ok: false,
+      message: copy.errors.notAllowed,
+    })
+    expect(fake.calls.some(([name]) => name === 'revalidatePath')).toBe(false)
+  })
+})
+
+describe('cancelPublish (§6.6 "Huỷ")', () => {
+  it('cancels a pending request, then /admin/content re-renders', async () => {
+    fake.rpc = { data: { id: 7, status: 'cancelled' }, error: null }
+    await expect(cancelPublish(7)).resolves.toEqual({
+      ok: true,
+      message: 'Đã huỷ yêu cầu xuất bản.',
+    })
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_cancel_publish', { p_id: 7 }],
+      ['revalidatePath', '/admin/content'],
+    ])
+  })
+
+  it.each(['not_found', 'invalid_transition'])(
+    '%s: the request changed — stale, and the page re-renders',
+    async (code) => {
+      fake.rpc = { data: null, error: { message: code } }
+      await expect(cancelPublish(7)).resolves.toEqual({
+        ok: false,
+        message: copy.publish.errors.changed,
+        stale: true,
+      })
+      expect(fake.calls).toContainEqual(['revalidatePath', '/admin/content'])
+    },
+  )
+
+  it('refuses an id that is not a positive integer before the RPC', async () => {
+    for (const id of [0, -1, 1.5, Number.NaN]) {
+      await expect(cancelPublish(id)).resolves.toEqual({
+        ok: false,
+        message: copy.admin.errors.invalid,
+      })
+    }
+    expect(fake.calls.every(([name]) => name === 'requireAdmin')).toBe(true)
+  })
+})
+
+describe('publish actions — rate limit (decision 22)', () => {
+  it('the 61st admin action in a minute is refused before the RPC', async () => {
+    fake.rpc = { data: { id: 7 }, error: null }
+    for (let i = 0; i < 60; i += 1) await requestPublish('dsa:lc-0146')
+    fake.calls = []
+    await expect(cancelPublish(7)).resolves.toEqual({ ok: false, message: copy.rateLimit.tooMany })
     expect(fake.calls).toEqual([['requireAdmin']])
   })
 })

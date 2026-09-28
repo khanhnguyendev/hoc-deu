@@ -14,6 +14,11 @@ const fake = vi.hoisted(() => ({
   vercelEnv: undefined as 'production' | 'preview' | 'development' | undefined,
   rateLimitMode: 'upstash' as 'upstash' | 'memory',
   botApiEnabled: false,
+  /** `content_publish_requests`: the pending rows, and the recent others. */
+  requests: {
+    pending: { data: [], error: null } as Response,
+    recent: { data: [], error: null } as Response,
+  },
   calls: [] as unknown[][],
 }))
 
@@ -50,7 +55,13 @@ vi.mock('@/lib/supabase/server', () => ({
           query.push(`order ${column} ${options.ascending ? 'asc' : 'desc'}`),
           chain
         ),
+        neq: (column: string, value: string) => (query.push(`${column}!=${value}`), chain),
         limit: (n: number) => (query.push(`limit ${n}`), chain),
+        // Awaiting the query itself (the publish requests): one of the two answers.
+        then: (resolve: (value: Response) => void) => {
+          fake.calls.push(['from', ...query])
+          resolve(query.includes('status=pending') ? fake.requests.pending : fake.requests.recent)
+        },
         maybeSingle: async () => {
           fake.calls.push(['from', ...query])
           return fake.metrics[key] ?? { data: null, error: null }
@@ -127,6 +138,10 @@ beforeEach(() => {
   fake.vercelEnv = undefined
   fake.rateLimitMode = 'upstash'
   fake.botApiEnabled = false
+  fake.requests = {
+    pending: { data: [], error: null },
+    recent: { data: [], error: null },
+  }
   fake.calls = []
 })
 
@@ -332,7 +347,25 @@ describe('getAdminContent', () => {
   it('reads the track positions as the admin and builds the content page', async () => {
     fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
     const page = await getAdminContent()
-    expect(fake.calls).toEqual([['requireAdmin'], ['rpc', 'admin_track_positions']])
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_track_positions'],
+      [
+        'from',
+        'content_publish_requests',
+        'select id, target, status, pr_url, requested_at',
+        'status=pending',
+        'order requested_at desc',
+      ],
+      [
+        'from',
+        'content_publish_requests',
+        'select id, target, status, pr_url, requested_at',
+        'status!=pending',
+        'order updated_at desc',
+        'limit 20',
+      ],
+    ])
     const rows = page.tracks[0]!.roadmaps[0]!.rows
     expect(rows?.map((row) => [row.week, row.learners, row.state])).toEqual([
       [1, 0, 'covered'],
@@ -354,6 +387,53 @@ describe('getAdminContent', () => {
   it('throws on an RPC error', async () => {
     fake.rpcs = { admin_track_positions: { data: null, error: { message: 'forbidden' } } }
     await expect(getAdminContent()).rejects.toThrow()
+  })
+
+  it('reads the pending and recent publish requests as the admin (RLS: admins read)', async () => {
+    fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
+    fake.requests = {
+      pending: {
+        data: [
+          {
+            id: 2,
+            target: 'dsa:lc-0146',
+            status: 'pending',
+            pr_url: null,
+            requested_at: '2026-10-02T02:00:00+00:00',
+          },
+        ],
+        error: null,
+      },
+      recent: {
+        data: [
+          {
+            id: 1,
+            target: 'dsa:lc-0001#note',
+            status: 'merged',
+            pr_url: 'https://github.com/khanhnguyendev/hoc-deu/pull/41',
+            requested_at: '2026-10-01T02:00:00+00:00',
+          },
+        ],
+        error: null,
+      },
+    }
+    const page = await getAdminContent()
+    expect(page.publishRequests.state).toBe('ready')
+    const rows = page.publishRequests.state === 'ready' ? page.publishRequests.rows : []
+    expect(rows.map((row) => [row.id, row.status, row.pr?.label ?? null])).toEqual([
+      [2, 'pending', null],
+      [1, 'merged', 'PR #41'],
+    ])
+  })
+
+  it('a failed publish-request read degrades the section, never the page', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
+    fake.requests.recent = { data: null, error: { message: 'boom' } }
+    const page = await getAdminContent()
+    expect(page.publishRequests).toEqual({ state: 'error' })
+    expect(page.tracks.length).toBeGreaterThan(0)
+    vi.restoreAllMocks()
   })
 })
 

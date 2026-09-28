@@ -24,6 +24,11 @@ export type ProblemNote = {
   complexity: { time: string; space: string }
   /** The deep-dive lesson about this problem (§3.5 reverse lookup), or null. */
   deepDiveId: string | null
+  /**
+   * `bot` for a note the bot wrote (§3.3 provenance); absent otherwise. Its "tested" badge reads
+   * "tested (bot tests)" until an admin publishes it (§3.5, ADR-0040).
+   */
+  origin?: 'bot'
 }
 
 export type ProblemContent = Problem & {

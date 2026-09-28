@@ -12,7 +12,13 @@ import {
   type AdminBotPage,
   type AdminBotRun,
 } from './bot'
-import { buildContentPage, coverageWarnings, type ContentPage, type TrackPosition } from './content'
+import {
+  buildContentPage,
+  coverageWarnings,
+  type ContentPage,
+  type PublishRequestRow,
+  type TrackPosition,
+} from './content'
 import {
   buildAdminOverview,
   OPS_METRIC_KEYS,
@@ -189,14 +195,51 @@ export async function getAdminOverview(): Promise<AdminOverviewPage> {
   })
 }
 
+/** The recent (merged or cancelled) publish requests `/admin/content` lists. */
+export const RECENT_PUBLISH_REQUESTS = 20
+
+const REQUEST_COLUMNS = 'id, target, status, pr_url, requested_at'
+const REQUEST_STATUSES: readonly PublishRequestRow['status'][] = ['pending', 'merged', 'cancelled']
+
+/**
+ * Every pending `content_publish_requests` row and the 20 latest others (§6.6; task 6.7a) — admins
+ * read the table under RLS (6.2a), with their own session. Null when a read fails (logged by name
+ * only): the section says so, the drafts and coverage still render.
+ */
+async function readPublishRequests(supabase: Client): Promise<PublishRequestRow[] | null> {
+  const table = () => supabase.from('content_publish_requests').select(REQUEST_COLUMNS)
+  const [pending, recent] = await Promise.all([
+    table().eq('status', 'pending').order('requested_at', { ascending: false }),
+    table()
+      .neq('status', 'pending')
+      .order('updated_at', { ascending: false })
+      .limit(RECENT_PUBLISH_REQUESTS),
+  ])
+  if (pending.error || recent.error) {
+    console.error('[admin] the publish requests could not be read')
+    return null
+  }
+  return [...pending.data, ...recent.data].map((row) => ({
+    id: row.id,
+    target: row.target,
+    // The check constraint allows only these values; anything else reads as history.
+    status: REQUEST_STATUSES.find((status) => status === row.status) ?? 'cancelled',
+    prUrl: row.pr_url,
+    requestedAt: row.requested_at,
+  }))
+}
+
 /**
  * `/admin/content` (§2.4): the catalog's stats, verification, coverage and drafts, with the
- * learners' roadmap weeks from `admin_track_positions()` for the red rows (decision 25).
+ * learners' roadmap weeks from `admin_track_positions()` for the red rows (decision 25), and the
+ * publish requests (task 6.7a: a draft's pending request, the "Yêu cầu xuất bản" section).
  */
 export async function getAdminContent(): Promise<ContentPage> {
   await requireAdmin()
   const supabase = await createClient()
-  return buildContentPage(getCatalog(), await readTrackPositions(supabase))
+  const positions = await readTrackPositions(supabase)
+  const requests = await readPublishRequests(supabase)
+  return buildContentPage(getCatalog(), positions, requests)
 }
 
 /**
