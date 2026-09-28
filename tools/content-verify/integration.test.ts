@@ -452,13 +452,51 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     }
   })
 
-  it('fails a graph "clone" that returns the input node; the empty graph still passes', () => {
-    const go = language('demo:lc-9019', 'go')
-    expect(go.cases.find((c) => c.name === 'example-3')?.status).toBe('pass')
-    const reused = go.cases.find((c) => c.name === 'example-1')
-    expect(reused?.status).toBe('error')
-    expect(reused?.detail?.split('\n')[0]).toBe(
+  it.each([
+    [
+      'python',
+      'crashed: ContentVerifyError: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'java',
+      'crashed: Exception in thread "main" java.lang.IllegalStateException: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'go',
       'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
-    )
-  })
+    ],
+  ])(
+    '%s: fails a graph "clone" that returns the input node; the empty graph still passes',
+    (lang, first) => {
+      const result = language('demo:lc-9019', lang)
+      expect(result.cases.find((c) => c.name === 'example-3')?.status).toBe('pass')
+      const reused = result.cases.find((c) => c.name === 'example-1')
+      expect(reused?.status).toBe('error')
+      expect(reused?.detail?.split('\n')[0]).toBe(first)
+    },
+  )
+
+  it.each([
+    [
+      'python',
+      'crashed: ContentVerifyError: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'java',
+      'crashed: Exception in thread "main" java.lang.IllegalStateException: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'go',
+      'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+  ])(
+    '%s: fails a random list "copy" that returns the input node; the empty list still passes',
+    (lang, first) => {
+      const result = language('demo:lc-9022', lang)
+      expect(result.cases.find((c) => c.name === 'empty')?.status).toBe('pass')
+      const reused = result.cases.find((c) => c.name === 'example-1')
+      expect(reused?.status).toBe('error')
+      expect(reused?.detail?.split('\n')[0]).toBe(first)
+    },
+  )
 })

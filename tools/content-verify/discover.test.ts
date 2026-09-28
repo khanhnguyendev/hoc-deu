@@ -32,6 +32,7 @@ describe('discoverProblems — fixtures', () => {
       'demo:lc-9019',
       'demo:lc-9020',
       'demo:lc-9021',
+      'demo:lc-9022',
     ])
     for (const problem of problems) {
       expect(problem.languages).toEqual(['python', 'java', 'go'])

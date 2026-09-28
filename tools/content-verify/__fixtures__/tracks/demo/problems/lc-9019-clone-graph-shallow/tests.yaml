@@ -1,5 +1,6 @@
-# content-verify fixture: the Go solution returns the input graph instead of a copy — the harness
-# fails a result that reuses an input node (the empty graph still passes).
+# content-verify fixture: all three solutions return the input graph instead of a copy — the
+# harness fails a result that reuses an input node in every language (the empty graph still
+# passes, since there is no node to reuse).
 signature: { kind: graph-node, name: cloneGraph, params: { node: Node }, returns: Node }
 cases:
   - name: example-1
