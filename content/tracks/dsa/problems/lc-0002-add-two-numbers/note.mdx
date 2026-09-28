@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Hai số được lưu theo thứ tự chữ số **ngược**: node đầu là hàng đơn vị. Đó đúng là thứ tự ta cộng tay, từ phải sang trái, nên chỉ cần đi song song trên hai list, cộng từng cặp chữ số với số <Term vi="nhớ">carry</Term> từ hàng trước, ghi chữ số `tổng % 10` vào một node mới và mang `tổng / 10` sang hàng sau. Không cần đổi list thành số nguyên, cách đó tràn số khi list dài tới 100 chữ số.
+Hai số được lưu theo thứ tự chữ số **ngược**: node đầu là hàng đơn vị. Đó đúng là thứ tự ta cộng tay, từ phải sang trái, nên chỉ cần đi song song trên hai list, cộng từng cặp chữ số với số <Term vi="nhớ">carry</Term> từ hàng trước, ghi chữ số `total % 10` vào một node mới và mang `total / 10` sang hàng sau, với `total` là tổng của hàng đó. Không cần đổi list thành số nguyên: list dài tới 100 chữ số, vượt quá kiểu số nguyên 64 bit và gây tràn số.
 
 ## Cách làm
 

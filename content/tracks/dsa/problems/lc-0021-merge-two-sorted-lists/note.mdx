@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Hai list đều đã sắp xếp, nên node nhỏ nhất còn lại luôn nằm ở **đầu** một trong hai list. So hai node đầu, nối node nhỏ hơn vào cuối kết quả, rồi tiến list đó lên một bước: giống bước gộp của merge sort. Không cần tạo node mới, chỉ nối lại các con trỏ `next`. Một <Term vi="nút giả">dummy node</Term> đứng trước kết quả giúp node đầu tiên được nối giống hệt mọi node khác.
+Hai list đều đã sắp xếp, nên node nhỏ nhất còn lại luôn nằm ở **đầu** một trong hai list. So hai node đầu, nối node nhỏ hơn vào cuối kết quả, rồi tiến list đó lên một bước: giống bước gộp của <Term vi="sắp xếp trộn">merge sort</Term>. Không cần tạo node mới, chỉ nối lại các con trỏ `next`. Một <Term vi="nút giả">dummy node</Term> đứng trước kết quả giúp node đầu tiên được nối giống hệt mọi node khác.
 
 ## Cách làm
 

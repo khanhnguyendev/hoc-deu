@@ -4,13 +4,13 @@ status: active
 
 ## Ý tưởng chính
 
-Đây là một bài thiết kế lớp: `get` và `put` đều phải chạy trong `O(1)`, và khi đầy thì bỏ key <Term vi="lâu nhất không được dùng">least recently used</Term>. Một hash map tìm key trong `O(1)` nhưng không nhớ thứ tự dùng; một list nhớ thứ tự nhưng tìm chậm. Ghép hai thứ lại: hash map trỏ từ key tới node, và một <Term vi="danh sách liên kết đôi">doubly linked list</Term> xếp các node theo thứ tự dùng. Vì node biết cả node trước và node sau, gỡ nó ra khỏi giữa list hay gắn vào cuối list đều là `O(1)`.
+Đây là một bài thiết kế lớp: `get` và `put` đều phải chạy trong `O(1)`, và khi đầy thì bỏ key <Term vi="lâu nhất không được dùng">least recently used</Term>. Một <Term vi="bảng băm">hash map</Term> tìm key trong `O(1)` nhưng không nhớ thứ tự dùng; một list nhớ thứ tự nhưng tìm chậm. Ghép hai thứ lại: hash map trỏ từ key tới node, và một <Term vi="danh sách liên kết đôi">doubly linked list</Term> xếp các node theo thứ tự dùng. Vì node biết cả node trước và node sau, gỡ nó ra khỏi giữa list hay gắn vào cuối list đều là `O(1)`.
 
 ## Cách làm
 
 <Steps>
 
-<Step title="Hai sentinel">List có hai node giả `head` và `tail` không chứa dữ liệu. Node ngay sau `head` là key lâu nhất không dùng; node ngay trước `tail` là key vừa dùng. Nhờ hai sentinel, gỡ hay gắn node không bao giờ phải kiểm tra `None`.</Step>
+<Step title="Hai sentinel">List có hai node giả `head` và `tail`, gọi là <Term vi="nút canh">sentinel</Term>, không chứa dữ liệu. Node ngay sau `head` là key lâu nhất không dùng; node ngay trước `tail` là key vừa dùng. Nhờ hai sentinel, gỡ hay gắn node không bao giờ phải kiểm tra `None`.</Step>
 
 <Step title="get(key)">Không có trong map thì trả về `-1`. Có thì gỡ node ra, gắn lại ngay trước `tail` (nó vừa được dùng), rồi trả về giá trị.</Step>
 

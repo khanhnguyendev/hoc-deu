@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Mỗi node có thêm con trỏ `random` trỏ tới một node bất kỳ trong list hoặc `None`. Cái khó của <Term vi="bản sao sâu">deep copy</Term> là khi tạo bản sao của một node, bản sao của node mà `random` trỏ tới có thể chưa tồn tại. Giải bằng hai lượt và một hash map từ node gốc tới bản sao: lượt một chỉ tạo bản sao cho mọi node; lượt hai, khi mọi bản sao đã có, nối `next` và `random` của từng bản sao qua map.
+Mỗi node có thêm con trỏ `random` trỏ tới một node bất kỳ trong list hoặc `None`. Cái khó của <Term vi="bản sao sâu">deep copy</Term> là khi tạo bản sao của một node, bản sao của node mà `random` trỏ tới có thể chưa tồn tại. Giải bằng hai lượt và một <Term vi="bảng băm">hash map</Term> từ node gốc tới bản sao: lượt một chỉ tạo bản sao cho mọi node; lượt hai, khi mọi bản sao đã có, nối `next` và `random` của từng bản sao qua map.
 
 ## Cách làm
 

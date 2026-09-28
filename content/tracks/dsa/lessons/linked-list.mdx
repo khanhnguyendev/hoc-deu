@@ -75,7 +75,7 @@ Sau mỗi vòng của Reverse Linked List, có một <Term vi="bất biến">inv
 
 - **Merge Two Sorted Lists** và **Add Two Numbers:** dummy node và con trỏ `tail` để nối dần kết quả.
 - **Linked List Cycle** và **Remove Nth Node From End of List:** hai con trỏ khác tốc độ hoặc cách nhau một khoảng cố định.
-- **LRU Cache** và **Copy List with Random Pointer:** ghép list với một hash map.
+- **LRU Cache** và **Copy List with Random Pointer:** ghép list với một <Term vi="bảng băm">hash map</Term>.
 - **Reorder List** ghép ba kỹ thuật trên: đó là bài để bạn tự luyện.
 
 </Section>
@@ -86,6 +86,12 @@ Lời giải Python của Reverse Linked List. Bản Java và Go nằm trong ghi
 
 ```python
 from typing import Optional
+
+# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next
 
 
 class Solution:
@@ -105,7 +111,7 @@ class Solution:
 
 <Complexity time="O(n)" space="O(1)" />
 
-Mỗi node được thăm đúng một lần và chỉ đổi một con trỏ. Chỉ cần ba biến con trỏ, không phụ thuộc độ dài list; cách đệ quy cũng đúng nhưng tốn `O(n)` bộ nhớ cho call stack.
+Mỗi node được thăm đúng một lần và chỉ đổi một con trỏ. Chỉ cần ba biến con trỏ, không phụ thuộc độ dài list; cách đệ quy cũng đúng nhưng tốn `O(n)` bộ nhớ cho <Term vi="ngăn xếp lời gọi">call stack</Term>.
 
 </Section>
 

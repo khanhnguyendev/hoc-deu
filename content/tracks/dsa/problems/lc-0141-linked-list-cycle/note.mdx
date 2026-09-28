@@ -4,7 +4,7 @@ status: active
 
 ## Ý tưởng chính
 
-Nếu list không có <Term vi="chu trình">cycle</Term>, đi theo `next` rồi sẽ gặp `None`; nếu có, ta đi vòng mãi. Có thể lưu mọi node đã gặp vào một hash set, nhưng tốn `O(n)` bộ nhớ. Cách tốt hơn là <Term vi="con trỏ nhanh và chậm">fast & slow pointers</Term> (thuật toán Floyd): `slow` đi một bước, `fast` đi hai bước. Không có cycle thì `fast` chạm cuối list trước; có cycle thì cả hai rơi vào vòng, và mỗi lượt `fast` rút ngắn khoảng cách tới `slow` đúng một node, nên chắc chắn đuổi kịp.
+Nếu list không có <Term vi="chu trình">cycle</Term>, đi theo `next` rồi sẽ gặp `None`; nếu có, ta đi vòng mãi. Có thể lưu mọi node đã gặp vào một <Term vi="tập băm">hash set</Term>, nhưng tốn `O(n)` bộ nhớ. Cách tốt hơn là <Term vi="con trỏ nhanh và chậm">fast & slow pointers</Term> (thuật toán Floyd): `slow` đi một bước, `fast` đi hai bước. Không có cycle thì `fast` chạm cuối list trước; có cycle thì cả hai rơi vào vòng, và mỗi lượt `fast` rút ngắn khoảng cách tới `slow` đúng một node, nên chắc chắn đuổi kịp.
 
 ## Cách làm
 
@@ -16,7 +16,7 @@ Nếu list không có <Term vi="chu trình">cycle</Term>, đi theo `next` rồi 
 
 <Step title="Gặp nhau">Nếu `slow` và `fast` là **cùng một node**, list có cycle: trả về `true`.</Step>
 
-<Step title="Chạm cuối">Vòng lặp dừng vì `fast` chạm `None`: list không có cycle, trả về `false`.</Step>
+<Step title="Chạm cuối">Vòng lặp dừng vì `fast` hoặc `fast.next` là `None`: list không có cycle, trả về `false`.</Step>
 
 </Steps>
 

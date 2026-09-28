@@ -41,4 +41,4 @@ Binary search trên `m·n` chỉ số cần khoảng `log2(m·n)` bước; mỗi
 
 <Solution />
 
-<Bilingual vi="Đọc từng hàng từ trái sang phải thì ma trận là một mảng đã sắp xếp, nên binary search trên chỉ số từ 0 tới m·n - 1 và đổi chỉ số i ra ô hàng i / n, cột i % n." en="Read row by row, the matrix is one sorted array of m·n values. Binary search over the indices 0 to m·n - 1 and map index i to row i / n, column i % n to read its value. O(log(m·n)) time, O(1) space." />
+<Bilingual vi="Đọc từng hàng từ trái sang phải thì ma trận là một mảng đã sắp xếp, nên binary search trên chỉ số từ 0 tới m·n - 1 và đổi chỉ số i ra ô hàng i / n, cột i % n." en="Read row by row, the matrix is one sorted array of m·n values. Binary search over the indices 0 to m·n - 1 where n is the number of columns, and map index i to row i / n, column i % n to read its value. O(log(m·n)) time, O(1) space." />
