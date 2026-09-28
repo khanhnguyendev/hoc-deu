@@ -48,6 +48,7 @@ const OUTCOME = {
 }
 const MODEL: ItemPageModel = {
   item: problemItem(),
+  custom: false,
   track: {
     id: 'dsa',
     title: 'Cấu trúc dữ liệu & Giải thuật',
@@ -136,5 +137,13 @@ describe('/t/[trackId]/items/[itemId]', () => {
         .getByRole('link', { name: 'Về lộ trình Cấu trúc dữ liệu & Giải thuật' })
         .getAttribute('href'),
     ).toBe('/t/dsa')
+  })
+
+  it('task 6.6a: a custom item’s page says "Mục riêng của bạn"; a repository item’s does not', async () => {
+    render(await ItemPage(props('dsa', 'lc-0001')))
+    expect(screen.queryByText('Mục riêng của bạn')).toBeNull()
+    state.model = { ...MODEL, custom: true }
+    render(await ItemPage(props('english', 'user%3A0123456789abcdef%3Aon-hold')))
+    expect(screen.getByText('Mục riêng của bạn')).toBeTruthy()
   })
 })

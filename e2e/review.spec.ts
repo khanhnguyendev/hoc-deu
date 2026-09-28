@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
+import { seedCustomCards } from './support/custom-items'
 import { addDays, seedItemStates, stableSchedule } from './support/plans'
 import { itemStateOf } from './support/review'
 import { expect, test } from './support/test'
@@ -261,4 +262,43 @@ test('[RF-4] nothing due today: the empty state, linking to /today', async ({ pa
   const link = page.locator('#main').getByRole('link', { name: 'Hôm nay' })
   await expect(link).toHaveAttribute('href', '/today')
   await expectNoAxeViolationsInBothThemes(page)
+})
+
+test('task 6.6a: a due custom card is reviewed like any card (the catalog overlay, §5.12)', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['english'])
+  // The AI flag is not needed: custom items stay reviewable with it off (§5.12).
+  const [custom] = await seedCustomCards(
+    user.id,
+    [
+      {
+        slug: 'on-hold',
+        trackId: 'english',
+        topicId: 'standup',
+        front: 'on hold',
+        back: 'tạm dừng',
+      },
+    ],
+    addDays(today, -3),
+  )
+  await seedItemStates(user.id, [
+    {
+      itemId: custom!,
+      trackId: 'english',
+      topicId: 'standup',
+      itemType: 'flashcard',
+      introducedOn: addDays(today, -3),
+      dueOn: today,
+      status: 'ok',
+    },
+  ])
+  await openReview(page, user)
+
+  const card = cardsSection(page)
+  await expect(card.getByRole('heading', { level: 3, name: 'on hold' })).toBeVisible()
+  await card.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await card.getByRole('button', { name: 'Biết', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 3, name: 'Đã ôn xong' })).toBeVisible()
+  await expect.poll(async () => (await itemStateOf(user.id, custom!))?.due_on).not.toBe(today)
 })

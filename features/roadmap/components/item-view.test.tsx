@@ -117,3 +117,25 @@ describe('ItemView', () => {
     expect(screen.getByRole('button', { name: 'Bỏ qua mục này' })).toBeTruthy()
   })
 })
+
+describe('ItemView — a custom item (task 6.6a)', () => {
+  it('says "Mục riêng của bạn" for the learner’s own item, and nothing for a repository one', () => {
+    const { rerender } = render(
+      <ItemView
+        backHref="/t/english"
+        trackTitle="Tiếng Anh cho môi trường IT"
+        custom
+        page={<ItemPageFrame status="active" title="on hold" />}
+      />,
+    )
+    expect(screen.getByText(strings.customItems.ownLabel)).toBeTruthy()
+    rerender(
+      <ItemView
+        backHref="/t/english"
+        trackTitle="Tiếng Anh cho môi trường IT"
+        page={<ItemPageFrame status="active" title="on hold" />}
+      />,
+    )
+    expect(screen.queryByText(strings.customItems.ownLabel)).toBeNull()
+  })
+})

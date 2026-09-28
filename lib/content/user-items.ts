@@ -298,7 +298,8 @@ export type OverlayCatalog = PlanCatalog & {
 /**
  * The per-user catalog overlay (decision 17): `catalog` plus the rows of a track the catalog and
  * `manifests` know, as plan items (`toPlanItem`) — and as registry items under `userItems`, which
- * `userItemOf` reads. Without a row it is `catalog` itself; nothing is mutated.
+ * `userItemOf` reads. A row that cannot be read is left out. Without a row it is `catalog`
+ * itself; nothing is mutated.
  */
 export function withUserItems(
   catalog: PlanCatalog,
@@ -309,12 +310,17 @@ export function withUserItems(
   const manifestOf = new Map(manifests.map((manifest) => [manifest.id, manifest]))
   const items: Record<string, PlanItem> = { ...catalog.items }
   const registry: Record<string, UserCatalogItem> = {}
-  for (const row of readable(rows)) {
+  for (const row of rows) {
     const manifest = manifestOf.get(row.trackId)
     if (manifest === undefined || !Object.hasOwn(catalog.tracks, row.trackId)) continue
     if (!row.itemId.startsWith(CUSTOM_ITEM_PREFIX)) continue
-    items[row.itemId] = toPlanItem(row, manifest)
-    registry[row.itemId] = toCatalogItem(row)
+    try {
+      const planItem = toPlanItem(row, manifest)
+      registry[row.itemId] = toCatalogItem(row)
+      items[row.itemId] = planItem
+    } catch {
+      // A payload that no longer parses, or a manifest without the type's estimate: left out.
+    }
   }
   const overlay: OverlayCatalog = { ...catalog, items, userItems: registry }
   return overlay

@@ -38,6 +38,10 @@ export async function generateMetadata(
  * Task 5.2c: `?block=` and `?mode=` go to the loader, which resolves the learner's context; the
  * page binds it to `recordOutcome` — the server action itself, **unbound** (the client builds the
  * `OutcomeInput`) — and a read-only page (a draft an admin previews, a retired item) gets none.
+ *
+ * Task 6.6a (decision 39): a learner's own custom item has its page here too
+ * (`/t/<trackId>/items/<encoded user: ID>`), rendered through the registry like any item and
+ * labelled "Mục riêng của bạn"; another learner's ID is a 404 (RLS).
  */
 export default async function ItemPage(props: PageProps<'/t/[trackId]/items/[itemId]'>) {
   const model = await load(props)
@@ -46,6 +50,7 @@ export default async function ItemPage(props: PageProps<'/t/[trackId]/items/[ite
     <ItemView
       backHref={model.backHref}
       trackTitle={model.track.title}
+      custom={model.custom}
       page={
         <ItemBody
           item={model.item}

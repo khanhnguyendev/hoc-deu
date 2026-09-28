@@ -66,6 +66,8 @@ const learner = vi.hoisted(() => ({
   enrollments: [] as { trackId: string; status: string }[],
   items: {} as Record<string, unknown>,
   current: null as unknown,
+  userItems: [] as unknown[],
+  userItemsError: null as Error | null,
 }))
 
 vi.mock('@/lib/plans/catalog', async () => {
@@ -92,6 +94,11 @@ vi.mock('@/lib/plans/reads', () => ({
     return learner.items
   },
   todayOf: () => learner.today,
+  readUserItems: async (_supabase: unknown, userId: string) => {
+    fake.calls.push(['readUserItems', userId])
+    if (learner.userItemsError !== null) throw learner.userItemsError
+    return learner.userItems
+  },
 }))
 
 vi.mock('@/lib/events/load-derived', () => ({
@@ -170,6 +177,8 @@ beforeEach(() => {
   ]
   learner.items = {}
   learner.current = null
+  learner.userItems = []
+  learner.userItemsError = null
 })
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -646,5 +655,102 @@ describe('getItemPage — the learner’s results context (task 5.2c)', () => {
   it('…null when no Medium problem is learned yet', async () => {
     learner.items = { 'dsa:lc-0001': stateOf('dsa:lc-0001') }
     expect((await getItemPage('dsa', 'prompt-mock-interview'))?.mockInterviewProblem).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// Custom items (task 6.6a): the "Mục riêng" tab and the user: item page (decisions 17, 39)
+// ---------------------------------------------------------------------------------------------
+
+const CARD_ID = 'user:0123456789abcdef:standup-card'
+/** A stored custom card of the English track (the fixture manifest has card estimates). */
+function customRow(itemId: string, change: Record<string, unknown> = {}) {
+  return {
+    itemId,
+    itemType: 'flashcard',
+    trackId: 'english',
+    topicId: 'standup',
+    payload: { front: 'blocker', back: 'vướng mắc', tags: [] },
+    status: 'active',
+    createdOn: '2026-10-01',
+    ...change,
+  }
+}
+
+describe('getTrackPage — the "Mục riêng" tab (§2.4)', () => {
+  it('is null for a learner without custom items of the track', async () => {
+    learner.userItems = [customRow('user:0123456789abcdef:dsa-card', { trackId: 'dsa' })]
+    const data = await getTrackPage('english', undefined)
+    expect(data?.customItems).toBeNull()
+    expect(fake.calls).toContainEqual(['readUserItems', 'me'])
+  })
+
+  it('lists the track’s active items, then the hidden ones; retired ones are not listed', async () => {
+    learner.userItems = [
+      customRow('user:0123456789abcdef:b-hidden', { status: 'hidden' }),
+      customRow('user:0123456789abcdef:a-active'),
+      customRow('user:0123456789abcdef:c-retired', { status: 'retired' }),
+      customRow('user:0123456789abcdef:z-active'),
+    ]
+    const data = await getTrackPage('english', undefined)
+    expect(data?.customItems).toEqual({
+      state: 'ready',
+      items: [
+        { item: expect.objectContaining({ id: 'user:0123456789abcdef:a-active' }), hidden: false },
+        { item: expect.objectContaining({ id: 'user:0123456789abcdef:z-active' }), hidden: false },
+        { item: expect.objectContaining({ id: 'user:0123456789abcdef:b-hidden' }), hidden: true },
+      ],
+    })
+  })
+
+  it('whatever the AI flag: the tab reads the rows the learner has (§5.12)', async () => {
+    learner.userItems = [customRow(CARD_ID)]
+    expect((await getTrackPage('english', undefined))?.customItems).toMatchObject({
+      state: 'ready',
+    })
+  })
+
+  it('a failed read is the tab’s error state, never the page’s', async () => {
+    learner.userItemsError = new Error('boom')
+    const data = await getTrackPage('english', undefined)
+    expect(data?.customItems).toEqual({ state: 'error' })
+    expect(data?.track).toEqual(ENGLISH)
+  })
+})
+
+describe('getItemPage — a custom item (decision 39)', () => {
+  const param = encodeURIComponent(CARD_ID)
+
+  it('renders the learner’s own item from its encoded ID, with the results context', async () => {
+    learner.userItems = [customRow(CARD_ID)]
+    learner.enrollments = [{ trackId: 'english', status: 'active' }]
+    const model = await getItemPage('english', param)
+    expect(model?.item).toMatchObject({ id: CARD_ID, type: 'flashcard', title: 'blocker' })
+    expect(model?.custom).toBe(true)
+    expect(model?.backHref).toBe('/t/english')
+    expect(model?.outcome).toMatchObject({ mode: 'new', itemId: CARD_ID, plan: null })
+    expect((await getItemPage('english', CARD_ID))?.item.id).toBe(CARD_ID)
+  })
+
+  it('a repository item is not custom', async () => {
+    expect((await getItemPage('dsa', 'lc-0001'))?.custom).toBe(false)
+  })
+
+  it('is null for an ID the learner does not own (RLS: another learner’s is not read)', async () => {
+    learner.userItems = []
+    expect(await getItemPage('english', param)).toBeNull()
+  })
+
+  it('is null under another track than the item’s', async () => {
+    learner.userItems = [customRow(CARD_ID)]
+    expect(await getItemPage('dsa', param)).toBeNull()
+  })
+
+  it('a hidden item stays readable, read-only', async () => {
+    learner.userItems = [customRow(CARD_ID, { status: 'hidden' })]
+    learner.enrollments = [{ trackId: 'english', status: 'active' }]
+    const model = await getItemPage('english', param)
+    expect(model?.item.status).toBe('retired')
+    expect(model?.outcome).toBeNull()
   })
 })

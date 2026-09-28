@@ -1,8 +1,9 @@
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import type * as React from 'react'
 import { Suspense } from 'react'
 import { LoadingState } from '@/components/patterns/loading-state'
+import { Badge } from '@/components/ui/badge'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { TODAY_HREF, TRACKS_HREF } from '../view-model'
@@ -17,15 +18,20 @@ import { TODAY_HREF, TRACKS_HREF } from '../view-model'
  * removed `(app)/loading.tsx`): the route validates the params and calls `notFound()` before
  * `page` is ever built, so an unknown or hidden item answers a real 404 instead of streaming a 200
  * first (§7.5). A `contents` wrapper, so the link and the page keep the page's section spacing.
+ * Task 6.6a: the learner's own custom item says "Mục riêng của bạn" (a badge with an icon) under
+ * the link.
  */
 function ItemView({
   backHref,
   trackTitle,
+  custom = false,
   page,
 }: {
   backHref: string
   /** The track's Vietnamese title. */
   trackTitle: string
+  /** The learner's own custom item (`user:…`). */
+  custom?: boolean
   page: React.ReactNode
 }) {
   return (
@@ -41,6 +47,12 @@ function ItemView({
             ? vi.roadmap.backToToday
             : withTitle(vi.roadmap.backToTrack, trackTitle)}
       </Link>
+      {custom && (
+        <Badge tone="primary" data-slot="custom-item-label">
+          <UserRound aria-hidden="true" strokeWidth={1.75} />
+          {vi.customItems.ownLabel}
+        </Badge>
+      )}
       <Suspense fallback={<LoadingState variant="page" />}>{page}</Suspense>
     </div>
   )

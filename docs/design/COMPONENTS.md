@@ -1159,14 +1159,17 @@ not under `components/`), described under ItemView below, the one place it rende
 
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/item-view.tsx`
-- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`<ItemBody item viewer
+- **Props:** `backHref: string`, `trackTitle: string`, `custom?: boolean` (task 6.6a: the
+  learner's own custom item, `ItemPageModel.custom`), `page: ReactNode` (`<ItemBody item viewer
   resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
   draft / retired notice, so ItemView never renders a second one
-- **Variants:** the back link: the track · the track list · `/today` (m-9)
+- **Variants:** the back link: the track · the track list · `/today` (m-9); a custom item: the
+  primary badge "Mục riêng của bạn" (a decorative `UserRound` and words) under the link
 - **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
   route validates its params and calls `notFound()` before `page` is built, so only this part ever
   suspends — never the 404 check itself) · ready — `page`
-- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={<ItemBody
+- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title}
+  custom={model.custom} page={<ItemBody
   item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} state={model.state}
   outcome={…} mockInterviewProblem={model.mockInterviewProblem} />} />`
   (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`; task 5.2c: `outcome` is `{ ...model.outcome,
@@ -2583,6 +2586,53 @@ Task 6.5b adds these entries below this line (Part B-M6 decision 3).
 ### Custom item components (`features/roadmap/components`)
 
 Task 6.6a adds these entries below this line (Part B-M6 decision 3).
+
+### CustomItemsTab
+
+- **Layer:** feature (`features/roadmap`, server-compatible; its "Ẩn" is a client leaf)
+- **File:** `features/roadmap/components/custom-items-tab.tsx`
+- **Props:** `data: CustomItemsTabData` (`{ state: 'ready', items: CustomItemSlot[] }` ·
+  `{ state: 'error' }`; built by `customItemSlots(data.customItems, row)` from `getTrackPage`'s
+  `customItems` — each slot `{ itemId, title, row, hidden }`, `row` the page's registry row),
+  `hide: HideCustomItemAction` (`hideCustomItem`, unbound), `requestId: string` (the page's)
+- **Variants:** —
+- **States:** list — a Section "Mục riêng" with its description and a divided LinkList named
+  "Mục riêng": the active items first (each row, then "Ẩn"), then the hidden ones (each row, then
+  the neutral badge "Đã ẩn"); empty — renders nothing (the track page then shows no tab); error —
+  ErrorState "Không đọc được mục riêng" / "Lộ trình vẫn dùng được. Tải lại trang để thử lại." (the
+  roadmap tab and the rest of the page still work)
+- **Usage:** the "Mục riêng" panel of TrackTabs on `/t/[trackId]` (§2.4), whenever the learner
+  has custom items of the track — whatever the AI flag (§5.12)
+- **Accessibility:** each item is a list item with its row's link (the item page, where it is
+  studied) and its own button; "Đã ẩn" is words, never colour alone
+
+### HideCustomItemButton
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/hide-custom-item-button.tsx`
+- **Props:** `action: HideCustomItemAction`, `requestId: string`, `itemId: string`, `title: string`
+- **Variants:** —
+- **States:** default · asking (ConfirmDialog "Ẩn mục này?" / "Mục này sẽ không xuất hiện trong kế
+  hoạch từ ngày mai." / "Ẩn") · pending (the dialog busy) · answered through ActionFeedback: the
+  dialog closes; the re-rendered tab moves the item to the hidden ones, so the answer ("Đã ẩn mục
+  này.", or "Mục này đã được ẩn trước đó.") comes as a toast; a failure is said beside the button
+- **Usage:** rendered by CustomItemsTab for each active item
+- **Accessibility:** an outline button with a decorative `EyeOff`, visible text "Ẩn" and the name
+  "Ẩn {title}" (label in name), so each row's button is told apart; the `alertdialog` returns focus
+  to the button; a polite `role="status"`; 44 px
+
+### TrackTabs
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/track-tabs.tsx`
+- **Props:** `roadmap: ReactNode` (RoadmapView or its empty state), `custom: ReactNode`
+  (CustomItemsTab), `initial?: 'roadmap' | 'custom'` (`?tab=custom`; default `roadmap`)
+- **Variants:** —
+- **States:** the roadmap tab · the "Mục riêng" tab
+- **Usage:** `/t/[trackId]` wraps the roadmap in it only when `getTrackPage`'s `customItems` is
+  not null; otherwise the page is unchanged
+- **Accessibility:** Radix Tabs: a `tablist` named "Nội dung lộ trình", arrow keys move between
+  "Lộ trình" and "Mục riêng", each panel labelled by its tab; 44 px triggers, the global focus ring
 
 ### Override components (`features/settings/components`)
 

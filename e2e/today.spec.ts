@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
+import { seedCustomCards } from './support/custom-items'
 import {
   addDays,
   formatViDay,
@@ -392,4 +393,48 @@ test('5.2c’s dashboard check: a block’s only item solved on its page — /to
   await expect(status).toContainText('tự động')
   // The one-tap button collapsed into the status row.
   await expect(card.getByRole('button', { name: /^Check-in/ })).toHaveCount(0)
+})
+
+test('task 6.6a: a plan block with a custom card renders its row through the overlay, at its own URL', async ({
+  page,
+}) => {
+  const { user, today } = await learner(['english'], (day) => addDays(day, -10))
+  const [custom] = await seedCustomCards(
+    user.id,
+    [
+      {
+        slug: 'on-hold',
+        trackId: 'english',
+        topicId: 'standup',
+        front: 'on hold',
+        back: 'tạm dừng',
+      },
+    ],
+    today,
+  )
+  // A mixed block (a card and an exercise): rows, not the inline card session (decision 19).
+  const block = newBlock(today, 'english', [
+    { itemId: custom!, minutes: 1.5 },
+    { itemId: 'english:ex-w01-fill-1', minutes: 5 },
+  ])
+  await seedPlan(user.id, {
+    planDate: today,
+    blocks: [block],
+    tracks: { english: snapshot('10w') },
+  })
+  await openToday(page, user)
+  const card = page.getByRole('article', { name: `Bài mới ${ENGLISH}` })
+  const row = card.getByRole('link', { name: 'on hold' })
+  await expect(row).toBeVisible()
+  const href = new URL((await row.getAttribute('href'))!, 'http://localhost')
+  expect(href.pathname).toBe(`/t/english/items/${encodeURIComponent(custom!)}`)
+  expect(href.searchParams.get('block')).toBe(block.id)
+  expect(href.searchParams.get('mode')).toBe('new')
+  await expectNoAxeViolationsInBothThemes(page)
+
+  await row.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'on hold' })).toBeVisible()
+  await expect(page.getByText('Mục riêng của bạn')).toBeVisible()
+  await expect(page.getByText('Trong kế hoạch hôm nay')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Về Hôm nay' })).toHaveAttribute('href', '/today')
 })

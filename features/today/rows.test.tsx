@@ -250,3 +250,67 @@ describe('todaySlots (rows through the registry, tasks 5.1b, 5.4)', () => {
     ])
   })
 })
+
+describe('todaySlots — custom items (task 6.6a: the overlay, decision 39)', () => {
+  const CUSTOM = 'user:0123456789abcdef:standup-card'
+  const CUSTOM_BLOCK = `${TODAY}:english:practice:1`
+
+  it('renders a custom card of a plan block through the registry, at its own URL, and grades it inline', async () => {
+    const { CATALOG: GENERATED } = await import('@/.generated/catalog')
+    const { withUserItems } = await import('@/lib/content/user-items')
+    const catalog = withUserItems(
+      page.data.catalog,
+      [
+        {
+          itemId: CUSTOM,
+          itemType: 'flashcard',
+          trackId: 'english',
+          topicId: 'standup',
+          payload: { front: 'on hold', back: 'tạm dừng', tags: [] },
+          status: 'active',
+          createdOn: TODAY,
+        },
+      ],
+      GENERATED.tracks,
+    )
+    const custom = todayPage(page.data.state, {
+      blocks: [
+        blockView({
+          block: block(CUSTOM_BLOCK, { kind: 'practice', trackId: 'english' }),
+          // The view model builds a repository-form link from the ID alone.
+          items: [
+            { itemId: CUSTOM, mode: 'new', href: `/t/user/items/x?block=${CUSTOM_BLOCK}&mode=new` },
+          ],
+        }),
+      ],
+    })
+    const slots = todaySlots({ ...custom, data: todayData(page.data.state, { catalog }) })
+    render(<div>{slots[CUSTOM_BLOCK]!.items.map((slot) => slot.row)}</div>)
+    const link = screen.getByRole('link', { name: 'on hold' })
+    expect(link.getAttribute('href')).toBe(
+      `/t/english/items/user%3A0123456789abcdef%3Astandup-card?${new URLSearchParams({
+        block: CUSTOM_BLOCK,
+        mode: 'new',
+      })}`,
+    )
+    expect(link.dataset.row).toBe('flashcard')
+    expect(slots[CUSTOM_BLOCK]!.cards).toEqual([
+      expect.objectContaining({
+        itemId: CUSTOM,
+        sides: expect.objectContaining({ front: 'on hold' }),
+      }),
+    ])
+  })
+
+  it('an unknown custom ID (another learner’s, or gone) has no row', () => {
+    const custom = todayPage(page.data.state, {
+      blocks: [
+        blockView({
+          block: block(CUSTOM_BLOCK, { kind: 'practice', trackId: 'english' }),
+          items: [{ itemId: CUSTOM, mode: 'new', href: '/x' }],
+        }),
+      ],
+    })
+    expect(todaySlots(custom)[CUSTOM_BLOCK]!.items).toEqual([])
+  })
+})
