@@ -1,0 +1,45 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mỗi node có thêm con trỏ `random` trỏ tới một node bất kỳ trong list hoặc `None`. Cái khó của <Term vi="bản sao sâu">deep copy</Term> là khi tạo bản sao của một node, bản sao của node mà `random` trỏ tới có thể chưa tồn tại. Giải bằng hai lượt và một hash map từ node gốc tới bản sao: lượt một chỉ tạo bản sao cho mọi node; lượt hai, khi mọi bản sao đã có, nối `next` và `random` của từng bản sao qua map.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Map">Tạo map `copies` với sẵn một cặp `None → None`, để lượt hai không phải kiểm tra con trỏ rỗng.</Step>
+
+<Step title="Lượt 1: tạo bản sao">Đi theo `next`; với mỗi node gốc, tạo node mới cùng giá trị và lưu `copies[node] = bản sao`.</Step>
+
+<Step title="Lượt 2: nối con trỏ">Đi lại từ đầu; với mỗi node gốc: `copies[node].next = copies[node.next]` và `copies[node].random = copies[node.random]`.</Step>
+
+<Step title="Trả về">`copies[head]`: với list rỗng, đó là `None`.</Step>
+
+</Steps>
+
+<VarTable caption="Ba node A(5), B(8), C(2); random: A → C, B → A, C → None">
+
+| Node gốc | Bản sao | `next` của bản sao | `random` của bản sao |
+| --- | --- | --- | --- |
+| A | A' | B' | C' |
+| B | B' | C' | A' |
+| C | C' | `None` | `None` |
+
+</VarTable>
+
+<Callout tone="warning" title="Không được trỏ vào node gốc">
+
+Mọi con trỏ của bản sao phải trỏ vào **bản sao**. Gán `copy.random = node.random` trông giống đúng khi in giá trị, nhưng list mới vẫn dính vào list cũ; bộ kiểm thử báo sai khi kết quả dùng lại node gốc.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Hai lượt, mỗi lượt thăm mỗi node một lần; map chứa `n` cặp. Có một cách `O(1)` bộ nhớ thêm: chèn mỗi bản sao ngay sau node gốc của nó, gán `random` qua `node.random.next`, rồi tách hai list ra. Cách này khó viết đúng hơn.
+
+<Solution />
+
+<Bilingual vi="Lượt một tạo bản sao cho mọi node và lưu vào hash map từ node gốc tới bản sao; lượt hai nối next và random của từng bản sao bằng cách tra map." en="Two passes with a hash map from each original node to its copy. The first pass creates a copy of every node. The second pass sets each copy's next and random to the copies of the original's next and random, looked up in the map. O(n) time and space." />

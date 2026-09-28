@@ -1,0 +1,44 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mỗi hàng đã tăng dần, và phần tử đầu mỗi hàng lớn hơn phần tử cuối hàng trước. Vậy nếu đọc ma trận từng hàng một, từ trái sang phải, ta được **một mảng đã sắp xếp** dài `m·n`. Không cần tạo mảng đó: chỉ cần <Term vi="tìm kiếm nhị phân">binary search</Term> trên chỉ số `i` từ `0` tới `m·n - 1`, và đổi `i` ra ô `(i / n, i % n)` mỗi khi cần đọc giá trị, với `n` là số cột.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Hai biên">`low = 0`, `high = rows * cols - 1`.</Step>
+
+<Step title="Đổi chỉ số ra ô">Chừng nào `low <= high`: `middle = (low + high) / 2` (chia lấy phần nguyên), giá trị là `matrix[middle / cols][middle % cols]`.</Step>
+
+<Step title="So và bỏ một nửa">Bằng `target` thì trả về `true`; nhỏ hơn thì `low = middle + 1`; lớn hơn thì `high = middle - 1`.</Step>
+
+<Step title="Không thấy">Khi `low > high`, trả về `false`.</Step>
+
+</Steps>
+
+<VarTable caption="matrix = [[2, 4, 6], [9, 12, 15]], target = 12 (cols = 3)">
+
+| Bước | low | high | middle | Ô | Giá trị | Hành động |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 5 | 2 | (0, 2) | 6 | Nhỏ hơn 12: `low = 3` |
+| 2 | 3 | 5 | 4 | (1, 1) | 12 | Bằng: trả về `true` |
+
+</VarTable>
+
+<Callout tone="tip" title="Cách khác: hai lần binary search">
+
+Có thể tìm hàng trước (hàng có phần tử đầu lớn nhất mà không vượt `target`), rồi tìm trong hàng đó. Cũng `O(log(m·n))`, nhưng phải viết hai vòng lặp và dễ sai ở biên hơn.
+
+</Callout>
+
+<Complexity time="O(log(m·n))" space="O(1)" />
+
+Binary search trên `m·n` chỉ số cần khoảng `log2(m·n)` bước; mỗi bước đổi chỉ số ra ô trong `O(1)`.
+
+<Solution />
+
+<Bilingual vi="Đọc từng hàng từ trái sang phải thì ma trận là một mảng đã sắp xếp, nên binary search trên chỉ số từ 0 tới m·n - 1 và đổi chỉ số i ra ô hàng i / n, cột i % n." en="Read row by row, the matrix is one sorted array of m·n values. Binary search over the indices 0 to m·n - 1 and map index i to row i / n, column i % n to read its value. O(log(m·n)) time, O(1) space." />

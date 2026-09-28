@@ -1,0 +1,46 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Kết quả xen kẽ một node từ đầu list với một node từ cuối list. Một list đơn không đi ngược được, nên chia bài thành ba việc quen thuộc: tìm **điểm giữa** bằng <Term vi="con trỏ nhanh và chậm">fast & slow pointers</Term>, **đảo** nửa sau (như Reverse Linked List), rồi **đan** hai nửa vào nhau. Cả ba việc chỉ đổi con trỏ `next`, nên làm được <Term vi="tại chỗ">in-place</Term> với bộ nhớ `O(1)`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Tìm điểm giữa">`slow = head`, `fast = head.next`; chừng nào `fast` và `fast.next` khác `None`, `slow` đi một bước và `fast` đi hai bước. `slow` dừng ở node cuối của nửa đầu.</Step>
+
+<Step title="Cắt và đảo nửa sau">`second = slow.next`, rồi đặt `slow.next = None` để cắt list làm hai. Đảo list bắt đầu từ `second`.</Step>
+
+<Step title="Đan hai nửa">Với `first = head` và `second` là head của nửa sau đã đảo: lưu `first.next` và `second.next`, nối `first → second → first.next` cũ, rồi tiến cả hai. Dừng khi nửa sau hết node.</Step>
+
+</Steps>
+
+<VarTable caption="head = 1 → 2 → 3 → 4 → 5">
+
+| Bước | Kết quả |
+| --- | --- |
+| Tìm điểm giữa | `slow` dừng ở 3 |
+| Cắt | nửa đầu `1 → 2 → 3`, nửa sau `4 → 5` |
+| Đảo nửa sau | `5 → 4` |
+| Đan | `1 → 5 → 2 → 4 → 3` |
+
+</VarTable>
+
+Nửa đầu dài bằng hoặc hơn nửa sau đúng một node, nên node thừa (ở đây là 3) tự nằm cuối khi nửa sau đã hết.
+
+<Callout tone="warning" title="Quên cắt list">
+
+Nếu không đặt `slow.next = None`, nửa đầu vẫn nối vào nửa sau; sau khi đan, node cuối trỏ ngược vào list và tạo ra một cycle.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Ba bước, mỗi bước đi qua list nhiều nhất một lần. Cách dùng một mảng lưu mọi node rồi nối lại từ hai đầu cũng `O(n)` thời gian, nhưng tốn `O(n)` bộ nhớ.
+
+<Solution />
+
+<Bilingual vi="Dùng con trỏ nhanh và chậm để tìm điểm giữa, cắt list làm hai, đảo nửa sau, rồi đan xen từng node của nửa đầu với từng node của nửa sau đã đảo." en="Three linked-list steps: find the middle with fast and slow pointers, cut the list there and reverse the second half, then weave the halves by alternating one node from the front half and one from the reversed back half. O(n) time, O(1) extra space." />

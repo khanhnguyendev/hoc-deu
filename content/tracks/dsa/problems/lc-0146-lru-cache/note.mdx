@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đây là một bài thiết kế lớp: `get` và `put` đều phải chạy trong `O(1)`, và khi đầy thì bỏ key <Term vi="lâu nhất không được dùng">least recently used</Term>. Một hash map tìm key trong `O(1)` nhưng không nhớ thứ tự dùng; một list nhớ thứ tự nhưng tìm chậm. Ghép hai thứ lại: hash map trỏ từ key tới node, và một <Term vi="danh sách liên kết đôi">doubly linked list</Term> xếp các node theo thứ tự dùng. Vì node biết cả node trước và node sau, gỡ nó ra khỏi giữa list hay gắn vào cuối list đều là `O(1)`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Hai sentinel">List có hai node giả `head` và `tail` không chứa dữ liệu. Node ngay sau `head` là key lâu nhất không dùng; node ngay trước `tail` là key vừa dùng. Nhờ hai sentinel, gỡ hay gắn node không bao giờ phải kiểm tra `None`.</Step>
+
+<Step title="get(key)">Không có trong map thì trả về `-1`. Có thì gỡ node ra, gắn lại ngay trước `tail` (nó vừa được dùng), rồi trả về giá trị.</Step>
+
+<Step title="put(key, value) với key đã có">Cập nhật giá trị, gỡ node ra và gắn lại ngay trước `tail`.</Step>
+
+<Step title="put(key, value) với key mới">Nếu map đã đủ `capacity` key, gỡ node ngay sau `head` và xóa key của nó khỏi map. Sau đó tạo node mới, thêm vào map và gắn ngay trước `tail`.</Step>
+
+</Steps>
+
+<VarTable caption="capacity = 2">
+
+| Thao tác | List (cũ → mới) | Kết quả |
+| --- | --- | --- |
+| `put(1, 10)` | `1` | — |
+| `put(2, 20)` | `1, 2` | — |
+| `get(1)` | `2, 1` | 10 |
+| `put(3, 30)` | `1, 3` (bỏ key 2) | — |
+| `get(2)` | `1, 3` | -1 |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao node lưu cả key">
+
+Khi bỏ node ngay sau `head`, ta cần biết key của nó để xóa khỏi map. Nếu node chỉ lưu giá trị, không có cách nào tìm ngược lại key trong `O(1)`.
+
+</Callout>
+
+<Complexity time="O(1) mỗi thao tác" space="O(capacity)" />
+
+Mỗi thao tác gồm một lần tra hash map và vài lần đổi con trỏ. Map và list chứa nhiều nhất `capacity` node. Python có sẵn `OrderedDict` làm đúng việc này; lời giải tự viết list để ba ngôn ngữ dùng cùng một cách.
+
+<Solution />
+
+<Bilingual vi="Ghép một hash map từ key tới node với một danh sách liên kết đôi xếp node theo thứ tự dùng: mỗi lần đọc hoặc ghi thì chuyển node về cuối, khi đầy thì bỏ node ở đầu." en="Combine a hash map from key to node with a doubly linked list ordered by use, with sentinel head and tail nodes. get and put move the node to the tail end; when the cache is full, evict the node after head and delete its key from the map. Every operation is O(1)." />

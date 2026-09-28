@@ -1,0 +1,46 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Nếu list không có <Term vi="chu trình">cycle</Term>, đi theo `next` rồi sẽ gặp `None`; nếu có, ta đi vòng mãi. Có thể lưu mọi node đã gặp vào một hash set, nhưng tốn `O(n)` bộ nhớ. Cách tốt hơn là <Term vi="con trỏ nhanh và chậm">fast & slow pointers</Term> (thuật toán Floyd): `slow` đi một bước, `fast` đi hai bước. Không có cycle thì `fast` chạm cuối list trước; có cycle thì cả hai rơi vào vòng, và mỗi lượt `fast` rút ngắn khoảng cách tới `slow` đúng một node, nên chắc chắn đuổi kịp.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Xuất phát">`slow = fast = head`.</Step>
+
+<Step title="Đi">Chừng nào `fast` và `fast.next` đều khác `None`: `slow = slow.next`, `fast = fast.next.next`.</Step>
+
+<Step title="Gặp nhau">Nếu `slow` và `fast` là **cùng một node**, list có cycle: trả về `true`.</Step>
+
+<Step title="Chạm cuối">Vòng lặp dừng vì `fast` chạm `None`: list không có cycle, trả về `false`.</Step>
+
+</Steps>
+
+<VarTable caption="Các node A → B → C → D, rồi D trỏ ngược về B">
+
+| Lượt | `slow` | `fast` |
+| --- | --- | --- |
+| 0 | A | A |
+| 1 | B | C |
+| 2 | C | B (C → D → B) |
+| 3 | D | D: gặp nhau, có cycle |
+
+</VarTable>
+
+<Callout tone="warning" title="So node, không so giá trị">
+
+Hai node khác nhau có thể mang cùng giá trị, như list `7 → 7 → 7` không có cycle. Hãy so bằng danh tính: `is` trong Python, `==` trên tham chiếu trong Java, `==` trên con trỏ trong Go; đừng so `slow.val == fast.val`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Không có cycle, `fast` đi hết list sau khoảng `n / 2` lượt. Có cycle, khi `slow` vào vòng thì `fast` đã ở trong vòng, và khoảng cách giữa chúng giảm một mỗi lượt, nên `fast` đuổi kịp trước khi `slow` đi hết một vòng. Chỉ dùng hai con trỏ.
+
+<Solution />
+
+<Bilingual vi="Cho con trỏ chậm đi một bước và con trỏ nhanh đi hai bước; nếu hai con trỏ gặp nhau tại cùng một node thì có cycle, còn nếu con trỏ nhanh chạm cuối list thì không." en="Floyd's fast and slow pointers: slow moves one node per step, fast moves two. If fast reaches the end of the list there is no cycle. If there is a cycle, fast gains one node per step on slow inside the loop, so they meet at the same node. O(n) time, O(1) space." />

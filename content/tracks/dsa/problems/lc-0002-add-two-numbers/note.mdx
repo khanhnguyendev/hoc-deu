@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Hai số được lưu theo thứ tự chữ số **ngược**: node đầu là hàng đơn vị. Đó đúng là thứ tự ta cộng tay, từ phải sang trái, nên chỉ cần đi song song trên hai list, cộng từng cặp chữ số với số <Term vi="nhớ">carry</Term> từ hàng trước, ghi chữ số `tổng % 10` vào một node mới và mang `tổng / 10` sang hàng sau. Không cần đổi list thành số nguyên, cách đó tràn số khi list dài tới 100 chữ số.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">Một <Term vi="nút giả">dummy node</Term>, `tail = dummy`, `carry = 0`.</Step>
+
+<Step title="Cộng một hàng">Chừng nào `l1` còn node, hoặc `l2` còn node, hoặc `carry` khác 0: `total = carry` cộng giá trị của node hiện tại ở mỗi list còn node, rồi tiến list đó.</Step>
+
+<Step title="Ghi chữ số">`carry = total / 10` (chia lấy phần nguyên), nối node mới `total % 10` vào sau `tail` và tiến `tail`.</Step>
+
+<Step title="Trả về">`dummy.next`.</Step>
+
+</Steps>
+
+<VarTable caption="l1 = 8 → 7 (số 78), l2 = 5 → 4 → 1 (số 145)">
+
+| Hàng | Chữ số l1 | Chữ số l2 | carry vào | total | Chữ số ghi | carry ra |
+| --- | --- | --- | --- | --- | --- | --- |
+| đơn vị | 8 | 5 | 0 | 13 | 3 | 1 |
+| chục | 7 | 4 | 1 | 12 | 2 | 1 |
+| trăm | — | 1 | 1 | 2 | 2 | 0 |
+
+</VarTable>
+
+Kết quả `3 → 2 → 2`, tức 223 = 78 + 145.
+
+<Callout tone="warning" title="Carry ở hàng cuối">
+
+Khi cả hai list đã hết mà `carry` vẫn là 1, như 5 + 5, phải thêm một node 1 ở cuối: `0 → 1`. Đưa `carry` vào điều kiện của vòng lặp để không quên trường hợp này.
+
+</Callout>
+
+<Complexity time="O(max(m, n))" space="O(max(m, n))" />
+
+Mỗi hàng chữ số được xử lý một lần; list kết quả dài nhất `max(m, n) + 1` node. Ngoài list kết quả chỉ cần vài biến.
+
+<Solution />
+
+<Bilingual vi="Đi song song trên hai list như cộng tay từ hàng đơn vị: cộng hai chữ số với carry, ghi chữ số hàng đơn vị của tổng vào node mới, mang phần chục sang hàng sau, và lặp tới khi hai list hết và carry bằng 0." en="The digits are stored least significant first, so add like on paper: walk both lists together, add the two digits and the carry, append total % 10 as a new node and carry total / 10. Keep going while either list has nodes or the carry is not zero. O(max(m, n)) time." />

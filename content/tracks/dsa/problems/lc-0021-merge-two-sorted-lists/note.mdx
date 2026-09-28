@@ -1,0 +1,46 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Hai list đều đã sắp xếp, nên node nhỏ nhất còn lại luôn nằm ở **đầu** một trong hai list. So hai node đầu, nối node nhỏ hơn vào cuối kết quả, rồi tiến list đó lên một bước: giống bước gộp của merge sort. Không cần tạo node mới, chỉ nối lại các con trỏ `next`. Một <Term vi="nút giả">dummy node</Term> đứng trước kết quả giúp node đầu tiên được nối giống hệt mọi node khác.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Dummy và tail">Tạo `dummy`; `tail = dummy` luôn trỏ vào node cuối của kết quả.</Step>
+
+<Step title="So hai đầu">Chừng nào cả hai list còn node: nếu `list1.val <= list2.val` thì nối `list1` vào `tail.next` và tiến `list1`; ngược lại làm vậy với `list2`. Sau đó `tail = tail.next`.</Step>
+
+<Step title="Nối phần còn lại">Khi một list đã hết, list kia đã sắp xếp và mọi giá trị của nó đều không nhỏ hơn kết quả: nối nguyên cả phần đó vào `tail.next`.</Step>
+
+<Step title="Trả về">`dummy.next` là head của list đã gộp.</Step>
+
+</Steps>
+
+<VarTable caption="list1 = 2 → 5, list2 = 1 → 5 → 9">
+
+| Bước | Đầu list1 | Đầu list2 | Nối vào kết quả | Kết quả |
+| --- | --- | --- | --- | --- |
+| 1 | 2 | 1 | 1 (list2) | `1` |
+| 2 | 2 | 5 | 2 (list1) | `1 → 2` |
+| 3 | 5 | 5 | 5 (list1, vì bằng nhau) | `1 → 2 → 5` |
+| 4 | hết | 5 | phần còn lại `5 → 9` | `1 → 2 → 5 → 5 → 9` |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao cần dummy node">
+
+Không có `dummy`, phải xử lý riêng việc chọn head của kết quả, cả trường hợp một hoặc hai list rỗng. Với `dummy`, mọi node đều được nối qua `tail.next`, và hai list rỗng cho kết quả `dummy.next = None` một cách tự nhiên.
+
+</Callout>
+
+<Complexity time="O(n + m)" space="O(1)" />
+
+Mỗi vòng lặp nối đúng một node, nên có nhiều nhất `n + m` vòng; phần còn lại được nối trong `O(1)`. Chỉ thêm một node `dummy` và vài con trỏ.
+
+<Solution />
+
+<Bilingual vi="Dùng một dummy node và con trỏ tail: mỗi bước so hai node đầu, nối node nhỏ hơn vào sau tail rồi tiến list đó; khi một list hết, nối nguyên phần còn lại của list kia." en="Use a dummy head and a tail pointer. While both lists have nodes, link the smaller head node after tail and advance that list. When one list runs out, attach the rest of the other. Return dummy.next. O(n + m) time, O(1) extra space." />

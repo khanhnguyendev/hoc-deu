@@ -1,0 +1,45 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Bài này mở rộng Merge Two Sorted Lists lên `k` list. Gộp lần lượt từng list vào kết quả chung thì kết quả càng lúc càng dài và bị đi lại nhiều lần, tổng cộng `O(N·k)` với `N` là tổng số node. Thay vào đó, gộp **theo cặp** như <Term vi="chia để trị">divide and conquer</Term>: mỗi vòng ghép list 1 với list 2, list 3 với list 4, …, nên số list giảm một nửa sau mỗi vòng. Có khoảng `log k` vòng, và mỗi vòng đi qua mỗi node một lần.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Trường hợp rỗng">Không có list nào thì trả về `None`.</Step>
+
+<Step title="Một vòng gộp">Đi qua các list theo từng cặp liền nhau; gộp mỗi cặp bằng cách của Merge Two Sorted Lists (dummy node và con trỏ tail). List lẻ cuối cùng được gộp với một list rỗng, tức giữ nguyên.</Step>
+
+<Step title="Lặp">Các list vừa gộp thành danh sách mới cho vòng sau. Dừng khi chỉ còn một list: đó là kết quả.</Step>
+
+</Steps>
+
+<VarTable caption="k = 4 list: [1, 7], [2, 3], [5], [4, 6]">
+
+| Vòng | Các list |
+| --- | --- |
+| 0 | `[1, 7]`, `[2, 3]`, `[5]`, `[4, 6]` |
+| 1 | `[1, 2, 3, 7]`, `[4, 5, 6]` |
+| 2 | `[1, 2, 3, 4, 5, 6, 7]` |
+
+</VarTable>
+
+<Callout tone="tip" title="Cách khác: heap">
+
+Một <Term vi="đống">heap</Term> nhỏ nhất chứa node đầu của mỗi list cũng cho `O(N log k)`: mỗi lần lấy node nhỏ nhất ra, nối vào kết quả, rồi đẩy node kế tiếp của list đó vào heap. Heap là chủ đề của tuần sau; cách gộp theo cặp chỉ cần Merge Two Sorted Lists.
+
+</Callout>
+
+Lời giải không ghi đè mảng `lists` của người gọi: mỗi vòng gộp vào một mảng riêng.
+
+<Complexity time="O(N log k)" space="O(k)" />
+
+Có khoảng `log2(k)` vòng, mỗi vòng gộp tổng cộng `N` node. Việc gộp chỉ nối lại con trỏ, không tạo node; bộ nhớ thêm là mảng các list của vòng hiện tại, nhiều nhất `k` phần tử.
+
+<Solution />
+
+<Bilingual vi="Gộp các list theo từng cặp bằng cách của Merge Two Sorted Lists; sau mỗi vòng số list giảm một nửa, nên sau khoảng log k vòng chỉ còn một list đã sắp xếp." en="Merge the lists in pairs, reusing the two-list merge: each round halves the number of lists, so there are about log k rounds, and each round touches all N nodes once. Total O(N log k) time. A min-heap of the k list heads gives the same bound." />
