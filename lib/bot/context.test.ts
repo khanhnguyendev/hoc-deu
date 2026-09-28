@@ -696,6 +696,84 @@ describe('buildContext (§6.4.2)', () => {
   })
 })
 
+describe('buildContext — the override fields (task 6.6c)', () => {
+  const insert = (key: string, weekdays: ('mon' | 'tue')[], until = '2026-10-19') =>
+    ({
+      trackId: 'dsa',
+      key,
+      kind: 'insert_block',
+      params: { topicId: 'arrays-hashing', weekdays, minutes: 15, until },
+      startLocalDay: '2026-10-01',
+    }) satisfies RoadmapOverride
+  const extra = {
+    trackId: 'dsa',
+    key: 'ah-extra',
+    kind: 'extra_week',
+    params: { topicId: 'arrays-hashing', studyDays: 5 },
+    startLocalDay: '2026-10-02',
+    usedDays: 2,
+  } satisfies RoadmapOverride
+  const reorder = {
+    trackId: 'dsa',
+    key: 'order',
+    kind: 'reorder_topics',
+    params: { order: ['two-pointers'] },
+    startLocalDay: '2026-10-01',
+  } satisfies RoadmapOverride
+
+  it('lists the overrides in force (start order) with their computed expiry; expired ones are left out', async () => {
+    state.overrides = [
+      insert('ib-tue', ['tue']),
+      extra,
+      reorder,
+      insert('ib-old', ['tue'], '2026-10-05'),
+    ]
+    const context = await buildContext(RUN_USER, RUN_AT)
+    expect(context.overrides).toEqual([
+      { trackId: 'dsa', key: 'ib-tue', kind: 'insert_block', until: '2026-10-19' },
+      { trackId: 'dsa', key: 'order', kind: 'reorder_topics' },
+      { trackId: 'dsa', key: 'ah-extra', kind: 'extra_week', studyDaysLeft: 3 },
+    ])
+  })
+
+  it('remainingActive is the limit less the overrides in force, per track (never below 0)', async () => {
+    state.overrides = [insert('ib-tue', ['tue']), reorder]
+    const context = await buildContext(RUN_USER, RUN_AT)
+    expect(context.constraints.overrides.remainingActive).toEqual({ dsa: 1, english: 3 })
+    setDb({ tables: { bot_settings: [] } })
+    state.db.tables.bot_settings = [
+      {
+        id: true,
+        enabled: true,
+        dry_run: true,
+        content_proposals: false,
+        per_run_user_cap: 10,
+        limits: { overridesPerTrack: 1 },
+        token_hash: null,
+        token_prev_hash: null,
+        token_prev_valid_until: null,
+      },
+    ]
+    const lowered = await buildContext(RUN_USER, RUN_AT)
+    expect(lowered.constraints.overrides.remainingActive).toEqual({ dsa: 0, english: 1 })
+  })
+
+  it('templateToday starts with the day’s insert blocks (Tuesday in Vietnam), not other days’', async () => {
+    state.overrides = [insert('ib-tue', ['tue']), insert('ib-mon', ['mon'])]
+    const context = await buildContext(RUN_USER, RUN_AT)
+    const dsa = context.tracks.find((track) => track.trackId === 'dsa')!
+    expect(dsa.templateToday[0]).toEqual({
+      kind: 'practice',
+      minutes: 15,
+      tag: 'topic-practice',
+      topicId: 'arrays-hashing',
+    })
+    expect(dsa.templateToday.filter((block) => block.tag === 'topic-practice')).toHaveLength(1)
+    const english = context.tracks.find((track) => track.trackId === 'english')!
+    expect(english.templateToday.some((block) => block.tag === 'topic-practice')).toBe(false)
+  })
+})
+
 describe('allowanceOf (6.5a’s AiPlanAllowance)', () => {
   it('a throttled English track (newPerDay 4) allows at most 4 new cards', async () => {
     const cards = englishCards()

@@ -10,10 +10,13 @@
  * learner shares notes (decision 32).
  *
  * Tracks (decision 9): those in the baseline build's snapshots — active enrollments that have
- * started, on an active catalog track. Task 6.6c fills `overrides`,
- * `constraints.overrides.remainingActive` (per track: the limit less the active ones) and the
- * day's `insert_block`s in `templateToday`; until then there are none (`overrides: []`, the full
- * limit, the plain day template). Server-only; nothing a learner wrote is logged.
+ * started, on an active catalog track. Task 6.6c fills `overrides` (those `planContext` reads —
+ * AI flag on, status active, computed-active today — with their computed expiry),
+ * `constraints.overrides.remainingActive` (per track: the limit less the ones in force) and the
+ * day's `insert_block`s at the head of `templateToday`. An extra week's used days count the plans
+ * before today (`readOverrides`), so on its last study day the context still lists it while SQL's
+ * count — today's plan included — may already call it expired: `remainingActive` is then one lower
+ * than SQL's room (conservative). Server-only; nothing a learner wrote is logged.
  */
 import 'server-only'
 import { contextResponse, CONTEXT_LIMITS, MAX_PLANNED_MINUTES_RULE } from './contract/context'
@@ -25,7 +28,14 @@ import type { PlanCatalog, PlanRoadmap, PlanTemplateBlock, PlanTrack } from '@/l
 import { compareIds, own } from '@/lib/domain/compare'
 import type { AiPlanAllowance } from '@/lib/domain/plan/ai'
 import { buildPlan } from '@/lib/domain/plan/buildPlan'
-import { activeOverrides, effectiveRoadmap, upcomingTopics } from '@/lib/domain/plan/overrides'
+import {
+  activeOverrides,
+  effectiveRoadmap,
+  insertBlocksOn,
+  reorderable,
+  TOPIC_PRACTICE_TAG,
+  upcomingTopics,
+} from '@/lib/domain/plan/overrides'
 import { compareDueEntries, type DueEntry, dueQueue } from '@/lib/domain/plan/queues'
 import { newQueue } from '@/lib/domain/plan/roadmap'
 import { dayTemplate } from '@/lib/domain/plan/template'
@@ -291,23 +301,26 @@ function templateBlockOf(block: PlanTemplateBlock): ContextTrack['templateToday'
   return { ...rest }
 }
 
-/** A reorder permutes topics by moving their `core` items; a roadmap whose core items all live
- *  in decks (English) has nothing a reorder could move. */
-const reorderable = (roadmap: PlanRoadmap) => roadmap.weeks.some((week) => week.core.length > 0)
-
 function contextTrack(u: UserDay, facts: TrackFacts): ContextTrack {
   const { enrollment, snapshot, track, roadmap } = facts
   const { catalog, items } = u.context
+  const weekday = weekdayOf(u.day.today)
+  // §5.12: the day's insert blocks are reserved first, so they head the template (as buildPlan).
+  const inserted = insertBlocksOn(facts.overrides, weekday).map((o) => ({
+    kind: 'practice' as const,
+    minutes: o.params.minutes,
+    tag: TOPIC_PRACTICE_TAG,
+    topicId: o.params.topicId,
+  }))
   return {
     trackId: facts.trackId,
     roadmapVariant: enrollment.variant,
     roadmapWeek: snapshot.week,
     budgetMinutes: enrollment.budgetMinutes,
-    templateToday: dayTemplate(
-      enrollment.weeklyTemplate,
-      weekdayOf(u.day.today),
-      snapshot.week,
-    ).map(templateBlockOf),
+    templateToday: [
+      ...inserted,
+      ...dayTemplate(enrollment.weeklyTemplate, weekday, snapshot.week).map(templateBlockOf),
+    ],
     effectiveNewPerDay: snapshot.newPerDay,
     throttleReason: throttleReason(enrollment, snapshot),
     upcomingTopics:
@@ -444,6 +457,9 @@ export async function buildContext(runUser: RunUser, now: Date): Promise<BotCont
   const facts = dayFacts(u)
   const { catalog, items } = u.context
   const activeCustom = u.day.userItems.filter((row) => row.status === 'active').length
+  const inForce = [...new Set((u.context.overrides ?? []).map((o) => o.trackId))]
+    .toSorted(compareIds)
+    .flatMap((trackId) => activeOverrides(u.context.overrides ?? [], trackId, u.day.today))
 
   const context: BotContext = {
     targetDate: u.day.today,
@@ -495,8 +511,16 @@ export async function buildContext(runUser: RunUser, now: Date): Promise<BotCont
       srsStatus: own(items, row.itemId)?.status ?? null,
       createdOn: row.createdOn,
     })),
-    // Task 6.6c: the active overrides with their computed expiry.
-    overrides: [],
+    // Task 6.6c: the overrides in force with their computed expiry (decision 18).
+    overrides: inForce.map((o) => ({
+      trackId: o.trackId,
+      key: o.key,
+      kind: o.kind,
+      ...(o.kind === 'insert_block' && { until: o.params.until }),
+      ...(o.kind === 'extra_week' && {
+        studyDaysLeft: Math.max(0, o.params.studyDays - o.usedDays),
+      }),
+    })),
     recent: { days: learner.days, results: learner.results },
     constraints: {
       allowedNewItems: facts.tracks.flatMap((track) => track.allowedNew),
@@ -506,10 +530,17 @@ export async function buildContext(runUser: RunUser, now: Date): Promise<BotCont
         remainingToday: Math.max(0, settings.limits.customItemsPerDay - learner.createdToday),
         remainingTotal: Math.max(0, settings.limits.customItemsActive - activeCustom),
       },
-      // Task 6.6c: less each track's active overrides.
+      // Task 6.6c: the limit less each track's overrides in force.
       overrides: {
         remainingActive: Object.fromEntries(
-          facts.tracks.map((track) => [track.trackId, settings.limits.overridesPerTrack]),
+          facts.tracks.map((track) => [
+            track.trackId,
+            Math.max(
+              0,
+              settings.limits.overridesPerTrack -
+                inForce.filter((o) => o.trackId === track.trackId).length,
+            ),
+          ]),
         ),
       },
       rationaleMaxChars: CONTEXT_LIMITS.rationaleMaxChars,
