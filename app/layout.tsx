@@ -12,6 +12,16 @@ export const metadata: Metadata = {
   // same localhost default Next itself uses, rather than through serverEnv() (which throws when
   // the Supabase variables are unset, and this module has no guard to catch that).
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  // Part B-M6 decision 26: applicationName + openGraph, no `images` — opengraph-image.png (the
+  // file convention) already supplies og:image.
+  applicationName: 'Học Đều',
+  openGraph: {
+    type: 'website',
+    locale: 'vi_VN',
+    siteName: 'Học Đều',
+    title: 'Học Đều',
+    description: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

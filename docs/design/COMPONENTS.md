@@ -703,6 +703,8 @@ from `lib/i18n/vi.ts`.
 
 ### Brand (`components/patterns/logo-mark.tsx`)
 
+Task 6.0b adds these entries below this line (Part B-M6 decision 3).
+
 ### LogoMark
 
 - **Layer:** pattern
