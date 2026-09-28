@@ -19,6 +19,7 @@
  * after a crash is a `duplicate`. Server-only; nothing a learner wrote is logged.
  */
 import 'server-only'
+import { boundedProposal, PROPOSAL_BYTES, recordProposal } from './proposals'
 import { issueDetails } from './route'
 import type { RunUser } from './runs'
 import type { WriteOutcome } from './writes'
@@ -46,12 +47,11 @@ import { deriveEventId } from '@/lib/events/ids'
 import { createUserItem, retireUserItem } from '@/lib/events/user-items'
 import { loadDay, type Day } from '@/lib/plans/day'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Json } from '@/lib/supabase/database.types'
 
 export const KIND = 'custom-items'
 
-/** Decision 11: a dry-run proposal is at most 16 KB as JSON. */
-export const PROPOSAL_BYTES = 16 * 1024
+/** Decision 11's bound (`./proposals`), re-exported for this endpoint's tests. */
+export { PROPOSAL_BYTES }
 
 export type Detail = {
   readonly path: string
@@ -265,46 +265,21 @@ async function plan(
 }
 
 /**
- * Decision 11: the proposal in `bot_run_users.detail['custom-items']` (its other keys — the
- * invalid attempts — kept), at most `PROPOSAL_BYTES`: past that, the payloads are left out.
+ * Decision 11: the proposal in `bot_run_users.detail['custom-items']` (`recordProposal`), at most
+ * `PROPOSAL_BYTES`: past that, the payloads are left out.
  */
-async function recordProposal(admin: Admin, runUser: RunUser, request: CustomItemsRequest) {
-  const full: Json = request as unknown as Json
-  const proposal =
-    Buffer.byteLength(canonicalJson(full), 'utf8') <= PROPOSAL_BYTES
-      ? full
-      : ({
-          items: request.items.map(({ slug, type, trackId, topicId }) => ({
-            slug,
-            type,
-            trackId,
-            topicId,
-          })),
-          retire: request.retire,
-          payloadsOmitted: true,
-        } as unknown as Json)
-  const current = await admin
-    .from('bot_run_users')
-    .select('detail')
-    .eq('id', runUser.runUserId)
-    .single()
-  if (current.error) throw new Error('Could not read the run detail', { cause: current.error })
-  const detail =
-    current.data.detail !== null &&
-    typeof current.data.detail === 'object' &&
-    !Array.isArray(current.data.detail)
-      ? current.data.detail
-      : {}
-  const own = detail[KIND]
-  const entry =
-    own !== null && typeof own === 'object' && !Array.isArray(own)
-      ? { ...own, proposal }
-      : { proposal }
-  const updated = await admin
-    .from('bot_run_users')
-    .update({ detail: { ...detail, [KIND]: entry } })
-    .eq('id', runUser.runUserId)
-  if (updated.error) throw new Error('Could not record the proposal', { cause: updated.error })
+async function recordItemsProposal(admin: Admin, runUser: RunUser, request: CustomItemsRequest) {
+  const proposal = boundedProposal(request, () => ({
+    items: request.items.map(({ slug, type, trackId, topicId }) => ({
+      slug,
+      type,
+      trackId,
+      topicId,
+    })),
+    retire: request.retire,
+    payloadsOmitted: true,
+  }))
+  await recordProposal(admin, runUser, KIND, proposal)
 }
 
 /** What a live write had written when the database refused a later part of it. */
@@ -373,7 +348,7 @@ export async function writeCustomItems(
   const created = checked.items.map((item) => item.itemId)
   const retired = checked.retire.map((row) => row.itemId)
   if (runUser.mode === 'dry_run') {
-    await recordProposal(admin, runUser, request)
+    await recordItemsProposal(admin, runUser, request)
     return { status: 200, body: { outcome: 'dry_run', created, retired }, outcome: 'dry_run' }
   }
 

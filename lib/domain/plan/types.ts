@@ -82,6 +82,9 @@ export type StoredPlan = {
   readonly source: 'baseline' | 'ai'
   /** Set once, when `/today` first renders the plan in the browser (§5.2); null = never seen. */
   readonly seenAt: string | null
+  /** An AI plan's rationale (plain text, cleaned on the server, §6.4.3); null or absent for a
+   *  baseline plan. */
+  readonly rationale?: string | null
   readonly blocks: readonly PlanBlock[]
   readonly tracks: Readonly<Record<string, TrackSnapshot>>
 }
