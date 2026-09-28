@@ -12,9 +12,10 @@ import { startRun } from '@/lib/bot/runs'
 export async function POST(request: Request): Promise<Response> {
   const denied = await requireBotToken(request)
   if (denied) return denied
-  const input = await readJson(request, runStartRequest, { empty: {} })
-  if (!input.ok) return input.response
   try {
+    // Inside the try: an aborted body is the JSON 500, never cached.
+    const input = await readJson(request, runStartRequest, { empty: {} })
+    if (!input.ok) return input.response
     return botJson(200, await startRun(input.data, new Date()))
   } catch (error) {
     return internalError('POST /runs', error)

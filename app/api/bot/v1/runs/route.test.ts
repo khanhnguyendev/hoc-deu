@@ -26,6 +26,19 @@ const post = (body: string) =>
     body,
   })
 
+/** A request whose body stream errors mid-read (the client went away). */
+const abortedRequest = (url: string, method: string) =>
+  new Request(url, {
+    method,
+    headers: { authorization: 'Bearer hdb_x' },
+    body: new ReadableStream({
+      pull(controller) {
+        controller.error(new Error('aborted'))
+      },
+    }),
+    duplex: 'half',
+  } as RequestInit)
+
 beforeEach(() => {
   fake.denied = null
   fake.startRun.mockReset()
@@ -34,6 +47,14 @@ beforeEach(() => {
 })
 
 describe('POST /api/bot/v1/runs (§6.4.1)', () => {
+  it('an aborted body answers the JSON 500 internal, never cached (readJson inside the try)', async () => {
+    const response = await POST(abortedRequest('https://hocdeu.test/api/bot/v1/runs', 'POST'))
+    expect(response.status).toBe(500)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ error: 'internal' })
+    expect(fake.startRun).not.toHaveBeenCalled()
+  })
+
   it('answers the guard’s denial first and never reads the body', async () => {
     fake.denied = Response.json({ error: 'disabled' }, { status: 503 })
     const request = post('{"kind":"plan"}')

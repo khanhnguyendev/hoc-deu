@@ -352,12 +352,14 @@ export type IgnoredPublishRequest = {
 export type FinishResult =
   | { readonly outcome: 'ok'; readonly ignored: readonly IgnoredPublishRequest[] }
   | { readonly outcome: 'not_found' }
+  | { readonly outcome: 'not_running' }
 
 /**
  * `PATCH /runs/{runId}` (§6.4.6): the status, `finished_at`, the summary (counts only, the
  * contract refuses anything else) and the content PR URL; a failed run's reason is `reported`.
  * On a publish run with a PR URL, `publish_set_pr` sets it on the listed requests that are still
- * pending; the other ids are ignored and returned.
+ * pending; the other ids are ignored and returned. Only a `running` run is finished: a completed,
+ * failed or timed-out one answers `not_running` (409) and keeps its row as it is.
  */
 export async function finishRun(
   runKey: string,
@@ -368,9 +370,10 @@ export async function finishRun(
   const admin = createAdminClient()
   const run = must(
     'read the run',
-    await admin.from('bot_runs').select('id, kind').eq('run_key', runKey).maybeSingle(),
+    await admin.from('bot_runs').select('id, kind, status').eq('run_key', runKey).maybeSingle(),
   )
   if (run === null) return { outcome: 'not_found' }
+  if (run.status !== 'running') return { outcome: 'not_running' }
 
   must(
     'finish the run',
@@ -383,7 +386,8 @@ export async function finishRun(
         ...(input.summary === undefined ? {} : { summary: input.summary }),
         ...(input.contentPrUrl === undefined ? {} : { content_pr_url: input.contentPrUrl }),
       })
-      .eq('id', run.id),
+      .eq('id', run.id)
+      .eq('status', 'running'),
   )
 
   const ids = [...new Set(input.publishRequestIds ?? [])]
@@ -418,6 +422,11 @@ export async function finishRun(
 // Resolve
 // ---------------------------------------------------------------------------------------------
 
+/** Whether a run user's `writes` holds a stored plan write (decision 10). */
+function hasPlanWrite(writes: unknown): boolean {
+  return typeof writes === 'object' && writes !== null && !Array.isArray(writes) && 'plan' in writes
+}
+
 export type RunUser = {
   readonly runUuid: string
   readonly runKey: string
@@ -427,34 +436,46 @@ export type RunUser = {
   readonly userRef: string
 }
 
+/** A run older than this is timed out (`bot_timeout_runs`, §6.2): its writes are refused. */
+const RUN_TIMEOUT_MS = 2 * 60 * 60 * 1000
+
 /**
- * Decision 6: the only way to a user id. Null when the run is unknown, not running, not a plan
- * run, or the ref is not in it. The mode is the strictest of the run's and the current
+ * Decision 6: the only way to a user id. Null when the run is unknown, not running, started more
+ * than 2 hours before `now` (the lazy timeout, applied on writes too — the sweep only runs at the
+ * next start), not a plan run, or the ref is not in it — or the run start already settled the
+ * user (a pre-filtered `skipped_*` or `error` row: an outcome but no plan write; a user whose plan
+ * write is stored still resolves, for the other kinds and for replays). The mode is the strictest of the run's and the current
  * `bot_settings.dry_run` (decision 8): an admin who turns dry-run on mid-run makes the rest of the
  * run dry, and the run row says so.
  */
-export async function resolveRunUser(runKey: string, ref: string): Promise<RunUser | null> {
+export async function resolveRunUser(
+  runKey: string,
+  ref: string,
+  now: Date,
+): Promise<RunUser | null> {
   if (!RUN_KEY_PATTERN.test(runKey) || !USER_REF_PATTERN.test(ref)) return null
   const admin = createAdminClient()
   const run = must(
     'read the run',
     await admin
       .from('bot_runs')
-      .select('id, run_key, kind, mode, status')
+      .select('id, run_key, kind, mode, status, started_at')
       .eq('run_key', runKey)
       .maybeSingle(),
   )
   if (run === null || run.status !== 'running' || run.kind !== 'plan') return null
+  if (!(Date.parse(run.started_at) >= now.getTime() - RUN_TIMEOUT_MS)) return null
   const user = must(
     'read the run user',
     await admin
       .from('bot_run_users')
-      .select('id, user_id, user_ref')
+      .select('id, user_id, user_ref, outcome, writes')
       .eq('run_id', run.id)
       .eq('user_ref', ref)
       .maybeSingle(),
   )
   if (user === null) return null
+  if (user.outcome !== null && !hasPlanWrite(user.writes)) return null
 
   const { settings } = await readBotSettings()
   const mode = strictestMode(asMode(run.mode), settingsMode(settings))

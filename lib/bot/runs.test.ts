@@ -519,6 +519,21 @@ describe('finishRun (§6.4.6)', () => {
     expect(db.calls.filter((call) => call.endsWith(':update'))).toEqual([])
   })
 
+  it.each(['completed', 'failed'])(
+    'a run that is not running (%s) is not_running, and nothing is written',
+    async (status) => {
+      const db = setup({
+        runs: runs().map((run) => (run.run_key === RUN_KEY ? { ...run, status } : run)),
+        requests: requests(),
+      })
+      await expect(finishRun(RUN_KEY, { status: 'completed' }, NOW)).resolves.toEqual({
+        outcome: 'not_running',
+      })
+      expect(db.calls.filter((call) => call.endsWith(':update'))).toEqual([])
+      expect(runRow(db)).toMatchObject({ status, finished_at: null })
+    },
+  )
+
   it('stores the status, finished_at, the summary and the content PR URL', async () => {
     const db = setup({ runs: runs() })
     const result = await finishRun(
@@ -585,25 +600,50 @@ describe('resolveRunUser (decision 6: the only way to a user id)', () => {
   const OTHER_RUN = uuid(101)
   const REF = 'u_aaaaaaaaaaaaaaaa'
   const FOREIGN = 'u_bbbbbbbbbbbbbbbb'
-  const runs = (status = 'running', mode = 'live'): Row[] => [
-    { id: RUN_ID, run_key: RUN_KEY, kind: 'plan', mode, status },
-    { id: OTHER_RUN, run_key: 'run_2026-10-04', kind: 'plan', mode: 'live', status: 'running' },
+  // Started 30 minutes before NOW: inside the 2-hour lazy timeout.
+  const STARTED = new Date(NOW.getTime() - 30 * 60_000).toISOString()
+  const runs = (status = 'running', mode = 'live', startedAt = STARTED): Row[] => [
+    { id: RUN_ID, run_key: RUN_KEY, kind: 'plan', mode, status, started_at: startedAt },
+    {
+      id: OTHER_RUN,
+      run_key: 'run_2026-10-04',
+      kind: 'plan',
+      mode: 'live',
+      status: 'running',
+      started_at: STARTED,
+    },
     {
       id: uuid(102),
       run_key: `${RUN_KEY}_publish-1`,
       kind: 'publish',
       mode: 'live',
       status: 'running',
+      started_at: STARTED,
     },
   ]
-  const users = (): Row[] => [
-    { id: uuid(200), run_id: RUN_ID, user_id: USERS[0], user_ref: REF },
-    { id: uuid(201), run_id: OTHER_RUN, user_id: USERS[1], user_ref: FOREIGN },
+  const users = (own: Partial<Row> = {}): Row[] => [
+    {
+      id: uuid(200),
+      run_id: RUN_ID,
+      user_id: USERS[0],
+      user_ref: REF,
+      outcome: null,
+      writes: {},
+      ...own,
+    },
+    {
+      id: uuid(201),
+      run_id: OTHER_RUN,
+      user_id: USERS[1],
+      user_ref: FOREIGN,
+      outcome: null,
+      writes: {},
+    },
   ]
 
   it('resolves a ref of a running plan run', async () => {
     setup({ runs: runs(), runUsers: users() })
-    await expect(resolveRunUser(RUN_KEY, REF)).resolves.toEqual({
+    await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.toEqual({
       runUuid: RUN_ID,
       runKey: RUN_KEY,
       mode: 'live',
@@ -623,12 +663,35 @@ describe('resolveRunUser (decision 6: the only way to a user id)', () => {
     ['a publish run', `${RUN_KEY}_publish-1`, REF, 'running'],
   ])('is null for %s', async (_, runKey, ref, status) => {
     setup({ runs: runs(status), runUsers: users() })
-    await expect(resolveRunUser(runKey, ref)).resolves.toBeNull()
+    await expect(resolveRunUser(runKey, ref, NOW)).resolves.toBeNull()
+  })
+
+  it.each(['skipped_plan_in_use', 'skipped_gate_closed', 'skipped_unseen', 'error'])(
+    'is null for a user the run start pre-filtered (%s, no plan write): no later write',
+    async (outcome) => {
+      setup({ runs: runs(), runUsers: users({ outcome }) })
+      await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.toBeNull()
+    },
+  )
+
+  it('still resolves a user whose plan write is stored (later writes and replays)', async () => {
+    const plan = { outcome: 'applied', bodyHash: 'a'.repeat(64) }
+    setup({ runs: runs(), runUsers: users({ outcome: 'applied', writes: { plan } }) })
+    await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.toMatchObject({ userRef: REF })
+  })
+
+  it('is null for a run started more than 2 hours ago (the lazy timeout on writes)', async () => {
+    const old = new Date(NOW.getTime() - 2 * 3_600_000 - 1_000).toISOString()
+    setup({ runs: runs('running', 'live', old), runUsers: users() })
+    await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.toBeNull()
+    const edge = new Date(NOW.getTime() - 2 * 3_600_000 + 1_000).toISOString()
+    setup({ runs: runs('running', 'live', edge), runUsers: users() })
+    await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.not.toBeNull()
   })
 
   it('takes the stricter mode when an admin turned dry-run on mid-run, and records it on the run', async () => {
     const db = setup({ settings: { dry_run: true }, runs: runs(), runUsers: users() })
-    await expect(resolveRunUser(RUN_KEY, REF)).resolves.toMatchObject({ mode: 'dry_run' })
+    await expect(resolveRunUser(RUN_KEY, REF, NOW)).resolves.toMatchObject({ mode: 'dry_run' })
     expect(runRow(db)?.mode).toBe('dry_run')
   })
 })

@@ -20,6 +20,19 @@ const patch = (body: string) =>
   })
 const context = (runId = RUN) => ({ params: Promise.resolve({ runId }) })
 
+/** A request whose body stream errors mid-read (the client went away). */
+const abortedRequest = (url: string, method: string) =>
+  new Request(url, {
+    method,
+    headers: { authorization: 'Bearer hdb_x' },
+    body: new ReadableStream({
+      pull(controller) {
+        controller.error(new Error('aborted'))
+      },
+    }),
+    duplex: 'half',
+  } as RequestInit)
+
 beforeEach(() => {
   fake.denied = null
   fake.finishRun.mockReset()
@@ -47,6 +60,25 @@ describe('PATCH /api/bot/v1/runs/[runId] (§6.4.6)', () => {
     expect(body.error).toBe('invalid')
     expect(body.details.map((detail) => detail.path)).toContain('contentPrUrl')
     expect(fake.finishRun).not.toHaveBeenCalled()
+  })
+
+  it('an aborted body answers the JSON 500 internal, never cached (readJson inside the try)', async () => {
+    const response = await PATCH(
+      abortedRequest(`https://hocdeu.test/api/bot/v1/runs/${RUN}`, 'PATCH'),
+      context(),
+    )
+    expect(response.status).toBe(500)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ error: 'internal' })
+    expect(fake.finishRun).not.toHaveBeenCalled()
+  })
+
+  it('a run that is not running → 409 not_running', async () => {
+    fake.finishRun.mockResolvedValue({ outcome: 'not_running' })
+    const response = await PATCH(patch('{"status":"completed"}'), context())
+    expect(response.status).toBe(409)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ error: 'not_running' })
   })
 
   it('an unknown run → 404 not_found', async () => {

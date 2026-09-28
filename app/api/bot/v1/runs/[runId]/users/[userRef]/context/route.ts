@@ -19,7 +19,7 @@ export async function GET(
   if (denied) return denied
   const { runId, userRef } = await params
   try {
-    const runUser = await resolveRunUser(runId, userRef)
+    const runUser = await resolveRunUser(runId, userRef, new Date())
     if (runUser === null) return botError(404, 'not_found')
     return botJson(200, await buildContext(runUser, new Date()))
   } catch (error) {

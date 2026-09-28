@@ -950,6 +950,10 @@ test('8. finish and publish: PR URL on the run, pending → pr_url → merged; a
   // A summary that carries learner data is refused.
   const leaky = await api.finish(run.runId, { status: 'completed', summary: 'hv@example.test' })
   expect(leaky.status).toBe(422)
+  // A finished run is not finished again.
+  const again = await api.finish(run.runId, { status: 'failed' })
+  expect(again.status).toBe(409)
+  expect(again.body).toEqual({ error: 'not_running' })
   // A completed plan run answers with no users.
   expect((await startPlanRun(api)).users).toEqual([])
 

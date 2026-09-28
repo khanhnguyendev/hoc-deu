@@ -22,11 +22,11 @@ export async function PUT(
   if (denied) return denied
   const { runId, userRef } = await params
   try {
-    const runUser = await resolveRunUser(runId, userRef)
+    const now = new Date()
+    const runUser = await resolveRunUser(runId, userRef, now)
     if (runUser === null) return botError(404, 'not_found')
     const body = await readBody(request)
     if (!body.ok) return body.response
-    const now = new Date()
     return await idempotentWrite(runUser, 'overrides', request, body.data, () =>
       writeOverrides(runUser, body.data, now),
     )

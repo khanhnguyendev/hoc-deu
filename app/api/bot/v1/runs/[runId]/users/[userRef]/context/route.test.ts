@@ -22,13 +22,24 @@ const CONTEXT = { targetDate: '2026-10-05', gate: 'open' }
 function setup(runStatus = 'running') {
   state.denied = null
   state.db = fakeDb({
-    bot_runs: [{ id: RUN_UUID, run_key: RUN, kind: 'plan', mode: 'dry_run', status: runStatus }],
+    bot_runs: [
+      {
+        id: RUN_UUID,
+        run_key: RUN,
+        kind: 'plan',
+        mode: 'dry_run',
+        status: runStatus,
+        started_at: new Date().toISOString(),
+      },
+    ],
     bot_run_users: [
       {
         id: '00000000-0000-4000-8000-000000000200',
         run_id: RUN_UUID,
         user_id: USER_ID,
         user_ref: REF,
+        outcome: null,
+        writes: {},
       },
     ],
     bot_settings: [
