@@ -8,10 +8,10 @@ import {
   type AiPlanAllowance,
   type AiPlanInput,
   cleanRationale,
+  RATIONALE_INPUT_MAX,
   RATIONALE_MAX_GRAPHEMES,
   validateAiPlan,
 } from './ai'
-import { largestItemMinutes, plannedMinutes } from './buildPlan'
 import { planBlockSchema } from './types'
 
 // ---------------------------------------------------------------------------------------------
@@ -390,6 +390,42 @@ const ROWS: readonly Row[] = [
     issues: [{ path: 'tracks.dsa', code: 'over_budget' }],
   },
   {
+    name: 'over-budget items in a practice block (the block is not one item, ruling M6-R5)',
+    // 20 + 35 new, + 21 + 12 + 21 redo in practice = 109 > 60 + 35 (the largest item).
+    input: withBlocks(
+      { trackId: 'dsa', kind: 'new', itemIds: ['dsa:p5', 'dsa:p6'] },
+      { trackId: 'dsa', kind: 'practice', itemIds: ['dsa:p2', 'dsa:p1', 'dsa:p3'], mode: 'redo' },
+    ),
+    issues: [{ path: 'tracks.dsa', code: 'over_budget' }],
+  },
+  {
+    name: 'a pattern lesson in a review block, even when the allowance lists it',
+    input: withBlocks({
+      trackId: 'dsa',
+      kind: 'review',
+      itemIds: ['dsa:lesson-arrays'],
+      mode: 'review',
+    }),
+    allow: { ...ALLOW, allowedReview: new Set([...ALLOW.allowedReview, 'dsa:lesson-arrays']) },
+    issues: [
+      { path: 'blocks[0].itemIds[0]', code: 'not_allowed_review', itemId: 'dsa:lesson-arrays' },
+    ],
+  },
+  {
+    name: 'a pattern lesson in a practice block, even when the allowance lists it',
+    input: withBlocks({ trackId: 'dsa', kind: 'practice', itemIds: ['dsa:lesson-arrays'] }),
+    allow: { ...ALLOW, allowedReview: new Set([...ALLOW.allowedReview, 'dsa:lesson-arrays']) },
+    issues: [
+      { path: 'blocks[0].itemIds[0]', code: 'not_allowed_review', itemId: 'dsa:lesson-arrays' },
+    ],
+  },
+  {
+    name: 'a deep-dive in a new block, even when the allowance lists it',
+    input: withBlocks({ trackId: 'dsa', kind: 'new', itemIds: ['dsa:lesson-deep-dive-p3'] }),
+    allow: { ...ALLOW, allowedNew: new Set([...ALLOW.allowedNew, 'dsa:lesson-deep-dive-p3']) },
+    issues: [{ path: 'blocks[0].kind', code: 'bad_kind', itemId: 'dsa:lesson-deep-dive-p3' }],
+  },
+  {
     name: 'an over-long rationale',
     input: { ...VALID, rationale: 'a'.repeat(RATIONALE_MAX_GRAPHEMES + 1) },
     issues: [{ path: 'rationale', code: 'rationale' }],
@@ -467,6 +503,18 @@ describe('cleanRationale', () => {
     expect(cleanRationale(nfd)).toBe('Ôn lại')
   })
 
+  // `lib/domain` reads no clock, so the test's timeout is the time limit (the uncapped regexes
+  // took ~3 s on this input).
+  it('caps its input, so adversarial text returns promptly', { timeout: 1000 }, () => {
+    const hostile = 'a.'.repeat(30_000)
+    expect(cleanRationale(hostile).length).toBeLessThanOrEqual(RATIONALE_INPUT_MAX)
+    expect(issuesOf({ ...VALID, rationale: hostile })).toEqual([
+      { path: 'rationale', code: 'rationale' },
+    ])
+    // Only the first RATIONALE_INPUT_MAX units are read.
+    expect(cleanRationale('Ôn '.padEnd(RATIONALE_INPUT_MAX, ' ') + 'lại')).toBe('Ôn')
+  })
+
   it('counts graphemes, not code points: 280 passes, 281 is an issue', () => {
     // "ệ" + a combining acute that NFC cannot fold: two or more code points, one grapheme.
     const unit = 'ệ\u0301'
@@ -532,22 +580,26 @@ const entry = (itemId: string): fc.Arbitrary<Entry> =>
     )
     .map((block) => ({ itemId, block }))
 
-/** Consecutive entries with the same track, kind and mode share a block; an item may repeat. */
+/** Consecutive entries with the same track, kind and mode share a block, and so, when `join`
+ *  says so, do those with the same track and kind (the block keeps the first mode) — so blocks of
+ *  several items, practice ones included, are common. An item may repeat. */
 const plans: fc.Arbitrary<AiBlockInput[]> = fc
   .tuple(
     fc.shuffledSubarray(CANDIDATES, { maxLength: 10 }),
     fc.subarray(CANDIDATES, { maxLength: 1 }),
   )
-  .chain(([ids, again]) => fc.tuple(...[...ids, ...again].map(entry)))
+  .chain(([ids, again]) =>
+    fc.tuple(...[...ids, ...again].map((id) => fc.tuple(entry(id), fc.boolean()))),
+  )
   .map((entries) => {
     const blocks: { block: Omit<AiBlockInput, 'itemIds'>; itemIds: string[] }[] = []
-    for (const { itemId, block } of entries) {
+    for (const [{ itemId, block }, join] of entries) {
       const last = blocks.at(-1)
       const same =
         last !== undefined &&
         last.block.trackId === block.trackId &&
         last.block.kind === block.kind &&
-        last.block.mode === block.mode
+        (join || last.block.mode === block.mode)
       if (same) last.itemIds.push(itemId)
       else blocks.push({ block, itemIds: [itemId] })
     }
@@ -556,14 +608,13 @@ const plans: fc.Arbitrary<AiBlockInput[]> = fc
 
 describe('validateAiPlan: property', () => {
   it('returns issues or blocks that satisfy the invariant — never throws', () => {
-    const budgets = fc.record({
-      dsa: fc.integer({ min: 0, max: 240 }),
-      english: fc.integer({ min: 0, max: 240 }),
-    })
+    // Tight budgets half the time: that is where the invariant's limit decides.
+    const budget = fc.oneof(fc.integer({ min: 0, max: 30 }), fc.integer({ min: 0, max: 240 }))
+    const budgets = fc.record({ dsa: budget, english: budget })
     let valid = 0
     fc.assert(
-      fc.property(plans, budgets, (blocks, budget) => {
-        const result = validateAiPlan({ ...VALID, blocks }, { ...ALLOW, budgets: budget })
+      fc.property(plans, budgets, (blocks, budgetOf) => {
+        const result = validateAiPlan({ ...VALID, blocks }, { ...ALLOW, budgets: budgetOf })
         if (!result.ok) {
           expect(result.issues.length).toBeGreaterThan(0)
           return
@@ -571,14 +622,41 @@ describe('validateAiPlan: property', () => {
         if (result.blocks.length > 0) valid++
         for (const out of result.blocks) planBlockSchema.parse(out)
         for (const trackId of ['dsa', 'english'] as const) {
-          const planned = plannedMinutes(result, trackId)
-          const limit = budget[trackId] + largestItemMinutes(result, trackId)
-          expect(planned <= budget[trackId] || planned <= limit).toBe(true)
+          // Computed here, not with the engine's helpers: the item minutes of the track's blocks.
+          const minutes = result.blocks
+            .filter((out) => out.trackId === trackId)
+            .flatMap((out) => out.items.map((planned) => planned.minutes))
+          const planned = minutes.reduce((sum, m) => sum + m, 0)
+          const limit = budgetOf[trackId] + Math.max(0, ...minutes)
+          expect(planned <= budgetOf[trackId] || planned <= limit).toBe(true)
         }
       }),
-      { numRuns: 500 },
+      { numRuns: 1000 },
     )
     // The generator reaches valid, non-empty plans, not only refusals.
-    expect(valid).toBeGreaterThan(50)
+    expect(valid).toBeGreaterThan(100)
+  })
+})
+
+describe('validateAiPlan: property, practice blocks', () => {
+  it('accepts a practice block exactly when its items keep the invariant (M6-R5)', () => {
+    fc.assert(
+      fc.property(
+        fc.subarray(['dsa:p1', 'dsa:p2', 'dsa:p3'], { minLength: 1 }),
+        fc.constantFrom(...PROBLEM_MODES),
+        fc.integer({ min: 0, max: 80 }),
+        (itemIds, mode, dsa) => {
+          const result = validateAiPlan(
+            withBlocks({ trackId: 'dsa', kind: 'practice', itemIds, mode }),
+            { ...ALLOW, budgets: { dsa, english: 30 } },
+          )
+          const minutes = itemIds.map((id) => AI_CATALOG.items[id]!.minutes[mode])
+          const planned = minutes.reduce((sum, m) => sum + m, 0)
+          const keeps = planned <= dsa || planned <= dsa + Math.max(...minutes)
+          expect(result.ok).toBe(keeps)
+        },
+      ),
+      { numRuns: 300 },
+    )
   })
 })

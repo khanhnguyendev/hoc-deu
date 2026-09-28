@@ -11,7 +11,7 @@
 import { type ItemMode, ITEM_MODES, type PlanCatalog, type PlanItem } from '../catalog'
 import { own } from '../compare'
 import type { LocalDay } from '../time/localDay'
-import { largestItemMinutes, plannedMinutes } from './buildPlan'
+import { plannedMinutes } from './buildPlan'
 import { type PlanBlock, type PlanBlockItem, planBlockSchema } from './types'
 
 // Public API
@@ -80,6 +80,13 @@ export type AiPlanResult =
 /** §6.4.3 rule 6: the most graphemes a cleaned rationale may hold. */
 export const RATIONALE_MAX_GRAPHEMES = 280
 
+/** The UTF-16 units of a rationale `cleanRationale` reads: enough for 280 graphemes with markup,
+ *  and a bound on the regexes' work (two of them are quadratic on adversarial input). */
+export const RATIONALE_INPUT_MAX = 4096
+
+/** Lessons are compared by `itemType` equality only (as `roadmap.ts` does), never switched on. */
+const LESSON_TYPE = 'lesson'
+
 /** Custom item IDs are `user:<bot_ref>:<slug>` (§6.4.4, decision 17). */
 const CUSTOM_ITEM_PREFIX = 'user:'
 
@@ -122,7 +129,7 @@ export function validateAiPlan(input: AiPlanInput, allow: AiPlanAllowance): AiPl
     if (!allow.activeTrackIds.has(trackId)) continue
     const budget = own(allow.budgets, trackId) ?? 0
     const planned = plannedMinutes(plan, trackId)
-    if (planned > budget && planned > budget + largestItemMinutes(plan, trackId)) {
+    if (planned > budget && planned > budget + largestPlannedItem(blocks, trackId)) {
       issues.push({ path: `tracks.${trackId}`, code: 'over_budget' })
     }
   }
@@ -145,7 +152,7 @@ export function validateAiPlan(input: AiPlanInput, allow: AiPlanAllowance): AiPl
 /** Plain text for a rationale (§6.4.3 rule 6): markup, control characters and URLs removed,
  *  whitespace collapsed, NFC; ≤ 280 graphemes after cleaning, else an issue. */
 export function cleanRationale(text: string): string {
-  let clean = text.normalize('NFC')
+  let clean = text.slice(0, RATIONALE_INPUT_MAX).normalize('NFC')
   // Control characters become spaces; invisible format characters (bidi overrides, zero-width
   // spaces, BOM) go, except the zero-width joiner of emoji sequences.
   clean = clean.replace(/\p{Cc}/gu, ' ').replace(/(?!\u200d)\p{Cf}/gu, '')
@@ -173,6 +180,22 @@ function graphemeCount(text: string): number {
 }
 
 const isDeepDive = (item: PlanItem): boolean => item.about !== null
+
+/** A lesson that is not a deep-dive: a pattern or concept lesson, only ever introduced as new. */
+const isPlainLesson = (item: PlanItem): boolean =>
+  item.itemType === LESSON_TYPE && item.about === null
+
+/**
+ * The §5.4 invariant's "single largest item" for an AI plan (§6.4.3 rule 5, ruling M6-R5): the
+ * largest item minutes of the track. Unlike `largestItemMinutes` of `buildPlan.ts`, a practice
+ * block is not one item: its items are the bot's, so the block's total never raises the limit.
+ */
+function largestPlannedItem(blocks: readonly PlanBlock[], trackId: string): number {
+  return blocks
+    .filter((block) => block.trackId === trackId)
+    .flatMap((block) => block.items.map((planned) => planned.minutes))
+    .reduce((largest, minutes) => Math.max(largest, minutes), 0)
+}
 
 /** The block-level checks, then each item's; the block's planned items (server minutes). */
 function checkBlock(
@@ -231,12 +254,13 @@ function blockModeOk(block: AiBlockInput): boolean {
 /**
  * One item of a block whose kind and mode are valid: the allowance for its kind, the mode for the
  * item, and the planned item with the catalog's minutes (null when an issue was found).
- * - `new`: in `allowedNew`, mode `new`.
+ * - `new`: no deep-dive; in `allowedNew`, mode `new`.
  * - `review` / `recap`: a deep-dive lesson in `openDeepDives` (planned `new`, as `buildPlan`
  *   places a deep-dive before its Weak problem, §5.4 step 3); else in `allowedReview` or
- *   `ownCustomItems`, with the block's mode as the item allows it (problems: recall, redo,
- *   explain-aloud; anything else: review).
- * - `practice`: no deep-dive; in `allowedReview` or `ownCustomItems`; the block's mode as above,
+ *   `ownCustomItems` and not a plain lesson, with the block's mode as the item allows it
+ *   (problems: recall, redo, explain-aloud; anything else: review).
+ * - `practice`: no deep-dive; in `allowedReview` or `ownCustomItems` and not a plain lesson; the
+ *   block's mode as above,
  *   or when omitted the item's default (a problem's quick recall, otherwise review).
  */
 function planItemOf(
@@ -254,6 +278,7 @@ function planItemOf(
   })
 
   if (block.kind === 'new') {
+    if (isDeepDive(item)) return (issue('bad_kind', kindPath), null)
     if (!allow.allowedNew.has(item.id)) return (issue('not_allowed_new'), null)
     return planned('new')
   }
@@ -265,7 +290,8 @@ function planItemOf(
   }
 
   let ok = true
-  if (!allow.allowedReview.has(item.id) && !allow.ownCustomItems.has(item.id)) {
+  const listed = allow.allowedReview.has(item.id) || allow.ownCustomItems.has(item.id)
+  if (isPlainLesson(item) || !listed) {
     issue('not_allowed_review')
     ok = false
   }
