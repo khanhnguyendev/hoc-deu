@@ -1,7 +1,9 @@
 import type { AdminActionResult } from '@/features/admin/actions'
-import type { BotControlsView } from '@/features/admin/bot'
+import { botRunLog, type AdminBotRun, type BotControlsView } from '@/features/admin/bot'
 import { AiFlagToggle } from '@/features/admin/components/ai-flag-toggle'
 import { BotControls } from '@/features/admin/components/bot-controls'
+import { BotRunLog } from '@/features/admin/components/bot-run-log'
+import { fill } from '@/lib/i18n/format'
 import { BotToken } from '@/features/admin/components/bot-token'
 import { vi } from '@/lib/i18n/vi'
 import type { Entry } from '../types'
@@ -41,6 +43,52 @@ const SEEDED: BotControlsView = {
   perRunUserCap: 10,
   capMax: 100,
 }
+
+/** Demo runs for the run log: today's plan run (3 deferred), a timed-out one, a publish run. */
+const DEMO_RUNS: AdminBotRun[] = [
+  {
+    runKey: 'run_2026-09-28_publish-1',
+    kind: 'publish',
+    mode: 'live',
+    status: 'completed',
+    failureReason: null,
+    usersEligible: 0,
+    usersDeferred: 0,
+    outcomes: {},
+    contentPrUrl: 'https://github.com/khanhnguyendev/hoc-deu/pull/42',
+    summary: '2 publish requests; PR #42',
+    startedAt: '2026-09-28T02:00:00Z',
+    finishedAt: '2026-09-28T02:05:00Z',
+  },
+  {
+    runKey: 'run_2026-09-28',
+    kind: 'plan',
+    mode: 'dry_run',
+    status: 'completed',
+    failureReason: null,
+    usersEligible: 13,
+    usersDeferred: 3,
+    outcomes: { dry_run: 7, skipped_gate_closed: 2, skipped_unseen: 1 },
+    contentPrUrl: 'https://github.com/khanhnguyendev/hoc-deu/pull/41',
+    summary: '10 users: 7 plans, 4 custom-item sets, 2 overrides; PR #41',
+    startedAt: '2026-09-27T22:30:00Z',
+    finishedAt: '2026-09-27T23:10:00Z',
+  },
+  {
+    runKey: 'run_2026-09-27',
+    kind: 'plan',
+    mode: 'dry_run',
+    status: 'failed',
+    failureReason: 'timeout',
+    usersEligible: 10,
+    usersDeferred: 0,
+    outcomes: { pending: 6, dry_run: 3, invalid: 1 },
+    contentPrUrl: null,
+    summary: null,
+    startedAt: '2026-09-26T22:30:00Z',
+    finishedAt: '2026-09-27T00:30:00Z',
+  },
+]
 
 export const ADMIN_BOT_ENTRIES: Entry[] = [
   {
@@ -150,6 +198,30 @@ export const ADMIN_BOT_ENTRIES: Entry[] = [
             />
           </div>
         ),
+      },
+    ],
+  },
+  {
+    name: 'BotRunLog',
+    layer: 'features',
+    file: 'features/admin/components/bot-run-log.tsx',
+    demos: [
+      {
+        title: 'Có lần chạy; hôm nay còn người dùng AI bị để lại',
+        render: () => (
+          <BotRunLog
+            log={botRunLog(DEMO_RUNS)}
+            deferredWarning={fill(copy.deferred.warning, { count: '3' })}
+          />
+        ),
+      },
+      {
+        title: 'Chưa có lần chạy nào',
+        render: () => <BotRunLog log={botRunLog([])} />,
+      },
+      {
+        title: 'Không đọc được nhật ký chạy',
+        render: () => <BotRunLog log={botRunLog(null)} />,
       },
     ],
   },

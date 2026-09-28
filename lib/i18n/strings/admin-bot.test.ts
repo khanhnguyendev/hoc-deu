@@ -47,4 +47,16 @@ describe('lib/i18n/strings/admin-bot.ts', () => {
       'Từ 1 đến 100 (giới hạn cứng).',
     )
   })
+
+  it('says the deferred-users warning of §6.2 verbatim, with N filled in (task 6.4a)', () => {
+    expect(fill(adminBot.deferred.warning, { count: 'N' })).toBe(
+      'N người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc giảm số người dùng AI.',
+    )
+    expect(
+      fill(adminBot.runLog.statusWithReason, {
+        status: adminBot.runLog.status.failed,
+        reason: adminBot.runLog.reason.timeout,
+      }),
+    ).toBe('Thất bại (quá 2 giờ)')
+  })
 })

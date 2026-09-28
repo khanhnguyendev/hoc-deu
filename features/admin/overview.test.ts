@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { AdminBotRun } from './bot'
 import type { CoverageWarning } from './content'
 import {
   buildAdminOverview,
@@ -226,6 +227,7 @@ describe('buildAdminOverview — before the first cron run', () => {
       'restore-test',
       'cron',
       'rate-limit-fail-open',
+      'bot',
     ])
     expect(page.system.map((card) => [card.label, card.value, card.hint])).toEqual([
       ['Dung lượng cơ sở dữ liệu', 'chưa có dữ liệu', 'Có sau lần chạy đầu tiên của cron bảo trì.'],
@@ -245,6 +247,7 @@ describe('buildAdminOverview — before the first cron run', () => {
         '0 lần',
         'Trong 7 ngày qua — Upstash lỗi hoặc quá thời gian, bộ nhớ quyết định thay.',
       ],
+      ['Bot AI', 'Chưa chạy', 'Bot chưa chạy lần nào.'],
     ])
   })
 
@@ -480,6 +483,74 @@ describe('buildAdminOverview — rate limits (§8.4 item 5, decision 22)', () =>
     expect(warning).toMatchObject({
       tone: 'warning',
       message: 'Giới hạn tần suất đã mở khi lỗi 3 lần trong 7 ngày qua.',
+    })
+  })
+})
+
+describe('buildAdminOverview — the bot (task 6.4a, §2.4 "deferred AI users and bot health")', () => {
+  // 12:00 UTC on 27 September = 19:00 in Viet Nam: today's plan run is run_2026-09-27.
+  const run = (patch: Partial<AdminBotRun> = {}): AdminBotRun => ({
+    runKey: 'run_2026-09-27',
+    kind: 'plan',
+    mode: 'dry_run',
+    status: 'completed',
+    failureReason: null,
+    usersEligible: 12,
+    usersDeferred: 2,
+    outcomes: { dry_run: 10 },
+    contentPrUrl: null,
+    summary: null,
+    startedAt: '2026-09-26T22:30:00Z',
+    finishedAt: '2026-09-26T23:00:00Z',
+    ...patch,
+  })
+  const withRuns = (botRuns: readonly AdminBotRun[]) =>
+    buildAdminOverview({
+      counts: COUNTS,
+      metrics: HEALTHY,
+      coverage: [],
+      rateLimit: RATE_LIMIT_OK,
+      vercelEnv: 'production',
+      botRuns,
+      now: NOW,
+    })
+  const botCard = (botRuns: readonly AdminBotRun[]) =>
+    withRuns(botRuns).system.find((card) => card.id === 'bot')
+
+  it('warns while today’s plan run has deferred users, with a link to /admin/bot', () => {
+    const warning = withRuns([run()]).warnings.find((w) => w.kind === 'bot-deferred')
+    expect(warning).toEqual({
+      key: 'bot-deferred',
+      kind: 'bot-deferred',
+      tone: 'warning',
+      message:
+        '2 người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc giảm số người dùng AI.',
+      action: { label: 'Mở Bot AI', href: '/admin/bot' },
+    })
+    expect(withRuns([run({ usersDeferred: 0 })]).warnings).toEqual([])
+    expect(withRuns([run({ runKey: 'run_2026-09-26' })]).warnings).toEqual([])
+  })
+
+  it('the Bot card shows the latest run’s status and date, or that it never ran', () => {
+    expect(
+      botCard([
+        run({ runKey: 'run_2026-09-27_publish-1', kind: 'publish', status: 'running' }),
+        run(),
+      ]),
+    ).toEqual({
+      id: 'bot',
+      label: 'Bot AI',
+      value: 'Đang chạy',
+      hint: 'Lần chạy gần nhất: 27 tháng 9, 2026',
+    })
+    expect(botCard([run({ status: 'failed', failureReason: 'timeout' })])?.value).toBe(
+      'Thất bại (quá 2 giờ)',
+    )
+    expect(botCard([])).toEqual({
+      id: 'bot',
+      label: 'Bot AI',
+      value: 'Chưa chạy',
+      hint: 'Bot chưa chạy lần nào.',
     })
   })
 })

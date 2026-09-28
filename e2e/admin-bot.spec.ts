@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test'
 import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { readBotSettingsRow, updateBotSettingsRow } from './support/bot'
+import { deletePastRun, seedPastRun, type PastRunKey } from './support/bot-runs'
 import { expect, test } from './support/test'
 import { createTestUser, deleteTestUser, type TestUser } from './support/users'
 
@@ -12,6 +13,11 @@ import { createTestUser, deleteTestUser, type TestUser } from './support/users'
  * it never touches `enabled`, `dry_run` or the token (6.8's, decision 23) — the rotation dialog is
  * opened and cancelled, never confirmed (the shown-once field is render-tested). The HTTP side of
  * `requireBotToken` (401 / 503 / 429 against real routes) is 6.8's contract suite.
+ *
+ * The run log (task 6.4a) is read from `bot_runs` rows seeded under past keys only — the desktop
+ * project's `run_2000-01-01`, the mobile project's `run_2000-01-02`, so the two never race over a
+ * row — and deleted in `finally` (decision 23). The deferred-users warning reads today's run,
+ * which only 6.8 creates: it is a view-model and render test.
  */
 test.describe.configure({ mode: 'serial' })
 
@@ -132,5 +138,57 @@ test('an admin toggles "Đề xuất nội dung" and saves the per-run cap; both
       content_proposals: before.content_proposals,
       per_run_user_cap: before.per_run_user_cap,
     })
+  }
+})
+
+test('the run log lists the seeded runs with their status, counts and PR link; axe clean', async ({
+  page,
+}, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile'
+  const runKey: PastRunKey = mobile ? 'run_2000-01-02' : 'run_2000-01-01'
+  try {
+    await seedPastRun(
+      runKey,
+      mobile
+        ? {
+            mode: 'live',
+            status: 'failed',
+            failure_reason: 'timeout',
+            users_eligible: 4,
+            users_deferred: 0,
+            content_pr_url: null,
+            summary: null,
+          }
+        : {
+            mode: 'dry_run',
+            status: 'completed',
+            failure_reason: null,
+            users_eligible: 13,
+            users_deferred: 3,
+            content_pr_url: 'https://github.com/khanhnguyendev/hoc-deu/pull/41',
+            summary: '10 users: 7 plans; PR #41',
+          },
+    )
+    await openBotPageAsAdmin(page)
+    const log = page.getByRole('region', { name: 'Nhật ký chạy' })
+    await expect(log.getByRole('region', { name: 'Các lần chạy gần nhất của bot' })).toBeVisible()
+    const row = log.locator(`tr[data-run="${runKey}"]`)
+    await expect(row.getByRole('rowheader')).toContainText(
+      mobile ? '2 tháng 1, 2000' : '1 tháng 1, 2000',
+    )
+    if (mobile) {
+      await expect(row).toContainText('Chạy thật')
+      await expect(row).toContainText('Thất bại (quá 2 giờ)')
+    } else {
+      await expect(row).toContainText('Chạy thử')
+      await expect(row).toContainText('Hoàn tất')
+      await expect(row).toContainText('10 users: 7 plans; PR #41')
+      const pr = row.getByRole('link', { name: /PR #41/ })
+      await expect(pr).toHaveAttribute('href', 'https://github.com/khanhnguyendev/hoc-deu/pull/41')
+      await expect(pr).toHaveAttribute('target', '_blank')
+    }
+    await expectNoAxeViolationsInBothThemes(page)
+  } finally {
+    await deletePastRun(runKey)
   }
 })

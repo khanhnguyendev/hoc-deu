@@ -12,9 +12,10 @@ export {
   type AdminActionResult,
   type BotSettingsInput,
 } from './actions'
-export type { AdminBotPage, BotControlsView, BotTokenView } from './bot'
+export type { AdminBotPage, BotControlsView, BotRunLogView, BotRunRow, BotTokenView } from './bot'
 export { AdminOverview } from './components/admin-overview'
 export { BotControls } from './components/bot-controls'
+export { BotRunLog } from './components/bot-run-log'
 export { BotToken } from './components/bot-token'
 export { CatalogStats } from './components/catalog-stats'
 export { ContentCoverage } from './components/content-coverage'

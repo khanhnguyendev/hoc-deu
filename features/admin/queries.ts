@@ -5,7 +5,13 @@ import { getCatalog } from '@/lib/content/catalog'
 import { serverEnv } from '@/lib/env'
 import { rateLimitMode } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
-import { adminBotSettingsSchema, buildAdminBotPage, type AdminBotPage } from './bot'
+import {
+  adminBotRunsSchema,
+  adminBotSettingsSchema,
+  buildAdminBotPage,
+  type AdminBotPage,
+  type AdminBotRun,
+} from './bot'
 import { buildContentPage, coverageWarnings, type ContentPage, type TrackPosition } from './content'
 import {
   buildAdminOverview,
@@ -124,6 +130,20 @@ async function readFailOpen7d(supabase: Client, now: Date): Promise<number> {
   return data.reduce((sum, row) => sum + Number(row.value), 0)
 }
 
+/** The run log's length (§6.2): `/admin/bot` lists these; `/admin` reads today's run in them. */
+export const BOT_RUN_LOG_LIMIT = 20
+
+/**
+ * `admin_bot_runs(20)`: the latest runs, newest first, with their user counts per outcome —
+ * counts only, no user id or ref (it checks `is_admin()` itself, and times out stale runs first:
+ * the lazy timeout on read, §6.2). An error or a malformed answer throws.
+ */
+async function readBotRuns(supabase: Client): Promise<AdminBotRun[]> {
+  const { data, error } = await supabase.rpc('admin_bot_runs', { p_limit: BOT_RUN_LOG_LIMIT })
+  if (error) throw new Error('Could not read the bot runs', { cause: error })
+  return adminBotRunsSchema.parse(data)
+}
+
 /**
  * `/admin` (§2.4, §8.4 item 5): the aggregate readers (`admin_overview()`,
  * `admin_track_positions()` — counts only, §4.5), the latest ops metrics and the content catalog's
@@ -134,11 +154,12 @@ export async function getAdminOverview(): Promise<AdminOverviewPage> {
   await requireAdmin()
   const supabase = await createClient()
   const now = new Date()
-  const [overview, positions, metrics, failOpen7d] = await Promise.all([
+  const [overview, positions, metrics, failOpen7d, botRuns] = await Promise.all([
     supabase.rpc('admin_overview'),
     readTrackPositions(supabase),
     readMetrics(supabase),
     readFailOpen7d(supabase, now),
+    readBotRuns(supabase),
   ])
   if (overview.error)
     throw new Error('Could not read the admin overview', { cause: overview.error })
@@ -153,6 +174,7 @@ export async function getAdminOverview(): Promise<AdminOverviewPage> {
     coverage: coverageWarnings(getCatalog(), positions),
     rateLimit: { mode: rateLimitMode(), failOpen7d },
     vercelEnv: serverEnv().vercelEnv,
+    botRuns,
     now,
   })
 }
@@ -170,17 +192,26 @@ export async function getAdminContent(): Promise<ContentPage> {
 /**
  * `/admin/bot` (§2.4, §6.2, §6.3): `admin_bot_settings()` as the admin's own session (it checks
  * `is_admin()` itself and never returns a hash) and `BOT_API_ENABLED`, read on the server — the
- * page can say the env lock is off, the switch itself is env-only. Any failed read throws, so the
- * route's error boundary shows "Thử lại".
+ * page can say the env lock is off, the switch itself is env-only — and the run log
+ * (`admin_bot_runs(20)`, task 6.4a). A failed settings read throws, so the route's error boundary
+ * shows "Thử lại"; a failed run-log read shows the log's own error state and keeps the controls
+ * (the kill switch must stay reachable).
  */
 export async function getAdminBot(): Promise<AdminBotPage> {
   await requireAdmin()
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('admin_bot_settings')
-  if (error) throw new Error('Could not read the bot settings', { cause: error })
+  const [settings, runs] = await Promise.all([
+    supabase.rpc('admin_bot_settings'),
+    readBotRuns(supabase).catch(() => {
+      console.error('[admin] the bot run log could not be read')
+      return null
+    }),
+  ])
+  if (settings.error) throw new Error('Could not read the bot settings', { cause: settings.error })
   return buildAdminBotPage({
-    settings: adminBotSettingsSchema.parse(data),
+    settings: adminBotSettingsSchema.parse(settings.data),
     apiEnabled: serverEnv().botApiEnabled,
+    runs,
     now: new Date(),
   })
 }

@@ -1,7 +1,8 @@
 /**
  * `/admin/bot` and the AI flag in `/admin/users` (§2.4, §6.2, §6.3; ADR-0026; Part B-M6 decision
  * 3): only tasks 6.3 and 6.4a edit this file, in their waves. `{time}` is a clock time, `{day}` a
- * formatted day, `{max}` a formatted number, `{name}` a display name (inserted literally).
+ * formatted day, `{max}` and `{count}` formatted numbers, `{name}` a display name (inserted
+ * literally), `{n}` a publish run's number, `{status}` / `{reason}` labels below.
  */
 export const adminBot = {
   /** The sidebar entry and the page title. */
@@ -79,5 +80,59 @@ export const adminBot = {
     invalid: 'Cài đặt bot không hợp lệ.',
     failed: 'Không lưu được cài đặt bot. Bạn thử lại nhé.',
     rotateFailed: 'Không tạo được token mới. Bạn thử lại nhé.',
+  },
+  /** `/admin/bot`'s run log (`admin_bot_runs(20)`; task 6.4a, §6.2). */
+  runLog: {
+    title: 'Nhật ký chạy',
+    description: '20 lần chạy gần nhất, mới nhất trước. Chỉ có số đếm, không có người dùng nào.',
+    /** The table's accessible name (its scroll region). */
+    label: 'Các lần chạy gần nhất của bot',
+    columns: {
+      run: 'Lần chạy',
+      kind: 'Loại',
+      mode: 'Chế độ',
+      status: 'Trạng thái',
+      eligible: 'Đủ điều kiện',
+      pending: 'Đang chờ',
+      applied: 'Đã áp dụng',
+      dryRun: 'Chạy thử',
+      skipped: 'Bỏ qua',
+      invalid: 'Không hợp lệ',
+      error: 'Lỗi',
+      deferred: 'Để lại',
+      pr: 'Pull request',
+      summary: 'Tóm tắt',
+    },
+    /** Under the run's date: when it started (Asia/Ho_Chi_Minh). */
+    startedAt: 'bắt đầu {time}',
+    kind: { plan: 'Kế hoạch', publish: 'Xuất bản {n}' },
+    mode: { live: 'Chạy thật', dry_run: 'Chạy thử' },
+    status: { running: 'Đang chạy', completed: 'Hoàn tất', failed: 'Thất bại' },
+    /** A failure with its reason: `Thất bại (quá 2 giờ)`. */
+    statusWithReason: '{status} ({reason})',
+    reason: { timeout: 'quá 2 giờ', reported: 'bot báo lỗi' },
+    prLabel: 'PR #{number}',
+    none: '—',
+    empty: {
+      title: 'Chưa có lần chạy nào',
+      description: 'Lần chạy đầu tiên của bot sẽ hiện ở đây.',
+    },
+    error: {
+      title: 'Không đọc được nhật ký chạy',
+      description: 'Các điều khiển vẫn dùng được. Bạn tải lại trang để thử lại nhé.',
+    },
+  },
+  /** Today's plan run left eligible users out (§2.4, §6.2): on `/admin` and `/admin/bot`. */
+  deferred: {
+    warning:
+      '{count} người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc giảm số người dùng AI.',
+    action: 'Mở Bot AI',
+  },
+  /** The "Bot AI" card of `/admin`'s system section: the latest run's status. */
+  overview: {
+    label: 'Bot AI',
+    lastRun: 'Lần chạy gần nhất: {day}',
+    never: 'Chưa chạy',
+    neverHint: 'Bot chưa chạy lần nào.',
   },
 } as const

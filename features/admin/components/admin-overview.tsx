@@ -1,5 +1,6 @@
 import {
   Ban,
+  Bot,
   CalendarCheck,
   CalendarClock,
   Database,
@@ -29,6 +30,7 @@ const SYSTEM_ICONS: Readonly<Record<SystemCard['id'], LucideIcon>> = {
   'restore-test': RotateCcw,
   cron: CalendarClock,
   'rate-limit-fail-open': Gauge,
+  bot: Bot,
 }
 
 /**

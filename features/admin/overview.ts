@@ -9,6 +9,7 @@ import type { VercelEnv } from '@/lib/env'
 import { fill, formatDayTimeIn, formatNumber, variantLabel } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { REPOSITORY_URL } from '@/lib/ops/repository'
+import { deferredWarning, runDay, runStatusLabel, type AdminBotRun } from './bot'
 import type { CoverageWarning } from './content'
 
 const copy = vi.adminOverview
@@ -74,6 +75,7 @@ export type AdminWarning = {
     | 'coverage'
     | 'rate-limit-memory'
     | 'rate-limit-fail-open'
+    | 'bot-deferred'
   /** `danger`: red (coverage) and critical; `warning`: the rest (DESIGN_SYSTEM §9 Banners). */
   readonly tone: 'danger' | 'warning'
   readonly message: string
@@ -82,7 +84,7 @@ export type AdminWarning = {
 }
 
 export type SystemCard = {
-  readonly id: 'db-size' | 'backup' | 'restore-test' | 'cron' | 'rate-limit-fail-open'
+  readonly id: 'db-size' | 'backup' | 'restore-test' | 'cron' | 'rate-limit-fail-open' | 'bot'
   readonly label: string
   readonly value: string
   readonly hint: string
@@ -100,7 +102,7 @@ export type AdminOverviewPage = {
   /** Red and critical first, then the warnings. */
   readonly warnings: readonly AdminWarning[]
   readonly counts: AdminCounts
-  /** DB size, last backup, last restore test, last cron run. */
+  /** DB size, last backup, last restore test, last cron run, fail-open count, the bot. */
   readonly system: readonly SystemCard[]
   readonly links: readonly AdminLink[]
 }
@@ -276,6 +278,33 @@ function rateLimitFailOpenCard(rateLimit: RateLimitOverview): SystemCard {
   }
 }
 
+/** §2.4 "deferred AI users": today's plan run left eligible users out (task 6.4a, §6.2). */
+function botDeferredWarning(botRuns: readonly AdminBotRun[], now: Date): AdminWarning | null {
+  const message = deferredWarning(botRuns, now)
+  if (message === null) return null
+  return {
+    key: 'bot-deferred',
+    kind: 'bot-deferred',
+    tone: 'warning',
+    message,
+    action: { label: vi.adminBot.deferred.action, href: '/admin/bot' },
+  }
+}
+
+/** §2.4 "bot health": the latest run's status (and a failure's reason) and its date. */
+function botCard(botRuns: readonly AdminBotRun[]): SystemCard {
+  const base = { id: 'bot' as const, label: vi.adminBot.overview.label }
+  const [latest] = botRuns
+  if (latest === undefined) {
+    return { ...base, value: vi.adminBot.overview.never, hint: vi.adminBot.overview.neverHint }
+  }
+  return {
+    ...base,
+    value: runStatusLabel(latest),
+    hint: fill(vi.adminBot.overview.lastRun, { day: runDay(latest) }),
+  }
+}
+
 const NO_DATA = { value: copy.system.noData, hint: copy.system.noDataHint }
 
 /**
@@ -311,7 +340,12 @@ function dbSizeCard(reading: MetricReading | null, now: Date): SystemCard {
   }
 }
 
-function systemCards(metrics: OpsMetrics, rateLimit: RateLimitOverview, now: Date): SystemCard[] {
+function systemCards(
+  metrics: OpsMetrics,
+  rateLimit: RateLimitOverview,
+  botRuns: readonly AdminBotRun[],
+  now: Date,
+): SystemCard[] {
   const cronHasRun = metrics['cron.last_run_at'] !== null
   return [
     dbSizeCard(metrics['db.size_bytes'], now),
@@ -324,6 +358,7 @@ function systemCards(metrics: OpsMetrics, rateLimit: RateLimitOverview, now: Dat
     ),
     instantCard('cron', copy.system.cron, metrics['cron.last_run_at'], false),
     rateLimitFailOpenCard(rateLimit),
+    botCard(botRuns),
   ]
 }
 
@@ -333,9 +368,12 @@ export function buildAdminOverview(input: {
   coverage: readonly CoverageWarning[]
   rateLimit: RateLimitOverview
   vercelEnv: VercelEnv | undefined
+  /** `admin_bot_runs(20)`, newest first (task 6.4a); none by default. */
+  botRuns?: readonly AdminBotRun[]
   now: Date
 }): AdminOverviewPage {
   const { counts, metrics, rateLimit, vercelEnv, now } = input
+  const botRuns = input.botRuns ?? []
   const cron = metrics['cron.last_run_at']
   const cronIsStale = cron !== null && isOldReading(cron, now)
   const redWeeks = input.coverage.reduce((sum, warning) => sum + warning.weeks.length, 0)
@@ -347,6 +385,7 @@ export function buildAdminOverview(input: {
     runWarning('restore-test', metrics['restore_test.last_success_at'], cron, cronIsStale, now),
     rateLimitMemoryWarning(rateLimit, vercelEnv),
     rateLimitFailOpenWarning(rateLimit),
+    botDeferredWarning(botRuns, now),
   ].filter((warning) => warning !== null)
   return {
     // A stable sort: red and critical first, each group in the order above.
@@ -355,7 +394,7 @@ export function buildAdminOverview(input: {
       ...warnings.filter((warning) => warning.tone === 'warning'),
     ],
     counts,
-    system: systemCards(metrics, rateLimit, now),
+    system: systemCards(metrics, rateLimit, botRuns, now),
     links: [
       {
         href: '/admin/users',

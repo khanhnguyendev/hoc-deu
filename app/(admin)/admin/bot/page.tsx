@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/patterns/page-header'
 import { Section } from '@/components/patterns/section'
 import {
   BotControls,
+  BotRunLog,
   BotToken,
   getAdminBot,
   rotateBotToken,
@@ -16,9 +17,10 @@ const copy = vi.adminBot
 export const metadata: Metadata = { title: `${copy.nav} — Học Đều` }
 
 /**
- * Bot AI (§2.4, §6.2, §6.3; task 6.3): the "Chưa bật API bot" banner while `BOT_API_ENABLED` is
- * off (env-only — the page says so, the switch cannot change it), the controls and the token. The
- * run log and the deferred-users warning arrive with 6.4a.
+ * Bot AI (§2.4, §6.2, §6.3; tasks 6.3, 6.4a): the "Chưa bật API bot" banner while
+ * `BOT_API_ENABLED` is off (env-only — the page says so, the switch cannot change it), the
+ * controls, the token, and the run log (`admin_bot_runs(20)`, which also applies the lazy 2-hour
+ * timeout) with the deferred-users warning above it while today's plan run left users out.
  */
 export default async function AdminBotPage() {
   const page = await getAdminBot()
@@ -31,6 +33,9 @@ export default async function AdminBotPage() {
       </Section>
       <Section title={copy.token.title}>
         <BotToken token={page.token} rotateBotToken={rotateBotToken} />
+      </Section>
+      <Section title={copy.runLog.title} description={copy.runLog.description}>
+        <BotRunLog log={page.runLog} deferredWarning={page.deferredWarning} />
       </Section>
     </>
   )

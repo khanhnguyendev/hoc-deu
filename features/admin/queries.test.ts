@@ -209,6 +209,7 @@ describe('getAdminOverview', () => {
       expect.arrayContaining([
         ['rpc', 'admin_overview'],
         ['rpc', 'admin_track_positions'],
+        ['rpc', 'admin_bot_runs'],
         ...[
           'db.size_bytes',
           'backup.last_success_at',
@@ -231,7 +232,7 @@ describe('getAdminOverview', () => {
         ],
       ]),
     )
-    expect(fake.calls).toHaveLength(8)
+    expect(fake.calls).toHaveLength(9)
     expect(page.counts).toEqual({
       users: { pending: 2, active: 7, suspended: 1, rejected: 0 },
       learnersCompleted7d: 4,
@@ -246,6 +247,7 @@ describe('getAdminOverview', () => {
       'chưa có dữ liệu',
       'chưa có dữ liệu',
       '0 lần',
+      'Chưa chạy',
     ])
   })
 
@@ -301,6 +303,7 @@ describe('getAdminOverview', () => {
     ['admin_overview', { admin_overview: { data: null, error: { message: 'forbidden' } } }],
     ['an unreadable overview', { admin_overview: { data: { users: {} }, error: null } }],
     ['admin_track_positions', { admin_track_positions: { data: null, error: { message: 'x' } } }],
+    ['admin_bot_runs', { admin_bot_runs: { data: null, error: { message: 'x' } } }],
   ])('throws when %s fails, so the error boundary shows "Thử lại"', async (_name, rpcs) => {
     fake.rpcs = { admin_overview: { data: OVERVIEW, error: null }, ...rpcs }
     await expect(getAdminOverview()).rejects.toThrow()
@@ -368,8 +371,45 @@ describe('getAdminBot (/admin/bot, §2.4)', () => {
         capMax: 100,
       },
       token: { state: 'none' },
+      runLog: { state: 'empty' },
+      deferredWarning: null,
     })
-    expect(fake.calls).toEqual([['requireAdmin'], ['rpc', 'admin_bot_settings']])
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_bot_settings'],
+      ['rpc', 'admin_bot_runs'],
+    ])
+  })
+
+  it('reads the run log (counts only); a failed read shows its error state, the controls stay', async () => {
+    const run = {
+      runKey: 'run_2026-09-28',
+      kind: 'plan',
+      mode: 'dry_run',
+      status: 'running',
+      failureReason: null,
+      usersEligible: 3,
+      usersDeferred: 0,
+      outcomes: { pending: 3 },
+      contentPrUrl: null,
+      summary: null,
+      startedAt: '2026-09-27T22:30:00Z',
+      finishedAt: null,
+    }
+    fake.rpcs = {
+      admin_bot_settings: { data: BOT_SETTINGS, error: null },
+      admin_bot_runs: { data: [run], error: null },
+    }
+    const page = await getAdminBot()
+    expect(page.runLog.state).toBe('ready')
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs.admin_bot_runs = { data: null, error: { message: 'forbidden' } }
+    const failed = await getAdminBot()
+    expect(failed.runLog).toEqual({ state: 'error' })
+    expect(failed.controls.perRunUserCap).toBe(10)
+    fake.rpcs.admin_bot_runs = { data: [{ ...run, outcomes: { pending: -1 } }], error: null }
+    expect((await getAdminBot()).runLog).toEqual({ state: 'error' })
   })
 
   it('says when BOT_API_ENABLED is off', async () => {

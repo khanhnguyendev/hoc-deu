@@ -85,4 +85,47 @@ describe('AdminOverview', () => {
     expect(content.getAttribute('href')).toBe('/admin/content')
     expect(content.textContent).toContain('2 tuần cần bổ sung nội dung')
   })
+
+  it('shows the deferred AI users warning and the Bot card (task 6.4a)', () => {
+    render(
+      <AdminOverview
+        page={buildAdminOverview({
+          counts: COUNTS,
+          metrics: NO_METRICS,
+          coverage: [],
+          rateLimit: { mode: 'upstash', failOpen7d: 0 },
+          vercelEnv: 'production',
+          botRuns: [
+            {
+              runKey: 'run_2026-09-27',
+              kind: 'plan',
+              mode: 'dry_run',
+              status: 'completed',
+              failureReason: null,
+              usersEligible: 12,
+              usersDeferred: 2,
+              outcomes: { dry_run: 10 },
+              contentPrUrl: null,
+              summary: null,
+              startedAt: '2026-09-26T22:30:00Z',
+              finishedAt: '2026-09-26T23:00:00Z',
+            },
+          ],
+          now: NOW,
+        })}
+      />,
+    )
+    const warnings = screen.getByRole('region', { name: 'Cảnh báo' })
+    expect(
+      within(warnings).getByText(
+        '2 người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc giảm số người dùng AI.',
+      ),
+    ).toBeTruthy()
+    expect(within(warnings).getByRole('link', { name: 'Mở Bot AI' }).getAttribute('href')).toBe(
+      '/admin/bot',
+    )
+    const system = screen.getByRole('region', { name: 'Hệ thống' })
+    expect(statValue(system, 'Bot AI')).toContain('Hoàn tất')
+    expect(statValue(system, 'Bot AI')).toContain('Lần chạy gần nhất: 27 tháng 9, 2026')
+  })
 })

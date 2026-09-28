@@ -2409,7 +2409,9 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
   (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam; the
-  Upstash rate-limit fail-open count of the last 7 days, task 6.1); "Trang quản trị" (a LinkList of
+  Upstash rate-limit fail-open count of the last 7 days, task 6.1; "Bot AI" — the latest bot run's
+  status with a failure's reason and "Lần chạy gần nhất: {day}", or "Chưa chạy" / "Bot chưa chạy
+  lần nào.", task 6.4a); "Trang quản trị" (a LinkList of
   LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
 - **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
   named (§4.5)
@@ -2423,7 +2425,9 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
   "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days, and —
   once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào"; task 6.1:
-  the in-memory rate-limit mode in production, and a fail-open count above 0 in the last 7 days)
+  the in-memory rate-limit mode in production, and a fail-open count above 0 in the last 7 days;
+  task 6.4a: "N người dùng AI không được xử lý hôm nay — …" with "Mở Bot AI" while today's plan
+  run deferred users)
 - **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
 - **Usage:** rendered by AdminOverview
 - **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link
@@ -2540,6 +2544,29 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   "Cá nhân hoá AI cho {name}" (`aria-label`, the visible label first — label in name), so each
   row's switch is told apart; the reason and the error are linked by `aria-describedby`; the
   state is the thumb's position, never colour alone
+
+### BotRunLog
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/bot-run-log.tsx`
+- **Props:** `log: BotRunLogView` (`{ state: 'ready', rows }` · `{ state: 'empty' }` · `{ state:
+  'error' }`, from `getAdminBot()`'s `admin_bot_runs(20)`), `deferredWarning?: string | null`
+- **Variants:** —
+- **States:** ready — a DataTable "Các lần chạy gần nhất của bot", newest first: the run's date
+  with "bắt đầu {time}" (Asia/Ho_Chi_Minh) as the row header, kind ("Kế hoạch" / "Xuất bản {n}"),
+  mode ("Chạy thật" / "Chạy thử"), status with its icon ("Đang chạy", "Hoàn tất", "Thất bại (quá
+  2 giờ)" / "(bot báo lỗi)"), the counts (đủ điều kiện, đang chờ, đã áp dụng, chạy thử, bỏ qua —
+  the three `skipped_*`, không hợp lệ, lỗi, để lại), the content PR link ("PR #41", new tab) and
+  the bot's summary (counts only), "—" where there is none; with the deferred-users warning — a
+  `warning` Banner above the table ("N người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc
+  giảm số người dùng AI."); empty — EmptyState "Chưa có lần chạy nào"; error — ErrorState "Không
+  đọc được nhật ký chạy" (the page's controls stay usable: the run log's read failing never takes
+  the kill switch down)
+- **Usage:** `<Section title="Nhật ký chạy" description={…}><BotRunLog log={page.runLog}
+  deferredWarning={page.deferredWarning} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
+- **Accessibility:** the table is a focusable, labelled scroll region; each row's date is its row
+  header; status is an icon and words, never colour alone; the PR link says it opens a new tab;
+  counts only — no learner is named (§4.5)
 
 ### AI plan components (`features/today/components`)
 
