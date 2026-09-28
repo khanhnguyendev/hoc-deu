@@ -472,6 +472,34 @@ describe('writeOverrides — the counts (decision 33; SQL’s under its lock)', 
     }
     expect(await write({ set: [insert()] })).toEqual({ status: 409, body: { error: 'ai_off' } })
   })
+
+  it('a kind-change race (another write took the key with another kind) is invalid kind_changed, not a 500', async () => {
+    const db = setup()
+    const { RaisedError } = await import('./__fixtures__/fake-db')
+    db.rpc.apply_system_event = () => {
+      // Between the check and the write, the key was set with another kind.
+      db.tables.roadmap_overrides!.push(stored('extra_week', 'ah-extra-practice'))
+      throw new RaisedError('invalid_event')
+    }
+    const answer = await write({ set: [insert()] })
+    expect(answer.status).toBe(422)
+    expect(details(answer)).toEqual([
+      expect.objectContaining({
+        path: 'set.0.kind',
+        code: 'kind_changed',
+        written: { set: [], revoked: [] },
+      }),
+    ])
+  })
+
+  it('an invalid_event that is not a kind change is still an internal error', async () => {
+    const db = setup()
+    const { RaisedError } = await import('./__fixtures__/fake-db')
+    db.rpc.apply_system_event = () => {
+      throw new RaisedError('invalid_event')
+    }
+    await expect(write({ set: [insert()] })).rejects.toThrow()
+  })
 })
 
 describe('writeOverrides — dry run and the AI flag', () => {

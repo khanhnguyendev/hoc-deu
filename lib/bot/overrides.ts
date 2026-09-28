@@ -346,20 +346,26 @@ function overridesProposal(request: OverridesRequest): Json {
 /** What a live write had written when the database refused a later part of it. */
 type Written = { readonly set: TrackKey[]; readonly revoked: TrackKey[] }
 
-/** A database refusal part-way through a live write: the answer, or null to rethrow. */
+/**
+ * A database refusal part-way through a live write: the answer, or null to rethrow. `kindChanged`
+ * re-reads the entry's row: SQL's `invalid_event` for a key another write took with another kind
+ * between the check and this write (a race — the bot is one serial client, ADR-0027) is the same
+ * `kind_changed` the check gives, not a 500.
+ */
 async function refused(
   error: unknown,
   path: string,
   written: Written,
   active: () => Promise<TrackKey[]>,
+  kindChanged: () => Promise<boolean>,
 ): Promise<OverridesAnswer | null> {
   if (!(error instanceof EventError)) return null
   if (error.code === 'ai_off') return { status: 409, body: { error: 'ai_off' } }
-  const detail = async (code: string, message: string, retryable: boolean) =>
+  const detail = async (code: string, message: string, retryable: boolean, at = path) =>
     invalid(
       [
         {
-          path,
+          path: at,
           code,
           message,
           ...(retryable ? { retryable: true } : {}),
@@ -373,6 +379,14 @@ async function refused(
   }
   if (error.code === 'invalid_event' && (await readBotSettings()).settings.dryRun) {
     return detail('dry_run_started', 'dry-run was turned on during the request; retry it', true)
+  }
+  if (error.code === 'invalid_event' && (await kindChanged())) {
+    return detail(
+      'kind_changed',
+      'the key is in use by another kind (use a new key)',
+      false,
+      `${path}.kind`,
+    )
   }
   if (['limit_reached', 'cooldown', 'revoked_key', 'not_enrolled'].includes(error.code)) {
     return detail(error.code, 'refused by the database', false)
@@ -421,6 +435,11 @@ export async function writeOverrides(
 
   const active = async () =>
     activeOf(await readOverrideRows(admin, runUser.userId, day.today), day.today)
+  /** Whether the row under this key now holds another kind than the entry's. */
+  const kindChangedOf = (entry: TrackKey & { kind: string }) => async () =>
+    (await readOverrideRows(admin, runUser.userId, day.today)).some(
+      (row) => row.trackId === entry.trackId && row.key === entry.key && row.kind !== entry.kind,
+    )
   const written: Written = { set: [], revoked: [] }
   for (const row of checked.revoke) {
     const at = { trackId: row.trackId, key: row.key }
@@ -436,7 +455,7 @@ export async function writeOverrides(
       })
     } catch (error) {
       const index = request.revoke.findIndex((e) => idOf(e) === idOf(row))
-      const answer = await refused(error, `revoke.${index}`, written, active)
+      const answer = await refused(error, `revoke.${index}`, written, active, kindChangedOf(row))
       if (answer === null) throw error
       return answer
     }
@@ -461,7 +480,13 @@ export async function writeOverrides(
         })
       } catch (error) {
         const index = request.set.findIndex((e) => idOf(e) === idOf(override))
-        const answer = await refused(error, `set.${index}`, written, active)
+        const answer = await refused(
+          error,
+          `set.${index}`,
+          written,
+          active,
+          kindChangedOf(override),
+        )
         if (answer === null) throw error
         return answer
       }
