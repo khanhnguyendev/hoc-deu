@@ -80,6 +80,21 @@ describe('BotControls (§6.2)', () => {
     },
   )
 
+  it('follows a re-render with a new saved cap (this save, or another admin’s)', () => {
+    const updateBotSettings = mock.fn<(input: BotSettingsInput) => Promise<AdminActionResult>>()
+    const { rerender } = render(
+      <BotControls controls={CONTROLS} updateBotSettings={updateBotSettings} />,
+    )
+    expect((cap() as HTMLInputElement).value).toBe('10')
+    rerender(
+      <BotControls
+        controls={{ ...CONTROLS, perRunUserCap: 42 }}
+        updateBotSettings={updateBotSettings}
+      />,
+    )
+    expect((cap() as HTMLInputElement).value).toBe('42')
+  })
+
   it('on a failed save goes back to the saved state and says why beside the control', async () => {
     const { user } = setup(CONTROLS, { ok: false, message: 'Không lưu được (y).' })
     await user.click(control('Bật bot'))

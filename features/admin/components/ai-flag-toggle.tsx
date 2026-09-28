@@ -4,6 +4,7 @@ import { CircleAlert } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { AccountStatus } from '@/lib/auth/dal'
+import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { AdminActionResult } from '../actions'
 import { useSavedSwitch } from './use-saved-switch'
@@ -39,6 +40,8 @@ function AiFlagToggle({
           id={id}
           checked={value}
           disabled={!active}
+          // The visible label, then the account: each row's switch has its own name (label in name).
+          aria-label={`${copy.label} ${fill(copy.forName, { name: user.name })}`}
           aria-busy={pending || undefined}
           aria-describedby={describedBy || undefined}
           onCheckedChange={change}

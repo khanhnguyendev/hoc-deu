@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { deleteOpsMetric, seedOpsMetric } from './support/admin'
-import { getAiFlag } from './support/bot'
+import { getAiFlag, setAiFlagOff } from './support/bot'
 import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { seedPlan, snapshot } from './support/plans'
@@ -183,28 +183,38 @@ test.describe('/admin/users', () => {
     const learner = await user({ status: 'active', name: uniqueName('Cá nhân hoá') })
     const pending = await user({ status: 'pending', name: uniqueName('Chưa duyệt AI') })
     const admin = await openQueueAsAdmin(page)
+    // Each switch is named with its account ("Cá nhân hoá AI cho {name}").
     const flag = (name: string) =>
-      row(page, ACTIVE, name).getByRole('switch', { name: 'Cá nhân hoá AI', exact: true })
+      row(page, ACTIVE, name).getByRole('switch', {
+        name: `Cá nhân hoá AI cho ${name}`,
+        exact: true,
+      })
 
-    await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'false')
-    // Active accounts only: none in the queue.
-    await expect(row(page, PENDING, pending.name).getByRole('switch')).toHaveCount(0)
-    await expectNoAxeViolationsInBothThemes(page)
+    // 6.8's run counts eligible (AI-flagged) users globally: every flag this test turns on is
+    // turned off again, whatever happens.
+    try {
+      await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'false')
+      // Active accounts only: none in the queue.
+      await expect(row(page, PENDING, pending.name).getByRole('switch')).toHaveCount(0)
+      await expectNoAxeViolationsInBothThemes(page)
 
-    await flag(learner.name).click()
-    await expect(page.getByText('Đã bật cá nhân hoá AI.').first()).toBeVisible()
-    await expect.poll(() => getAiFlag(learner.id)).toBe(true)
-    await page.reload()
-    await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'true')
+      await flag(learner.name).click()
+      await expect(page.getByText('Đã bật cá nhân hoá AI.').first()).toBeVisible()
+      await expect.poll(() => getAiFlag(learner.id)).toBe(true)
+      await page.reload()
+      await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'true')
 
-    await flag(learner.name).click()
-    await expect(page.getByText('Đã tắt cá nhân hoá AI.').first()).toBeVisible()
-    await expect.poll(() => getAiFlag(learner.id)).toBe(false)
+      await flag(learner.name).click()
+      await expect(page.getByText('Đã tắt cá nhân hoá AI.').first()).toBeVisible()
+      await expect.poll(() => getAiFlag(learner.id)).toBe(false)
 
-    await flag(admin.name).click()
-    await expect.poll(() => getAiFlag(admin.id)).toBe(true)
-    await page.reload()
-    await expect(flag(admin.name)).toHaveAttribute('aria-checked', 'true')
+      await flag(admin.name).click()
+      await expect.poll(() => getAiFlag(admin.id)).toBe(true)
+      await page.reload()
+      await expect(flag(admin.name)).toHaveAttribute('aria-checked', 'true')
+    } finally {
+      await Promise.all([learner.id, admin.id].map((id) => setAiFlagOff(id)))
+    }
   })
 
   test('a stale "Duyệt" does not re-activate an account another admin rejected (p_expected_from)', async ({

@@ -57,9 +57,10 @@ test('an admin sees the controls and the token; axe clean in both themes, the di
   await expect(tokenSection).toContainText(/Chưa có token|Token hiện tại tạo lúc|Đã có token/)
   await expectNoAxeViolationsInBothThemes(page)
 
-  // The rotation asks first; cancelled here, so 6.8's token stays as it is.
+  // The rotation asks first (the first token has its own title); cancelled here, so 6.8’s token
+  // stays as it is.
   await tokenSection.getByRole('button', { name: 'Tạo token mới' }).click()
-  const dialog = page.getByRole('alertdialog', { name: 'Tạo token mới?' })
+  const dialog = page.getByRole('alertdialog', { name: /^Tạo token (mới|đầu tiên)\?$/ })
   await expect(dialog).toBeVisible()
   await expectNoAxeViolationsInBothThemes(page, { disableRules: ['aria-hidden-focus'] })
   await dialog.getByRole('button', { name: 'Huỷ' }).click()

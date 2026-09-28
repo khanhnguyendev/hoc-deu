@@ -32,15 +32,18 @@ function setup(
   return { setAiFlag, message, user: userEvent.setup() }
 }
 
-const toggle = () => screen.getByRole('switch', { name: 'Cá nhân hoá AI' })
+const toggle = () => screen.getByRole('switch', { name: 'Cá nhân hoá AI cho Trần Thị Bình' })
 
 describe('AiFlagToggle (decision 34)', () => {
-  it.each([false, true])('shows the flag (%s) under a visible label', (on) => {
-    setup('active', on)
-    expect(screen.getByText('Cá nhân hoá AI')).toBeTruthy()
-    expect(toggle().getAttribute('aria-checked')).toBe(String(on))
-    expect((toggle() as HTMLButtonElement).disabled).toBe(false)
-  })
+  it.each([false, true])(
+    'shows the flag (%s) under a visible label, named with the account',
+    (on) => {
+      setup('active', on)
+      expect(screen.getByText('Cá nhân hoá AI')).toBeTruthy()
+      expect(toggle().getAttribute('aria-checked')).toBe(String(on))
+      expect((toggle() as HTMLButtonElement).disabled).toBe(false)
+    },
+  )
 
   it('turns the flag on: calls setAiFlag, toasts, and shows the new state', async () => {
     const { setAiFlag, message, user } = setup('active', false)

@@ -63,9 +63,17 @@ function SettingSwitch({
 /** The per-run user cap (1–`max`), a number field saved by its own "Lưu". */
 function CapForm({ saved, max, update }: { saved: number; max: number; update: Update }) {
   const [value, setValue] = useState(String(saved))
+  const [lastSaved, setLastSaved] = useState(saved)
   const [invalid, setInvalid] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  // The page re-rendered with another saved cap (this save, or another admin's): follow it.
+  if (saved !== lastSaved) {
+    setLastSaved(saved)
+    setValue(String(saved))
+    setInvalid(false)
+  }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

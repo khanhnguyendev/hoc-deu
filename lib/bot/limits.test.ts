@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { botLimitsInput, effectiveLimits, HARD_LIMITS } from './limits'
+import { effectiveLimits, HARD_LIMITS } from './limits'
 
 describe('HARD_LIMITS (decision 33)', () => {
   it('are the spec’s hard maxima', () => {
@@ -55,24 +55,5 @@ describe('effectiveLimits: stored limits can only lower the hard maxima', () => 
     const stored = Object.freeze({ customItemsPerDay: 50 })
     effectiveLimits(stored)
     expect(stored).toEqual({ customItemsPerDay: 50 })
-  })
-})
-
-describe('botLimitsInput: what /admin/bot may store', () => {
-  it('accepts values at or under the maxima, whole numbers for the counts', () => {
-    expect(botLimitsInput.safeParse({ customItemsPerDay: 10, insertBlockShare: 0.2 }).success).toBe(
-      true,
-    )
-    expect(botLimitsInput.safeParse({}).success).toBe(true)
-  })
-
-  it.each([
-    [{ customItemsPerDay: 11 }],
-    [{ insertBlockShare: 0.3 }],
-    [{ customItemsActive: -1 }],
-    [{ overridesPerTrack: 1.5 }],
-    [{ unknown: 1 }],
-  ])('refuses %j', (value) => {
-    expect(botLimitsInput.safeParse(value).success).toBe(false)
   })
 })

@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, type AccountStatus, type Role } from '@/lib/auth/dal'
-import { botLimitsInput } from '@/lib/bot/limits'
 import { newBotToken } from '@/lib/bot/token'
 import { vi } from '@/lib/i18n/vi'
 import { checkLimit } from '@/lib/rate-limit'
@@ -123,14 +122,16 @@ export async function setUserRole(userId: string, role: Role): Promise<AdminActi
 // admin-action rate limit, then the input; the RPCs run with the admin's own session.
 // ---------------------------------------------------------------------------------------------
 
-/** One field per form (§2.4): a switch, the per-run cap (1–100) or limits under the hard maxima. */
+/**
+ * One field per form (§2.4): a switch or the per-run cap (1–100). No `limits`: no UI sets them, and
+ * the hard maxima are enforced at read time (`effectiveLimits`, decision 33).
+ */
 const botSettingsInput = z
   .strictObject({
     enabled: z.boolean().optional(),
     dryRun: z.boolean().optional(),
     contentProposals: z.boolean().optional(),
     perRunUserCap: z.number().int().min(1).max(100).optional(),
-    limits: botLimitsInput.optional(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined))
 
@@ -155,14 +156,14 @@ export async function updateBotSettings(input: BotSettingsInput): Promise<AdminA
   const parsed = botSettingsInput.safeParse(input)
   if (!parsed.success) return { ok: false, message: vi.adminBot.errors.invalid }
 
-  const { enabled, dryRun, contentProposals, perRunUserCap, limits } = parsed.data
+  const { enabled, dryRun, contentProposals, perRunUserCap } = parsed.data
   // The generated types mark every argument as required; SQL reads null as "unchanged".
   const args = {
     p_enabled: enabled ?? null,
     p_dry_run: dryRun ?? null,
     p_content_proposals: contentProposals ?? null,
     p_per_run_user_cap: perRunUserCap ?? null,
-    p_limits: limits ?? null,
+    p_limits: null,
   } as unknown as UpdateBotSettingsArgs
   const supabase = await createClient()
   const { error } = await supabase.rpc('admin_update_bot_settings', args)

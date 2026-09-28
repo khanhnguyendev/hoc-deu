@@ -40,6 +40,12 @@ export const adminBot = {
     current: 'Token hiện tại tạo lúc {time}',
     previous: 'Token cũ còn dùng được đến {time}',
     rotate: 'Tạo token mới',
+    /** The first token: no old one to keep working. */
+    confirmFirst: {
+      title: 'Tạo token đầu tiên?',
+      description:
+        'Bot sẽ dùng token này để gọi API. Token chỉ hiện một lần: hãy sao chép ngay rồi đặt cho Routine và GitHub.',
+    },
     confirm: {
       title: 'Tạo token mới?',
       description:
@@ -57,6 +63,8 @@ export const adminBot = {
   /** The AI flag in `/admin/users` (decision 34). */
   aiFlag: {
     label: 'Cá nhân hoá AI',
+    /** After the label in the switch's accessible name: each row's switch is named with its account. */
+    forName: 'cho {name}',
     inactive: 'Chỉ đổi được cho tài khoản đang hoạt động.',
     /** `no_change`: another admin flipped it first. */
     changed: 'Cá nhân hoá AI của tài khoản này vừa được đổi. Bạn tải lại trang nhé.',

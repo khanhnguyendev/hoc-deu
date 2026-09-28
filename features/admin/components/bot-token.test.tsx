@@ -54,8 +54,22 @@ describe('BotToken (§6.3, ADR-0026)', () => {
     expect(screen.getByText('Đã có token')).toBeTruthy()
   })
 
-  it('asks first; "Huỷ" makes no token', async () => {
+  it('asks first — for the first token without the 24-hour sentence; "Huỷ" makes no token', async () => {
     const { rotate, user } = setup({ state: 'none' })
+    await user.click(screen.getByRole('button', { name: 'Tạo token mới' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Tạo token đầu tiên?' })
+    expect(within(dialog).queryByText(/24 giờ/)).toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'Huỷ' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(rotate).not.toHaveBeenCalled()
+  })
+
+  it('a rotation says the old token keeps working 24 hours', async () => {
+    const { rotate, user } = setup({
+      state: 'set',
+      createdAt: '09:30, 28 tháng 9, 2026',
+      previousValidUntil: null,
+    })
     await user.click(screen.getByRole('button', { name: 'Tạo token mới' }))
     const dialog = await screen.findByRole('alertdialog', { name: 'Tạo token mới?' })
     expect(within(dialog).getByText(/24 giờ/)).toBeTruthy()

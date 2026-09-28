@@ -59,3 +59,15 @@ export async function getAiFlag(userId: string): Promise<boolean> {
   if (error) throw new Error(`getAiFlag(${userId}) failed: ${error.message}`)
   return data.ai_personalization
 }
+
+/**
+ * Turns the AI flag off (and notes sharing with it, as `admin_set_ai_flag` does) — a spec's
+ * `finally` for every account it flagged: 6.8's run counts eligible users globally.
+ */
+export async function setAiFlagOff(userId: string): Promise<void> {
+  const { error } = await admin()
+    .from('profiles')
+    .update({ ai_personalization: false, share_notes_with_ai: false })
+    .eq('id', userId)
+  if (error) throw new Error(`setAiFlagOff(${userId}) failed: ${error.message}`)
+}

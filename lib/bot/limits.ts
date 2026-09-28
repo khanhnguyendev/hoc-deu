@@ -3,12 +3,9 @@
  * new per user per local day and 200 active; overrides 3 active per track, an `insert_block` at
  * most 25 % of the budget and 14 days, an `extra_week` at most 5 study days with a 21-day
  * cooldown. They live in code; `bot_settings.limits` may only lower them — a stored higher value is
- * clamped here, and `/admin/bot` refuses to store one (`botLimitsInput`). SQL enforces the counts
- * (6.2b) under a per-user lock, TypeScript the bounds that need the catalog. Plain constants, no
- * server-only: the admin form shows the maxima.
+ * clamped here (`/admin/bot` has no limits form in M6). SQL enforces the counts (6.2b) under a
+ * per-user lock, TypeScript the bounds that need the catalog. Plain constants, no server-only.
  */
-import { z } from 'zod'
-
 export const HARD_LIMITS = {
   customItemsPerDay: 10,
   customItemsActive: 200,
@@ -50,18 +47,3 @@ export function effectiveLimits(stored: unknown): BotLimits {
   }
   return limits
 }
-
-const limitValue = (key: LimitKey) => {
-  const base = z.number().min(0).max(HARD_LIMITS[key])
-  return (isShare(key) ? base : base.int()).optional()
-}
-
-/**
- * What `/admin/bot` may store in `bot_settings.limits`: known keys only, each at or under its hard
- * maximum (decision 33: a higher value is refused, not clamped, at the door).
- */
-export const botLimitsInput = z.strictObject(
-  Object.fromEntries(LIMIT_KEYS.map((key) => [key, limitValue(key)])) as {
-    [K in LimitKey]: ReturnType<typeof limitValue>
-  },
-)

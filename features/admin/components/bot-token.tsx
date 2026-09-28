@@ -86,6 +86,8 @@ function BotToken({
   const [shown, setShown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // The first token has no old one that keeps working for 24 hours.
+  const confirmCopy = token.state === 'none' ? copy.confirmFirst : copy.confirm
 
   const rotate = () => {
     setError(null)
@@ -130,8 +132,8 @@ function BotToken({
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title={copy.confirm.title}
-        description={copy.confirm.description}
+        title={confirmCopy.title}
+        description={confirmCopy.description}
         confirmLabel={copy.rotate}
         pending={pending}
         onConfirm={rotate}

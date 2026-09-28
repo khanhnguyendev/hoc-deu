@@ -134,8 +134,12 @@ describe('UserQueue', () => {
 
   it('shows the AI flag toggle on every active row, the admin’s own included (decision 34)', () => {
     setup()
+    // Each switch is named with its account (the visible label, then "cho …").
+    expect(
+      within(rowOf('Học Viên')).getByRole('switch', { name: 'Cá nhân hoá AI cho Học Viên' }),
+    ).toBeTruthy()
     for (const name of ['Quản trị viên An', 'Admin Khác', 'Học Viên']) {
-      const toggle = within(rowOf(name)).getByRole('switch', { name: 'Cá nhân hoá AI' })
+      const toggle = within(rowOf(name)).getByRole('switch', { name: /^Cá nhân hoá AI cho / })
       expect((toggle as HTMLButtonElement).disabled, name).toBe(false)
     }
     // The own row has the switch, still no buttons.
@@ -147,14 +151,16 @@ describe('UserQueue', () => {
     for (const name of ['Chờ Một', 'Bị Loại']) {
       expect(within(rowOf(name)).queryByRole('switch'), name).toBeNull()
     }
-    const suspended = within(rowOf('Bị Khoá')).getByRole('switch', { name: 'Cá nhân hoá AI' })
+    const suspended = within(rowOf('Bị Khoá')).getByRole('switch', { name: /^Cá nhân hoá AI cho / })
     expect((suspended as HTMLButtonElement).disabled).toBe(true)
     expect(suspended.getAttribute('aria-checked')).toBe('true')
   })
 
   it('passes the row’s id and the new value to setAiFlag', async () => {
     const { setAiFlag, user } = setup()
-    await user.click(within(rowOf('Học Viên')).getByRole('switch', { name: 'Cá nhân hoá AI' }))
+    await user.click(
+      within(rowOf('Học Viên')).getByRole('switch', { name: /^Cá nhân hoá AI cho / }),
+    )
     await waitFor(() => expect(setAiFlag).toHaveBeenCalledWith('l1', true))
   })
 })

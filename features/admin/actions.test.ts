@@ -198,7 +198,6 @@ describe('updateBotSettings (§6.2: each switch and the cap saved on its own)', 
     [{ dryRun: false }, { p_dry_run: false }],
     [{ contentProposals: true }, { p_content_proposals: true }],
     [{ perRunUserCap: 25 }, { p_per_run_user_cap: 25 }],
-    [{ limits: { customItemsPerDay: 4 } }, { p_limits: { customItemsPerDay: 4 } }],
   ])(
     'saves %j (every other argument null: unchanged), then /admin/bot re-renders',
     async (input, args) => {
@@ -234,10 +233,9 @@ describe('updateBotSettings (§6.2: each switch and the cap saved on its own)', 
     [{ perRunUserCap: 101 }],
     [{ perRunUserCap: 2.5 }],
     [{ enabled: 'yes' }],
-    [{ limits: { customItemsPerDay: 11 } }],
-    [{ limits: { unknown: 1 } }],
+    [{ limits: { customItemsPerDay: 4 } }],
     [{ tokenHash: 'x' }],
-  ])('refuses %j without an RPC (a limit above its hard maximum included)', async (input) => {
+  ])('refuses %j without an RPC (limits included: no UI sets them)', async (input) => {
     const result = await updateBotSettings(input as never)
     expect(result).toEqual({ ok: false, message: 'Cài đặt bot không hợp lệ.' })
     expect(fake.calls).toEqual([['requireAdmin']])

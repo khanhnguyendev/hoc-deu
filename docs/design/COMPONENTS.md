@@ -2498,7 +2498,7 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   beside the switch and a toast. The per-run cap: a number field (1–`capMax`, "Từ 1 đến 100 (giới
   hạn cứng).") with its own "Lưu" form; an invalid value is refused in the form ("Nhập một số
   nguyên từ 1 đến 100.", `aria-invalid`) without a request; a failed save shows a danger Banner
-  (FormActions) and a toast. The page follows a re-render with new saved values
+  (FormActions) and a toast. The switches and the cap follow a re-render with new saved values
 - **Usage:** `<Section title="Điều khiển"><BotControls controls={page.controls}
   updateBotSettings={updateBotSettings} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
 - **Accessibility:** each Switch labelled by its visible Label and described by its description
@@ -2516,7 +2516,7 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
 - **States:** no token ("Chưa có token"); a token ("Token hiện tại tạo lúc {time}", or "Đã có
   token" without a time); the 24-hour overlap (also "Token cũ còn dùng được đến {time}");
   confirming — "Tạo token mới" opens a ConfirmDialog ("Tạo token mới?", the old token works 24 more
-  hours); rotating (pending); shown — the new token **once** in a read-only field with "Sao chép"
+  hours; for the first token "Tạo token đầu tiên?", without the 24-hour sentence); rotating (pending); shown — the new token **once** in a read-only field with "Sao chép"
   and a warning Banner "Token chỉ hiện một lần" (it lives only in this component's state: a reload
   shows only the times, ADR-0026); failed — a danger Banner and a toast, no token
 - **Usage:** `<Section title="Token truy cập"><BotToken token={page.token}
@@ -2536,8 +2536,10 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   (`aria-busy`); failed — back to the saved value, the message in the row and a toast; not
   `active` — disabled, with "Chỉ đổi được cho tài khoản đang hoạt động." (decision 34)
 - **Usage:** rendered by UserQueue in every active row (the admin's own included)
-- **Accessibility:** a Switch labelled by the visible "Cá nhân hoá AI"; the reason and the error
-  are linked by `aria-describedby`; the state is the thumb's position, never colour alone
+- **Accessibility:** a Switch with the visible Label "Cá nhân hoá AI" and the accessible name
+  "Cá nhân hoá AI cho {name}" (`aria-label`, the visible label first — label in name), so each
+  row's switch is told apart; the reason and the error are linked by `aria-describedby`; the
+  state is the thumb's position, never colour alone
 
 ### AI plan components (`features/today/components`)
 
