@@ -148,7 +148,9 @@ const schema = z.strictObject({
     results: z.array(recentResult).max(CONTEXT_LIMITS.recentResults),
   }),
   constraints: z.strictObject({
-    /** The new-queue heads, cut to each track's effective cap; empty during an extra week. */
+    /** The new-queue heads, cut to each track's effective cap; empty during an extra week. Capped
+     *  at the 10-item head: a baseline with more than 10 new items cannot be reproduced exactly
+     *  (safe — never faster than the baseline). */
     allowedNewItems: z.array(id),
     /** Due, then every other introduced item that is not mastered. */
     allowedReviewItems: z.array(id),

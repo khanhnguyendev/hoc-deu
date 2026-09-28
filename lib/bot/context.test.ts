@@ -6,6 +6,7 @@ import { toPlanCatalog } from '@/lib/content/plan-catalog'
 import { customItemId, type UserItemRow, withUserItems } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'
 import type { RoadmapOverride } from '@/lib/domain/plan/overrides'
+import { roadmapWeek } from '@/lib/domain/plan/roadmap'
 import type { Enrollment, StoredPlan } from '@/lib/domain/plan/types'
 import type { ItemState } from '@/lib/domain/state'
 import {
@@ -47,7 +48,8 @@ vi.mock('@/lib/plans/day', () => ({
   })),
 }))
 
-const { allowanceOf, activeCustomItemIds, buildContext, loadUserDay } = await import('./context')
+const { allowanceOf, activeCustomItemIds, buildContext, dayFacts, loadUserDay } =
+  await import('./context')
 const { contextResponse } = await import('./contract/context')
 
 const BASE: PlanCatalog = toPlanCatalog(GENERATED)
@@ -140,6 +142,7 @@ const customRow = (change: Partial<UserItemRow> = {}): UserItemRow => ({
 })
 
 type DayInput = {
+  catalog?: PlanCatalog
   versions?: ScheduleVersion[]
   enrollments?: Enrollment[]
   items?: Record<string, ItemState>
@@ -150,7 +153,10 @@ function setDay(input: DayInput = {}) {
   const userItems = input.userItems ?? []
   const enrollments = input.enrollments ?? [enrollment('dsa'), enrollment('english')]
   state.day = {
-    catalog: userItems.length === 0 ? BASE : withUserItems(BASE, userItems, GENERATED.tracks),
+    catalog:
+      userItems.length === 0
+        ? (input.catalog ?? BASE)
+        : withUserItems(input.catalog ?? BASE, userItems, GENERATED.tracks),
     userItems,
     versions: input.versions ?? [VIETNAM],
     enrollments,
@@ -808,5 +814,160 @@ describe('allowanceOf (6.5a’s AiPlanAllowance)', () => {
     const context = await buildContext(RUN_USER, RUN_AT)
     expect([...allowance.allowedNew]).toEqual(context.constraints.allowedNewItems)
     expect([...allowance.allowedReview]).toEqual(context.constraints.allowedReviewItems)
+  })
+})
+
+/** 2026-10-09 22:30 UTC: Saturday 2026-10-10 05:30 in Vietnam — the review day, whose review block
+ *  has no cap, so a Weak problem's deep-dive lead fits. */
+const SATURDAY_RUN = new Date('2026-10-09T22:30:00.000Z')
+
+/** The catalog with a deep-dive lesson on `problemId` (the generated catalog has none yet). */
+function withDeepDive(problemId: string): { catalog: PlanCatalog; lessonId: string } {
+  const problem = BASE.items[problemId]!
+  const lessonId = 'dsa:lesson-deep-dive-parity'
+  const lesson = {
+    ...problem,
+    id: lessonId,
+    itemType: 'lesson',
+    srs: null,
+    reviewModes: false,
+    difficulty: null,
+    about: problemId,
+    deepDiveId: null,
+    minutes: { new: 25, review: 25, recall: 25, redo: 25, 'explain-aloud': 25 },
+  }
+  return {
+    lessonId,
+    catalog: {
+      ...BASE,
+      items: {
+        ...BASE.items,
+        [lessonId]: lesson,
+        [problemId]: { ...problem, deepDiveId: lessonId },
+      },
+    },
+  }
+}
+
+describe('parity with the plan engine (the context repeats trackSetup’s steps)', () => {
+  type Scenario = { name: string; clock: Date; arrange: () => void; expectLead?: boolean }
+  const core = () => dsaCore()
+  const scenarios: Scenario[] = [
+    {
+      name: 'a fresh learner',
+      clock: RUN_AT,
+      arrange: () => setDay(),
+    },
+    {
+      name: 'a throttled English track',
+      clock: RUN_AT,
+      arrange: () =>
+        setDay({
+          items: statesOf(
+            ...englishCards()
+              .slice(0, 45)
+              .map((itemId) => itemState(itemId, { dueOn: '2026-10-05' })),
+          ),
+        }),
+    },
+    {
+      name: 'Weak entries with a deep-dive lead on the review day',
+      clock: SATURDAY_RUN,
+      expectLead: true,
+      arrange: () => {
+        const [a, b, c] = core() as [string, string, string]
+        const { catalog } = withDeepDive(a)
+        setDay({
+          catalog,
+          items: statesOf(
+            itemState(a, { weak: true, status: 'weak', dueOn: '2026-10-02' }),
+            itemState(b, { weak: true, status: 'weak', dueOn: '2026-10-09' }),
+            itemState(c, { dueOn: '2026-10-08', level: 2 }),
+          ),
+        })
+      },
+    },
+    {
+      name: 'an extra week',
+      clock: RUN_AT,
+      arrange: () => {
+        const [a, b] = core() as [string, string]
+        setDay({
+          items: statesOf(
+            itemState(a, { weak: true, status: 'weak', dueOn: '2026-10-10' }),
+            itemState(b, { dueOn: '2026-10-10' }),
+          ),
+        })
+        state.overrides = [
+          {
+            trackId: 'dsa',
+            key: 'extra',
+            kind: 'extra_week',
+            params: { topicId: BASE.items[a]!.topicId!, studyDays: 3 },
+            startLocalDay: '2026-10-05',
+            usedDays: 0,
+          } satisfies RoadmapOverride,
+        ]
+      },
+    },
+    {
+      name: 'custom items, one due',
+      clock: RUN_AT,
+      arrange: () => {
+        const [a] = core() as [string]
+        setDay({
+          userItems: [customRow()],
+          items: statesOf(itemState(a, { dueOn: '2026-10-04' }), {
+            ...itemState(a, { dueOn: '2026-10-05' }),
+            itemId: CARD_ID,
+            itemType: 'flashcard',
+            topicId: 'arrays-hashing',
+          }),
+        })
+      },
+    },
+  ]
+
+  it.each(scenarios)('$name', async ({ clock, arrange, expectLead }) => {
+    arrange()
+    const u = await loadUserDay(USER_ID, clock)
+    const facts = dayFacts(u)
+    const { catalog, items } = u.context
+    expect(facts.tracks.map((track) => track.trackId)).toEqual(Object.keys(u.baseline.tracks))
+    for (const track of facts.tracks) {
+      const snapshot = u.baseline.tracks[track.trackId]!
+      expect(track.due.length, track.trackId).toBe(snapshot.dueCount)
+      expect(roadmapWeek(track.effective, catalog, items), track.trackId).toBe(snapshot.week)
+      expect(track.snapshot).toBe(snapshot)
+    }
+
+    const allowance = allowanceOf(u, activeCustomItemIds(u))
+    let leads = 0
+    for (const block of u.baseline.blocks) {
+      for (const planned of block.items) {
+        const item = catalog.items[planned.itemId]!
+        if (block.kind === 'new') {
+          expect(allowance.allowedNew.has(planned.itemId), planned.itemId).toBe(true)
+        } else if (block.kind === 'review' && item.about !== null) {
+          leads += 1
+          expect(allowance.openDeepDives.has(planned.itemId), planned.itemId).toBe(true)
+        } else if (block.kind === 'review') {
+          expect(
+            allowance.allowedReview.has(planned.itemId) ||
+              allowance.ownCustomItems.has(planned.itemId),
+            planned.itemId,
+          ).toBe(true)
+        }
+      }
+    }
+    if (expectLead) expect(leads).toBeGreaterThan(0)
+  })
+
+  it('an extra week leaves the track no new block and no allowed new item', async () => {
+    scenarios.find((scenario) => scenario.name === 'an extra week')!.arrange()
+    const u = await loadUserDay(USER_ID, RUN_AT)
+    expect(u.baseline.blocks.filter((b) => b.trackId === 'dsa' && b.kind === 'new')).toEqual([])
+    const dsa = dayFacts(u).tracks.find((track) => track.trackId === 'dsa')!
+    expect(dsa.allowedNew).toEqual([])
   })
 })

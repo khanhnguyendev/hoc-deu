@@ -17,10 +17,10 @@ export const NOTE_INPUT_MAX = 4096
 
 const segmenter = new Intl.Segmenter('vi', { granularity: 'grapheme' })
 
-/** Tags, comments and script / style elements, removed until none is left (`<<b>b>` hides a tag
- *  in a tag, so they go without leaving a space that would split the outer one). */
-const MARKUP =
-  /<(script|style)\b[^<>]*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?(?:-->|$)|<\/?[a-z!?][^<>]*>/gi
+/** Script / style elements with their body, comments, then anything between `<` and `>`
+ *  (decision 32: `< system >`, `<3 love>` too), removed until none is left (`<<b>b>` hides a span in
+ *  a span, so they go without leaving a space that would split the outer one). */
+const MARKUP = /<(script|style)\b[^<>]*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?(?:-->|$)|<[^<>]*>/gi
 
 function withoutMarkup(text: string): string {
   let clean = text
@@ -42,6 +42,13 @@ function withoutUrls(text: string): string {
   )
 }
 
+/** The first `NOTE_INPUT_MAX` UTF-16 units, never ending in half a surrogate pair. */
+function boundedInput(text: string): string {
+  const head = text.slice(0, NOTE_INPUT_MAX)
+  const last = head.charCodeAt(head.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head
+}
+
 /** The first `max` graphemes of `text`. */
 function firstGraphemes(text: string, max: number): string {
   let out = ''
@@ -56,10 +63,10 @@ function firstGraphemes(text: string, max: number): string {
 
 /** A note as the context carries it (decision 32), or null when nothing is left. */
 export function sanitizeNote(text: string): string | null {
-  let clean = text.slice(0, NOTE_INPUT_MAX).normalize('NFC')
+  let clean = boundedInput(text).normalize('NFC')
   // Control characters become spaces; invisible format characters (bidi overrides, zero-width
   // spaces, BOM) go, except the zero-width joiner of emoji sequences.
-  clean = clean.replace(/\p{Cc}/gu, ' ').replace(/(?!‍)\p{Cf}/gu, '')
+  clean = clean.replace(/\p{Cc}/gu, ' ').replace(/(?!\u200d)\p{Cf}/gu, '')
   clean = withoutUrls(withoutMarkup(clean))
   clean = clean.replace(/\s+/gu, ' ').trim().normalize('NFC')
   clean = firstGraphemes(clean, NOTE_MAX_GRAPHEMES).trim()

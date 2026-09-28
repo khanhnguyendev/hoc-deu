@@ -88,7 +88,7 @@ export async function loadUserDay(userId: string, now: Date): Promise<UserDay> {
 // The day's facts, shared by the allowance and the context
 // ---------------------------------------------------------------------------------------------
 
-type TrackFacts = {
+export type TrackFacts = {
   readonly trackId: string
   readonly enrollment: Enrollment
   readonly track: PlanTrack
@@ -106,7 +106,7 @@ type TrackFacts = {
   readonly allowedNew: readonly string[]
 }
 
-type DayFacts = {
+export type DayFacts = {
   readonly tracks: readonly TrackFacts[]
   /** Every track's due entries in the due queue's order (Weak first, §5.4 step 3). */
   readonly due: readonly DueEntry[]
@@ -146,7 +146,7 @@ function cutHead(
 
 function trackFacts(u: UserDay, trackId: string, snapshot: TrackSnapshot): TrackFacts | null {
   const { catalog, items } = u.context
-  const today = u.day.today
+  const today = u.context.planDate
   const enrollment = u.context.enrollments.find(
     (candidate) => candidate.trackId === trackId && candidate.status === 'active',
   )
@@ -182,7 +182,8 @@ function trackFacts(u: UserDay, trackId: string, snapshot: TrackSnapshot): Track
   }
 }
 
-function dayFacts(u: UserDay): DayFacts {
+/** The facts the allowance and the context read (exported for the engine parity tests). */
+export function dayFacts(u: UserDay): DayFacts {
   const { catalog, items } = u.context
   const tracks = Object.entries(u.baseline.tracks)
     .toSorted(([a], [b]) => compareIds(a, b))
@@ -244,7 +245,9 @@ export function activeCustomItemIds(u: UserDay): string[] {
  * What the server lets the bot plan for this learner today (`AiPlanAllowance`, 6.5a). Tracks =
  * those in the baseline build's snapshots (started, active — decision 9); `allowedNew` = each
  * track's new-queue head cut to its `effectiveNewPerDay` new SRS items, empty for a track whose
- * snapshot has `extraWeek` (decision 37); `allowedReview` = due + introduced, not mastered;
+ * snapshot has `extraWeek` (decision 37) — the head is 10 items, so a baseline that places more
+ * than 10 new items (cheap cards on a large budget) cannot be reproduced exactly: safe, an AI plan
+ * is never faster than the baseline; `allowedReview` = due + introduced, not mastered;
  * `ownCustomItems` = those of `customItems` that are the learner's active custom items;
  * `openDeepDives` = active deep-dives not completed.
  */
