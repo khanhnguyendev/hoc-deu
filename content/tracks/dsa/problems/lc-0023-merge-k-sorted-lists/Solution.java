@@ -14,16 +14,18 @@ class Solution {
             return null;
         }
         // Merge the lists in pairs, round after round: log k rounds of n nodes each.
-        int count = lists.length;
+        // A local copy keeps the caller's array unchanged.
+        ListNode[] round = lists.clone();
+        int count = round.length;
         while (count > 1) {
             int next = 0;
             for (int index = 0; index < count; index += 2) {
-                ListNode second = index + 1 < count ? lists[index + 1] : null;
-                lists[next++] = mergeTwo(lists[index], second);
+                ListNode second = index + 1 < count ? round[index + 1] : null;
+                round[next++] = mergeTwo(round[index], second);
             }
             count = next;
         }
-        return lists[0];
+        return round[0];
     }
 
     private ListNode mergeTwo(ListNode first, ListNode second) {
