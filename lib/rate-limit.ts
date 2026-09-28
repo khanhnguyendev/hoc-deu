@@ -58,8 +58,10 @@ export function __resetMemoryWindows(): void {
 
 /**
  * The in-memory decision for `name`/`identifier` at `nowMs`: allows the request and records it
- * while under `tokens` for the window, otherwise refuses without recording it again. Oldest
- * identifier evicted (insertion order) once a limit's map would exceed `MAX_IDENTIFIERS`.
+ * while under `tokens` for the window, otherwise refuses without recording it again. Every
+ * request moves its identifier to the back of the map (delete, then set), so the least recently
+ * seen identifier is evicted once a limit's map would exceed `MAX_IDENTIFIERS` — never a busy one,
+ * whose eviction would hand it a fresh budget.
  */
 function memoryDecision(
   name: LimitName,
@@ -75,6 +77,8 @@ function memoryDecision(
   const windowMs = WINDOW_MS[window]
   const cutoff = nowMs - windowMs
   const pruned = (store.get(identifier) ?? []).filter((time) => time > cutoff)
+  // Map keeps insertion order: re-inserting makes this identifier the most recently seen.
+  const known = store.delete(identifier)
 
   if (pruned.length >= tokens) {
     store.set(identifier, pruned)
@@ -82,7 +86,7 @@ function memoryDecision(
     return { ok: false, retryAfterSeconds }
   }
 
-  if (!store.has(identifier) && store.size >= MAX_IDENTIFIERS) {
+  if (!known && store.size >= MAX_IDENTIFIERS) {
     const oldest = store.keys().next().value
     if (oldest !== undefined) store.delete(oldest)
   }

@@ -98,6 +98,36 @@ describe('checkLimit — in-memory (no Upstash configured)', () => {
     expect((await checkLimit('adminAction', evicted, { now })).ok).toBe(true)
   })
 
+  it('a busy identifier is not evicted first: each request moves it to the back', async () => {
+    const now = () => 6_000_000
+    const { tokens } = LIMITS.adminAction
+    const busy = 'busy-admin'
+    for (let i = 0; i < tokens; i++) {
+      expect((await checkLimit('adminAction', busy, { now })).ok).toBe(true)
+    }
+    // 9 999 others fill the map (10 000 with the busy one) …
+    for (let i = 0; i < 9_999; i++) await checkLimit('adminAction', `other-${i}`, { now })
+    // … the busy one asks again (refused, but seen), then a newcomer evicts the oldest other.
+    expect((await checkLimit('adminAction', busy, { now })).ok).toBe(false)
+    await checkLimit('adminAction', 'newcomer', { now })
+    expect((await checkLimit('adminAction', busy, { now })).ok).toBe(false)
+  })
+
+  it('a recorded request moves its identifier to the back too', async () => {
+    const now = () => 7_000_000
+    const { tokens } = LIMITS.adminAction
+    const steady = 'steady-admin'
+    for (let i = 0; i < tokens - 1; i++) {
+      expect((await checkLimit('adminAction', steady, { now })).ok).toBe(true)
+    }
+    for (let i = 0; i < 9_999; i++) await checkLimit('adminAction', `peer-${i}`, { now })
+    // Its last token: recorded, and moved behind every peer.
+    expect((await checkLimit('adminAction', steady, { now })).ok).toBe(true)
+    await checkLimit('adminAction', 'late-peer', { now })
+    // Not evicted: the budget is spent.
+    expect((await checkLimit('adminAction', steady, { now })).ok).toBe(false)
+  })
+
   it(
     '__resetMemoryWindows clears every in-memory window (test-only; fix round 1, item 4 — so ' +
       "callers' tests don't depend on shared window state)",
