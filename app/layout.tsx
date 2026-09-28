@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
 import { ThemeProvider } from 'next-themes'
 import { mono, sans } from './fonts/fonts'
+import { vi } from '@/lib/i18n/vi'
 import './globals.css'
+
+/** The one site description: the page's `description` and its Open Graph card (the landing line). */
+const DESCRIPTION = vi.landing.positioning
 
 export const metadata: Metadata = {
   title: 'Học Đều',
-  description: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
+  description: DESCRIPTION,
   // Resolves the file-convention icons and the Open Graph image (app/opengraph-image.png, task
   // 6.0b) to absolute URLs; without it Next warns at build time and falls back to localhost.
   // NEXT_PUBLIC_SITE_URL is optional in dev/CI (lib/env.ts), so this reads it directly with the
@@ -20,7 +24,7 @@ export const metadata: Metadata = {
     locale: 'vi_VN',
     siteName: 'Học Đều',
     title: 'Học Đều',
-    description: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
+    description: DESCRIPTION,
   },
 }
 

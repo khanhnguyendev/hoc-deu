@@ -1,3 +1,4 @@
+import { EyeOff } from 'lucide-react'
 import type * as React from 'react'
 import { ErrorState } from '@/components/patterns/error-state'
 import { LinkList } from '@/components/patterns/link-list'
@@ -48,7 +49,10 @@ function CustomItemsTab({
             <li key={slot.itemId} className="flex items-center gap-2 pr-2">
               <div className="min-w-0 flex-1">{slot.row}</div>
               {slot.hidden ? (
-                <Badge tone="neutral">{copy.hidden}</Badge>
+                <Badge tone="neutral">
+                  <EyeOff aria-hidden="true" strokeWidth={1.75} />
+                  {copy.hidden}
+                </Badge>
               ) : (
                 <HideCustomItemButton
                   action={hide}

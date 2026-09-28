@@ -5,7 +5,7 @@ import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A 44×24 px switch (DESIGN_SYSTEM §5), with a transparent hit area of at least 44 px on the
+ * A 44×24 px switch (DESIGN_SYSTEM §9 Switch row; §5 touch targets), with a transparent hit area of at least 44 px on the
  * short axis (`before:-inset-y-2.5`, 10 px overreach top and bottom: 24 + 10 + 10 = 44), the same
  * technique as Checkbox and RadioGroupItem. Checked: `bg-primary`; unchecked: `bg-input`.
  */

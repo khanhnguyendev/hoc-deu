@@ -7,6 +7,8 @@ export const customItems = {
     'Các mục bot AI tạo riêng cho bạn. Mở một mục để học; mục đã ẩn không còn xuất hiện trong kế hoạch.',
   /** A hidden item's badge in the list. */
   hidden: 'Đã ẩn',
+  /** Under a hidden item's labels on its page: why it records nothing (read-only, §5.12). */
+  hiddenReadOnly: 'Bạn đã ẩn mục này nên chỉ xem lại được, không ghi nhận kết quả.',
   /** A custom prompt's tag badge (its tag is `custom`, decision 17a). */
   promptTag: 'Mục riêng',
   /** The item page's label for the learner's own custom item. */

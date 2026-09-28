@@ -30,6 +30,9 @@ describe('lib/i18n/strings/custom-items.ts', () => {
       'Mục này sẽ không xuất hiện trong kế hoạch từ ngày mai.',
     )
     expect(customItems.hidden).toBe('Đã ẩn')
+    expect(customItems.hiddenReadOnly).toBe(
+      'Bạn đã ẩn mục này nên chỉ xem lại được, không ghi nhận kết quả.',
+    )
     expect(customItems.ownLabel).toBe('Mục riêng của bạn')
   })
 

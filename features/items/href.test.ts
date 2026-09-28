@@ -73,6 +73,11 @@ describe('the user: item URL (decision 39, task 6.6a)', () => {
     expect(itemHrefFromId(ID, { mode: 'review' }, 'dsa')).toBe(`${HREF}?mode=review`)
   })
 
+  it('refuses a user: ID without its trackId (the ID names no track: never /t/user/…)', () => {
+    expect(() => itemHrefFromId(ID)).toThrow(/trackId/)
+    expect(() => itemHrefFromId(ID, { mode: 'review' })).toThrow(/trackId/)
+  })
+
   it('round-trips through itemIdFromRoute, encoded or already decoded', () => {
     const param = itemPageHref({ id: ID, trackId: 'dsa' }).split('/').at(-1) ?? ''
     expect(itemIdFromRoute('dsa', param)).toBe(ID)

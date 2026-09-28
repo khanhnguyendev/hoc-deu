@@ -48,7 +48,7 @@ describe('CustomItemsTab ("Mục riêng", §2.4)', () => {
     expect(within(active!).getByRole('button', { name: 'Ẩn on hold' })).toBeTruthy()
     expect(within(active!).queryByText('Đã ẩn')).toBeNull()
     expect(within(hidden!).getByRole('link', { name: 'blocker' })).toBeTruthy()
-    expect(within(hidden!).getByText('Đã ẩn')).toBeTruthy()
+    expect(within(hidden!).getByText('Đã ẩn').querySelector('svg')).toBeTruthy()
     expect(within(hidden!).queryByRole('button')).toBeNull()
   })
 

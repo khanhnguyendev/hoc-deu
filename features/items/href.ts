@@ -45,15 +45,17 @@ export function itemIdFromRoute(trackId: string, itemParam: string): string {
 /**
  * An item's page from its ID (`<track>:<local id>`, the track is the first segment — m-2: the
  * one place `/today` and `/review` build it), with `query` (`?block=&mode=` from a plan block,
- * `?mode=` off the plan) when given. A custom item's ID names no track: pass its `trackId`
- * (decision 39); a repository item's own track wins.
+ * `?mode=` off the plan) when given. A custom item's ID names no track: its `trackId` is required
+ * (decision 39) — without it this throws rather than link to `/t/user/…`; a repository item's own
+ * track wins.
  */
 export function itemHrefFromId(
   itemId: string,
   query?: Readonly<Record<string, string>>,
   trackId?: string,
 ): string {
-  if (isCustomItemId(itemId) && trackId !== undefined) {
+  if (isCustomItemId(itemId)) {
+    if (trackId === undefined) throw new Error(`itemHrefFromId: ${itemId} needs its trackId`)
     return itemPageHref({ id: itemId, trackId }, query)
   }
   const separator = itemId.indexOf(':')

@@ -139,6 +139,19 @@ describe('ItemView — a custom item (task 6.6a)', () => {
     expect(screen.queryByText(strings.customItems.ownLabel)).toBeNull()
   })
 
+  it('an active custom item has no hidden badge or read-only line', () => {
+    render(
+      <ItemView
+        backHref="/t/english"
+        trackTitle="Tiếng Anh cho môi trường IT"
+        custom
+        page={<ItemPageFrame status="active" title="on hold" />}
+      />,
+    )
+    expect(screen.queryByText(strings.customItems.hidden)).toBeNull()
+    expect(screen.queryByText(strings.customItems.hiddenReadOnly)).toBeNull()
+  })
+
   it('a hidden custom item says "Đã ẩn" beside the label', () => {
     render(
       <ItemView
@@ -149,7 +162,11 @@ describe('ItemView — a custom item (task 6.6a)', () => {
         page={<ItemPageFrame status="active" title="on hold" />}
       />,
     )
-    expect(screen.getByText(strings.customItems.hidden)).toBeTruthy()
+    const badge = screen.getByText(strings.customItems.hidden)
+    // Words with an icon, never colour alone (review item 8).
+    expect(badge.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    // One line why the page records nothing.
+    expect(screen.getByText(strings.customItems.hiddenReadOnly)).toBeTruthy()
     expect(screen.queryByText(/ngừng/i)).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import { ChevronLeft, UserRound } from 'lucide-react'
+import { ChevronLeft, EyeOff, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import type * as React from 'react'
 import { Suspense } from 'react'
@@ -19,7 +19,8 @@ import { TODAY_HREF, TRACKS_HREF } from '../view-model'
  * `page` is ever built, so an unknown or hidden item answers a real 404 instead of streaming a 200
  * first (§7.5). A `contents` wrapper, so the link and the page keep the page's section spacing.
  * Task 6.6a: the learner's own custom item says "Mục riêng của bạn" (a badge with an icon) under
- * the link, and "Đã ẩn" once the learner hid it.
+ * the link, and "Đã ẩn" (with its icon) once the learner hid it, with one line why the page is
+ * read-only.
  */
 function ItemView({
   backHref,
@@ -51,12 +52,22 @@ function ItemView({
             : withTitle(vi.roadmap.backToTrack, trackTitle)}
       </Link>
       {custom && (
-        <div data-slot="custom-item-label" className="flex flex-wrap items-center gap-2">
-          <Badge tone="primary">
-            <UserRound aria-hidden="true" strokeWidth={1.75} />
-            {vi.customItems.ownLabel}
-          </Badge>
-          {hidden && <Badge tone="neutral">{vi.customItems.hidden}</Badge>}
+        <div data-slot="custom-item-label" className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="primary">
+              <UserRound aria-hidden="true" strokeWidth={1.75} />
+              {vi.customItems.ownLabel}
+            </Badge>
+            {hidden && (
+              <Badge tone="neutral">
+                <EyeOff aria-hidden="true" strokeWidth={1.75} />
+                {vi.customItems.hidden}
+              </Badge>
+            )}
+          </div>
+          {hidden && (
+            <p className="text-sm text-muted-foreground">{vi.customItems.hiddenReadOnly}</p>
+          )}
         </div>
       )}
       <Suspense fallback={<LoadingState variant="page" />}>{page}</Suspense>

@@ -28,4 +28,8 @@ describe('app/layout.tsx metadata', () => {
     })
     expect(metadata.openGraph).not.toHaveProperty('images')
   })
+
+  it('uses one description for the page and its Open Graph card', () => {
+    expect(metadata.description).toBe(metadata.openGraph?.description)
+  })
 })

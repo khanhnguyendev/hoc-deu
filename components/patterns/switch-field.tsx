@@ -6,9 +6,9 @@ import { Switch } from '@/components/ui/switch'
 import { FormFieldError } from './form-field'
 
 /**
- * A switch row that saves the moment it is flipped (DESIGN_SYSTEM §5 switch): the Switch with its
- * visible Label beside it, an optional description under it and an always-mounted `role="alert"`
- * region for a failed save (the shared `FormFieldError` line: icon + `text-danger`, never colour
+ * A switch row that saves the moment it is flipped (DESIGN_SYSTEM §9 Switch row): the Switch with
+ * its visible Label beside it, an optional description under it and an always-mounted
+ * `role="alert"` region for a failed save (the shared `FormFieldError` line: icon + `text-danger`, never colour
  * alone). The switch's `aria-describedby` joins the description and the error. Saving is the
  * caller's job — this only shows the position it is given (`checked`), busy (`pending`) or not.
  */
