@@ -6,6 +6,7 @@
  */
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { bodyHash } from '@/lib/bot/canonical'
 import type { Catalog } from '@/lib/content/catalog-types'
 import type { CodeBundle } from '@/lib/content/code-tokens'
 import { parseItemId } from '@/lib/content/schemas/ids'
@@ -26,6 +27,14 @@ const CODE_DIR = 'code'
 
 const sortedEntries = <T>(record: Readonly<Record<string, T>>): [string, T][] =>
   Object.entries(record).sort(([a], [b]) => compareNames(a, b))
+
+/**
+ * The catalog version (§6.4.1, Part B-M6 decision 21): the first 16 hex digits of the SHA-256 of
+ * the catalog's canonical JSON (keys sorted), so the same content always gives the same version.
+ */
+export function catalogVersionOf(catalog: Catalog): string {
+  return bodyHash(catalog).slice(0, 16)
+}
 
 /** A module specifier from `fromDir` to `target`: relative, `/`-separated, starting with `.`. */
 function specifier(fromDir: string, target: string): string {
@@ -78,6 +87,9 @@ export function emitGenerated(input: EmitInput): string[] {
       `import type { Catalog } from '${moduleIn('.', 'lib/content/catalog-types')}'`,
       '',
       `export const CATALOG: Catalog = JSON.parse(${jsonString(catalog)})`,
+      '',
+      '/** `catalogVersion()` (lib/content/catalog.ts): what `POST /api/bot/v1/runs` reports. */',
+      `export const CATALOG_VERSION = '${catalogVersionOf(catalog)}'`,
       '',
     ].join('\n'),
   )

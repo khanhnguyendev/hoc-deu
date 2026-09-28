@@ -7,7 +7,9 @@ import { lastSuccessfulRun, type WorkflowFile } from './github'
 export type StepOutcome = 'ok' | 'failed'
 export type MaintenanceReport = {
   readonly ok: boolean
-  readonly steps: Readonly<Record<'dbSize' | 'prune' | 'backups', StepOutcome>>
+  readonly steps: Readonly<
+    Record<'dbSize' | 'prune' | 'botRuns' | 'botDetails' | 'backups', StepOutcome>
+  >
 }
 
 type MetricKey = 'backup.last_success_at' | 'restore_test.last_success_at' | 'cron.last_run_at'
@@ -40,7 +42,8 @@ function check(name: string, result: { error: { message: string } | null }): voi
 /**
  * The daily maintenance (§2.3, §8.4 item 3; ADR-0034), called by `/api/cron/maintenance` after
  * `requireCronSecret`. Every step runs, each in its own try/catch: the DB size, the prune of old
- * `event_quota` and `ops_metrics` rows, and the last successful backup and restore test from the
+ * `event_quota` and `ops_metrics` rows, the bot sweeps (timed-out runs failed, the detail of runs
+ * older than 30 days dropped — task 6.4a), and the last successful backup and restore test from the
  * public GitHub API. Then `cron.last_run_at` is recorded. Running twice or skipping a day is
  * harmless: each step records the current value or deletes what is already old. It never builds
  * plans (plans stay lazy, §2.3).
@@ -66,6 +69,14 @@ export async function runMaintenance(
   const prune = await attempt('prune', async () => {
     check('ops_prune', await admin().rpc('ops_prune'))
   })
+  // §2.3, §6.2: the lazy timeout's guaranteed sweep (running > 2 h → failed / timeout), and the
+  // detail (dry-run proposals, invalid details) of runs older than 30 days (decision 41).
+  const botRuns = await attempt('botRuns', async () => {
+    check('bot_timeout_runs', await admin().rpc('bot_timeout_runs'))
+  })
+  const botDetails = await attempt('botDetails', async () => {
+    check('bot_prune_details', await admin().rpc('bot_prune_details'))
+  })
   const backups = await attempt('backups', async () => {
     const results = await Promise.allSettled(
       WORKFLOW_METRICS.map(async ([file, key]) => {
@@ -81,7 +92,7 @@ export async function runMaintenance(
   })
   const lastRun = await attempt('lastRun', () => record('cron.last_run_at', epochSeconds(now)))
 
-  const steps = { dbSize, prune, backups }
+  const steps = { dbSize, prune, botRuns, botDetails, backups }
   const ok = Object.values(steps).every((outcome) => outcome === 'ok') && lastRun === 'ok'
   return { ok, steps }
 }

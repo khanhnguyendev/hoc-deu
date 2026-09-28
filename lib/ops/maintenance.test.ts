@@ -41,6 +41,8 @@ const ok = (data: unknown = null): RpcResult => ({ data, error: null })
 const EXPECTED_CALLS = [
   ['ops_record_db_size'],
   ['ops_prune'],
+  ['bot_timeout_runs'],
+  ['bot_prune_details'],
   ['ops_record_metric', { p_key: 'backup.last_success_at', p_value: seconds(BACKUP_AT) }],
   ['ops_record_metric', { p_key: 'restore_test.last_success_at', p_value: seconds(RESTORE_AT) }],
   ['ops_record_metric', { p_key: 'cron.last_run_at', p_value: NOW.getTime() / 1000 }],
@@ -67,7 +69,10 @@ const calls = () =>
 describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
   it('runs every step and records the DB size, the prune, both workflows and the run', async () => {
     const report = await runMaintenance({ fetch: github(), now: NOW })
-    expect(report).toEqual({ ok: true, steps: { dbSize: 'ok', prune: 'ok', backups: 'ok' } })
+    expect(report).toEqual({
+      ok: true,
+      steps: { dbSize: 'ok', prune: 'ok', botRuns: 'ok', botDetails: 'ok', backups: 'ok' },
+    })
     expect(calls()).toEqual(EXPECTED_CALLS)
   })
 
@@ -76,10 +81,15 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
       fetch: github({ backup: 500, restore: new TypeError('fetch failed') }),
       now: NOW,
     })
-    expect(report).toEqual({ ok: false, steps: { dbSize: 'ok', prune: 'ok', backups: 'failed' } })
+    expect(report).toEqual({
+      ok: false,
+      steps: { dbSize: 'ok', prune: 'ok', botRuns: 'ok', botDetails: 'ok', backups: 'failed' },
+    })
     expect(calls()).toEqual([
       ['ops_record_db_size'],
       ['ops_prune'],
+      ['bot_timeout_runs'],
+      ['bot_prune_details'],
       ['ops_record_metric', { p_key: 'cron.last_run_at', p_value: NOW.getTime() / 1000 }],
     ])
   })
@@ -99,7 +109,10 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
       name === 'ops_record_db_size' ? { data: null, error: { message: 'boom' } } : ok(),
     )
     const report = await runMaintenance({ fetch: github(), now: NOW })
-    expect(report).toEqual({ ok: false, steps: { dbSize: 'failed', prune: 'ok', backups: 'ok' } })
+    expect(report).toEqual({
+      ok: false,
+      steps: { dbSize: 'failed', prune: 'ok', botRuns: 'ok', botDetails: 'ok', backups: 'ok' },
+    })
     expect(calls()).toEqual(EXPECTED_CALLS)
   })
 
@@ -109,7 +122,40 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
       return ok()
     })
     const report = await runMaintenance({ fetch: github(), now: NOW })
-    expect(report.steps).toEqual({ dbSize: 'ok', prune: 'failed', backups: 'ok' })
+    expect(report.steps).toEqual({
+      dbSize: 'ok',
+      prune: 'failed',
+      botRuns: 'ok',
+      botDetails: 'ok',
+      backups: 'ok',
+    })
+  })
+
+  it('times out stale bot runs and prunes old bot details, each in its own step (§2.3)', async () => {
+    admin.rpc.mockImplementation(async (name) => {
+      if (name === 'bot_timeout_runs') throw new Error('socket hang up')
+      return ok(name === 'bot_prune_details' ? 3 : null)
+    })
+    const failedRuns = await runMaintenance({ fetch: github(), now: NOW })
+    expect(failedRuns).toEqual({
+      ok: false,
+      steps: { dbSize: 'ok', prune: 'ok', botRuns: 'failed', botDetails: 'ok', backups: 'ok' },
+    })
+    expect(calls()).toEqual(EXPECTED_CALLS)
+
+    admin.rpc.mockClear()
+    admin.rpc.mockImplementation(async (name) =>
+      name === 'bot_prune_details' ? { data: null, error: { message: 'boom' } } : ok(0),
+    )
+    const failedDetails = await runMaintenance({ fetch: github(), now: NOW })
+    expect(failedDetails.steps).toEqual({
+      dbSize: 'ok',
+      prune: 'ok',
+      botRuns: 'ok',
+      botDetails: 'failed',
+      backups: 'ok',
+    })
+    expect(calls()).toEqual(EXPECTED_CALLS)
   })
 
   it('without a database client every step fails, and nothing throws', async () => {
@@ -119,7 +165,13 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
     const report = await runMaintenance({ fetch: github(), now: NOW })
     expect(report).toEqual({
       ok: false,
-      steps: { dbSize: 'failed', prune: 'failed', backups: 'failed' },
+      steps: {
+        dbSize: 'failed',
+        prune: 'failed',
+        botRuns: 'failed',
+        botDetails: 'failed',
+        backups: 'failed',
+      },
     })
   })
 
@@ -130,7 +182,10 @@ describe('runMaintenance (§2.3, §8.4 item 3; ADR-0034)', () => {
         : ok(),
     )
     const report = await runMaintenance({ fetch: github(), now: NOW })
-    expect(report).toEqual({ ok: false, steps: { dbSize: 'ok', prune: 'ok', backups: 'ok' } })
+    expect(report).toEqual({
+      ok: false,
+      steps: { dbSize: 'ok', prune: 'ok', botRuns: 'ok', botDetails: 'ok', backups: 'ok' },
+    })
   })
 
   it('running twice makes the same calls and never throws (idempotent)', async () => {
