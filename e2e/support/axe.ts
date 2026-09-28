@@ -22,12 +22,34 @@ async function settleToasts(page: Page): Promise<void> {
     .toBe(true)
 }
 
-/** Scans the full page for WCAG 2.1 A/AA violations and asserts there are none. */
+/**
+ * Waits until every running finite animation and transition has finished: switching the theme
+ * animates `transition-colors` elements (a dialog's primary button), and axe once measured one
+ * halfway between the dark and the light primary (4.37:1, M6 e2e fix round 2) — a state no one sees
+ * for longer than `--duration-fast`. Infinite animations (a spinner, a skeleton's pulse) never
+ * finish and are left alone.
+ */
+async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+        .map((animation) => animation.finished.catch(() => {})),
+    ),
+  )
+}
+
+/**
+ * Scans the full page for WCAG 2.1 A/AA violations and asserts there are none, once the toasts and
+ * every running animation have settled.
+ */
 export async function expectNoAxeViolations(
   page: Page,
   options?: { disableRules?: string[] },
 ): Promise<void> {
   await settleToasts(page)
+  await settleAnimations(page)
   let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS)
   if (options?.disableRules) builder = builder.disableRules(options.disableRules)
   const results = await builder.analyze()

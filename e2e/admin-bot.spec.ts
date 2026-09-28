@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
-import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
+import { expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { readBotSettingsRow, updateBotSettingsRow } from './support/bot'
 import { deletePastRun, seedPastRun, type PastRunKey } from './support/bot-runs'
@@ -40,28 +40,6 @@ async function openBotPageAsAdmin(page: Page): Promise<TestUser> {
   return admin
 }
 
-/**
- * `expectNoAxeViolationsInBothThemes`, but each scan waits until every running animation and
- * transition has finished: switching the theme animates `transition-colors` elements (the dialog's
- * primary button), and axe once measured one halfway between the dark and the light primary
- * (4.37:1, e2e fix round 2) — a state no one sees for longer than `--duration-fast`.
- */
-async function expectNoAxeViolationsInBothSettledThemes(
-  page: Page,
-  options?: { disableRules?: string[] },
-): Promise<void> {
-  for (const colorScheme of ['light', 'dark'] as const) {
-    await page.emulateMedia({ colorScheme })
-    await expect
-      .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
-      .toBe(colorScheme === 'dark')
-    await page.evaluate(() =>
-      Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))),
-    )
-    await expectNoAxeViolations(page, options)
-  }
-}
-
 const toggle = (page: Page, name: string) => page.getByRole('switch', { name, exact: true })
 const cap = (page: Page) =>
   page.getByRole('spinbutton', { name: 'Số người dùng tối đa mỗi lần chạy' })
@@ -90,7 +68,7 @@ test('an admin sees the controls and the token; axe clean in both themes, the di
   await tokenSection.getByRole('button', { name: 'Tạo token mới' }).click()
   const dialog = page.getByRole('alertdialog', { name: /^Tạo token (mới|đầu tiên)\?$/ })
   await expect(dialog).toBeVisible()
-  await expectNoAxeViolationsInBothSettledThemes(page, { disableRules: ['aria-hidden-focus'] })
+  await expectNoAxeViolationsInBothThemes(page, { disableRules: ['aria-hidden-focus'] })
   await dialog.getByRole('button', { name: 'Huỷ' }).click()
   await expect(dialog).toBeHidden()
   await expect(tokenSection.getByRole('textbox')).toHaveCount(0)
