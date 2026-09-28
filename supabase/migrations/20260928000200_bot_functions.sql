@@ -7,6 +7,7 @@
 --    and bot_run_id.
 -- 3. Bot settings, token rotation, the AI flag and admin_list_users (admin).
 -- 4. Runs: eligibility, the lazy timeout, the write record, the detail prune, the run log.
+-- 5. Publish requests and the content signal aggregates.
 -- Merged migrations are never edited: apply_system_event and admin_list_users are replaced here.
 -- Every function revokes EXECUTE from PUBLIC explicitly and grants exactly its callers (see
 -- 20260925000100), at the end of its section; schema-invariants (001), 091 and 092 check it. Errors are
@@ -1383,3 +1384,168 @@ grant execute on function
   public.bot_track_positions()
 to service_role;
 grant execute on function public.admin_bot_runs(integer) to authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- 5. Publish requests (§6.6, decision 20) and the content signals (§6.4.7, decision 19).
+-- ---------------------------------------------------------------------------------------------
+
+-- A request's admin view.
+create function public.publish_request_json(r public.content_publish_requests) returns jsonb
+language sql immutable set search_path = '' as $$
+  select jsonb_build_object(
+    'id', r.id, 'target', r.target, 'status', r.status, 'prUrl', r.pr_url,
+    'requestedAt', r.requested_at)
+$$;
+
+-- "Xuất bản" (/admin/content): a pending request for the target (an item ID or <itemId>#note —
+-- the table's form, invalid_target otherwise; that it is a draft is checked against the catalog
+-- by the server first). A pending request for the target already → that one is returned.
+create function public.admin_request_publish(p_target text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_request public.content_publish_requests;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if p_target is null
+    or p_target !~ '^[a-z][a-z0-9-]{0,31}:[a-z0-9:-]{1,120}(#note)?$'
+  then
+    raise exception 'invalid_target';
+  end if;
+  insert into public.content_publish_requests (target, requested_by)
+  values (p_target, auth.uid())
+  on conflict (target) where status = 'pending' do nothing
+  returning * into v_request;
+  if not found then
+    select * into v_request from public.content_publish_requests r
+    where r.target = p_target and r.status = 'pending';
+  end if;
+  return public.publish_request_json(v_request);
+end $$;
+
+-- "Huỷ": a pending request → cancelled (not_found, invalid_transition otherwise).
+create function public.admin_cancel_publish(p_id bigint) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_request public.content_publish_requests;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into v_request from public.content_publish_requests r where r.id = p_id for update;
+  if not found then
+    raise exception 'not_found';
+  end if;
+  if v_request.status <> 'pending' then
+    raise exception 'invalid_transition';
+  end if;
+  update public.content_publish_requests r set status = 'cancelled', updated_at = now()
+  where r.id = p_id
+  returning * into v_request;
+  return public.publish_request_json(v_request);
+end $$;
+
+-- The public GET /api/content/publish-requests (§6.6): the targets of pending requests, sorted —
+-- nothing else (no ids, no people, no PRs). The one SECURITY DEFINER function anon may call
+-- (schema-invariants 001, check 4): anon may read no table.
+create function public.publish_request_targets() returns setof text
+language sql stable security definer set search_path = '' as $$
+  select r.target from public.content_publish_requests r
+  where r.status = 'pending'
+  order by r.target
+$$;
+
+-- finishRun (task 6.4a, §6.4.6): the publish run's PR on the listed pending requests. Returns the
+-- count.
+create function public.publish_set_pr(p_ids bigint[], p_pr_url text) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  if p_pr_url is null
+    or p_pr_url !~ '^https://github\.com/khanhnguyendev/hoc-deu/pull/[1-9][0-9]{0,6}$'
+  then
+    raise exception 'invalid_pr_url';
+  end if;
+  update public.content_publish_requests r set pr_url = p_pr_url, updated_at = now()
+  where r.id = any (p_ids) and r.status = 'pending';
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+-- The maintenance cron's publish step (task 6.7a): a pending request whose target the deployed
+-- catalog shows active → merged. Returns the count.
+create function public.publish_mark_merged(p_ids bigint[]) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  update public.content_publish_requests r set status = 'merged', updated_at = now()
+  where r.id = any (p_ids) and r.status = 'pending';
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+-- ... and a pending request whose PR was closed unmerged loses its pr_url, so the next publish
+-- run retries it. Returns the count.
+create function public.publish_clear_pr(p_ids bigint[]) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  update public.content_publish_requests r set pr_url = null, updated_at = now()
+  where r.id = any (p_ids) and r.status = 'pending' and r.pr_url is not null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+-- The content signals' input (§6.4.7, decision 19): item.result events of the last p_days days
+-- (1–365), per repository item (custom user: items excluded), only items at least 5 distinct users
+-- answered: attempts, fails (failed, dont_know), hints (hint, unsure) and users. Aggregates only —
+-- no text, no user, no note.
+create function public.content_signal_results(p_days integer)
+returns table (item_id text, attempts integer, fails integer, hints integer, users integer)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  if p_days is null or p_days not between 1 and 365 then
+    raise exception 'invalid_event';
+  end if;
+  return query
+    select e.item_id,
+      count(*)::integer,
+      (count(*) filter (where e.payload ->> 'result' in ('failed', 'dont_know')))::integer,
+      (count(*) filter (where e.payload ->> 'result' in ('hint', 'unsure')))::integer,
+      count(distinct e.user_id)::integer
+    from public.events e
+    where e.type = 'item.result' and e.item_id is not null and e.item_id not like 'user:%'
+      and e.occurred_at >= now() - make_interval(days => p_days)
+    group by e.item_id
+    having count(distinct e.user_id) >= 5
+    order by e.item_id;
+end $$;
+
+-- Admins request and cancel; the secret key sets and clears PRs, marks merges and reads the
+-- signals; everyone reads the pending targets (§6.6). publish_request_json is internal.
+revoke execute on function
+  public.publish_request_json(public.content_publish_requests),
+  public.admin_request_publish(text),
+  public.admin_cancel_publish(bigint),
+  public.publish_request_targets(),
+  public.publish_set_pr(bigint[], text),
+  public.publish_mark_merged(bigint[]),
+  public.publish_clear_pr(bigint[]),
+  public.content_signal_results(integer)
+from public, anon, authenticated, service_role;
+grant execute on function
+  public.admin_request_publish(text),
+  public.admin_cancel_publish(bigint)
+to authenticated;
+grant execute on function
+  public.publish_set_pr(bigint[], text),
+  public.publish_mark_merged(bigint[]),
+  public.publish_clear_pr(bigint[]),
+  public.content_signal_results(integer)
+to service_role;
+grant execute on function public.publish_request_targets() to anon, authenticated, service_role;

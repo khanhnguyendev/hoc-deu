@@ -27,8 +27,10 @@ create extension if not exists pgtap with schema extensions;
 -- adds none: ops_bump_metric is service_role only, and plan_block_state_check_in_day (now also
 -- the local_day_bound_insert trigger's function) keeps no grants (090). 6.2b adds the admin
 -- functions admin_bot_settings, admin_update_bot_settings, admin_rotate_bot_token,
--- admin_set_ai_flag and admin_bot_runs (each checks is_admin() itself); it replaces
--- admin_list_users (one overload still); the bot_* functions are service_role only (092).
+-- admin_set_ai_flag, admin_bot_runs, admin_request_publish and admin_cancel_publish (each checks
+-- is_admin() itself), and publish_request_targets (the pending targets only, §6.6); it replaces
+-- admin_list_users (one overload still); the bot_* and publish writers are service_role only
+-- (092).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -40,13 +42,22 @@ insert into _authenticated_allowlist (proname) values
   ('health'),
   ('admin_overview'), ('admin_track_positions'),
   ('admin_bot_settings'), ('admin_update_bot_settings'), ('admin_rotate_bot_token'),
-  ('admin_set_ai_flag'), ('admin_bot_runs');
+  ('admin_set_ai_flag'), ('admin_bot_runs'), ('admin_request_publish'),
+  ('admin_cancel_publish'), ('publish_request_targets');
 
 -- Allowlist of `public` functions `anon` may EXECUTE (check 5), overload for overload like the
--- one above. Only 5.7a's health(): /api/health calls it with the publishable key and no session.
--- A SECURITY DEFINER function may never be listed here (check 4).
+-- one above. 5.7a's health(): /api/health calls it with the publishable key and no session. 6.2b's
+-- publish_request_targets(): the public GET /api/content/publish-requests (§6.6) lists the
+-- pending targets — nothing else — for the bot-content-policy check. A SECURITY DEFINER function
+-- may be listed here only if it is also in _anon_definer_allowlist (check 4).
 create temporary table _anon_allowlist (proname text) on commit drop;
-insert into _anon_allowlist (proname) values ('health');
+insert into _anon_allowlist (proname) values ('health'), ('publish_request_targets');
+
+-- The SECURITY DEFINER functions anon may EXECUTE (check 4's one exception): only
+-- publish_request_targets, which must read content_publish_requests, a table anon may never
+-- touch (check 3), and returns the targets of pending requests only.
+create temporary table _anon_definer_allowlist (proname text) on commit drop;
+insert into _anon_definer_allowlist (proname) values ('publish_request_targets');
 
 select plan(12);
 
@@ -108,7 +119,7 @@ select is_empty(
 );
 
 -- 4. Every SECURITY DEFINER function in public sets search_path, has an explicit ACL with no
---    PUBLIC entry, and grants no EXECUTE to anon.
+--    PUBLIC entry, and grants no EXECUTE to anon — except the _anon_definer_allowlist.
 select is_empty(
   $$
   select p.proname
@@ -122,11 +133,12 @@ select is_empty(
       )
       or p.proacl is null
       or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
-      or has_function_privilege('anon', p.oid, 'EXECUTE')
+      or (has_function_privilege('anon', p.oid, 'EXECUTE')
+        and not p.proname in (select proname from _anon_definer_allowlist))
     )
   $$,
   'every SECURITY DEFINER function in public sets search_path, has an explicit ACL with no '
-  'PUBLIC entry, and grants no EXECUTE to anon'
+  'PUBLIC entry, and grants no EXECUTE to anon (publish_request_targets excepted)'
 );
 
 -- 5. anon may EXECUTE exactly the allowlisted public functions (health() only, task 5.7a),

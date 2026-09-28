@@ -3,13 +3,15 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(43);
+select plan(59);
 
--- Task 6.2b: the bot's admin and run functions (platform design §2.3, §4.2, §4.3, §5.12,
--- §6.2–§6.4; implementation plan Part B-M6 decisions 8–11, 31, 33, 34): admin_bot_settings,
--- admin_update_bot_settings, admin_rotate_bot_token, admin_set_ai_flag, admin_list_users (with
--- ai_personalization), admin_bot_runs, bot_eligible_users, bot_timeout_runs, bot_record_write,
--- bot_prune_details and bot_track_positions.
+-- Task 6.2b: the bot's admin, run and publish-request functions (platform design §2.3, §4.2,
+-- §4.3, §5.12, §6.2–§6.6; implementation plan Part B-M6 decisions 8–11, 19, 20, 31, 33, 34):
+-- admin_bot_settings, admin_update_bot_settings, admin_rotate_bot_token, admin_set_ai_flag,
+-- admin_list_users (with ai_personalization), admin_bot_runs, admin_request_publish,
+-- admin_cancel_publish, publish_request_targets, publish_set_pr, publish_mark_merged,
+-- publish_clear_pr, bot_eligible_users, bot_timeout_runs, bot_record_write, bot_prune_details,
+-- content_signal_results and bot_track_positions.
 
 -- The message a statement raises, or 'no error' (runs as the current role).
 create function tests.err(p_sql text) returns text language plpgsql as $$
@@ -38,7 +40,7 @@ select to_char(public.user_local_day(:'target', now()), 'YYYY-MM-DD') as today \
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. Who may call what: every admin_* function refuses a learner; the service_role functions
---    are the secret key's only.
+--    are the secret key's only; publish_request_targets is public (§6.6).
 -- ---------------------------------------------------------------------------------------------
 select tests.authenticate_as(:'learner');
 select results_eq(
@@ -48,9 +50,11 @@ select results_eq(
       (3, 'select public.admin_rotate_bot_token(repeat(''a'', 64))'),
       (4, 'select public.admin_set_ai_flag(auth.uid(), true)'),
       (5, 'select * from public.admin_list_users()'),
-      (6, 'select public.admin_bot_runs(10)')
+      (6, 'select public.admin_bot_runs(10)'),
+      (7, 'select public.admin_request_publish(''dsa:lc-0049'')'),
+      (8, 'select public.admin_cancel_publish(1)')
     ) as s (n, sql) order by s.n$$,
-  $$select 'forbidden'::text from generate_series(1, 6)$$,
+  $$select 'forbidden'::text from generate_series(1, 8)$$,
   'every admin_* function refuses a learner with forbidden'
 );
 select tests.clear_authentication();
@@ -67,10 +71,17 @@ select results_eq(
       ('admin_set_ai_flag', 'public.admin_set_ai_flag(uuid, boolean)'),
       ('admin_list_users', 'public.admin_list_users()'),
       ('admin_bot_runs', 'public.admin_bot_runs(integer)'),
+      ('admin_request_publish', 'public.admin_request_publish(text)'),
+      ('admin_cancel_publish', 'public.admin_cancel_publish(bigint)'),
+      ('publish_request_targets', 'public.publish_request_targets()'),
+      ('publish_set_pr', 'public.publish_set_pr(bigint[], text)'),
+      ('publish_mark_merged', 'public.publish_mark_merged(bigint[])'),
+      ('publish_clear_pr', 'public.publish_clear_pr(bigint[])'),
       ('bot_eligible_users', 'public.bot_eligible_users()'),
       ('bot_timeout_runs', 'public.bot_timeout_runs()'),
       ('bot_record_write', 'public.bot_record_write(uuid, text, text, jsonb)'),
       ('bot_prune_details', 'public.bot_prune_details()'),
+      ('content_signal_results', 'public.content_signal_results(integer)'),
       ('bot_track_positions', 'public.bot_track_positions()'),
       ('roadmap_override_active',
        'public.roadmap_override_active(public.roadmap_overrides, date)')
@@ -79,7 +90,9 @@ select results_eq(
   $$values
     ('admin_bot_runs', '{authenticated}'::text[]),
     ('admin_bot_settings', '{authenticated}'),
+    ('admin_cancel_publish', '{authenticated}'),
     ('admin_list_users', '{authenticated}'),
+    ('admin_request_publish', '{authenticated}'),
     ('admin_rotate_bot_token', '{authenticated}'),
     ('admin_set_ai_flag', '{authenticated}'),
     ('admin_update_bot_settings', '{authenticated}'),
@@ -88,9 +101,14 @@ select results_eq(
     ('bot_record_write', '{service_role}'),
     ('bot_timeout_runs', '{service_role}'),
     ('bot_track_positions', '{service_role}'),
+    ('content_signal_results', '{service_role}'),
+    ('publish_clear_pr', '{service_role}'),
+    ('publish_mark_merged', '{service_role}'),
+    ('publish_request_targets', '{anon,authenticated,service_role}'),
+    ('publish_set_pr', '{service_role}'),
     ('roadmap_override_active', '{}')$$,
-  'EXECUTE: the admin functions for authenticated, the bot functions for service_role, '
-  'roadmap_override_active for nobody'
+  'EXECUTE: the admin functions for authenticated, the bot and publish writers for '
+  'service_role, publish_request_targets for everyone, roadmap_override_active for nobody'
 );
 
 -- ---------------------------------------------------------------------------------------------
@@ -492,6 +510,148 @@ select ok(
     and :'runs'::text not like '%' || :'e3' || '%',
   '... and no user id or ref'
 );
+
+-- ---------------------------------------------------------------------------------------------
+-- 6. content_signal_results (decision 19): item.result aggregates, only with ≥ 5 users.
+-- ---------------------------------------------------------------------------------------------
+select tests.create_user('bot-fn-s1@hocdeu.test') as s1 \gset
+select tests.create_user('bot-fn-s2@hocdeu.test') as s2 \gset
+select tests.create_user('bot-fn-s3@hocdeu.test') as s3 \gset
+select tests.create_user('bot-fn-s4@hocdeu.test') as s4 \gset
+select tests.create_user('bot-fn-s5@hocdeu.test') as s5 \gset
+insert into public.events (id, user_id, source, type, item_id, payload, occurred_at)
+select gen_random_uuid(), u, 'learner', 'item.result', 'zz:signal-four', '{"result": "failed"}',
+  now()
+from unnest(array[:'s1', :'s2', :'s3', :'s4']::uuid[]) as u;
+insert into public.events (id, user_id, source, type, item_id, payload, occurred_at)
+select gen_random_uuid(), x.u, 'learner', 'item.result', 'zz:signal-five',
+  jsonb_build_object('result', x.r), now() - x.age
+from (values (:'s1'::uuid, 'failed', interval '1 day'), (:'s1', 'solved', interval '0'),
+             (:'s2', 'hint', interval '3 days'), (:'s3', 'dont_know', interval '10 days'),
+             (:'s4', 'unsure', interval '20 days'), (:'s5', 'solved', interval '30 days'),
+             (:'s5', 'failed', interval '100 days')) as x (u, r, age);
+select tests.authenticate_as_service_role();
+select results_eq(
+  $$select item_id, attempts, fails, hints, users from public.content_signal_results(90)
+    where item_id like 'zz:%'$$,
+  $$values ('zz:signal-five'::text, 6, 2, 2, 5)$$,
+  'content_signal_results: four users → nothing; five → one row (attempts, failed or '
+  'dont_know, hint or unsure, users) of the last 90 days'
+);
+select is(
+  (select count(*)::integer from public.content_signal_results(10) where item_id like 'zz:%'),
+  0, '... the window is p_days (10 days: three users)'
+);
+select results_eq(
+  $$select tests.err('select public.content_signal_results(0)')
+    union all select tests.err('select public.content_signal_results(366)')
+    union all select tests.err('select public.content_signal_results(null)')$$,
+  $$values ('invalid_event'), ('invalid_event'), ('invalid_event')$$,
+  '... from 1 to 365 days'
+);
+select tests.clear_authentication();
+
+-- ---------------------------------------------------------------------------------------------
+-- 7. Publish requests (§6.6, decision 20).
+-- ---------------------------------------------------------------------------------------------
+select tests.authenticate_as(:'admin');
+select public.admin_request_publish('dsa:lc-0049#note') as req1 \gset
+select results_eq(
+  format($$select (%L::jsonb) - 'id' - 'requestedAt'$$, :'req1'),
+  $$values ('{"target": "dsa:lc-0049#note", "status": "pending", "prUrl": null}'::jsonb)$$,
+  'admin_request_publish records a pending request'
+);
+select is(
+  public.admin_request_publish('dsa:lc-0049#note'), :'req1'::jsonb,
+  '... and returns the pending request for the target again instead of a second one'
+);
+select (public.admin_request_publish('dsa:lc-0050') ->> 'id')::bigint as req2 \gset
+select (public.admin_request_publish('dsa:lc-0051') ->> 'id')::bigint as req3 \gset
+select is(
+  public.admin_cancel_publish(:req2) ->> 'status', 'cancelled',
+  'admin_cancel_publish cancels a pending request'
+);
+select results_eq(
+  format(
+    $$select tests.err(s.sql) from (values
+        (1, 'select public.admin_cancel_publish(%1$s)'),
+        (2, 'select public.admin_cancel_publish(-1)'),
+        (3, 'select public.admin_request_publish(''DSA:lc'')'),
+        (4, 'select public.admin_request_publish(null)')
+      ) as s (n, sql) order by s.n$$,
+    :req2),
+  $$values ('invalid_transition'), ('not_found'), ('invalid_target'), ('invalid_target')$$,
+  '... only a pending one; a bad target is refused'
+);
+select tests.clear_authentication();
+select is(
+  (select requested_by::text from public.content_publish_requests
+   where id = (:'req1'::jsonb ->> 'id')::bigint),
+  :'admin', 'the request records the admin'
+);
+
+select tests.authenticate_as_anon();
+select results_eq(
+  $$select t from public.publish_request_targets() as t where t like 'dsa:lc-00%'$$,
+  $$values ('dsa:lc-0049#note'::text), ('dsa:lc-0051')$$,
+  'publish_request_targets lists the pending targets only, sorted, for anon'
+);
+select tests.clear_authentication();
+
+select tests.authenticate_as(:'learner');
+select results_eq(
+  $$select tests.err(s.sql) from (values
+      (1, 'select public.publish_set_pr(array[1]::bigint[], ''https://github.com/khanhnguyendev/hoc-deu/pull/1'')'),
+      (2, 'select public.publish_mark_merged(array[1]::bigint[])'),
+      (3, 'select public.publish_clear_pr(array[1]::bigint[])')
+    ) as s (n, sql) order by s.n$$,
+  $$values ('permission denied for function publish_set_pr'),
+           ('permission denied for function publish_mark_merged'),
+           ('permission denied for function publish_clear_pr')$$,
+  'publish_set_pr, publish_mark_merged and publish_clear_pr refuse authenticated'
+);
+select tests.clear_authentication();
+
+select tests.authenticate_as_service_role();
+select is(
+  public.publish_set_pr(array[(:'req1'::jsonb ->> 'id')::bigint, :req2, :req3],
+    'https://github.com/khanhnguyendev/hoc-deu/pull/41'),
+  2, 'publish_set_pr sets pr_url on the listed pending requests only'
+);
+select is(
+  tests.err('select public.publish_set_pr(array[1]::bigint[], ''https://example.com/pull/1'')'),
+  'invalid_pr_url', '... and refuses another URL'
+);
+select is(
+  public.publish_mark_merged(array[(:'req1'::jsonb ->> 'id')::bigint, :req2]), 1,
+  'publish_mark_merged marks the listed pending requests merged'
+);
+select is(
+  public.publish_clear_pr(array[(:'req1'::jsonb ->> 'id')::bigint, :req2, :req3]), 1,
+  'publish_clear_pr clears pr_url on the listed pending requests only'
+);
+select tests.clear_authentication();
+select results_eq(
+  format(
+    $$select id, status, pr_url from public.content_publish_requests
+      where id in (%s, %s, %s) order by id$$,
+    (:'req1'::jsonb ->> 'id'), :req2, :req3),
+  $$values
+    ((select id from public.content_publish_requests where target = 'dsa:lc-0049#note'),
+     'merged'::text, 'https://github.com/khanhnguyendev/hoc-deu/pull/41'::text),
+    ((select id from public.content_publish_requests where target = 'dsa:lc-0050'),
+     'cancelled', null),
+    ((select id from public.content_publish_requests where target = 'dsa:lc-0051'),
+     'pending', null)$$,
+  '... leaving merged and cancelled requests as they are'
+);
+select tests.authenticate_as_anon();
+select results_eq(
+  $$select t from public.publish_request_targets() as t where t like 'dsa:lc-00%'$$,
+  $$values ('dsa:lc-0051'::text)$$,
+  'a merged request is no longer listed'
+);
+select tests.clear_authentication();
 
 select * from finish();
 rollback;

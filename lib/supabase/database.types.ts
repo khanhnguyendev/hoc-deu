@@ -796,6 +796,7 @@ export type Database = {
       admin_bootstrap: { Args: { p_user_id: string }; Returns: boolean }
       admin_bot_runs: { Args: { p_limit: number }; Returns: Json }
       admin_bot_settings: { Args: never; Returns: Json }
+      admin_cancel_publish: { Args: { p_id: number }; Returns: Json }
       admin_list_users: {
         Args: never
         Returns: {
@@ -812,6 +813,7 @@ export type Database = {
         }[]
       }
       admin_overview: { Args: never; Returns: Json }
+      admin_request_publish: { Args: { p_target: string }; Returns: Json }
       admin_rotate_bot_token: { Args: { p_token_hash: string }; Returns: Json }
       admin_set_ai_flag: {
         Args: { p_on: boolean; p_user_id: string }
@@ -898,6 +900,16 @@ export type Database = {
           week: number
         }[]
       }
+      content_signal_results: {
+        Args: { p_days: number }
+        Returns: {
+          attempts: number
+          fails: number
+          hints: number
+          item_id: string
+          users: number
+        }[]
+      }
       health: { Args: never; Returns: boolean }
       is_active: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
@@ -916,6 +928,19 @@ export type Database = {
       }
       plan_lock_key: {
         Args: { p_plan_date: string; p_user_id: string }
+        Returns: number
+      }
+      publish_clear_pr: { Args: { p_ids: number[] }; Returns: number }
+      publish_mark_merged: { Args: { p_ids: number[] }; Returns: number }
+      publish_request_json: {
+        Args: {
+          r: Database['public']['Tables']['content_publish_requests']['Row']
+        }
+        Returns: Json
+      }
+      publish_request_targets: { Args: never; Returns: string[] }
+      publish_set_pr: {
+        Args: { p_ids: number[]; p_pr_url: string }
         Returns: number
       }
       roadmap_override_active: {
