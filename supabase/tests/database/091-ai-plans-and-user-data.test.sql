@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(76);
+select plan(90);
 
 -- Task 6.2b: apply_system_event's M6 branches — plan.ai_proposed with the untouched-plan
 -- precedence, user_item.created / retired / hidden, roadmap.override_set / revoked — and
@@ -136,12 +136,14 @@ create function tests.ew_params(p_days integer default 2) returns jsonb
 language sql immutable as $$
   select jsonb_build_object('topicId', 'arrays-hashing', 'studyDays', p_days)
 $$;
--- roadmap.override_revoked (the learner: source system, actor the learner).
+-- roadmap.override_revoked: the learner's (source system, actor the learner) or, with p_actor
+-- null, the bot's (source bot — ruling M6-R17).
 create function tests.revoke_event(p_id text, p_key text, p_kind text, p_actor uuid)
 returns jsonb language sql immutable as $$
-  select jsonb_build_object(
-    'id', p_id, 'type', 'roadmap.override_revoked', 'source', 'system', 'actor_id', p_actor,
-    'track_id', 'dsa', 'rules_version', 3,
+  select jsonb_strip_nulls(jsonb_build_object(
+    'id', p_id, 'type', 'roadmap.override_revoked',
+    'source', case when p_actor is null then 'bot' else 'system' end, 'actor_id', p_actor,
+    'track_id', 'dsa', 'rules_version', 3)) || jsonb_build_object(
     'payload', jsonb_build_object('key', p_key, 'kind', p_kind))
 $$;
 
@@ -173,15 +175,18 @@ select tests.create_user('ai-ovr-cap@hocdeu.test') as ovr_cap \gset
 select tests.create_user('ai-ovr-ew@hocdeu.test') as ovr_ew \gset
 select tests.create_user('ai-ovr-cool@hocdeu.test') as ovr_cool \gset
 select tests.create_user('ai-ovr-reset@hocdeu.test') as ovr_reset \gset
+select tests.create_user('ai-ovr-kind@hocdeu.test') as ovr_kind \gset
+select tests.create_user('ai-ovr-bot@hocdeu.test') as ovr_bot \gset
 
 update public.profiles set ai_personalization = true, onboarded_at = now()
 where id in (:'fresh', :'untouched', :'touched', :'resumed', :'items', :'items_full', :'ovr',
-             :'ovr_cap', :'ovr_ew', :'ovr_cool', :'ovr_reset');
+             :'ovr_cap', :'ovr_ew', :'ovr_cool', :'ovr_reset', :'ovr_kind', :'ovr_bot');
 update public.profiles set onboarded_at = now() where id = :'flag_off';
 insert into public.user_tracks (user_id, track_id, roadmap_variant, start_date, budget_minutes)
 select u, 'dsa', '10w', '2026-09-01', 60
 from unnest(array[:'fresh', :'untouched', :'touched', :'resumed', :'flag_off', :'items',
-                  :'items_full', :'ovr', :'ovr_cap', :'ovr_ew', :'ovr_cool', :'ovr_reset']::uuid[])
+                  :'items_full', :'ovr', :'ovr_cap', :'ovr_ew', :'ovr_cool', :'ovr_reset',
+                  :'ovr_kind', :'ovr_bot']::uuid[])
   as u;
 select bot_ref as items_ref from public.profiles where id = :'items' \gset
 select bot_ref as full_ref from public.profiles where id = :'items_full' \gset
@@ -771,9 +776,10 @@ select is(
 );
 select results_eq(
   format(
-    $$select status, revoked_at from public.roadmap_overrides where user_id = %L$$, :'ovr'),
-  $$values ('revoked'::text, now())$$,
-  '... which is revoked now'
+    $$select status, revoked_at, revoked_by from public.roadmap_overrides where user_id = %L$$,
+    :'ovr'),
+  $$values ('revoked'::text, now(), 'learner'::text)$$,
+  '... which is revoked now, by the learner'
 );
 select is(
   public.apply_system_event(:'ovr',
@@ -796,12 +802,115 @@ select results_eq(
         (2, tests.revoke_event(gen_random_uuid()::text, 'ib-one', 'extra_week', %1$L)),
         (3, tests.revoke_event(gen_random_uuid()::text, 'ib-one', 'insert_block', %2$L)),
         (4, tests.revoke_event(gen_random_uuid()::text, 'ib-one', 'insert_block', %1$L)
-              || '{"source": "bot"}')
+              || '{"source": "admin"}'),
+        (5, tests.revoke_event(gen_random_uuid()::text, 'ib-one', 'insert_block', null)
+              || jsonb_build_object('actor_id', %2$L))
       ) as e (n, event)
       order by e.n$$,
     :'ovr', :'ovr_cap'),
-  $$select 'invalid_event'::text from generate_series(1, 4)$$,
-  'revoking an unknown key, with another kind, by another actor or by the bot → invalid_event'
+  $$select 'invalid_event'::text from generate_series(1, 5)$$,
+  'revoking an unknown key, with another kind, by another actor, with another source or by the '
+  'bot naming another actor → invalid_event'
+);
+
+-- The bot revokes too (ruling M6-R17): revoked_by bot; a key the bot revoked may be set again
+-- (a new start); one the learner revoked may not; the bot's revoke needs the AI flag.
+select is(
+  public.apply_system_event(:'ovr_bot',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000b1', 'ib-bot', 'insert_block',
+      tests.ib_params(tests.d(3))),
+    tests.ovr_changes(tests.d(3))) ->> 'outcome',
+  'applied', 'the bot sets an insert_block'
+);
+select is(
+  public.apply_system_event(:'ovr_bot',
+    tests.revoke_event('91000000-0000-4000-8000-0000000000b2', 'ib-bot', 'insert_block', null)),
+  '{"outcome": "applied", "versions": {}}'::jsonb,
+  '... and revokes it (source bot)'
+);
+select results_eq(
+  format(
+    $$select o.status, o.revoked_by, e.source, e.actor_id::text
+      from public.roadmap_overrides o
+      join public.events e on e.user_id = o.user_id and e.type = 'roadmap.override_revoked'
+      where o.user_id = %1$L$$, :'ovr_bot'),
+  format($$values ('revoked'::text, 'bot'::text, 'bot'::text, %L::text)$$, :'ovr_bot'),
+  '... revoked by the bot, with one roadmap.override_revoked event from the bot'
+);
+select is(
+  public.apply_system_event(:'ovr_bot',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000b3', 'ib-bot', 'insert_block',
+      tests.ib_params(tests.d(4))),
+    tests.ovr_changes(tests.d(4))) ->> 'outcome',
+  'applied', 'a key the bot revoked may be set again'
+);
+select results_eq(
+  format(
+    $$select status, revoked_at, revoked_by, start_local_day, until_local_day
+      from public.roadmap_overrides where user_id = %L$$, :'ovr_bot'),
+  format($$values ('active'::text, null::timestamptz, null::text, %L::date, %L::date)$$,
+    :'today', tests.d(4)),
+  '... active again as a new start, revoked_at and revoked_by cleared'
+);
+select is(
+  public.apply_system_event(:'ovr_bot',
+    tests.revoke_event('91000000-0000-4000-8000-0000000000b4', 'ib-bot', 'insert_block',
+      :'ovr_bot')) ->> 'outcome',
+  'applied', 'the learner revokes it'
+);
+select is(
+  tests.sys_error(:'ovr_bot',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000b5', 'ib-bot', 'insert_block',
+      tests.ib_params(tests.d(3))),
+    tests.ovr_changes(tests.d(3))),
+  'revoked_key', '... after which setting it → revoked_key'
+);
+select is(
+  tests.sys_error(:'flag_off',
+    tests.revoke_event('91000000-0000-4000-8000-0000000000b6', 'ib-one', 'insert_block', null)),
+  'ai_off', 'the bot''s revoke with the AI flag off → ai_off'
+);
+select throws_ok(
+  format($$update public.roadmap_overrides set status = 'active'
+           where user_id = %L and key = 'ib-one'$$, :'ovr'),
+  '23514', null, 'revoked_by is null unless the override is revoked'
+);
+
+-- A key keeps its kind (§6.4.5: idempotent by (trackId, key)), so a kind change cannot dodge
+-- the extra_week cooldown.
+select is(
+  public.apply_system_event(:'ovr_kind',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000c1', 'ew-k', 'extra_week',
+      tests.ew_params()),
+    tests.ovr_changes(null, 2)) ->> 'outcome',
+  'applied', 'the bot sets an extra_week K'
+);
+select is(
+  tests.sys_error(:'ovr_kind',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000c2', 'ew-k', 'reorder_topics',
+      '{"order": ["trees"]}'),
+    tests.ovr_changes()),
+  'invalid_event', '... re-setting K as a reorder_topics → invalid_event'
+);
+select is(
+  public.apply_system_event(:'ovr_kind',
+    tests.revoke_event('91000000-0000-4000-8000-0000000000c3', 'ew-k', 'extra_week', null))
+    ->> 'outcome',
+  'applied', '... the bot revokes K'
+);
+select is(
+  tests.sys_error(:'ovr_kind',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000c4', 'ew-j', 'extra_week',
+      tests.ew_params()),
+    tests.ovr_changes(null, 2)),
+  'cooldown', '... and an extra_week J within 21 days of K''s start → cooldown'
+);
+select is(
+  tests.sys_error(:'ovr_kind',
+    tests.ovr_event('91000000-0000-4000-8000-0000000000c5', 'ew-k', 'extra_week',
+      tests.ew_params()),
+    tests.ovr_changes(null, 2)),
+  'cooldown', '... as is setting K again (the bot revoked it, but its start is recent)'
 );
 
 -- ≤ 3 active per track; an expired insert_block does not count.
@@ -967,7 +1076,7 @@ select results_eq(
 );
 
 -- ---------------------------------------------------------------------------------------------
--- 8. bot_settings.dry_run on → invalid_event for all three bot write types (decision 8).
+-- 8. bot_settings.dry_run on → invalid_event for every bot write type (decision 8).
 -- ---------------------------------------------------------------------------------------------
 update public.bot_settings set dry_run = true;
 select results_eq(
@@ -981,11 +1090,14 @@ select results_eq(
       union all
       select tests.sys_error(%1$L,
         tests.ovr_event(gen_random_uuid()::text, 'ib-dry', 'insert_block',
-          tests.ib_params(tests.d(3))), tests.ovr_changes(tests.d(3)))$$,
+          tests.ib_params(tests.d(3))), tests.ovr_changes(tests.d(3)))
+      union all
+      select tests.sys_error(%1$L,
+        tests.revoke_event(gen_random_uuid()::text, 'ib-dry', 'insert_block', null))$$,
     :'items', :'items_ref', :'today'),
-  $$values ('invalid_event'), ('invalid_event'), ('invalid_event')$$,
-  'with bot_settings.dry_run on, plan.ai_proposed, user_item.created and roadmap.override_set '
-  '→ invalid_event'
+  $$values ('invalid_event'), ('invalid_event'), ('invalid_event'), ('invalid_event')$$,
+  'with bot_settings.dry_run on, plan.ai_proposed, user_item.created, roadmap.override_set and '
+  'the bot''s roadmap.override_revoked → invalid_event'
 );
 
 select * from finish();

@@ -606,6 +606,7 @@ export type Database = {
           kind: string
           params: Json
           revoked_at: string | null
+          revoked_by: string | null
           start_local_day: string
           status: string
           study_days: number | null
@@ -621,6 +622,7 @@ export type Database = {
           kind: string
           params: Json
           revoked_at?: string | null
+          revoked_by?: string | null
           start_local_day: string
           status?: string
           study_days?: number | null
@@ -636,6 +638,7 @@ export type Database = {
           kind?: string
           params?: Json
           revoked_at?: string | null
+          revoked_by?: string | null
           start_local_day?: string
           status?: string
           study_days?: number | null
@@ -926,6 +929,7 @@ export type Database = {
         Args: { p_key: string; p_value: number }
         Returns: undefined
       }
+      plan_is_touched: { Args: { p_plan_id: string }; Returns: boolean }
       plan_lock_key: {
         Args: { p_plan_date: string; p_user_id: string }
         Returns: number

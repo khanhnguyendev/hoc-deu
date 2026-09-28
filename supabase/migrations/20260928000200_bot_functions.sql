@@ -1,7 +1,8 @@
 -- Task 6.2b: every M6 SQL function and every M6 branch of apply_system_event (platform design
 -- §2.3, §4.2–§4.5, §5.12, §6.2–§6.6, §6.10; implementation plan Part B-M6 decisions 4, 8–13,
 -- 17–20, 31, 33, 34). The second and last M6 migration (decision 4): the bot tasks call these.
--- 1. roadmap_override_active: decision 18's computed expiry.
+-- 1. roadmap_overrides.revoked_by (ruling M6-R17); roadmap_override_active: decision 18's computed
+--    expiry; plan_is_touched: the untouched-plan rule (§2.3).
 -- 2. apply_system_event: plan.ai_proposed (the untouched-plan precedence), user_item.created /
 --    retired / hidden, roadmap.override_set / revoked; a plan.generated rebuild clears rationale
 --    and bot_run_id.
@@ -23,6 +24,13 @@
 --    internal helper: apply_system_event and admin_set_ai_flag call it as their owner.
 -- ---------------------------------------------------------------------------------------------
 
+-- Who revoked an override (ruling M6-R17: the bot may revoke too, §6.4.5): null unless revoked.
+-- Only a learner's revocation is final (revoked_key); a key the bot revoked may be set again.
+alter table public.roadmap_overrides
+  add column revoked_by text check (revoked_by in ('learner', 'bot')),
+  add constraint roadmap_overrides_revoked_by_check_status
+    check (revoked_by is null or status = 'revoked');
+
 create function public.roadmap_override_active(o public.roadmap_overrides, p_today date)
 returns boolean
 language sql stable set search_path = '' as $$
@@ -36,6 +44,21 @@ language sql stable set search_path = '' as $$
     ) < o.study_days
     else true
   end
+$$;
+
+-- The untouched-plan rule (§2.3, decision 12 of M4): a plan is touched once it has a check-in, or
+-- an event naming it other than its generation and the bot's plan.ai_* events. A settings
+-- rebuild and the bot's plan replace only an untouched plan. Internal: apply_system_event calls
+-- it as its owner, under the plan lock.
+create function public.plan_is_touched(p_plan_id uuid) returns boolean
+language sql stable set search_path = '' as $$
+  select exists (select 1 from public.plan_block_state b where b.plan_id = p_plan_id)
+    or exists (
+      select 1 from public.events e
+      where e.plan_id = p_plan_id
+        and e.type not in (
+          'plan.generated', 'plan.ai_proposed', 'plan.ai_applied', 'plan.ai_skipped')
+    )
 $$;
 
 -- ---------------------------------------------------------------------------------------------
@@ -132,6 +155,10 @@ declare
   v_prev_start date;
   v_active_count integer;
   v_extra_count integer;
+  -- The bot's writes: they need the AI flag and bot_settings.dry_run off (decision 8).
+  v_bot_write constant boolean := v_type in ('plan.ai_proposed', 'user_item.created',
+      'user_item.retired', 'roadmap.override_set')
+    or (v_type = 'roadmap.override_revoked' and p_event ->> 'source' = 'bot');
 begin
   -- 1. A system type, and one implemented here.
   if v_type is null or not v_type = any (public.system_event_types()) then
@@ -167,14 +194,19 @@ begin
   v_rules := coalesce((p_event ->> 'rules_version')::integer, public.rules_version());
 
   -- The M6 types' source: the bot writes plan.ai_proposed, user_item.created / retired and
-  -- roadmap.override_set; the learner's hide and revoke come from a server action (source
-  -- system) and name the learner as the actor, if anyone.
+  -- roadmap.override_set; the learner's hide comes from a server action (source system) and
+  -- names the learner as the actor, if anyone; roadmap.override_revoked is either (ruling
+  -- M6-R17): the bot's (source bot) or the learner's (source system).
   if (v_type in ('plan.ai_proposed', 'user_item.created', 'user_item.retired',
         'roadmap.override_set')
       and p_event -> 'source' is distinct from '"bot"'::jsonb)
+    or (v_type = 'user_item.hidden'
+      and p_event -> 'source' is distinct from '"system"'::jsonb)
+    or (v_type = 'roadmap.override_revoked'
+      and p_event -> 'source' is distinct from '"system"'::jsonb
+      and p_event -> 'source' is distinct from '"bot"'::jsonb)
     or (v_type in ('user_item.hidden', 'roadmap.override_revoked')
-      and (p_event -> 'source' is distinct from '"system"'::jsonb
-        or coalesce((p_event ->> 'actor_id')::uuid, p_user_id) <> p_user_id))
+      and coalesce((p_event ->> 'actor_id')::uuid, p_user_id) <> p_user_id)
   then
     raise exception 'invalid_event';
   end if;
@@ -450,8 +482,9 @@ begin
     v_per_track := least((v_limits ->> 'perTrack')::integer, 3);
 
   elsif v_type = 'roadmap.override_revoked' then
-    -- The learner revokes one of their overrides: p_event track_id, payload { key, kind } (the
-    -- stored kind; params, if sent, ignored); no rows and no expected versions.
+    -- The learner (source system) or the bot (source bot, ruling M6-R17) revokes an override:
+    -- p_event track_id, payload { key, kind } (the stored kind; params, if sent, ignored); no
+    -- rows and no expected versions.
     v_ov_key := case when jsonb_typeof(v_payload -> 'key') = 'string' then v_payload ->> 'key' end;
     v_ov_kind := case when jsonb_typeof(v_payload -> 'kind') = 'string'
       then v_payload ->> 'kind' end;
@@ -503,10 +536,7 @@ begin
   if v_status is distinct from 'active' then
     raise exception 'inactive' using errcode = '42501';
   end if;
-  if v_type in ('plan.ai_proposed', 'user_item.created', 'user_item.retired',
-      'roadmap.override_set')
-    and not v_ai
-  then
+  if v_bot_write and not v_ai then
     raise exception 'ai_off';
   end if;
 
@@ -545,8 +575,7 @@ begin
   ) then
     raise exception 'invalid_event';
   end if;
-  if v_type in ('plan.ai_proposed', 'user_item.created', 'user_item.retired',
-      'roadmap.override_set')
+  if v_bot_write
     and (select s.dry_run from public.bot_settings s) is distinct from false
   then
     raise exception 'invalid_event';
@@ -576,14 +605,7 @@ begin
     if v_plan_id is null or v_version <> v_expected then
       raise exception 'version_conflict';
     end if;
-    if exists (select 1 from public.plan_block_state b where b.plan_id = v_plan_id)
-      or exists (
-        select 1 from public.events e
-        where e.plan_id = v_plan_id
-          and e.type not in (
-            'plan.generated', 'plan.ai_proposed', 'plan.ai_applied', 'plan.ai_skipped')
-      )
-    then
+    if public.plan_is_touched(v_plan_id) then
       return jsonb_build_object(
         'outcome', 'plan_in_use', 'plan_id', v_plan_id, 'versions', '{}'::jsonb);
     end if;
@@ -635,13 +657,7 @@ begin
     from public.day_plans d
     where d.user_id = p_user_id and d.plan_date = v_plan_date;
     if v_plan_id is not null and (
-      exists (select 1 from public.plan_block_state b where b.plan_id = v_plan_id)
-      or exists (
-        select 1 from public.events e
-        where e.plan_id = v_plan_id
-          and e.type not in (
-            'plan.generated', 'plan.ai_proposed', 'plan.ai_applied', 'plan.ai_skipped')
-      )
+      public.plan_is_touched(v_plan_id)
       or (
         select e.payload ->> 'mode' from public.events e
         where e.plan_id = v_plan_id and e.type = 'plan.generated'
@@ -708,9 +724,11 @@ begin
     end if;
     v_track_id := v_item.track_id;
   elsif v_type = 'roadmap.override_set' then
-    -- until between the local day and 14 days after it (§5.12). The key: revoked by the learner
-    -- → revoked_key (the bot never overrides a revocation); in force with the same kind and
-    -- params → unchanged; otherwise it is upserted in step 7.
+    -- until between the local day and 14 days after it (§5.12). The key: another kind →
+    -- invalid_event (an override is idempotent by (trackId, key), §6.4.5 — and a kind change
+    -- would dodge the extra_week cooldown); revoked by the learner → revoked_key (the bot never
+    -- overrides a learner's revocation; one it revoked itself it may set again, as a new start);
+    -- in force with the same params → unchanged; otherwise it is upserted in step 7.
     if v_ov_kind = 'insert_block' and v_until not between v_today and v_today + 14 then
       raise exception 'invalid_event';
     end if;
@@ -718,10 +736,13 @@ begin
     where o.user_id = p_user_id and o.track_id = v_track_id and o.key = v_ov_key
     for update;
     if found then
-      if v_ov.status = 'revoked' then
+      if v_ov.kind <> v_ov_kind then
+        raise exception 'invalid_event';
+      end if;
+      if v_ov.status = 'revoked' and v_ov.revoked_by is distinct from 'bot' then
         raise exception 'revoked_key';
       end if;
-      if v_ov.kind = v_ov_kind and v_ov.params = v_payload -> 'params'
+      if v_ov.params = v_payload -> 'params'
         and v_ov.until_local_day is not distinct from v_until
         and v_ov.study_days is not distinct from v_study_days
         and public.roadmap_override_active(v_ov, v_today)
@@ -732,8 +753,8 @@ begin
       v_prev_start := case when v_ov.kind = 'extra_week' then v_ov.start_local_day end;
     end if;
   elsif v_type = 'roadmap.override_revoked' then
-    -- The user's own override of the stated kind; active or suspended → revoked; revoked again
-    -- is unchanged.
+    -- The user's own override of the stated kind; active or suspended → revoked, recording who
+    -- (the learner or the bot); revoked again, by either, is unchanged.
     select * into v_ov from public.roadmap_overrides o
     where o.user_id = p_user_id and o.track_id = v_track_id and o.key = v_ov_key
     for update;
@@ -840,7 +861,7 @@ begin
         kind = excluded.kind, params = excluded.params, status = 'active',
         until_local_day = excluded.until_local_day, study_days = excluded.study_days,
         start_local_day = excluded.start_local_day, created_by_run = excluded.created_by_run,
-        revoked_at = null
+        revoked_at = null, revoked_by = null
       returning * into v_ov;
       -- The counts, under the lock, with the computed expiry (decision 18): at most perTrack
       -- overrides in force in the track, one of them an extra_week; an extra_week (a new key or
@@ -865,7 +886,9 @@ begin
         raise exception 'cooldown';
       end if;
     elsif v_type = 'roadmap.override_revoked' then
-      update public.roadmap_overrides o set status = 'revoked', revoked_at = now()
+      update public.roadmap_overrides o set
+        status = 'revoked', revoked_at = now(),
+        revoked_by = case when p_event ->> 'source' = 'bot' then 'bot' else 'learner' end
       where o.id = v_ov.id;
     end if;
 
@@ -936,10 +959,12 @@ end $$;
 
 -- Function privileges (controller ruling R5, as every function of this migration):
 -- PUBLIC's default EXECUTE and Supabase's default grants are revoked, then each function gets
--- exactly its callers. roadmap_override_active: none (its callers run it as their owner).
+-- exactly its callers. roadmap_override_active, plan_is_touched: none (their callers run them
+-- as their owner).
 -- create or replace keeps apply_system_event's ACL (the secret key only); this restates it.
 revoke execute on function
   public.roadmap_override_active(public.roadmap_overrides, date),
+  public.plan_is_touched(uuid),
   public.apply_system_event(uuid, jsonb, jsonb, jsonb)
 from public, anon, authenticated, service_role;
 grant execute on function public.apply_system_event(uuid, jsonb, jsonb, jsonb) to service_role;

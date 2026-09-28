@@ -73,7 +73,9 @@ const USER_MESSAGES = {
   // Retried by withRetry first; shown only when every attempt conflicted.
   version_conflict: vi.errors.saveFailed,
   day_changed: vi.errors.saveFailed,
-  // The bot path turns these into its own outcomes; a learner never causes them.
+  // Raised only for the bot's write types (plan.ai_proposed, user_item.created / retired,
+  // roadmap.override_set, the bot's revoke), whose path maps them to its own outcomes; the
+  // learner's hide and revoke never raise them. A generic message if one ever reaches a page.
   ai_off: vi.errors.saveFailed,
   slug_taken: vi.errors.saveFailed,
   revoked_key: vi.errors.saveFailed,
