@@ -33,5 +33,7 @@ describe('lib/i18n/strings/publish.ts', () => {
   it('has three checklist lines per kind (all required)', () => {
     expect(publish.dialog.problem).toHaveLength(3)
     expect(publish.dialog.item).toHaveLength(3)
+    // Not every item has an English part: the third check applies only when it does.
+    expect(publish.dialog.item[2]).toContain('nếu có')
   })
 })

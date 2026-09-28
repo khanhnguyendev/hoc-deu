@@ -81,7 +81,8 @@ async function publishStep(admin: SupabaseClient<Database>, fetchImpl: typeof fe
     const pull = Number(match[1])
     byPull.set(pull, [...(byPull.get(pull) ?? []), row.id])
   }
-  const pulls = [...byPull.keys()].sort((a, b) => a - b).slice(0, MAX_PULL_LOOKUPS)
+  // Newest first: a recently closed PR is never starved behind older open ones.
+  const pulls = [...byPull.keys()].sort((a, b) => b - a).slice(0, MAX_PULL_LOOKUPS)
   const closed: number[] = []
   let unread = 0
   for (const pull of pulls) {

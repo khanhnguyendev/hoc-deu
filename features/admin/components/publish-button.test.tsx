@@ -179,6 +179,54 @@ describe('PublishButton — a pending request', () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Đã huỷ yêu cầu xuất bản.'))
   })
 
+  it('the PR link is a 44 px target (md button height, not sm)', () => {
+    render(
+      <PublishButton
+        {...setup({ request: { requestId: 7, pr: { href: PR, label: 'PR #41' } } })}
+      />,
+    )
+    const link = screen.getByRole('link', { name: /PR #41/ })
+    expect(link.className).toContain('h-11')
+    expect(link.className).not.toContain('h-9')
+  })
+
+  it('after "Huỷ", focus waits for the re-render, then moves to "Xuất bản"', async () => {
+    const props = setup({ request: { requestId: 7, pr: null } })
+    const { rerender } = render(<PublishButton {...props} />)
+    const cancel = screen.getByRole('button', { name: 'Huỷ yêu cầu xuất bản Reverse Linked List' })
+    cancel.focus()
+    await act(async () => {
+      fireEvent.click(cancel)
+    })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Đã huỷ yêu cầu xuất bản.'))
+    // Still the same request (the page has not re-rendered yet): focus stays put.
+    rerender(<PublishButton {...props} />)
+    expect(document.activeElement).toBe(cancel)
+    rerender(<PublishButton {...props} request={null} />)
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Xuất bản Reverse Linked List' }),
+      ),
+    )
+  })
+
+  it('after "Xuất bản", focus moves to "Huỷ" once the pending request renders', async () => {
+    const props = setup()
+    const { rerender } = render(<PublishButton {...props} />)
+    const dialog = openDialog()
+    for (const box of within(dialog).getAllByRole('checkbox')) fireEvent.click(box)
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Xuất bản' }))
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    rerender(<PublishButton {...props} request={{ requestId: 9, pr: null }} />)
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Huỷ yêu cầu xuất bản Reverse Linked List' }),
+      ),
+    )
+  })
+
   it('without the actions (the catalog) it shows the state only', () => {
     render(
       <PublishButton

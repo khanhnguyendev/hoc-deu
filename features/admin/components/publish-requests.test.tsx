@@ -52,6 +52,9 @@ describe('PublishRequests ("Yêu cầu xuất bản", §6.6)', () => {
     const link = within(first!).getByRole('link', { name: /Reverse Linked List/ })
     expect(link.getAttribute('href')).toBe('/t/dsa/items/lc-0206')
     expect(within(link).getByText('Reverse Linked List').getAttribute('lang')).toBe('en')
+    // 44 px targets: the md button height, not sm.
+    expect(link.className).toContain('h-11')
+    expect(link.className).not.toContain('h-9')
     expect(first!.textContent).toContain('dsa:lc-0206#note')
     expect(first!.textContent).toContain('Đang chờ')
     expect(

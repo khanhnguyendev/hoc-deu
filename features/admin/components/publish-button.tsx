@@ -71,21 +71,25 @@ function PublishButton({
   const [open, setOpen] = useState(false)
   const [checks, setChecks] = useState<Checks>(UNTICKED)
   const [pending, startTransition] = useTransition()
-  /** After a successful action, the control of the new state takes focus (WCAG 2.4.3). */
-  const [focusNext, setFocusNext] = useState(false)
+  /**
+   * After a successful action: the request id it started from. Once the `request` prop differs
+   * (the page re-rendered with the new state), that state's control takes focus (WCAG 2.4.3).
+   */
+  const [focusFrom, setFocusFrom] = useState<{ from: number | null } | null>(null)
   const publishRef = useRef<HTMLButtonElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const id = useId()
   const lines = copy.dialog[checklist]
   const complete = checks.every(Boolean)
 
+  const currentId = request?.requestId ?? null
   useEffect(() => {
-    if (!focusNext) return
-    const next = request === null ? publishRef.current : cancelRef.current
+    if (focusFrom === null || currentId === focusFrom.from) return
+    const next = currentId === null ? publishRef.current : cancelRef.current
     if (next === null) return
     next.focus()
-    setFocusNext(false)
-  }, [focusNext, request])
+    setFocusFrom(null)
+  }, [focusFrom, currentId])
 
   const openChange = (next: boolean) => {
     if (pending) return
@@ -95,22 +99,24 @@ function PublishButton({
 
   const publish = () => {
     if (!complete || requestPublish === undefined) return
+    const from = currentId
     startTransition(async () => {
       const result = await run(() => requestPublish(target))
       if (result === null) return
       setOpen(false)
       toast(result.message)
-      if (result.ok) setFocusNext(true)
+      if (result.ok) setFocusFrom({ from })
     })
   }
 
   const cancel = () => {
     if (request === null || cancelPublish === undefined) return
+    const from = request.requestId
     startTransition(async () => {
       const result = await run(() => cancelPublish(request.requestId))
       if (result === null) return
       toast(result.message)
-      if (result.ok || result.stale) setFocusNext(true)
+      if (result.ok || result.stale) setFocusFrom({ from })
     })
   }
 
@@ -126,7 +132,7 @@ function PublishButton({
           {copy.pending}
         </span>
         {request.pr !== null && (
-          <Button asChild variant="link" size="sm">
+          <Button asChild variant="link">
             <a href={request.pr.href} target="_blank" rel="noopener noreferrer">
               {request.pr.label} <span className="sr-only">{vi.content.newTab}</span>
             </a>
@@ -169,7 +175,7 @@ function PublishButton({
           // pending state's "Huỷ" takes it (the effect above).
           onCloseAutoFocus={(event) => {
             event.preventDefault()
-            if (!focusNext) publishRef.current?.focus()
+            if (focusFrom === null) publishRef.current?.focus()
           }}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => pending && event.preventDefault()}

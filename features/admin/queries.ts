@@ -237,8 +237,10 @@ async function readPublishRequests(supabase: Client): Promise<PublishRequestRow[
 export async function getAdminContent(): Promise<ContentPage> {
   await requireAdmin()
   const supabase = await createClient()
-  const positions = await readTrackPositions(supabase)
-  const requests = await readPublishRequests(supabase)
+  const [positions, requests] = await Promise.all([
+    readTrackPositions(supabase),
+    readPublishRequests(supabase),
+  ])
   return buildContentPage(getCatalog(), positions, requests)
 }
 

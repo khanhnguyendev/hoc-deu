@@ -351,9 +351,9 @@ describe('the publish step (§2.3, §6.6 lifecycle; decision 20)', () => {
       .map(([url]) => String(url))
       .filter((u) => u.includes('/pulls/'))
     expect(pulls).toEqual([
-      'https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/41',
-      'https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/42',
       'https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/43',
+      'https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/42',
+      'https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/41',
     ])
   })
 
@@ -393,5 +393,25 @@ describe('the publish step (§2.3, §6.6 lifecycle; decision 20)', () => {
     const failedWrite = await runMaintenance({ fetch: github(), now: NOW })
     expect(failedWrite.steps.publish).toBe('failed')
     expect(failedWrite.steps.backups).toBe('ok')
+  })
+
+  it('looks up at most 10 pull requests, newest first, so a new closed PR is never starved', async () => {
+    admin.pending = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      target: 'dsa:lesson-trees',
+      pr_url: PR(index + 1),
+    }))
+    const fetchImpl = githubWithPulls(
+      Object.fromEntries(
+        Array.from({ length: 12 }, (_, i) => [i + 1, i + 1 === 12 ? 'closed' : 'open']),
+      ),
+    )
+    await runMaintenance({ fetch: fetchImpl, now: NOW })
+    const pulls = fetchImpl.mock.calls
+      .map(([url]) => String(url))
+      .filter((u) => u.includes('/pulls/'))
+      .map((u) => Number(u.split('/').pop()))
+    expect(pulls).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3])
+    expect(calls()).toContainEqual(['publish_clear_pr', { p_ids: [12] }])
   })
 })

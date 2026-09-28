@@ -34,7 +34,7 @@ function Target({ row }: { row: PublishRequestView }) {
       {row.href === null ? (
         name
       ) : (
-        <Button asChild variant="link" size="sm">
+        <Button asChild variant="link">
           <Link href={row.href}>{name}</Link>
         </Button>
       )}

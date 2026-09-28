@@ -63,8 +63,10 @@ export const contentSignalsResponse = z.strictObject({
   englishGaps: z.array(englishGapSignal),
   derivedDeckGaps: z.array(derivedDeckGapSignal),
   /**
-   * Already on their way (§6.6): the targets of pending publish requests (`<itemId>` or
-   * `<itemId>#note`) and the content PR of today's plan run, when it has one.
+   * Already on their way (§6.6), as plain strings of two kinds: the target IDs of pending publish
+   * requests (`<itemId>` or `<itemId>#note`), sorted, then — when today's plan run has one — its
+   * content PR URL (`https://github.com/<repository>/pull/<n>`), last. (`missing` is the other
+   * mixed list: its `lesson` entries carry `topic` instead of `itemId`.)
    */
   openProposals: z.array(z.string()),
 })

@@ -24,7 +24,7 @@ export const publish = {
     item: [
       'Ví dụ và đáp án đều đúng, không chép đề bài LeetCode.',
       'Phần giải thích đúng và đủ ý.',
-      'Phần tiếng Anh và câu song ngữ đọc tự nhiên.',
+      'Phần tiếng Anh và câu song ngữ (nếu có) đọc tự nhiên.',
     ],
     incomplete: 'Đánh dấu đủ ba mục để xuất bản.',
   },
