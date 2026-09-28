@@ -251,6 +251,7 @@ const page = (state: TodayState, change: Partial<Omit<TodayPage, 'data'>> = {}):
     items: {},
     versions: [],
   },
+  aiPlan: null,
   blocks: [],
   tracks: [],
   streak: 0,
@@ -479,6 +480,7 @@ export const TODAY_ENTRIES: Entry[] = [
                   action={demoCheckIn}
                   requestId="demo"
                   planId={PLAN_ID}
+                  planVersion={1}
                   blockId={REVIEW_BLOCK.block.id}
                   blockLabel={`${REVIEW_BLOCK.kindLabel} · ${DSA}`}
                 />

@@ -67,6 +67,29 @@ describe('CardBlock (decision 19)', () => {
     })
   })
 
+  it('sends the rendered plan version with each grade (decision 36)', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    render(
+      <CardBlock
+        cards={[card(BLOCKER, 'b-new')]}
+        items={ROWS}
+        requestId={REQUEST_ID}
+        record={record}
+        planVersion={3}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    await user.click(screen.getByRole('button', { name: /^Biết/ }))
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      requestId: REQUEST_ID,
+      itemId: BLOCKER.id,
+      blockId: 'b-new',
+      planVersion: 3,
+      outcome: { type: 'item.result', result: 'know' },
+    })
+  })
+
   it('sits under the block’s h3: the card front is an h4, "Xem nghĩa" outline (parked #7, m-12)', () => {
     render(
       <CardBlock

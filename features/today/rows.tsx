@@ -5,17 +5,16 @@
  * sentences, and for a card-only block the cards its session grades inline (decision 19).
  * Server-only (the registry and the generated catalog); the page calls `todaySlots`. Task 6.6a: a
  * learner's custom item (`user:…`, in an AI plan or an extra block) is found in the day's catalog
- * overlay (`userItemOf`, decision 17) and links to its own page (decision 39).
+ * overlay (`userItemOf`, decision 17); its link to its own page (decision 39) is the view model's.
  */
 import 'server-only'
-import { itemPageHref } from '@/features/items/href'
 import { cardSidesOf, type CardSessionCard } from '@/features/items/outcome'
 import { renderItemRow } from '@/features/items/render'
 import type { ItemStateView } from '@/features/items/types'
 import { getItem } from '@/lib/content/catalog'
 import type { CatalogItem } from '@/lib/content/catalog-types'
 import { userItemOf } from '@/lib/content/user-items'
-import { isCustomItemId, type PlanCatalog } from '@/lib/domain/catalog'
+import type { PlanCatalog } from '@/lib/domain/catalog'
 import { itemHandled } from '@/lib/domain/plan/checkin'
 import type { ItemState } from '@/lib/domain/state'
 import type { LocalDay } from '@/lib/domain/time/localDay'
@@ -45,23 +44,13 @@ function knownItems(view: BlockView, catalog: PlanCatalog): { ref: Ref; item: Ca
   })
 }
 
-/**
- * The block's link to the item: the view model's, whose path comes from the ID alone; a custom
- * item's ID names no track, so its page is rebuilt from the item with the same `?block=&mode=`.
- */
-function hrefOf(ref: Ref, item: CatalogItem): string {
-  if (!isCustomItemId(item.id)) return ref.href
-  const query = ref.href.includes('?') ? ref.href.slice(ref.href.indexOf('?') + 1) : ''
-  return itemPageHref(item, Object.fromEntries(new URLSearchParams(query)))
-}
-
 function itemSlots(view: BlockView, states: States, catalog: PlanCatalog): BlockItemSlot[] {
   return knownItems(view, catalog).map(({ ref, item }) => ({
     itemId: ref.itemId,
     row: renderItemRow(item, {
       state: stateView(states[ref.itemId]),
       mode: ref.mode,
-      href: hrefOf(ref, item),
+      href: ref.href,
       showStatus: true,
       showNoteHint: true,
     }),

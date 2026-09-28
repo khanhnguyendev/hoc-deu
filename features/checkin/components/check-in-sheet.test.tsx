@@ -62,6 +62,7 @@ function sheet(
       action={action}
       requestId={REQUEST_ID}
       planId={PLAN_ID}
+      planVersion={2}
       block={{ ...BLOCK, ...change }}
       onClose={onClose}
     />,
@@ -214,6 +215,7 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
         {
           requestId: REQUEST_ID,
           planId: PLAN_ID,
+          planVersion: 2,
           blockId: BLOCK_ID,
           status: 'partial',
           minutes: 10,
@@ -236,6 +238,7 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     expect(action.mock.calls[0]![0]).toEqual({
       requestId: REQUEST_ID,
       planId: PLAN_ID,
+      planVersion: 2,
       blockId: BLOCK_ID,
       status: 'done',
       minutes: 20,
@@ -267,7 +270,13 @@ describe('CheckInSheet (DESIGN_SYSTEM §9, §10)', () => {
     const user = userEvent.setup()
     const { action, settle } = deferred()
     const { rerender } = render(
-      <CheckInSheet action={action} requestId={REQUEST_ID} planId={PLAN_ID} block={BLOCK} />,
+      <CheckInSheet
+        action={action}
+        requestId={REQUEST_ID}
+        planId={PLAN_ID}
+        planVersion={2}
+        block={BLOCK}
+      />,
     )
     await user.click(submit())
     const STALE = 'Kế hoạch vừa thay đổi. Trang đã được làm mới.'
@@ -334,6 +343,7 @@ function WithEditLinks({ open }: { open: boolean }) {
           action={deferred().action}
           requestId={REQUEST_ID}
           planId={PLAN_ID}
+          planVersion={2}
           block={BLOCK}
         />
       )}
@@ -389,6 +399,7 @@ describe('CheckInSheet — the server render of /today?block=<id> (UI I-1)', () 
             action={deferred().action}
             requestId={REQUEST_ID}
             planId={PLAN_ID}
+            planVersion={2}
             block={BLOCK}
           />,
         ),

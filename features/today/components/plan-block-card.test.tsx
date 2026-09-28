@@ -82,6 +82,7 @@ describe('PlanBlockCard (DESIGN_SYSTEM §9)', () => {
         action={action}
         requestId="r-1"
         planId={PLAN_ID}
+        planVersion={2}
         blockId={blockId}
         blockLabel={`Bài mới · ${DSA_TITLE}`}
       />

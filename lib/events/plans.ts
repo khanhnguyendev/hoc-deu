@@ -318,7 +318,8 @@ export function storedPlanFromRow(row: DayPlanRow): StoredPlan | null {
     version: row.version,
     source: row.source,
     seenAt: row.seen_at,
-    rationale: row.rationale,
+    // Only an AI plan has one: a baseline plan reads exactly as before (v1.0).
+    ...(row.rationale === null ? {} : { rationale: row.rationale }),
     blocks: blocks.data,
     tracks: tracks.data,
   }

@@ -24,6 +24,7 @@ const checkIn = (change: Record<string, unknown> = {}) =>
   checkInInputSchema.safeParse({
     requestId: REQUEST_ID,
     planId: PLAN_ID,
+    planVersion: 1,
     blockId: BLOCK_ID,
     status: 'done',
     ...change,
@@ -142,6 +143,7 @@ describe('checkInInputSchema', () => {
     expect(checkIn().data).toEqual({
       requestId: REQUEST_ID,
       planId: PLAN_ID,
+      planVersion: 1,
       blockId: BLOCK_ID,
       status: 'done',
     })
@@ -155,6 +157,9 @@ describe('checkInInputSchema', () => {
   it.each([
     ['requestId', { requestId: 'not-a-uuid' }],
     ['planId', { planId: 'plan-1' }],
+    ['planVersion (decision 36)', { planVersion: 0 }],
+    ['planVersion (decision 36)', { planVersion: 1.5 }],
+    ['planVersion (decision 36)', { planVersion: undefined }],
     ['blockId', { blockId: '' }],
     ['status', { status: 'finished' }],
     ['minutes', { minutes: -1 }],
@@ -193,6 +198,13 @@ describe('outcomeInputSchema', () => {
     { type: 'item.readded' },
   ])('takes %j', (value) => {
     expect(outcome(value).data?.outcome).toEqual(value)
+  })
+
+  it('takes the rendered plan version from /today, and none from other pages (decision 36)', () => {
+    const solved = { type: 'item.result', result: 'solved' }
+    expect(outcome(solved, { planVersion: 2 }).data?.planVersion).toBe(2)
+    expect(outcome(solved).data?.planVersion).toBeUndefined()
+    expect(outcome(solved, { planVersion: 0 }).success).toBe(false)
   })
 
   it.each([
@@ -234,7 +246,13 @@ describe('the payloads the keys digest', () => {
   })
 
   it('checkInPayload sends a note only when there is one', () => {
-    const base = { requestId: REQUEST_ID, planId: PLAN_ID, blockId: BLOCK_ID, minutes: 20 }
+    const base = {
+      requestId: REQUEST_ID,
+      planId: PLAN_ID,
+      planVersion: 1,
+      blockId: BLOCK_ID,
+      minutes: 20,
+    }
     expect(checkInPayload({ ...base, status: 'done' })).toEqual({ status: 'done', minutes: 20 })
     expect(checkInPayload({ ...base, status: 'partial', note: 'x' })).toEqual({
       status: 'partial',

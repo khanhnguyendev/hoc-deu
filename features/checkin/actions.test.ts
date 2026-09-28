@@ -158,6 +158,7 @@ describe('checkInBlock', () => {
   const input = (change: Partial<CheckInInput> = {}): CheckInInput => ({
     requestId: REQUEST_ID,
     planId: plan.id,
+    planVersion: plan.version,
     blockId: block.id,
     status: 'done',
     ...change,
@@ -390,6 +391,31 @@ describe('checkInBlock', () => {
       ok: false,
       message: copy.checkIn.errors.stale,
     })
+    expect(fake.rpcs()).toEqual([])
+  })
+
+  it('[decision 36] a page rendered at version 1 while an AI plan replaced it (version 2, same block ids): stale, nothing written', async () => {
+    const replaced = { ...plan, version: 2, source: 'ai' }
+    const fake = setup({ day_plans: [replaced] })
+    expect(await checkInBlock(input({ planVersion: 1 }))).toEqual({
+      ok: false,
+      message: copy.checkIn.errors.stale,
+    })
+    expect(fake.rpcs()).toEqual([])
+    expect(state.log).toContainEqual(['revalidatePath', '/today'])
+  })
+
+  it('[decision 36] the rendered version equal to the current one records the check-in', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2 }] })
+    expect((await checkInBlock(input({ planVersion: 2, minutes: 5 }))).ok).toBe(true)
+    expect(learnerCalls(fake)).toHaveLength(1)
+  })
+
+  it('refuses an input without the rendered plan version, reading nothing', async () => {
+    const rest: Record<string, unknown> = { ...input() }
+    delete rest.planVersion
+    const fake = setup({ day_plans: [plan] })
+    expect((await checkInBlock(rest as CheckInInput)).ok).toBe(false)
     expect(fake.rpcs()).toEqual([])
   })
 
@@ -676,6 +702,23 @@ describe('recordOutcome', () => {
     expect(calls[1]?.p_event).toMatchObject({ plan_id: plan.id, block_id: pair.id })
     expect(fake.tables.item_state?.[0]?.last_result_on).toBe(TOMORROW)
     expect(databaseDay(fake, USER_ID)).toBe(TOMORROW)
+  })
+
+  it('[decision 36] a result graded on /today at version 1 while the plan is now version 2: stale, nothing written', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2, source: 'ai' }] })
+    expect(await recordOutcome(solved({ blockId: pair.id, planVersion: 1 }))).toEqual({
+      ok: false,
+      message: copy.checkIn.errors.stale,
+      autoCheckedIn: [],
+    })
+    expect(fake.rpcs()).toEqual([])
+    expect(state.log).toContainEqual(['revalidatePath', '/today'])
+  })
+
+  it('[decision 36] a result with the current version records normally', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2 }] })
+    expect((await recordOutcome(solved({ blockId: pair.id, planVersion: 2 }))).ok).toBe(true)
+    expect(learnerCalls(fake)).toHaveLength(1)
   })
 
   describe('which block the result names (decision 14)', () => {

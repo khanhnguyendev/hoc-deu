@@ -254,6 +254,9 @@ describe('todaySlots (rows through the registry, tasks 5.1b, 5.4)', () => {
 describe('todaySlots — custom items (task 6.6a: the overlay, decision 39)', () => {
   const CUSTOM = 'user:0123456789abcdef:standup-card'
   const CUSTOM_BLOCK = `${TODAY}:english:practice:1`
+  const CUSTOM_HREF = `/t/english/items/user%3A0123456789abcdef%3Astandup-card?${new URLSearchParams(
+    { block: CUSTOM_BLOCK, mode: 'new' },
+  )}`
 
   it('renders a custom card of a plan block through the registry, at its own URL, and grades it inline', async () => {
     const { CATALOG: GENERATED } = await import('@/.generated/catalog')
@@ -277,22 +280,15 @@ describe('todaySlots — custom items (task 6.6a: the overlay, decision 39)', ()
       blocks: [
         blockView({
           block: block(CUSTOM_BLOCK, { kind: 'practice', trackId: 'english' }),
-          // The view model builds a repository-form link from the ID alone.
-          items: [
-            { itemId: CUSTOM, mode: 'new', href: `/t/user/items/x?block=${CUSTOM_BLOCK}&mode=new` },
-          ],
+          // The view model builds the custom item's own URL (decision 39); the row keeps it.
+          items: [{ itemId: CUSTOM, mode: 'new', href: CUSTOM_HREF }],
         }),
       ],
     })
     const slots = todaySlots({ ...custom, data: todayData(page.data.state, { catalog }) })
     render(<div>{slots[CUSTOM_BLOCK]!.items.map((slot) => slot.row)}</div>)
     const link = screen.getByRole('link', { name: 'on hold' })
-    expect(link.getAttribute('href')).toBe(
-      `/t/english/items/user%3A0123456789abcdef%3Astandup-card?${new URLSearchParams({
-        block: CUSTOM_BLOCK,
-        mode: 'new',
-      })}`,
-    )
+    expect(link.getAttribute('href')).toBe(CUSTOM_HREF)
     expect(link.dataset.row).toBe('flashcard')
     expect(slots[CUSTOM_BLOCK]!.cards).toEqual([
       expect.objectContaining({

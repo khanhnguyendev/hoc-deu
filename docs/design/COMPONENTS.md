@@ -1716,8 +1716,10 @@ Copy: `vi.today`.
   `page.openBlockId` (`/today?block=<id>`, a block the dashboard shows) opens its CheckInSheet.
   Task 5.4: a card-only block grades its cards inline (CardBlock in PlanBlockCard's `cards`
   slot, decision 19), and in the plan and resumed states a Section "Học thêm" under the blocks
-  lists an ExtraButton per active, started track (`page.extra`). No mode badge in v1.0
-  (decision 12)
+  lists an ExtraButton per active, started track (`page.extra`). Task 6.5b: when the plan shown
+  (today's, resumed or paused) is an AI plan, `page.aiPlan` puts an AiPlanNote under the page
+  header; a baseline plan shows no badge (v1.0 unchanged). Every CheckInButton, CheckInSheet and
+  CardBlock gets the shown plan's `version` (decision 36)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
   error (`unreadable`; `error.tsx`: ErrorState `h1` "Không tải được kế hoạch hôm nay" + "Thử lại")
   · ready — all in the catalog (m-3)
@@ -1909,7 +1911,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Layer:** feature (`features/checkin`, **client**)
 - **File:** `features/checkin/components/check-in-button.tsx`
 - **Props:** `action: CheckInAction` (`checkInBlock`, unbound), `requestId: string`, `planId:
-  string`, `blockId: string`, `blockLabel: string` ("{kind} · {track}")
+  string`, `planVersion: number` (the rendered plan's version — a replaced plan answers "stale",
+  decision 36, task 6.5b), `blockId: string`, `blockLabel: string` ("{kind} · {track}")
 - **Variants:** —
 - **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
   `aria-busy`; a second tap sends nothing, RF-2) · answered — the action revalidates `/today`: a
@@ -1946,7 +1949,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 
 - **Layer:** feature (`features/checkin`, **client**)
 - **File:** `features/checkin/components/check-in-sheet.tsx`
-- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `block:
+- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `planVersion:
+  number` (decision 36, task 6.5b), `block:
   CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
   status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
 - **Variants:** a bottom Sheet below `md`, a Dialog from `md` (`useMediaQuery(MEDIA.md)`) · new
@@ -2325,7 +2329,8 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **File:** `features/today/components/card-block.tsx`
 - **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
   `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
-  (`recordOutcome`, unbound)
+  (`recordOutcome`, unbound), `planVersion?: number` (the rendered plan's version, sent with each
+  grade — decision 36, task 6.5b; omitted in demos)
 - **Variants:** session (CardSession with `headingLevel={4}` — under the block's `h3`, parked #7 —
   and an outline "Xem nghĩa", the block's "Check-in" being the view's primary, m-12;
   FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows (every card was handled before the
@@ -2582,6 +2587,23 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
 ### AI plan components (`features/today/components`)
 
 Task 6.5b adds these entries below this line (Part B-M6 decision 3).
+
+### AiPlanNote
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/ai-plan-note.tsx`
+- **Props:** `view: AiPlanView` (`{ rationale: string | null }` — `page.aiPlan` from
+  `buildTodayPage`, set only for a plan with `source 'ai'`)
+- **Variants:** with rationale · without (the badge alone)
+- **States:** ready (badge + rationale) · empty (an AI plan with no rationale: the badge alone) —
+  loading and error are `/today`'s own (`loading.tsx`, `error.tsx`); a baseline plan renders no
+  note at all (spec §2.4 mode badge, decision 16; v1.0 unchanged)
+- **Usage:** `{page.aiPlan !== null && <AiPlanNote view={page.aiPlan} />}` right under
+  TodayView's PageHeader
+- **Accessibility:** a `group` named "Kế hoạch hôm nay do AI cá nhân hoá"; the `primary` Badge is
+  a decorative `Sparkles` icon and the words "Cá nhân hoá bởi AI" — never colour alone; the
+  rationale is plain text (cleaned on the server, escaped by React) in `text-muted-foreground`,
+  `max-w-prose`, `break-words` so a long word wraps at 320 px; theme tokens only (light and dark)
 
 ### Custom item components (`features/roadmap/components`)
 

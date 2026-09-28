@@ -127,7 +127,12 @@ async function checkInAttempt(
   request: CheckInInput,
 ): Promise<CheckInResult> {
   const { today, current } = await currentNow(supabase, userId)
-  const plan = current?.plan.id === request.planId ? current.plan : undefined
+  // Decision 36: the version the page rendered — an AI plan that replaced it keeps its id and
+  // repeats its block ids.
+  const plan =
+    current?.plan.id === request.planId && current.plan.version === request.planVersion
+      ? current.plan
+      : undefined
   const block = plan?.blocks.find((candidate) => candidate.id === request.blockId)
   // Decision 13: only the plan /today shows now — never yesterday's plan as if it were today's.
   if (plan === undefined || block === undefined) return { ok: false, message: copy.errors.stale }
@@ -209,6 +214,9 @@ function blockFor(plan: StoredPlan, itemId: string, blockId?: string): PlanBlock
  *  item never studied): nothing is written. */
 const NOT_APPLICABLE = Symbol('not applicable')
 
+/** The page showed another version of the plan (decision 36): nothing is written. */
+const STALE = Symbol('stale')
+
 type Placement = { readonly planId: string; readonly blockId: string }
 
 /**
@@ -254,9 +262,11 @@ async function outcomeAttempt(
   request: OutcomeInput,
   item: PlanItem,
   catalog: PlanCatalog,
-): Promise<string | null | typeof NOT_APPLICABLE> {
+): Promise<string | null | typeof NOT_APPLICABLE | typeof STALE> {
   const { today, current } = await currentNow(supabase, userId)
   const plan = current?.plan ?? null
+  // Decision 36: a result graded on a /today that showed another version of the plan.
+  if (request.planVersion !== undefined && plan?.version !== request.planVersion) return STALE
   const block = plan === null ? undefined : blockFor(plan, request.itemId, request.blockId)
   const { type, payload } = outcomeEvent(request.outcome)
   const id = deriveEventId(request.requestId, outcomeKey(request))
@@ -390,7 +400,7 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
     // Decision 39: the item page's own URL (a custom item's carries its whole ID).
     revalidatePath(itemPageHref(item))
   }
-  let recorded: string | null | typeof NOT_APPLICABLE
+  let recorded: string | null | typeof NOT_APPLICABLE | typeof STALE
   try {
     recorded = await withRetry(() => outcomeAttempt(supabase, user.id, request, item, catalog))
   } catch (error) {
@@ -400,6 +410,10 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
   }
   if (recorded === NOT_APPLICABLE) {
     return { ok: false, message: copy.errors.invalid, autoCheckedIn: [] }
+  }
+  if (recorded === STALE) {
+    revalidate()
+    return { ok: false, message: copy.errors.stale, autoCheckedIn: [] }
   }
 
   const auto =

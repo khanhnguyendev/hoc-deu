@@ -604,7 +604,6 @@ describe('storedPlanFromRow', () => {
       version: 2,
       source: 'baseline',
       seenAt: '2026-09-28T01:02:03.000Z',
-      rationale: null,
       blocks: BLOCKS,
       tracks: TRACKS,
     })

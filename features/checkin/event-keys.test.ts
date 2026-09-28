@@ -48,6 +48,7 @@ describe('event keys (decision 16)', () => {
   const input = (change: Partial<CheckInInput> = {}) => ({
     requestId: REQUEST_ID,
     planId: PLAN_ID,
+    planVersion: 1,
     blockId: BLOCK_ID,
     status: 'done' as const,
     minutes: 20,

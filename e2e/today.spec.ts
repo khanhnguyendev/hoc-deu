@@ -128,6 +128,8 @@ test('[RF-4] a new learner: blocks of both tracks, streak 0; the plan is built o
   await expect(blocksOf(plan, DSA).first()).toBeVisible()
   await expect(blocksOf(plan, ENGLISH).first()).toBeVisible()
   await expect(page.getByRole('region', { name: 'Tiến độ' })).toContainText('0 ngày liên tiếp')
+  // A baseline plan: no mode badge (v1.0; the AI badge is task 6.5b's, e2e/ai-plan.spec.ts).
+  await expect(page.getByText('Cá nhân hoá bởi AI')).toHaveCount(0)
   expect(await rowsFor(user.id, today)).toHaveLength(1)
   await expectNoAxeViolationsInBothThemes(page)
 })
