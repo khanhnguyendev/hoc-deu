@@ -129,6 +129,7 @@ const {
   resetTrack,
   setTrackStatus,
   updateCodeLanguage,
+  updateNotesSharing,
   updateSchedule,
   updateTrack,
 } = await import('./actions')
@@ -418,6 +419,78 @@ describe('updateCodeLanguage', () => {
       ok: false,
       message: 'Kiểm tra lại các mục được đánh dấu.',
       fieldErrors: { codeLanguage: 'Chọn Python, Java hoặc Go.' },
+    })
+    expect(events()).toEqual([])
+  })
+})
+
+describe('updateNotesSharing — "Chia sẻ ghi chú với bot AI" (§4.6, task 6.7b)', () => {
+  const save = (shareNotesWithAi: string) =>
+    updateNotesSharing(null, form({ requestId: REQUEST_ID, shareNotesWithAi }))
+
+  it('guards first, then records settings.changed with the new value (on)', async () => {
+    const result = await save('true')
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(sent()).toEqual([
+      {
+        id: id(`settings.changed:${digest({ shareNotesWithAi: true })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi: true },
+      },
+    ])
+    expect(result).toEqual({ ok: true, message: 'Đã bật chia sẻ ghi chú với bot AI.' })
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('records settings.changed with the new value (off)', async () => {
+    const result = await save('false')
+    expect(sent()).toEqual([
+      {
+        id: id(`settings.changed:${digest({ shareNotesWithAi: false })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi: false },
+      },
+    ])
+    expect(result).toEqual({ ok: true, message: 'Đã tắt chia sẻ ghi chú với bot AI.' })
+  })
+
+  it('maps ai_personalization_off to its own Vietnamese sentence, without re-rendering', async () => {
+    fake.failOn = { type: 'settings.changed', error: new EventError('ai_personalization_off') }
+    await expect(save('true')).resolves.toEqual({
+      ok: false,
+      message: 'Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.',
+    })
+    expect(revalidated()).toEqual([])
+  })
+
+  it('shows the EventError message for anything else the database refuses (quota)', async () => {
+    fake.failOn = { type: 'settings.changed', error: new EventError('quota_exceeded') }
+    await expect(save('true')).resolves.toEqual({
+      ok: false,
+      message: 'Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai.',
+    })
+  })
+
+  it('rethrows anything that is not an EventError (the error boundary shows it)', async () => {
+    fake.failOn = { type: 'settings.changed', error: new Error('network down') }
+    await expect(save('true')).rejects.toThrow('network down')
+  })
+
+  it.each([
+    { requestId: 'nope', shareNotesWithAi: 'true' },
+    { requestId: REQUEST_ID, shareNotesWithAi: 'yes' },
+  ])('refuses an invalid input %j, sending nothing', async (bad) => {
+    expect(await updateNotesSharing(null, form(bad))).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(events()).toEqual([])
+  })
+
+  it('refuses a missing shareNotesWithAi, sending nothing', async () => {
+    expect(await updateNotesSharing(null, form({ requestId: REQUEST_ID }))).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
     })
     expect(events()).toEqual([])
   })

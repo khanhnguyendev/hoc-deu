@@ -2498,3 +2498,41 @@ Task 6.7a adds these entries below this line (Part B-M6 decision 3).
 ### Notes sharing components (`features/settings/components`)
 
 Task 6.7b adds these entries below this line (Part B-M6 decision 3).
+
+### Switch
+
+- **Layer:** ui
+- **File:** `components/ui/switch.tsx`
+- **Props:** Radix `Switch.Root` props (`checked`, `onCheckedChange`, `disabled`, …)
+- **Variants:** none
+- **States:** unchecked (`bg-input`) · checked (`bg-primary`) · disabled (dimmed, no pointer) ·
+  focus-visible (the global ring)
+- **Usage:** `<Switch id="share" checked={value} onCheckedChange={setValue} />` paired with a
+  `<Label htmlFor="share">`
+- **Accessibility:** `role="switch"`, `aria-checked`; a 44×24 px control with the hit area
+  extended to 44 px tall (`before:-inset-y-2.5`, the same technique as Checkbox); toggles with
+  Space/Enter and the pointer; needs its own accessible name (a paired Label, or `aria-label`)
+
+### NotesSharing
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/notes-sharing.tsx`
+- **Props:** `aiPersonalization: boolean` (`SettingsData.user.aiPersonalization`; hides the whole
+  section when off, §4.5), `shareNotesWithAi: boolean` (`SettingsData.user.shareNotesWithAi`),
+  `requestId: string` (per render, decision 9), `updateNotesSharing: SettingsAction`
+- **Variants:** hidden (`aiPersonalization` off — renders nothing, no Section heading either) ·
+  shown (a Section titled "Chia sẻ ghi chú với bot AI", the §4.6 sentence as its description, one
+  Switch)
+- **States:** off (unchecked) · on (checked) · saving (`pending`, the switch disabled) · failed
+  (a danger Banner in an always-mounted `role="alert"` region below the switch — the switch keeps
+  the position it was flipped to, matching CodeLanguageForm's optimistic-then-resynced pattern;
+  the database's `ai_personalization_off` — a stale page whose AI flag turned off elsewhere — maps
+  to "Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.")
+- **Usage:** `<NotesSharing aiPersonalization={data.user.aiPersonalization}
+  shareNotesWithAi={data.user.shareNotesWithAi} requestId={data.requestId}
+  updateNotesSharing={updateNotesSharing} />`
+- **Accessibility:** the switch is named "Chia sẻ ghi chú với bot AI" by a paired `<Label>`
+  (redundant with, but distinct from, the Section's own `h2` of the same text — the switch needs
+  its own accessible name); saves immediately on toggle (no separate "Lưu" button), the same
+  immediate-run pattern as TrackSettings' pause/resume; a toast confirms success, the failure
+  Banner is the only feedback for a failure (never a toast alone)

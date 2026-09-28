@@ -38,6 +38,7 @@ import {
 } from './schema'
 
 const copy = vi.settings
+const notesCopy = vi.notesSharing
 const errors = vi.onboarding.errors
 const PATH = '/settings'
 
@@ -80,6 +81,10 @@ async function record(
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     if (error.code === 'invalid_timezone') return fieldError('timezone', errors.timezone)
+    // §4.6: share_notes_with_ai is settable only while ai_personalization is on — the section
+    // would not even show without a stale page, but the profiles trigger is the source of truth.
+    if (error.code === 'ai_personalization_off')
+      return { ok: false, message: notesCopy.errors.aiOff }
     if (STALE.has(error.code)) return stale(staleMessage ?? error.userMessage)
     return { ok: false, message: error.userMessage }
   }
@@ -179,6 +184,43 @@ export async function updateCodeLanguage(
         payload: { codeLanguage },
       }),
     copy.codeLanguage.saved,
+  )
+}
+
+/** `updateNotesSharing`'s own input (§4.6, task 6.7b): not in `./schema` (decision 3 scope). */
+const notesSharingInputSchema = z.object({
+  requestId: z.uuid(),
+  shareNotesWithAi: z.enum(['true', 'false']).transform((value) => value === 'true'),
+})
+
+/**
+ * "Chia sẻ ghi chú với bot AI" (§4.6, §6.3): a switch, not a form with a save button — it sends
+ * as soon as it is flipped. The database's `guard_share_notes` trigger is the source of truth
+ * for "only while ai_personalization is on" (§4.5): a stale page (the flag turned off in another
+ * tab) still gets `ai_personalization_off`, mapped to its own sentence in `record()`. Turning
+ * sharing off is always allowed, whatever the flag; turning the flag off later leaves the stored
+ * value as it is (the bot context reads it only for AI users, task 6.4b).
+ */
+export async function updateNotesSharing(
+  _previous: SettingsResult | null,
+  formData: FormData,
+): Promise<SettingsResult> {
+  await requireOnboarded()
+  const parsed = notesSharingInputSchema.safeParse(
+    formFields(formData, ['requestId', 'shareNotesWithAi']),
+  )
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, shareNotesWithAi } = parsed.data
+
+  const supabase = await createClient()
+  return record(
+    () =>
+      applyLearnerEvent(supabase, {
+        id: deriveEventId(requestId, `settings.changed:${digest({ shareNotesWithAi })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi },
+      }),
+    shareNotesWithAi ? notesCopy.on : notesCopy.off,
   )
 }
 
