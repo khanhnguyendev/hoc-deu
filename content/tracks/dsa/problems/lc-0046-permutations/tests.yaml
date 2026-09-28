@@ -1,0 +1,17 @@
+signature: { kind: function, name: permute, params: { nums: 'int[]' }, returns: 'int[][]' }
+compare: unordered
+cases:
+  - {
+      name: example-1,
+      input: { nums: [1, 2, 3] },
+      expected: [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]],
+    }
+  - { name: example-2, input: { nums: [0, 1] }, expected: [[0, 1], [1, 0]] }
+  - { name: example-3, input: { nums: [1] }, expected: [[1]] }
+  - { name: single-negative, input: { nums: [-10] }, expected: [[-10]] }
+  # negatives and zero: the inner order of each permutation matters
+  - {
+      name: negatives-and-zero,
+      input: { nums: [-1, 0, 10] },
+      expected: [[-1, 0, 10], [-1, 10, 0], [0, -1, 10], [0, 10, -1], [10, -1, 0], [10, 0, -1]],
+    }

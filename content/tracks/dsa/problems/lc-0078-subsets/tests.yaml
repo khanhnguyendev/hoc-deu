@@ -1,0 +1,34 @@
+signature: { kind: function, name: subsets, params: { nums: 'int[]' }, returns: 'int[][]' }
+compare: unordered-nested
+cases:
+  - {
+      name: example-1,
+      input: { nums: [1, 2, 3] },
+      expected: [[], [1], [2], [1, 2], [3], [1, 3], [2, 3], [1, 2, 3]],
+    }
+  - { name: example-2, input: { nums: [0] }, expected: [[], [0]] }
+  - { name: negatives, input: { nums: [-10, 10] }, expected: [[], [-10], [10], [-10, 10]] }
+  # 4 elements: 16 subsets
+  - {
+      name: four-elements,
+      input: { nums: [4, -1, 0, 7] },
+      expected:
+        [
+          [],
+          [4],
+          [-1],
+          [0],
+          [7],
+          [4, -1],
+          [4, 0],
+          [4, 7],
+          [-1, 0],
+          [-1, 7],
+          [0, 7],
+          [4, -1, 0],
+          [4, -1, 7],
+          [4, 0, 7],
+          [-1, 0, 7],
+          [4, -1, 0, 7],
+        ],
+    }
