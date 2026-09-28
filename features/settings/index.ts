@@ -2,6 +2,7 @@ export {
   deleteAccount,
   enrollTrack,
   resetTrack,
+  revokeAiOverride,
   setTrackStatus,
   updateCodeLanguage,
   updateNotesSharing,
@@ -9,6 +10,7 @@ export {
   updateTrack,
 } from './actions'
 export { AddTrackForm, type AddTrackFormProps } from './components/add-track-form'
+export { AiOverrides, type AiOverridesProps, type AiOverrideView } from './components/ai-overrides'
 export { AdminLink } from './components/admin-link'
 export { CodeLanguageForm, type CodeLanguageFormProps } from './components/code-language-form'
 export { DeleteAccount, type DeleteAccountProps } from './components/delete-account'

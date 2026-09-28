@@ -2638,6 +2638,44 @@ Task 6.6a adds these entries below this line (Part B-M6 decision 3).
 
 Task 6.6c adds these entries below this line (Part B-M6 decision 3).
 
+### AiOverrides
+
+- **Layer:** feature (`features/settings`, server-compatible; its "Thu hồi" is a client leaf)
+- **File:** `features/settings/components/ai-overrides.tsx`
+- **Props:** `overrides: AiOverrideView[] | null` (`{ trackId, key, trackTitle, text, suspended }`,
+  built by `readAiOverrides` in `features/settings/overrides.ts`: the overrides in force, active or
+  suspended, with the one-line description by kind; null when they could not be read),
+  `requestId: string` (the page's), `revokeAiOverride: RevokeAiOverrideAction` (unbound)
+- **Variants:** —
+- **States:** list — a Section "Điều chỉnh lộ trình bởi AI" with its description and a DataList
+  of the same name: per override its track, its line ("Thêm 15 phút luyện Arrays & Hashing vào
+  T2, T4, T6 đến 19/10", "Một tuần luyện thêm chủ đề …: còn 3 ngày học", "Đổi thứ tự các chủ đề
+  sắp tới"), the warning badge "Tạm dừng (đã tắt cá nhân hoá AI)" when suspended, and "Thu hồi";
+  empty — renders nothing (the section is hidden); error — ErrorState "Không tải được các điều
+  chỉnh lộ trình. Hãy tải lại trang." (the rest of `/settings` still works); loading — none of its
+  own: `/settings` renders on the server with the list read
+- **Usage:** `/settings`, after notes sharing (§2.4 v1.1), whenever the learner has an override
+  in force — whatever the AI flag (§5.12)
+- **Accessibility:** a labelled list; each row's button is told apart by its name; "Tạm dừng" is
+  words with an icon, never colour alone
+
+### RevokeOverrideButton
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/revoke-override-button.tsx`
+- **Props:** `action: RevokeAiOverrideAction`, `requestId: string`, `trackId: string`,
+  `overrideKey: string`, `title: string` (the override's line)
+- **Variants:** —
+- **States:** default · asking (ConfirmDialog "Thu hồi điều chỉnh này?" / "Thay đổi có hiệu lực
+  từ kế hoạch ngày mai." / "Thu hồi") · pending (the dialog busy) · answered through
+  ActionFeedback: the dialog closes; the re-rendered list drops the row, so the answer ("Đã thu
+  hồi. …", or "Điều chỉnh này đã được thu hồi.") comes as a toast; a failure is said beside the
+  button
+- **Usage:** rendered by AiOverrides for each override
+- **Accessibility:** an outline button with a decorative `Undo2`, visible text "Thu hồi" and the
+  name "Thu hồi: {line}" (label in name); the `alertdialog` returns focus to the button; a polite
+  `role="status"`; 44 px
+
 ### Publish components (`features/admin/components`)
 
 Task 6.7a adds these entries below this line (Part B-M6 decision 3).

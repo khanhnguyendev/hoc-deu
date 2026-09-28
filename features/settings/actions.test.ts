@@ -41,6 +41,12 @@ const fake = vi.hoisted(() => ({
   rebuildOutcome: 'rebuilt' as string,
   /** `rebuildTodayIfUntouched` rejects with this when set. */
   rebuildFails: null as Error | null,
+  /** `readOwnOverride`'s answer (task 6.6c); `revokeOverride`'s outcome or error. */
+  ownOverride: { kind: 'insert_block', status: 'active' } as {
+    kind: string
+    status: string
+  } | null,
+  revokeAnswer: 'applied' as 'applied' | 'unchanged' | Error,
   calls: [] as unknown[][],
 }))
 
@@ -103,6 +109,34 @@ vi.mock('./reads', () => ({
     return fake.pausedDays[trackId] ?? null
   },
 }))
+vi.mock('./overrides', () => ({
+  readOwnOverride: async (
+    client: { client: string },
+    userId: string,
+    trackId: string,
+    key: string,
+  ) => {
+    fake.calls.push(['readOwnOverride', client.client, userId, trackId, key])
+    return fake.ownOverride
+  },
+  revokeReordersOfTrack: async (
+    client: { client: string },
+    _admin: unknown,
+    userId: string,
+    trackId: string,
+    requestId: string,
+  ) => {
+    fake.calls.push(['revokeReordersOfTrack', client.client, userId, trackId, requestId])
+    return 1
+  },
+}))
+vi.mock('@/lib/events/overrides', () => ({
+  revokeOverride: async (_admin: unknown, userId: string, input: unknown) => {
+    fake.calls.push(['revokeOverride', userId, input])
+    if (fake.revokeAnswer instanceof Error) throw fake.revokeAnswer
+    return fake.revokeAnswer
+  },
+}))
 vi.mock('@/lib/plans/rebuild', () => ({
   rebuildTodayIfUntouched: async (userId: string) => {
     fake.calls.push(['rebuildTodayIfUntouched', userId])
@@ -127,6 +161,7 @@ const {
   deleteAccount,
   enrollTrack,
   resetTrack,
+  revokeAiOverride,
   setTrackStatus,
   updateCodeLanguage,
   updateNotesSharing,
@@ -172,6 +207,8 @@ beforeEach(() => {
   fake.deleteAccountSignOutThrows = null
   fake.rebuildOutcome = 'rebuilt'
   fake.rebuildFails = null
+  fake.ownOverride = { kind: 'insert_block', status: 'active' }
+  fake.revokeAnswer = 'applied'
   fake.calls = []
   // The accountDeletion in-memory window is module state, shared across every test in this file
   // (fix round 1, item 4): start each test with a clean slate.
@@ -519,6 +556,23 @@ describe('updateTrack — minutes and roadmap variant', () => {
     await save({ budgetMinutes: '60', roadmapVariant: '10w' })
     expect(sent()).toMatchObject([{ payload: { roadmapVariant: '10w' } }])
     expect((sent()[0] as { payload: object }).payload).not.toHaveProperty('budgetMinutes')
+  })
+
+  it("a variant change revokes the track's AI reorders, before today's rebuild (task 6.6c)", async () => {
+    await save({ budgetMinutes: '60', roadmapVariant: '10w' })
+    const names = fake.calls.map(([name]) => name)
+    expect(fake.calls).toContainEqual(['revokeReordersOfTrack', 'user', USER_ID, 'dsa', REQUEST_ID])
+    expect(names.indexOf('revokeReordersOfTrack')).toBeGreaterThan(
+      names.indexOf('applyLearnerEvent'),
+    )
+    expect(names.indexOf('revokeReordersOfTrack')).toBeLessThan(
+      names.indexOf('rebuildTodayIfUntouched'),
+    )
+  })
+
+  it('a budget change alone leaves the reorders', async () => {
+    await save({ budgetMinutes: '90', roadmapVariant: '8w' })
+    expect(fake.calls.map(([name]) => name)).not.toContain('revokeReordersOfTrack')
   })
 
   it("sends a new id — with the new budget — on an edited resubmit after a partial failure, under the same requestId (M2 RF-2 'digest keys')", async () => {
@@ -985,5 +1039,64 @@ describe('deleteAccount — §4.6', () => {
     const fourth = await run(null, new FormData())
     expect(fourth).toEqual({ ok: false, message: copy.rateLimit.tooMany })
     expect(fake.calls).toEqual([['requireUser']])
+  })
+})
+
+describe('revokeAiOverride — "Thu hồi" (§5.12, §5.9, task 6.6c)', () => {
+  const revoke = (change: Record<string, string> = {}) =>
+    revokeAiOverride({ requestId: REQUEST_ID, trackId: 'dsa', key: 'ah-extra', ...change })
+
+  it('guards first, then revokes as the learner with an id from the requestId', async () => {
+    await expect(revoke()).resolves.toEqual({
+      ok: true,
+      message: 'Đã thu hồi. Thay đổi có hiệu lực từ kế hoạch ngày mai.',
+    })
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(fake.calls).toContainEqual(['readOwnOverride', 'user', USER_ID, 'dsa', 'ah-extra'])
+    expect(fake.calls).toContainEqual([
+      'revokeOverride',
+      USER_ID,
+      {
+        eventId: id('roadmap.override_revoked:dsa:ah-extra'),
+        trackId: 'dsa',
+        key: 'ah-extra',
+        kind: 'insert_block',
+        by: 'learner',
+      },
+    ])
+    // §5.9: from the next plan — today's plan is not rebuilt.
+    expect(fake.calls.map(([name]) => name)).not.toContain('rebuildTodayIfUntouched')
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('an override already revoked answers unchanged', async () => {
+    fake.revokeAnswer = 'unchanged'
+    await expect(revoke()).resolves.toEqual({
+      ok: true,
+      message: 'Điều chỉnh này đã được thu hồi.',
+    })
+  })
+
+  it('another learner’s or an unknown key re-renders the page, revoking nothing', async () => {
+    fake.ownOverride = null
+    await expect(revoke()).resolves.toEqual({
+      ok: false,
+      message: 'Không tìm thấy điều chỉnh này. Trang đã được làm mới.',
+    })
+    expect(fake.calls.map(([name]) => name)).not.toContain('revokeOverride')
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('refuses a malformed input without reading', async () => {
+    await expect(revoke({ key: 'BAD KEY' })).resolves.toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(fake.calls).toEqual([['requireOnboarded']])
+  })
+
+  it('a database refusal is its Vietnamese message', async () => {
+    fake.revokeAnswer = new EventError('invalid_event')
+    await expect(revoke()).resolves.toEqual({ ok: false, message: copy.errors.saveFailed })
   })
 })

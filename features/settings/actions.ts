@@ -19,10 +19,12 @@ import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { revokeOverride } from '@/lib/events/overrides'
 import { rebuildTodayIfUntouched } from '@/lib/plans/rebuild'
 import { checkLimit } from '@/lib/rate-limit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { readOwnOverride, revokeReordersOfTrack } from './overrides'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
 import { pendingNotice, sameSchedule, scheduleState } from './schedule'
 import {
@@ -257,13 +259,18 @@ export async function updateTrack(
   if (Object.keys(changes).length === 0) return { ok: true, message: copy.tracks.unchanged }
 
   return record(
-    () =>
-      applyLearnerEvent(supabase, {
+    async () => {
+      await applyLearnerEvent(supabase, {
         id: deriveEventId(requestId, `track.updated:${trackId}:${digest(changes)}`),
         type: 'track.updated',
         trackId,
         payload: changes,
-      }),
+      })
+      // Task 6.6c (carried item c): a reorder was checked against the other variant's roadmap.
+      if (changes.roadmapVariant !== undefined) {
+        await revokeReordersOfTrack(supabase, createAdminClient(), user.id, trackId, requestId)
+      }
+    },
     withTitle(copy.tracks.updated, track.title.vi),
     user.id,
   )
@@ -386,6 +393,54 @@ export async function setTrackStatus(
     withTitle(copy.tracks.resumed, title),
     user.id,
   )
+}
+
+const revokeInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  /** The database's rules for track ids and override keys. */
+  trackId: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+  key: z.string().regex(/^[a-z0-9-]{3,48}$/),
+})
+
+/**
+ * "Thu hồi" in "Điều chỉnh lộ trình bởi AI" (§5.12 "Learner control", §5.9; task 6.6c): the
+ * learner's own override `(trackId, key)` — active or suspended, whatever the AI flag — becomes
+ * `revoked` by the learner (`roadmap.override_revoked`, source system, the learner the actor;
+ * final: the bot may never set that key again). It takes effect from the next plan: today's plan
+ * is kept as it is (no rebuild, §5.9). The event id derives from the page's `requestId`, so a
+ * double tap revokes once; an override already revoked answers "đã được thu hồi"; one that is not
+ * the learner's re-renders the page.
+ */
+export async function revokeAiOverride(input: {
+  requestId: string
+  trackId: string
+  key: string
+}): Promise<SettingsResult> {
+  const user = await requireOnboarded()
+  const parsed = revokeInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, trackId, key } = parsed.data
+  const own = await readOwnOverride(await createClient(), user.id, trackId, key)
+  if (own === null) return stale(vi.overrides.revoke.notFound)
+
+  let outcome: 'applied' | 'unchanged'
+  try {
+    outcome = await revokeOverride(createAdminClient(), user.id, {
+      eventId: deriveEventId(requestId, `roadmap.override_revoked:${trackId}:${key}`),
+      trackId,
+      key,
+      kind: own.kind,
+      by: 'learner',
+    })
+  } catch (error) {
+    if (!(error instanceof EventError)) throw error
+    return { ok: false, message: error.userMessage }
+  }
+  revalidatePath(PATH)
+  return {
+    ok: true,
+    message: outcome === 'applied' ? vi.overrides.revoke.done : vi.overrides.revoke.already,
+  }
 }
 
 const resetInputSchema = z.strictObject({
