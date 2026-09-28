@@ -75,12 +75,16 @@ it. The forces:
   two hours count from the last start or resume (M6-R23a) and a resumed run is not failed again by
   the next sweep. The timeout is applied whenever runs are read: on every run start, on
   `/admin/bot`'s render (`admin_bot_runs`) and in the daily maintenance cron (step `botRuns`; step
-  `botDetails` drops the `detail` of runs older than 30 days). A run the bot finishes as `failed`
-  records the reason `reported`.
+  `botDetails` drops the `detail` of runs older than 30 days) — and on every write:
+  `resolveRunUser` refuses a run started more than two hours ago, swept or not. A run the bot
+  finishes as `failed` records the reason `reported`; only a `running` run can be finished (`409
+  not_running` otherwise).
 - **Pseudonymous refs.** A user's ref in a run is `u_` + the first 16 lowercase base32 characters
   of HMAC-SHA256(`BOT_REF_SECRET`, `<user id>:<run uuid>`), stored in `bot_run_users.user_ref` at
-  start. `resolveRunUser(runId, userRef)` is the only way the bot side learns a user id: null for an
-  unknown run, a run that is not running or not a plan run, or a ref that is not in it.
+  start. `resolveRunUser(runId, userRef, now)` is the only way the bot side learns a user id: null
+  for an unknown run, a run that is not running, timed out or not a plan run, a ref that is not in
+  it, or a ref the start already settled (a pre-filtered `skipped_*` or `error` row: an outcome
+  but no plan write).
 - **Idempotent writes.** Every write carries `Idempotency-Key: <runId>:<userRef>:<kind>`; the
   answer is stored in `bot_run_users.writes[kind]` with the SHA-256 of the body's canonical JSON
   (keys sorted). The same body replays the stored answer, another body is `409
@@ -109,3 +113,8 @@ it. The forces:
   outgrows it.
 - `bot_run_users.writes` and `detail` grow with the audience; M7's dry-run week measures them
   (decision 41).
+- The bot is one serial client: two concurrent writes of one kind with different bodies may both
+  land and one of them be answered `409 idempotency_conflict`; the SQL caps (limits, cooldowns,
+  kinds) hold either way.
+- `recordProposal`'s read-modify-write of `bot_run_users.detail` is not atomic under concurrent
+  calls for one user (a dry-run proposal can be lost to a racing one); M7 moves it into SQL.
