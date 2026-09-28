@@ -5,6 +5,8 @@
 -- 2. apply_system_event: plan.ai_proposed (the untouched-plan precedence), user_item.created /
 --    retired / hidden, roadmap.override_set / revoked; a plan.generated rebuild clears rationale
 --    and bot_run_id.
+-- 3. Bot settings, token rotation, the AI flag and admin_list_users (admin).
+-- 4. Runs: eligibility, the lazy timeout, the write record, the detail prune, the run log.
 -- Merged migrations are never edited: apply_system_event and admin_list_users are replaced here.
 -- Every function revokes EXECUTE from PUBLIC explicitly and grants exactly its callers (see
 -- 20260925000100), at the end of its section; schema-invariants (001), 091 and 092 check it. Errors are
@@ -940,3 +942,444 @@ revoke execute on function
   public.apply_system_event(uuid, jsonb, jsonb, jsonb)
 from public, anon, authenticated, service_role;
 grant execute on function public.apply_system_event(uuid, jsonb, jsonb, jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- 3. Bot settings, token rotation, the AI flag and the user list (admin; §4.2, §6.2, §6.3).
+--    Each checks is_admin() first (forbidden). The settings toggles write no event — updated_at
+--    and updated_by on the row say who changed them (decision 31); the rotation and the AI flag
+--    write their audit events.
+-- ---------------------------------------------------------------------------------------------
+
+-- The admin's view of the settings row: never a hash (decision 7).
+create function public.bot_settings_json(s public.bot_settings) returns jsonb
+language sql immutable set search_path = '' as $$
+  select jsonb_build_object(
+    'enabled', s.enabled, 'dryRun', s.dry_run, 'contentProposals', s.content_proposals,
+    'perRunUserCap', s.per_run_user_cap, 'limits', s.limits,
+    'hasToken', s.token_hash is not null, 'prevValidUntil', s.token_prev_valid_until,
+    'rotatedAt', s.token_rotated_at, 'updatedAt', s.updated_at)
+$$;
+
+create function public.admin_bot_settings() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  return (select public.bot_settings_json(s) from public.bot_settings s);
+end $$;
+
+-- null = unchanged. The cap 1–100 (the table's check); limits an object of whole numbers ≥ 0 —
+-- lib/bot/limits.ts names the keys and refuses a value above its hard maximum (decision 33), and
+-- apply_system_event clamps what it is sent anyway. invalid_settings otherwise.
+create function public.admin_update_bot_settings(
+  p_enabled boolean, p_dry_run boolean, p_content_proposals boolean,
+  p_per_run_user_cap integer, p_limits jsonb
+) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_settings public.bot_settings;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if p_per_run_user_cap not between 1 and 100
+    or (p_limits is not null and (
+      jsonb_typeof(p_limits) <> 'object'
+      or octet_length(p_limits::text) > 1024
+      or exists (
+        select 1 from pg_catalog.jsonb_each(p_limits) as l (key, value)
+        -- Nested CASEs, so the cast only ever sees a whole number.
+        where not (case when jsonb_typeof(l.value) = 'number'
+          then case when coalesce(pg_catalog.pg_input_is_valid(l.value #>> '{}', 'integer'), false)
+            then (l.value #>> '{}')::integer >= 0 else false end
+          else false end)
+      )))
+  then
+    raise exception 'invalid_settings';
+  end if;
+
+  update public.bot_settings s set
+    enabled = coalesce(p_enabled, s.enabled),
+    dry_run = coalesce(p_dry_run, s.dry_run),
+    content_proposals = coalesce(p_content_proposals, s.content_proposals),
+    per_run_user_cap = coalesce(p_per_run_user_cap, s.per_run_user_cap),
+    limits = coalesce(p_limits, s.limits),
+    updated_at = now(),
+    updated_by = auth.uid()
+  where s.id
+  returning * into v_settings;
+  return public.bot_settings_json(v_settings);
+end $$;
+
+-- "Tạo token mới" (§6.3): the server generates the token and sends its SHA-256 (64 lowercase hex
+-- digits, never the token); the current hash stays valid 24 hours as the previous one. One
+-- admin.bot_token_rotated event on the admin's own row (the target is the bot, not a user).
+create function public.admin_rotate_bot_token(p_token_hash text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_admin constant uuid := auth.uid();
+  v_settings public.bot_settings;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into v_settings from public.bot_settings s where s.id for update;
+  if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$'
+    or p_token_hash is not distinct from v_settings.token_hash
+  then
+    raise exception 'invalid_token';
+  end if;
+
+  update public.bot_settings s set
+    token_prev_hash = s.token_hash,
+    token_prev_valid_until = case when s.token_hash is null then null
+      else now() + interval '24 hours' end,
+    token_hash = p_token_hash,
+    token_rotated_at = now(),
+    updated_at = now(),
+    updated_by = v_admin
+  where s.id
+  returning * into v_settings;
+
+  insert into public.events (id, user_id, actor_id, source, type, payload)
+  values (gen_random_uuid(), v_admin, v_admin, 'admin', 'admin.bot_token_rotated', '{}'::jsonb);
+
+  return jsonb_build_object(
+    'rotatedAt', v_settings.token_rotated_at, 'prevValidUntil', v_settings.token_prev_valid_until);
+end $$;
+
+-- The AI flag (§5.12, §6.1; decisions 18, 34): for an active account (invalid_transition
+-- otherwise), the admin's own included. Locks the profile row, then the user's overrides — never
+-- the per-user advisory locks, so it cannot deadlock with apply_system_event (advisory lock →
+-- profile → overrides). Off: share_notes_with_ai off too (the switch is hidden while the flag is
+-- off, §4.6), and the overrides in force become suspended — one roadmap.override_suspended
+-- { keys } event per track. On: every suspended override is active again (an expired one stays
+-- expired: its expiry is computed) — roadmap.override_resumed { keys } per track. The audit
+-- event admin.ai_flag_changed { targetUserId, from, to } ('on' / 'off').
+create function public.admin_set_ai_flag(p_user_id uuid, p_on boolean) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_admin constant uuid := auth.uid();
+  v_status text;
+  v_from boolean;
+  v_today date;
+  v_changed jsonb;
+  v_track text;
+  v_keys jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select p.status, p.ai_personalization into v_status, v_from
+  from public.profiles p where p.id = p_user_id for update;
+  if not found then
+    raise exception 'not_found';
+  end if;
+  if v_status <> 'active' or p_on is null then
+    raise exception 'invalid_transition';
+  end if;
+  if v_from = p_on then
+    raise exception 'no_change';
+  end if;
+
+  update public.profiles p set
+    ai_personalization = p_on,
+    share_notes_with_ai = p_on and p.share_notes_with_ai
+  where p.id = p_user_id;
+
+  perform 1 from public.roadmap_overrides o where o.user_id = p_user_id order by o.id for update;
+  v_today := public.user_local_day(p_user_id, now());
+  if p_on then
+    with changed as (
+      update public.roadmap_overrides o set status = 'active'
+      where o.user_id = p_user_id and o.status = 'suspended'
+      returning o.track_id, o.key
+    )
+    select jsonb_object_agg(c.track_id, c.keys) into v_changed
+    from (select track_id, jsonb_agg(key order by key) as keys from changed group by track_id) c;
+  else
+    with changed as (
+      update public.roadmap_overrides o set status = 'suspended'
+      where o.user_id = p_user_id and public.roadmap_override_active(o, v_today)
+      returning o.track_id, o.key
+    )
+    select jsonb_object_agg(c.track_id, c.keys) into v_changed
+    from (select track_id, jsonb_agg(key order by key) as keys from changed group by track_id) c;
+  end if;
+
+  for v_track, v_keys in select e.key, e.value from jsonb_each(coalesce(v_changed, '{}')) e
+    order by e.key
+  loop
+    insert into public.events (id, user_id, actor_id, source, type, track_id, payload)
+    values (
+      gen_random_uuid(), p_user_id, v_admin, 'system',
+      case when p_on then 'roadmap.override_resumed' else 'roadmap.override_suspended' end,
+      v_track, jsonb_build_object('keys', v_keys)
+    );
+  end loop;
+
+  insert into public.events (id, user_id, actor_id, source, type, payload)
+  values (
+    gen_random_uuid(), p_user_id, v_admin, 'admin', 'admin.ai_flag_changed',
+    jsonb_build_object(
+      'targetUserId', p_user_id,
+      'from', case when v_from then 'on' else 'off' end,
+      'to', case when p_on then 'on' else 'off' end)
+  );
+
+  return jsonb_build_object(
+    'from', case when v_from then 'on' else 'off' end, 'to', case when p_on then 'on' else 'off' end);
+end $$;
+
+-- admin_list_users (20260925000400) plus ai_personalization, the flag toggle's state (task 6.3).
+-- The return type changes, so the function is dropped and created again; otherwise unchanged.
+drop function public.admin_list_users();
+
+create function public.admin_list_users()
+returns table (
+  id uuid,
+  email text,
+  display_name text,
+  avatar_url text,
+  role text,
+  status text,
+  created_at timestamptz,
+  approved_at timestamptz,
+  onboarded_at timestamptz,
+  ai_personalization boolean
+)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  -- The queue first: pending accounts, oldest sign-up first (first come, first served); then
+  -- everyone else, newest first. The id breaks ties, so the order is stable.
+  return query
+    select p.id, u.email::text, p.display_name, p.avatar_url, p.role, p.status, p.created_at,
+      p.approved_at, p.onboarded_at, p.ai_personalization
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    order by
+      p.status = 'pending' desc,
+      case when p.status = 'pending' then p.created_at end asc,
+      p.created_at desc,
+      p.id;
+end $$;
+
+-- Admins, with their own session (each checks is_admin() itself); bot_settings_json is internal.
+revoke execute on function
+  public.bot_settings_json(public.bot_settings),
+  public.admin_bot_settings(),
+  public.admin_update_bot_settings(boolean, boolean, boolean, integer, jsonb),
+  public.admin_rotate_bot_token(text),
+  public.admin_set_ai_flag(uuid, boolean),
+  public.admin_list_users()
+from public, anon, authenticated, service_role;
+grant execute on function
+  public.admin_bot_settings(),
+  public.admin_update_bot_settings(boolean, boolean, boolean, integer, jsonb),
+  public.admin_rotate_bot_token(text),
+  public.admin_set_ai_flag(uuid, boolean),
+  public.admin_list_users()
+to authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- 4. Runs (§6.2, §6.4; decisions 8–12). The server's bot path calls these with the secret key;
+--    admin_bot_runs is /admin/bot's reader.
+-- ---------------------------------------------------------------------------------------------
+
+-- The users a plan run may take (decision 9): AI-flagged, active, onboarded — never processed
+-- first, then least recently processed (bot_run_users.processed_at), then by id.
+create function public.bot_eligible_users()
+returns table (user_id uuid, last_processed_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select x.id, x.processed
+  from (
+    select p.id,
+      (select max(u.processed_at) from public.bot_run_users u where u.user_id = p.id) as processed
+    from public.profiles p
+    where p.ai_personalization and p.status = 'active' and p.onboarded_at is not null
+  ) x
+  order by x.processed asc nulls first, x.id
+$$;
+
+-- The lazy timeout (§6.2): a run still running more than 2 hours after it started has failed.
+-- Run start, /admin/bot's reader and the maintenance cron call it. Returns the count.
+create function public.bot_timeout_runs() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  update public.bot_runs r set status = 'failed', failure_reason = 'timeout', finished_at = now()
+  where r.status = 'running' and r.started_at < now() - interval '2 hours';
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+-- A write's record (decision 10): p_kind plan, custom-items or overrides; p_body_hash the SHA-256
+-- of the canonical body (64 lowercase hex digits); p_entry the outcome and response to replay,
+-- { outcome, … }. Under the run user's row lock:
+-- - outcome invalid: never binds the key — detail[kind].invalidAttempts + 1, returned as
+--   { stored: false, invalidAttempts }; a 4th invalid attempt raises too_many_attempts;
+-- - writes[kind] present: { stored: false, entry: <the stored entry> } (the caller replays it, or
+--   answers 409 for another body hash);
+-- - otherwise (applied, dry_run, skipped_*): stores { …p_entry, bodyHash }, sets processed_at if
+--   null and, for plan, the user's outcome (decision 12); { stored: true, entry }.
+-- The writes column's 32 KB bound is the caller's to respect (it cuts details).
+create function public.bot_record_write(
+  p_run_user_id uuid, p_kind text, p_body_hash text, p_entry jsonb
+) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_row public.bot_run_users;
+  v_outcome text;
+  v_attempts integer;
+  v_entry jsonb;
+begin
+  if p_kind is null or p_kind not in ('plan', 'custom-items', 'overrides')
+    or p_body_hash is null or p_body_hash !~ '^[0-9a-f]{64}$'
+    or jsonb_typeof(p_entry) is distinct from 'object'
+    or jsonb_typeof(p_entry -> 'outcome') is distinct from 'string'
+    or (p_entry ->> 'outcome') not in ('applied', 'dry_run', 'skipped_plan_in_use',
+      'skipped_gate_closed', 'skipped_unseen', 'invalid')
+  then
+    raise exception 'invalid_event';
+  end if;
+  v_outcome := p_entry ->> 'outcome';
+
+  select * into v_row from public.bot_run_users u where u.id = p_run_user_id for update;
+  if not found then
+    raise exception 'not_found';
+  end if;
+
+  if v_row.writes ? p_kind then
+    return jsonb_build_object('stored', false, 'entry', v_row.writes -> p_kind);
+  end if;
+
+  if v_outcome = 'invalid' then
+    v_attempts := coalesce(
+      case when jsonb_typeof(v_row.detail -> p_kind -> 'invalidAttempts') = 'number'
+        then (v_row.detail -> p_kind ->> 'invalidAttempts')::integer end,
+      0) + 1;
+    if v_attempts > 3 then
+      raise exception 'too_many_attempts';
+    end if;
+    update public.bot_run_users u set detail = coalesce(u.detail, '{}'::jsonb)
+      || jsonb_build_object(p_kind,
+        case when jsonb_typeof(u.detail -> p_kind) = 'object' then u.detail -> p_kind
+          else '{}'::jsonb end
+        || jsonb_build_object('invalidAttempts', v_attempts))
+    where u.id = p_run_user_id;
+    return jsonb_build_object('stored', false, 'invalidAttempts', v_attempts);
+  end if;
+
+  v_entry := p_entry || jsonb_build_object('bodyHash', p_body_hash);
+  update public.bot_run_users u set
+    writes = u.writes || jsonb_build_object(p_kind, v_entry),
+    processed_at = coalesce(u.processed_at, now()),
+    outcome = case when p_kind = 'plan' then v_outcome else u.outcome end
+  where u.id = p_run_user_id;
+  return jsonb_build_object('stored', true, 'entry', v_entry);
+end $$;
+
+-- §2.3: the maintenance cron drops the detail (dry-run proposals, invalid details) of runs
+-- started more than 30 days ago; writes and outcomes stay (decision 41). Returns the count.
+create function public.bot_prune_details() returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_count integer;
+begin
+  update public.bot_run_users u set detail = null
+  from public.bot_runs r
+  where r.id = u.run_id and r.started_at < now() - interval '30 days' and u.detail is not null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+-- /admin/bot's run log (§6.2): the latest p_limit runs (1–100, default 20), newest first, each
+-- with its user counts per outcome (null = pending) — counts only, no user id, no ref. Times out
+-- stale runs first (the lazy timeout on read), so it is volatile.
+create function public.admin_bot_runs(p_limit integer) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform public.bot_timeout_runs();
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'runKey', r.run_key, 'kind', r.kind, 'mode', r.mode, 'status', r.status,
+        'failureReason', r.failure_reason, 'usersEligible', r.users_eligible,
+        'usersDeferred', r.users_deferred,
+        'outcomes', coalesce((
+          select jsonb_object_agg(o.outcome, o.n)
+          from (
+            select coalesce(u.outcome, 'pending') as outcome, count(*) as n
+            from public.bot_run_users u where u.run_id = r.id
+            group by 1
+          ) o
+        ), '{}'::jsonb),
+        'contentPrUrl', r.content_pr_url, 'summary', r.summary, 'startedAt', r.started_at,
+        'finishedAt', r.finished_at)
+      order by r.started_at desc, r.run_key desc)
+    from (
+      select * from public.bot_runs b
+      order by b.started_at desc, b.run_key desc
+      limit least(greatest(coalesce(p_limit, 20), 1), 100)
+    ) r
+  ), '[]'::jsonb);
+end $$;
+
+-- admin_track_positions' body (20260927000300) for the secret key: the content-coverage horizon
+-- of the bot's `missing` signals (task 6.7a). Counts only.
+create function public.bot_track_positions()
+returns table (track_id text, variant text, week integer, learners integer)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  return query
+    with latest as (
+      select distinct on (ut.user_id, ut.track_id)
+        ut.track_id as track,
+        coalesce(d.roadmap_weeks -> ut.track_id ->> 'variant', ut.roadmap_variant) as roadmap,
+        -- CASE, so the cast only ever sees a whole number.
+        case when d.roadmap_weeks -> ut.track_id ->> 'week' ~ '^[1-9][0-9]{0,3}$'
+          then (d.roadmap_weeks -> ut.track_id ->> 'week')::integer
+        end as roadmap_week
+      from public.user_tracks ut
+      join public.profiles p on p.id = ut.user_id and p.status = 'active'
+      join public.day_plans d
+        on d.user_id = ut.user_id
+        and d.plan_date >= current_date - 14
+        and d.roadmap_weeks ? ut.track_id
+      where ut.status = 'active'
+      order by ut.user_id, ut.track_id, d.plan_date desc
+    )
+    select l.track, l.roadmap, l.roadmap_week, count(*)::integer
+    from latest l
+    where l.roadmap_week is not null
+    group by l.track, l.roadmap, l.roadmap_week
+    order by 1, 2, 3;
+end $$;
+
+-- The secret key's bot path and maintenance cron; admin_bot_runs for admins (it checks
+-- is_admin() and calls bot_timeout_runs as its owner).
+revoke execute on function
+  public.bot_eligible_users(),
+  public.bot_timeout_runs(),
+  public.bot_record_write(uuid, text, text, jsonb),
+  public.bot_prune_details(),
+  public.admin_bot_runs(integer),
+  public.bot_track_positions()
+from public, anon, authenticated, service_role;
+grant execute on function
+  public.bot_eligible_users(),
+  public.bot_timeout_runs(),
+  public.bot_record_write(uuid, text, text, jsonb),
+  public.bot_prune_details(),
+  public.bot_track_positions()
+to service_role;
+grant execute on function public.admin_bot_runs(integer) to authenticated;

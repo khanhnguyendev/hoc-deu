@@ -794,9 +794,12 @@ export type Database = {
     }
     Functions: {
       admin_bootstrap: { Args: { p_user_id: string }; Returns: boolean }
+      admin_bot_runs: { Args: { p_limit: number }; Returns: Json }
+      admin_bot_settings: { Args: never; Returns: Json }
       admin_list_users: {
         Args: never
         Returns: {
+          ai_personalization: boolean
           approved_at: string
           avatar_url: string
           created_at: string
@@ -809,6 +812,11 @@ export type Database = {
         }[]
       }
       admin_overview: { Args: never; Returns: Json }
+      admin_rotate_bot_token: { Args: { p_token_hash: string }; Returns: Json }
+      admin_set_ai_flag: {
+        Args: { p_on: boolean; p_user_id: string }
+        Returns: Json
+      }
       admin_set_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: Json
@@ -825,6 +833,16 @@ export type Database = {
           variant: string
           week: number
         }[]
+      }
+      admin_update_bot_settings: {
+        Args: {
+          p_content_proposals: boolean
+          p_dry_run: boolean
+          p_enabled: boolean
+          p_limits: Json
+          p_per_run_user_cap: number
+        }
+        Returns: Json
       }
       apply_derived_changes: {
         Args: {
@@ -848,6 +866,37 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      bot_eligible_users: {
+        Args: never
+        Returns: {
+          last_processed_at: string
+          user_id: string
+        }[]
+      }
+      bot_prune_details: { Args: never; Returns: number }
+      bot_record_write: {
+        Args: {
+          p_body_hash: string
+          p_entry: Json
+          p_kind: string
+          p_run_user_id: string
+        }
+        Returns: Json
+      }
+      bot_settings_json: {
+        Args: { s: Database['public']['Tables']['bot_settings']['Row'] }
+        Returns: Json
+      }
+      bot_timeout_runs: { Args: never; Returns: number }
+      bot_track_positions: {
+        Args: never
+        Returns: {
+          learners: number
+          track_id: string
+          variant: string
+          week: number
+        }[]
       }
       health: { Args: never; Returns: boolean }
       is_active: { Args: never; Returns: boolean }

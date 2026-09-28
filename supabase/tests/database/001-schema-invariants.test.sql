@@ -25,7 +25,10 @@ create extension if not exists pgtap with schema extensions;
 -- each checks is_admin() itself) and replaces admin_set_status(uuid, text) with
 -- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051). 6.2a
 -- adds none: ops_bump_metric is service_role only, and plan_block_state_check_in_day (now also
--- the local_day_bound_insert trigger's function) keeps no grants (090).
+-- the local_day_bound_insert trigger's function) keeps no grants (090). 6.2b adds the admin
+-- functions admin_bot_settings, admin_update_bot_settings, admin_rotate_bot_token,
+-- admin_set_ai_flag and admin_bot_runs (each checks is_admin() itself); it replaces
+-- admin_list_users (one overload still); the bot_* functions are service_role only (092).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -35,7 +38,9 @@ insert into _authenticated_allowlist (proname) values
   ('mark_plan_seen'), ('plan_lock_key'),
   ('apply_derived_changes'),
   ('health'),
-  ('admin_overview'), ('admin_track_positions');
+  ('admin_overview'), ('admin_track_positions'),
+  ('admin_bot_settings'), ('admin_update_bot_settings'), ('admin_rotate_bot_token'),
+  ('admin_set_ai_flag'), ('admin_bot_runs');
 
 -- Allowlist of `public` functions `anon` may EXECUTE (check 5), overload for overload like the
 -- one above. Only 5.7a's health(): /api/health calls it with the publishable key and no session.

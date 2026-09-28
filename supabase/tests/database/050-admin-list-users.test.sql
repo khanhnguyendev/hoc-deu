@@ -69,7 +69,7 @@ select tests.authenticate_as(:'admin');
 create temporary table _listed on commit drop as
   select * from public.admin_list_users() with ordinality as l (
     id, email, display_name, avatar_url, role, status, created_at, approved_at, onboarded_at,
-    position
+    ai_personalization, position
   );
 select tests.clear_authentication();
 
