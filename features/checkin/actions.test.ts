@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { itemState } from '@/lib/domain/plan/__tests__/fixtures'
+import { dueQueue } from '@/lib/domain/plan/queues'
 import type { PlanBlock } from '@/lib/domain/plan/types'
 import { RULES_VERSION } from '@/lib/domain/rules'
 import type { LocalDay } from '@/lib/domain/time/localDay'
@@ -1072,6 +1073,86 @@ describe('recordOutcome', () => {
       autoCheckedIn: [],
     })
     expect(fake.rpcs()).toEqual([])
+  })
+
+  describe('a custom item (task 6.6a: the per-user catalog overlay, decision 17)', () => {
+    const CARD = 'user:0123456789abcdef:ah-card'
+    const customCard = (change: Partial<RowOf<'user_items'>> = {}): RowOf<'user_items'> => ({
+      user_id: USER_ID,
+      item_id: CARD,
+      item_type: 'flashcard',
+      track_id: 'dsa',
+      topic_id: 'arrays',
+      payload: { front: 'two pointers', back: 'hai con trỏ', tags: [] },
+      status: 'active',
+      created_by_run: 'run_2026-09-28',
+      created_on: TODAY,
+      created_at: '2026-09-28T00:00:00.000Z',
+      ...change,
+    })
+    const know = solved({ itemId: CARD, outcome: { type: 'item.result', result: 'know' } })
+
+    it('grading a custom card creates its item_state (the track’s card SRS), due later in the review queue', async () => {
+      const fake = setup({ day_plans: [plan], user_items: [customCard()] })
+      expect(await recordOutcome(know)).toMatchObject({ ok: true })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        type: 'item.result',
+        item_id: CARD,
+        track_id: 'dsa',
+        payload: { result: 'know' },
+      })
+      // DSA cards recall on [1, 3, 7, 14] (§5.7 srs.byType): due tomorrow.
+      expect(fake.tables.item_state).toMatchObject([
+        {
+          item_id: CARD,
+          track_id: 'dsa',
+          item_type: 'flashcard',
+          topic_id: 'arrays',
+          level: 1,
+          due_on: TOMORROW,
+        },
+      ])
+      const { readItemStates } = await import('@/lib/plans/reads')
+      const { catalogWith } = await import('@/lib/plans/day')
+      const { readUserItems } = await import('@/lib/plans/reads')
+      const client = fake.client('check')
+      const items = await readItemStates(client, USER_ID)
+      const catalog = catalogWith(await readUserItems(client, USER_ID))
+      const due = (today: LocalDay) =>
+        dueQueue({ trackId: 'dsa', items, catalog, today, weakTopicIds: new Set() }).map(
+          (entry) => entry.itemId,
+        )
+      expect(due(TODAY)).not.toContain(CARD)
+      expect(due(TOMORROW)).toContain(CARD)
+      expect(state.log).toContainEqual([
+        'revalidatePath',
+        '/t/dsa/items/user%3A0123456789abcdef%3Aah-card',
+      ])
+    })
+
+    it('studied off the plan, it joins the track’s extra block like any item', async () => {
+      const fake = setup({ day_plans: [plan], user_items: [customCard()] })
+      await recordOutcome(know)
+      expect(systemCalls(fake)[0]?.p_event).toMatchObject({
+        type: 'plan.extra_added',
+        track_id: 'dsa',
+        payload: { itemIds: [CARD] },
+      })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({ block_id: `${TODAY}:dsa:extra:1` })
+    })
+
+    it("another learner's custom item is unknown (RLS: own rows only), reading no plan", async () => {
+      const fake = setup({
+        day_plans: [plan],
+        user_items: [customCard({ user_id: '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10' })],
+      })
+      expect(await recordOutcome(know)).toEqual({
+        ok: false,
+        message: copy.checkIn.errors.unknownItem,
+        autoCheckedIn: [],
+      })
+      expect(fake.rpcs()).toEqual([])
+    })
   })
 
   it('refuses an item the catalog does not have, reading nothing', async () => {

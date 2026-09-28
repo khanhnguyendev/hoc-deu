@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { blockKey } from '@/lib/domain/state'
-import { createFakeSupabase } from '@/lib/testing/fake-supabase'
+import { createFakeSupabase, type RowOf } from '@/lib/testing/fake-supabase'
 import {
   blockStateRow,
   eventRow,
@@ -27,6 +27,7 @@ import {
   readPlanMode,
   readRecapHistory,
   readScheduleVersions,
+  readUserItems,
   todayOf,
 } from './reads'
 
@@ -373,5 +374,73 @@ describe('readPlanMode', () => {
       events: [eventRow({ type: 'plan.generated', plan_id: plan.id, payload: { mode: 'ai' } })],
     })
     expect(await readPlanMode(fake.client(), USER_ID, plan.id)).toBeNull()
+  })
+})
+
+describe('readUserItems (task 6.6a)', () => {
+  const userItem = (
+    slug: string,
+    change: Partial<RowOf<'user_items'>> = {},
+  ): RowOf<'user_items'> => ({
+    user_id: USER_ID,
+    item_id: `user:0123456789abcdef:${slug}`,
+    item_type: 'flashcard',
+    track_id: 'dsa',
+    topic_id: 'arrays-hashing',
+    payload: { front: 'f', back: 'b', tags: [] },
+    status: 'active',
+    created_by_run: 'run_2026-09-28',
+    created_on: '2026-09-28',
+    created_at: '2026-09-28T00:00:00.000Z',
+    ...change,
+  })
+
+  it("reads the user's active items, then the hidden and retired ones, by ID", async () => {
+    const fake = createFakeSupabase({
+      user_items: [
+        userItem('b-card'),
+        userItem('a-hidden', { status: 'hidden' }),
+        userItem('c-retired', { status: 'retired', item_type: 'prompt', payload: {} }),
+        userItem('a-card'),
+        userItem('other', { user_id: OTHER_USER_ID }),
+      ],
+    })
+    expect(await readUserItems(fake.client(), USER_ID)).toEqual([
+      {
+        itemId: 'user:0123456789abcdef:a-card',
+        itemType: 'flashcard',
+        trackId: 'dsa',
+        topicId: 'arrays-hashing',
+        payload: { front: 'f', back: 'b', tags: [] },
+        status: 'active',
+        createdOn: '2026-09-28',
+      },
+      expect.objectContaining({ itemId: 'user:0123456789abcdef:b-card', status: 'active' }),
+      expect.objectContaining({ itemId: 'user:0123456789abcdef:a-hidden', status: 'hidden' }),
+      expect.objectContaining({
+        itemId: 'user:0123456789abcdef:c-retired',
+        status: 'retired',
+        itemType: 'prompt',
+      }),
+    ])
+    const selects = fake.selects('user_items')
+    expect(selects).toHaveLength(2)
+    expect(selects[0]!.limit).toBe(200)
+    expect(selects.every((select) => select.filters.some((f) => f.column === 'user_id'))).toBe(true)
+  })
+
+  it('drops a row whose type or status the table would not allow', async () => {
+    const fake = createFakeSupabase({
+      user_items: [userItem('odd', { item_type: 'problem' }), userItem('ok')],
+    })
+    expect((await readUserItems(fake.client(), USER_ID)).map((row) => row.itemId)).toEqual([
+      'user:0123456789abcdef:ok',
+    ])
+  })
+
+  it('throws when the query fails', async () => {
+    const fake = createFakeSupabase()
+    fake.failSelect('user_items', 'boom')
+    await expect(readUserItems(fake.client(), USER_ID)).rejects.toThrow(/custom items/)
   })
 })

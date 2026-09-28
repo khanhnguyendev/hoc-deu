@@ -9,7 +9,7 @@
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ItemMode } from '@/lib/domain/catalog'
+import { isCustomItemId, type ItemMode } from '@/lib/domain/catalog'
 import { own } from '@/lib/domain/compare'
 import { blocksWithItem } from '@/lib/domain/plan/checkin'
 import {
@@ -30,8 +30,8 @@ import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
 import { planCatalog } from './catalog'
 import { currentPlan } from './current'
-import { loadDay } from './day'
-import { readEnrollments, readScheduleVersions, todayOf } from './reads'
+import { catalogWith, loadDay } from './day'
+import { readEnrollments, readScheduleVersions, readUserItems, todayOf } from './reads'
 import { assertSessionUser } from './session'
 import { ensureToday } from './today'
 
@@ -167,7 +167,9 @@ async function freshBlockNeeded(
  * fresh extra block when its latest one cannot count by itself (`freshBlockNeeded`, M-3), so the
  * study is checked in and counts. Null — nothing attached — for an unknown item, without a plan,
  * and when the extra block cannot hold it (`planBlockSchema`'s bounds). The auto check-in that
- * follows (decision 15) is the caller's (`recordOutcome`).
+ * follows (decision 15) is the caller's (`recordOutcome`). A custom item (`user:…`, task 6.6a) is
+ * looked up in the learner's overlay (`catalogWith`, decision 17): studying it from its page is
+ * how the "Mục riêng" tab schedules it (§5.12).
  */
 export async function attachOffPlan(
   userId: string,
@@ -177,9 +179,12 @@ export async function attachOffPlan(
   now: Date = new Date(),
 ): Promise<{ readonly planId: string; readonly blockId: string } | null> {
   await assertSessionUser(userId)
-  const item = own(planCatalog().items, itemId)
-  if (item === undefined) return null
   const supabase = await createClient()
+  const catalog = isCustomItemId(itemId)
+    ? catalogWith(await readUserItems(supabase, userId))
+    : planCatalog()
+  const item = own(catalog.items, itemId)
+  if (item === undefined) return null
   let tries = 0
   return withRetry(async () => {
     const found = await planToAttach(supabase, userId, tries === 0 ? now : new Date())

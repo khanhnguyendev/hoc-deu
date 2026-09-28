@@ -156,6 +156,15 @@ function toPlanItem(
   }
 }
 
+/**
+ * One item's engine view with the same estimate and SRS helpers as the catalog's items, without
+ * the deep-dive index (only problems have one). `lib/content/user-items.ts` builds a learner's
+ * custom items with it (§5.12: estimates from the manifest, the track's SRS parameters for cards).
+ */
+export function planItemOf(item: CatalogItem, manifest: TrackManifest): PlanItem {
+  return toPlanItem(item, manifest, new Map())
+}
+
 // -------------------------------------------------------------------------------------------
 // Tracks, roadmaps and decks
 // -------------------------------------------------------------------------------------------

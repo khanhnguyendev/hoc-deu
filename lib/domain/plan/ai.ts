@@ -8,7 +8,13 @@
  * that is not the user's own, or an item already planned) skips that item's later checks. Minutes
  * always come from the catalog: the bot's numbers are never read.
  */
-import { type ItemMode, ITEM_MODES, type PlanCatalog, type PlanItem } from '../catalog'
+import {
+  type ItemMode,
+  ITEM_MODES,
+  isCustomItemId,
+  type PlanCatalog,
+  type PlanItem,
+} from '../catalog'
 import { own } from '../compare'
 import type { LocalDay } from '../time/localDay'
 import { plannedMinutes } from './buildPlan'
@@ -86,9 +92,6 @@ export const RATIONALE_INPUT_MAX = 4096
 
 /** Lessons are compared by `itemType` equality only (as `roadmap.ts` does), never switched on. */
 const LESSON_TYPE = 'lesson'
-
-/** Custom item IDs are `user:<bot_ref>:<slug>` (§6.4.4, decision 17). */
-const CUSTOM_ITEM_PREFIX = 'user:'
 
 const AI_BLOCK_KINDS: readonly string[] = ['review', 'new', 'practice', 'recap']
 
@@ -223,7 +226,7 @@ function checkBlock(
 
     if (seen.has(itemId)) return issue('duplicate_item')
     seen.add(itemId)
-    if (itemId.startsWith(CUSTOM_ITEM_PREFIX) && !allow.ownCustomItems.has(itemId)) {
+    if (isCustomItemId(itemId) && !allow.ownCustomItems.has(itemId)) {
       return issue('not_own_custom')
     }
     const item = own(allow.catalog.items, itemId)

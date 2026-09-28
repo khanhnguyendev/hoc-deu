@@ -10,6 +10,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { toEnrollment } from '@/lib/content/plan-catalog'
+import type { UserItemRow } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'
 import type { Enrollment, StoredPlan } from '@/lib/domain/plan/types'
 import { blockKey, type BlockState, type DailyActivity, type ItemState } from '@/lib/domain/state'
@@ -293,4 +294,64 @@ export async function readPlanMode(
       ? payload.mode
       : undefined
   return PLAN_MODES.find((candidate) => candidate === mode) ?? null
+}
+
+/** The most active custom items a user may have (decision 33; `lib/bot/limits.ts`). */
+export const ACTIVE_USER_ITEMS_CAP = 200
+
+const USER_ITEM_COLUMNS = 'item_id, item_type, track_id, topic_id, payload, status, created_on'
+const USER_ITEM_TYPES = ['flashcard', 'exercise', 'prompt'] as const
+const USER_ITEM_STATUSES = ['active', 'hidden', 'retired'] as const
+
+type UserItemDbRow = Pick<
+  Database['public']['Tables']['user_items']['Row'],
+  'item_id' | 'item_type' | 'track_id' | 'topic_id' | 'payload' | 'status' | 'created_on'
+>
+
+function userItemFromRow(row: UserItemDbRow): UserItemRow | null {
+  const itemType = USER_ITEM_TYPES.find((type) => type === row.item_type)
+  const status = USER_ITEM_STATUSES.find((candidate) => candidate === row.status)
+  if (itemType === undefined || status === undefined) return null
+  return {
+    itemId: row.item_id,
+    itemType,
+    trackId: row.track_id,
+    topicId: row.topic_id,
+    payload: row.payload,
+    status,
+    createdOn: row.created_on,
+  }
+}
+
+/**
+ * The user's custom items (§4.1 `user_items`, §5.12; task 6.6a): the active ones (at most
+ * `ACTIVE_USER_ITEMS_CAP`, the database's quota), then the hidden and retired ones (one page,
+ * `PAGE_ROWS`) — each by ID. Hidden and retired rows are read too: their items stay readable and
+ * the "Mục riêng" tab lists the hidden ones (`withUserItems` reads them as retired). The session
+ * client (RLS: own rows) for a learner, the secret key for the bot (every read filters `user_id`).
+ */
+export async function readUserItems(supabase: Client, userId: string): Promise<UserItemRow[]> {
+  const [active, inactive] = await Promise.all([
+    supabase
+      .from('user_items')
+      .select(USER_ITEM_COLUMNS)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('item_id')
+      .limit(ACTIVE_USER_ITEMS_CAP),
+    supabase
+      .from('user_items')
+      .select(USER_ITEM_COLUMNS)
+      .eq('user_id', userId)
+      .in('status', ['hidden', 'retired'])
+      .order('status')
+      .order('item_id')
+      .limit(PAGE_ROWS),
+  ])
+  if (active.error) throw failed('the custom items', active.error)
+  if (inactive.error) throw failed('the custom items', inactive.error)
+  return [...active.data, ...inactive.data].flatMap((row) => {
+    const item = userItemFromRow(row)
+    return item === null ? [] : [item]
+  })
 }
