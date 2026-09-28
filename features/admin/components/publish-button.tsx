@@ -2,6 +2,8 @@
 
 import { Clock, Send } from 'lucide-react'
 import { useEffect, useId, useRef, useState, useTransition } from 'react'
+import { FormActions } from '@/components/patterns/form-actions'
+import { FormFieldError } from '@/components/patterns/form-field'
 import { isNavigationError } from '@/components/patterns/navigation-error'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -58,6 +60,9 @@ async function run(action: () => Promise<AdminActionResult>): Promise<AdminActio
  * the bilingual line reads naturally) — and records a publish request; a bot publish run then
  * opens the PR that flips the status. A pending request shows "Đang chờ xuất bản", its PR link
  * once a run included it, and "Huỷ". Focus moves to the control that replaces the one used.
+ * A failed request keeps the dialog open with the failure in its FormActions alert region; a
+ * failed "Huỷ" says why beside the button. A success, or a stale answer (the page re-renders with
+ * the current state), is a toast.
  */
 function PublishButton({
   target,
@@ -71,6 +76,10 @@ function PublishButton({
   const [open, setOpen] = useState(false)
   const [checks, setChecks] = useState<Checks>(UNTICKED)
   const [pending, startTransition] = useTransition()
+  /** The last failed "Xuất bản", said inside the dialog; cleared when it opens or closes. */
+  const [publishError, setPublishError] = useState<string | null>(null)
+  /** The last failed "Huỷ", said beside the button. */
+  const [cancelError, setCancelError] = useState<string | null>(null)
   /**
    * After a successful action: the request id it started from. Once the `request` prop differs
    * (the page re-rendered with the new state), that state's control takes focus (WCAG 2.4.3).
@@ -94,15 +103,21 @@ function PublishButton({
   const openChange = (next: boolean) => {
     if (pending) return
     if (next) setChecks(UNTICKED)
+    setPublishError(null)
     setOpen(next)
   }
 
   const publish = () => {
     if (!complete || requestPublish === undefined) return
     const from = currentId
+    setPublishError(null)
     startTransition(async () => {
       const result = await run(() => requestPublish(target))
       if (result === null) return
+      if (!result.ok && !result.stale) {
+        setPublishError(result.message)
+        return
+      }
       setOpen(false)
       toast(result.message)
       if (result.ok) setFocusFrom({ from })
@@ -112,44 +127,54 @@ function PublishButton({
   const cancel = () => {
     if (request === null || cancelPublish === undefined) return
     const from = request.requestId
+    setCancelError(null)
     startTransition(async () => {
       const result = await run(() => cancelPublish(request.requestId))
       if (result === null) return
+      if (!result.ok && !result.stale) {
+        setCancelError(result.message)
+        return
+      }
       toast(result.message)
       if (result.ok || result.stale) setFocusFrom({ from })
     })
   }
 
   if (request !== null) {
+    const cancelErrorId = `${id}-cancel-error`
     return (
-      <div
-        data-slot="publish-button"
-        data-state="pending"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1"
-      >
-        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Clock aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
-          {copy.pending}
-        </span>
-        {request.pr !== null && (
-          <Button asChild variant="link">
-            <a href={request.pr.href} target="_blank" rel="noopener noreferrer">
-              {request.pr.label} <span className="sr-only">{vi.content.newTab}</span>
-            </a>
-          </Button>
-        )}
-        {cancelPublish !== undefined && (
-          <Button
-            ref={cancelRef}
-            type="button"
-            variant="outline"
-            loading={pending}
-            aria-label={withTitle(copy.cancelFor, title)}
-            onClick={cancel}
-          >
-            {copy.cancel}
-          </Button>
-        )}
+      <div data-slot="publish-button" data-state="pending" className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
+            {copy.pending}
+          </span>
+          {request.pr !== null && (
+            <Button asChild variant="link">
+              <a href={request.pr.href} target="_blank" rel="noopener noreferrer">
+                {request.pr.label} <span className="sr-only">{vi.content.newTab}</span>
+              </a>
+            </Button>
+          )}
+          {cancelPublish !== undefined && (
+            <Button
+              ref={cancelRef}
+              type="button"
+              variant="outline"
+              loading={pending}
+              aria-label={withTitle(copy.cancelFor, title)}
+              aria-describedby={cancelError === null ? undefined : cancelErrorId}
+              onClick={cancel}
+            >
+              {copy.cancel}
+            </Button>
+          )}
+        </div>
+        <div role="alert">
+          {cancelError !== null && (
+            <FormFieldError id={cancelErrorId}>{cancelError}</FormFieldError>
+          )}
+        </div>
       </div>
     )
   }
@@ -225,21 +250,23 @@ function PublishButton({
               {copy.dialog.incomplete}
             </p>
           )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" disabled={pending}>
-                {vi.common.cancel}
+          <FormActions error={publishError}>
+            <DialogFooter className="w-full">
+              <DialogClose asChild>
+                <Button variant="outline" disabled={pending}>
+                  {vi.common.cancel}
+                </Button>
+              </DialogClose>
+              <Button
+                disabled={!complete}
+                loading={pending}
+                aria-describedby={complete ? undefined : `${id}-incomplete`}
+                onClick={publish}
+              >
+                {copy.button}
               </Button>
-            </DialogClose>
-            <Button
-              disabled={!complete}
-              loading={pending}
-              aria-describedby={complete ? undefined : `${id}-incomplete`}
-              onClick={publish}
-            >
-              {copy.button}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </FormActions>
         </DialogContent>
       </Dialog>
     </div>

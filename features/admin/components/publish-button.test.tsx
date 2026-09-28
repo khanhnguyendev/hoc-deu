@@ -120,7 +120,7 @@ describe('PublishButton (§6.6 "Xuất bản")', () => {
     expect(within(dialog).queryByText(/tests\.yaml/)).toBeNull()
   })
 
-  it('a failed request toasts its message and stays a "Xuất bản" button', async () => {
+  it('a failed request keeps the dialog open with the failure in its alert region (not a toast alone)', async () => {
     const props = setup({
       requestPublish: vi.fn(async () => ({
         ok: false as const,
@@ -133,8 +133,44 @@ describe('PublishButton (§6.6 "Xuất bản")', () => {
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Xuất bản' }))
     })
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Không lưu được yêu cầu.'))
-    expect(screen.getByRole('button', { name: 'Xuất bản Reverse Linked List' })).toBeTruthy()
+    await waitFor(() =>
+      expect(within(dialog).getByRole('alert').textContent).toContain('Không lưu được yêu cầu.'),
+    )
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    // The ticks stay: the admin can try again at once.
+    for (const box of within(dialog).getAllByRole('checkbox')) {
+      expect(box.getAttribute('aria-checked')).toBe('true')
+    }
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('a reopened dialog starts without the last failure', async () => {
+    const props = setup({
+      requestPublish: vi.fn(async () => ({ ok: false as const, message: 'Không lưu được.' })),
+    })
+    render(<PublishButton {...props} />)
+    let dialog = openDialog()
+    for (const box of within(dialog).getAllByRole('checkbox')) fireEvent.click(box)
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Xuất bản' }))
+    })
+    await waitFor(() => expect(within(dialog).getByRole('alert').textContent).not.toBe(''))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Huỷ' }))
+    dialog = openDialog()
+    expect(within(dialog).getByRole('alert').textContent).toBe('')
+  })
+
+  it('a thrown request says "Không lưu được…" in the dialog', async () => {
+    const props = setup({ requestPublish: vi.fn(() => Promise.reject(new Error('offline'))) })
+    render(<PublishButton {...props} />)
+    const dialog = openDialog()
+    for (const box of within(dialog).getAllByRole('checkbox')) fireEvent.click(box)
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Xuất bản' }))
+    })
+    await waitFor(() =>
+      expect(within(dialog).getByRole('alert').textContent).toContain('Không lưu được'),
+    )
   })
 })
 
@@ -177,6 +213,44 @@ describe('PublishButton — a pending request', () => {
     })
     expect(props.cancelPublish).toHaveBeenCalledWith(7)
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Đã huỷ yêu cầu xuất bản.'))
+  })
+
+  it('a failed "Huỷ" says why beside the button, in its alert region', async () => {
+    const props = setup({
+      request: { requestId: 7, pr: null },
+      cancelPublish: vi.fn(async () => ({ ok: false as const, message: 'Không huỷ được.' })),
+    })
+    render(<PublishButton {...props} />)
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Huỷ yêu cầu xuất bản Reverse Linked List' }),
+      )
+    })
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Không huỷ được.'))
+    const cancel = screen.getByRole('button', { name: 'Huỷ yêu cầu xuất bản Reverse Linked List' })
+    expect(cancel.getAttribute('aria-describedby')).toBe(
+      screen.getByRole('alert').querySelector('[data-slot="form-field-error"]')!.id,
+    )
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('a stale "Huỷ" (merged or cancelled elsewhere) toasts: the page re-renders', async () => {
+    const props = setup({
+      request: { requestId: 7, pr: null },
+      cancelPublish: vi.fn(async () => ({
+        ok: false as const,
+        message: 'Đã thay đổi.',
+        stale: true as const,
+      })),
+    })
+    render(<PublishButton {...props} />)
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Huỷ yêu cầu xuất bản Reverse Linked List' }),
+      )
+    })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Đã thay đổi.'))
+    expect(screen.getByRole('alert').textContent).toBe('')
   })
 
   it('the PR link is a 44 px target (md button height, not sm)', () => {

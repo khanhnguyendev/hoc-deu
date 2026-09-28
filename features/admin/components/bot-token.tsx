@@ -1,7 +1,7 @@
 'use client'
 
 import { Copy, KeyRound } from 'lucide-react'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition, type Ref } from 'react'
 import { Banner } from '@/components/patterns/banner'
 import { ConfirmDialog } from '@/components/patterns/confirm-dialog'
 import { FormActions } from '@/components/patterns/form-actions'
@@ -30,7 +30,7 @@ function tokenStatus(token: BotTokenView): string[] {
 }
 
 /** The new token, shown once: read-only, selected on focus, with a copy button. */
-function NewToken({ token }: { token: string }) {
+function NewToken({ token, inputRef }: { token: string; inputRef?: Ref<HTMLInputElement> }) {
   const copyToken = async () => {
     try {
       await navigator.clipboard.writeText(token)
@@ -44,6 +44,7 @@ function NewToken({ token }: { token: string }) {
       <Label htmlFor="bot-new-token">{copy.newToken}</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
+          ref={inputRef}
           id="bot-new-token"
           readOnly
           value={token}
@@ -72,8 +73,9 @@ function NewToken({ token }: { token: string }) {
  * `/admin/bot`'s token (§6.3, ADR-0026): "Chưa có token", or when the current token was made and,
  * during the 24-hour overlap, until when the old one still works. "Tạo token mới" asks first
  * (`ConfirmDialog`), then shows the new token **once** — it lives only in this component's state,
- * never in the page's props or HTML, so a reload shows only the times. The server action comes in
- * as a prop.
+ * never in the page's props or HTML, so a reload shows only the times; once the dialog closes,
+ * focus moves to it (a failure returns focus to "Tạo token mới"). The server action comes in as a
+ * prop.
  */
 function BotToken({
   token,
@@ -86,6 +88,9 @@ function BotToken({
   const [shown, setShown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const tokenField = useRef<HTMLInputElement>(null)
+  /** Set by a successful rotation: the dialog's close moves focus to the new token. */
+  const focusNewToken = useRef(false)
   // The first token has no old one that keeps working for 24 hours.
   const confirmCopy = token.state === 'none' ? copy.confirmFirst : copy.confirm
 
@@ -101,6 +106,7 @@ function BotToken({
       }
       setOpen(false)
       if (result.ok) {
+        focusNewToken.current = true
         setShown(result.token)
       } else {
         setError(result.message)
@@ -123,7 +129,7 @@ function BotToken({
           ))}
         </div>
       </div>
-      {shown !== null && <NewToken token={shown} />}
+      {shown !== null && <NewToken token={shown} inputRef={tokenField} />}
       <FormActions error={error}>
         <Button type="button" variant="outline" onClick={() => setOpen(true)}>
           {copy.rotate}
@@ -137,6 +143,13 @@ function BotToken({
         confirmLabel={copy.rotate}
         pending={pending}
         onConfirm={rotate}
+        // A new token: focus goes to its field, not back to the button (WCAG 2.4.3).
+        onCloseAutoFocus={(event) => {
+          if (!focusNewToken.current || tokenField.current === null) return
+          focusNewToken.current = false
+          event.preventDefault()
+          tokenField.current.focus()
+        }}
       />
     </div>
   )

@@ -10,7 +10,7 @@ export const adminBot = {
   description: 'Công tắc của bot, chế độ chạy thử, giới hạn mỗi lần chạy và token truy cập.',
   /** `BOT_API_ENABLED` is not `true`: the switch below cannot turn the bot on by itself. */
   apiDisabled:
-    'Chưa bật API bot: biến môi trường BOT_API_ENABLED đang tắt, nên mọi yêu cầu của bot đều bị từ chối. Công tắc này chỉ đổi được khi triển khai lại.',
+    'Chưa bật API bot: biến môi trường BOT_API_ENABLED đang tắt, nên mọi yêu cầu của bot đều bị từ chối. Biến này chỉ đổi được khi triển khai lại.',
   controls: {
     title: 'Điều khiển',
     enabled: {
@@ -99,7 +99,7 @@ export const adminBot = {
       skipped: 'Bỏ qua',
       invalid: 'Không hợp lệ',
       error: 'Lỗi',
-      deferred: 'Để lại',
+      deferred: 'Hoãn',
       pr: 'Pull request',
       summary: 'Tóm tắt',
     },

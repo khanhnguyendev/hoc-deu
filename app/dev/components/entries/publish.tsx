@@ -22,6 +22,10 @@ const demoCancelled = async (): Promise<AdminActionResult> => ({
   ok: true,
   message: copy.results.cancelled,
 })
+const demoFailed = async (): Promise<AdminActionResult> => ({
+  ok: false,
+  message: copy.errors.failed,
+})
 
 const DSA = 'Cấu trúc dữ liệu & Giải thuật'
 
@@ -157,6 +161,33 @@ export const PUBLISH_ENTRIES: Entry[] = [
             request={{ requestId: 7, pr: null }}
             requestPublish={demoRequested}
             cancelPublish={demoCancelled}
+          />
+        ),
+      },
+      {
+        title: 'Xuất bản thất bại: hộp thoại vẫn mở, lỗi trong hộp thoại',
+        render: () => (
+          <PublishButton
+            target="dsa:lc-0206#note"
+            title="Reverse Linked List"
+            titleLang="en"
+            checklist="problem"
+            request={null}
+            requestPublish={demoFailed}
+            cancelPublish={demoFailed}
+          />
+        ),
+      },
+      {
+        title: 'Huỷ thất bại: lỗi bên cạnh nút',
+        render: () => (
+          <PublishButton
+            target="dsa:lesson-linked-list"
+            title="Danh sách liên kết"
+            checklist="item"
+            request={{ requestId: 9, pr: null }}
+            requestPublish={demoFailed}
+            cancelPublish={demoFailed}
           />
         ),
       },

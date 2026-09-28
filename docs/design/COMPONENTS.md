@@ -1201,11 +1201,14 @@ not under `components/`), described under ItemView below, the one place it rende
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/item-view.tsx`
 - **Props:** `backHref: string`, `trackTitle: string`, `custom?: boolean` (task 6.6a: the
-  learner's own custom item, `ItemPageModel.custom`), `page: ReactNode` (`<ItemBody item viewer
+  learner's own custom item, `ItemPageModel.custom`), `hidden?: boolean` (a custom item the
+  learner hid), `page: ReactNode` (`<ItemBody item viewer
   resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
   draft / retired notice, so ItemView never renders a second one
 - **Variants:** the back link: the track · the track list · `/today` (m-9); a custom item: the
-  primary badge "Mục riêng của bạn" (a decorative `UserRound` and words) under the link
+  primary badge "Mục riêng của bạn" (a decorative `UserRound` and words) under the link; a hidden
+  one adds the neutral badge "Đã ẩn" (a decorative `EyeOff`) and one line why the page records
+  nothing ("Bạn đã ẩn mục này nên chỉ xem lại được, không ghi nhận kết quả.")
 - **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
   route validates its params and calls `notFound()` before `page` is built, so only this part ever
   suspends — never the 404 check itself) · ready — `page`
@@ -2529,8 +2532,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   pending state shows, no button)
 - **Variants:** —
 - **States:** groups "Lộ trình nháp (n)", "Mục nháp (n)", "Ghi chú nháp (n)" (an empty group is left
-  out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
-  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)."; v1.1 (§6.6): beside each draft
+  out) · empty (EmptyState "Không có bản nháp nào."); always the line "Xuất bản bằng nút "Xuất bản"
+  (lần chạy bot mở PR) hoặc đổi `status` trong `content/**`."; v1.1 (§6.6): beside each draft
   item and note a `PublishButton` ("Xuất bản", or "Đang chờ xuất bản" with its PR and "Huỷ"); a
   draft note shows its verification badge — "Đã kiểm thử", "Chỉ biên dịch", or for a note the bot
   wrote "Đã kiểm thử (test do bot viết)" (ADR-0040, `warning` tone with a bot icon)
@@ -2583,7 +2586,8 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   shows only the times, ADR-0026); failed — a danger Banner and a toast, no token
 - **Usage:** `<Section title="Token truy cập"><BotToken token={page.token}
   rotateBotToken={rotateBotToken} /></Section>`
-- **Accessibility:** the dialog is an `alertdialog`, focus returns to "Tạo token mới"; the token
+- **Accessibility:** the dialog is an `alertdialog`; after a rotation focus moves to the new token
+  field (selecting it), otherwise it returns to "Tạo token mới"; the token
   field is labelled "Token mới", `lang="en"`, selected on focus, described by the shown-once
   warning; copy success or failure is a polite toast (a failure asks to copy by hand)
 
@@ -2614,7 +2618,7 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   with "bắt đầu {time}" (Asia/Ho_Chi_Minh) as the row header, kind ("Kế hoạch" / "Xuất bản {n}"),
   mode ("Chạy thật" / "Chạy thử"), status with its icon ("Đang chạy", "Hoàn tất", "Thất bại (quá
   2 giờ)" / "(bot báo lỗi)"), the counts (đủ điều kiện, đang chờ, đã áp dụng, chạy thử, bỏ qua —
-  the three `skipped_*`, không hợp lệ, lỗi, để lại), the content PR link ("PR #41", new tab) and
+  the three `skipped_*`, không hợp lệ, lỗi, hoãn), the content PR link ("PR #41", new tab) and
   the bot's summary (counts only), "—" where there is none; with the deferred-users warning — a
   `warning` Banner above the table ("N người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc
   giảm số người dùng AI."); empty — EmptyState "Chưa có lần chạy nào"; error — ErrorState "Không
@@ -2662,13 +2666,13 @@ Task 6.6a adds these entries below this line (Part B-M6 decision 3).
 - **Variants:** —
 - **States:** list — a Section "Mục riêng" with its description and a divided LinkList named
   "Mục riêng": the active items first (each row, then "Ẩn"), then the hidden ones (each row, then
-  the neutral badge "Đã ẩn"); empty — renders nothing (the track page then shows no tab); error —
+  the neutral badge "Đã ẩn" with `EyeOff`); empty — renders nothing (the track page then shows no tab); error —
   ErrorState "Không đọc được mục riêng" / "Lộ trình vẫn dùng được. Tải lại trang để thử lại." (the
   roadmap tab and the rest of the page still work)
 - **Usage:** the "Mục riêng" panel of TrackTabs on `/t/[trackId]` (§2.4), whenever the learner
   has custom items of the track — whatever the AI flag (§5.12)
 - **Accessibility:** each item is a list item with its row's link (the item page, where it is
-  studied) and its own button; "Đã ẩn" is words, never colour alone
+  studied) and its own button; "Đã ẩn" is words with an icon, never colour alone
 
 ### HideCustomItemButton
 
@@ -2762,7 +2766,11 @@ Task 6.7a adds these entries below this line (Part B-M6 decision 3).
   same checks in its terms — and "Xuất bản" disabled with "Đánh dấu đủ ba mục để xuất bản." until
   all three are ticked (a reopened dialog starts unticked); loading while the request is saved;
   pending — "Đang chờ xuất bản" with a clock icon, "PR #n" (new tab) once a publish run included
-  the request, and "Huỷ" (accessible name "Huỷ yêu cầu xuất bản {title}"); every answer is a toast
+  the request, and "Huỷ" (accessible name "Huỷ yêu cầu xuất bản {title}"); a success or a stale
+  answer (the page re-renders with the current state) is a toast; a failed request keeps the dialog
+  open, ticks kept, with the failure in its FormActions `role="alert"` region (cleared when the
+  dialog opens again); a failed "Huỷ" says why beside the button (the FormFieldError line in an
+  always-mounted `role="alert"` region, linked by `aria-describedby`)
 - **Usage:** rendered by `DraftsList` beside each draft item and note
 - **Accessibility:** the dialog is labelled by its title (the title in `lang="en"` for a LeetCode
   title), each checkbox by its line (44 px hit area), the disabled confirm is described by the

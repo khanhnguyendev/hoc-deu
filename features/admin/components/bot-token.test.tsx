@@ -98,6 +98,25 @@ describe('BotToken (§6.3, ADR-0026)', () => {
     expect(await screen.findByText('Đã sao chép token.')).toBeTruthy()
   })
 
+  it('moves focus to the new token once the dialog closes (review item 10)', async () => {
+    const { user } = setup({ state: 'none' })
+    await user.click(screen.getByRole('button', { name: 'Tạo token mới' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo token mới' }))
+    const field = await screen.findByRole('textbox', { name: 'Token mới' })
+    await waitFor(() => expect(document.activeElement).toBe(field))
+  })
+
+  it('after a failure focus goes back to "Tạo token mới"', async () => {
+    const { user } = setup({ state: 'none' }, { ok: false, message: 'Không tạo được (y).' })
+    const opener = screen.getByRole('button', { name: 'Tạo token mới' })
+    await user.click(opener)
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo token mới' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(opener))
+  })
+
   it('never puts a token in the markup of a fresh render (a reload shows only the time)', () => {
     const { view } = setup({
       state: 'set',

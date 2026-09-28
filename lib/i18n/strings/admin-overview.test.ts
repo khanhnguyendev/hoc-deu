@@ -24,9 +24,9 @@ describe('lib/i18n/strings/admin-overview.ts', () => {
     expect(adminOverview.system.noData).toBe('chưa có dữ liệu')
   })
 
-  it('names how drafts are published in v1.0 — the "Xuất bản" button is v1.1 (§6.6)', () => {
+  it('names how drafts are published: the "Xuất bản" button or a `status` change (§6.6)', () => {
     expect(adminOverview.content.drafts.description).toBe(
-      'v1.0: xuất bản bằng một thay đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1).',
+      'Xuất bản bằng nút "Xuất bản" (lần chạy bot mở PR) hoặc đổi `status` trong `content/**`.',
     )
   })
 

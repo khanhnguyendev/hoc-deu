@@ -42,7 +42,7 @@ describe('DraftsList', () => {
     const { container } = render(<DraftsList drafts={EMPTY} />)
     const note = container.querySelector('[data-slot="drafts-list"] > p')
     expect(note?.textContent).toBe(
-      'v1.0: xuất bản bằng một thay đổi status trong content/** (nút "Xuất bản" có từ v1.1).',
+      'Xuất bản bằng nút "Xuất bản" (lần chạy bot mở PR) hoặc đổi status trong content/**.',
     )
     expect([...(note?.querySelectorAll('code') ?? [])].map((code) => code.textContent)).toEqual([
       'status',

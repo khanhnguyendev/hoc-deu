@@ -114,7 +114,7 @@ export const adminOverview = {
     drafts: {
       title: 'Bản nháp',
       description:
-        'v1.0: xuất bản bằng một thay đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1).',
+        'Xuất bản bằng nút "Xuất bản" (lần chạy bot mở PR) hoặc đổi `status` trong `content/**`.',
       tracks: 'Lộ trình nháp',
       items: 'Mục nháp',
       notes: 'Ghi chú nháp',

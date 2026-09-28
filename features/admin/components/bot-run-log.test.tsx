@@ -58,7 +58,7 @@ describe('BotRunLog (task 6.4a, §6.2)', () => {
       'Bỏ qua',
       'Không hợp lệ',
       'Lỗi',
-      'Để lại',
+      'Hoãn',
       'Pull request',
       'Tóm tắt',
     ])
