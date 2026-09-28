@@ -1,0 +1,11 @@
+signature: { kind: tree, name: diameterOfBinaryTree, params: { root: TreeNode }, returns: int }
+cases:
+  - { name: example-1, input: { root: [1, 2, 3, 4, 5] }, expected: 3 }
+  - { name: example-2, input: { root: [1, 2] }, expected: 1 }
+  - { name: single-node, input: { root: [1] }, expected: 0 }
+  - { name: left-chain, input: { root: [1, 2, null, 3] }, expected: 2 }
+  - {
+      name: longest-path-skips-root,
+      input: { root: [1, 2, null, 3, 4, 5, null, null, 6] },
+      expected: 4,
+    }
