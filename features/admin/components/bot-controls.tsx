@@ -1,14 +1,12 @@
 'use client'
 
-import { CircleAlert } from 'lucide-react'
 import { useState, useTransition, type FormEvent } from 'react'
 import { FormActions } from '@/components/patterns/form-actions'
 import { FormField } from '@/components/patterns/form-field'
 import { isNavigationError } from '@/components/patterns/navigation-error'
+import { SwitchField } from '@/components/patterns/switch-field'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/toaster'
 import { fill, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -34,29 +32,16 @@ function SettingSwitch({
   const { value, pending, error, change } = useSavedSwitch(saved, (next) =>
     update({ [name]: next }),
   )
-  const id = `bot-${name}`
   return (
-    <div data-slot="bot-setting" className="flex flex-col gap-1">
-      <div className="flex items-center gap-3">
-        <Switch
-          id={id}
-          checked={value}
-          aria-busy={pending || undefined}
-          aria-describedby={[`${id}-description`, error && `${id}-error`].filter(Boolean).join(' ')}
-          onCheckedChange={change}
-        />
-        <Label htmlFor={id}>{copy[name].label}</Label>
-      </div>
-      <p id={`${id}-description`} className="text-sm text-muted-foreground">
-        {copy[name].description}
-      </p>
-      {error && (
-        <p id={`${id}-error`} className="flex items-center gap-1.5 text-sm text-danger">
-          <CircleAlert aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
-          {error}
-        </p>
-      )}
-    </div>
+    <SwitchField
+      id={`bot-${name}`}
+      label={copy[name].label}
+      description={copy[name].description}
+      error={error}
+      checked={value}
+      pending={pending}
+      onCheckedChange={change}
+    />
   )
 }
 

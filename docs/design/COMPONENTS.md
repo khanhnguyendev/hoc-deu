@@ -371,6 +371,27 @@ from `lib/i18n/vi.ts`.
   tokens (DESIGN_SYSTEM §9, decision 13): keyword `text-primary`, string `text-success`, constant
   `text-warning`, comment `text-muted-foreground italic` — no new design tokens
 
+### ConfirmActionButton
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/confirm-action-button.tsx`
+- **Props:** `icon: LucideIcon` (decorative), `label: string` (the visible text), `dialog: { title,
+  description, confirm }` (the ConfirmDialog's copy), `send: () => Promise<ActionAnswer>` (the
+  bound server action), `ariaLabel?: string` (a unique name starting with `label` — label in
+  name — when several rows share it), `tone?: 'default' | 'destructive'` (the dialog's confirm
+  button), `align?: 'start' | 'end'` (default `end`: the end of a list row; `start`: a column)
+- **Variants:** `align` start · end (cva); `tone` default · destructive
+- **States:** default · asking (the ConfirmDialog open) · pending (the dialog busy, cannot close)
+  · answered, through ActionFeedback (UI I-3): the dialog closes and the answer is in the button's
+  polite region; when the answer's re-render removed the button, a toast and focus on the page's
+  focus fallback · failed request — "Không lưu được thay đổi. Bạn thử lại nhé." beside the button,
+  never the error boundary
+- **Usage:** `<ConfirmActionButton icon={RotateCcw} label="Bắt đầu lại" dialog={copy}
+  tone="destructive" align="start" send={() => resetTrack({ requestId, trackId })} />` — behind
+  ResetTrackButton, HideCustomItemButton and RevokeOverrideButton
+- **Accessibility:** an outline button (44 px) with its icon `aria-hidden`; the `alertdialog`
+  traps focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
+
 ### ConfirmDialog
 
 - **Layer:** pattern
@@ -689,6 +710,26 @@ from `lib/i18n/vi.ts`.
 - **States:** static
 - **Usage:** `<StreakBadge days={12} />`
 - **Accessibility:** reads "12 ngày liên tiếp"; flame decorative
+
+### SwitchField
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/switch-field.tsx`
+- **Props:** `id: string`, `label: string` (the visible Label), `checked: boolean`,
+  `onCheckedChange: (next) => void`, `ariaLabel?: string` (a name that starts with `label`, e.g.
+  "… cho {name}" in a table row), `description?: ReactNode`, `error?: string | null`, `disabled?`,
+  `pending?` (`aria-busy`)
+- **Variants:** —
+- **States:** off · on · with description · saving (`aria-busy`) · disabled (with its reason as
+  the description) · failed (the error under it)
+- **Usage:** `<SwitchField id="bot-enabled" label="Bật bot" description={…} error={error}
+  checked={value} pending={pending} onCheckedChange={change} />` — the `/admin/bot` switches, the
+  AI flag (AiFlagToggle), NotesSharing. It only shows the position it is given: the caller saves,
+  and puts the switch back on the saved value when a save fails
+- **Accessibility:** a Switch named by its paired Label (or `ariaLabel`, label first); its
+  `aria-describedby` joins the description and the error; the error is the shared
+  `FormFieldError` line (icon + `text-danger`, never colour alone) in an always-mounted
+  `role="alert"` region
 
 ### ThemeToggle
 
@@ -2392,8 +2433,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   button are gone: a toast, focus on the page's `h1`; re-review M2)
 - **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
   trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
-- **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps
-  focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
+- **Accessibility:** a ConfirmActionButton (`align="start"`, destructive): an outline button with
+  a decorative `RotateCcw`; the `alertdialog` traps focus and returns it to the button on close
+  (ConfirmDialog); a polite `role="status"`
 
 ### Admin overview components (`features/admin/components`)
 
@@ -2521,8 +2563,8 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   (FormActions) and a toast. The switches and the cap follow a re-render with new saved values
 - **Usage:** `<Section title="Điều khiển"><BotControls controls={page.controls}
   updateBotSettings={updateBotSettings} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
-- **Accessibility:** each Switch labelled by its visible Label and described by its description
-  (and its error); the cap field is a FormField (label, description, error by `aria-describedby`);
+- **Accessibility:** each switch a SwitchField, labelled by its visible Label and described by its
+  description (and its error, in its `role="alert"` region); the cap field is a FormField (label, description, error by `aria-describedby`);
   results are polite toasts, never the only feedback for a failure
 
 ### BotToken
@@ -2556,7 +2598,7 @@ Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
   (`aria-busy`); failed — back to the saved value, the message in the row and a toast; not
   `active` — disabled, with "Chỉ đổi được cho tài khoản đang hoạt động." (decision 34)
 - **Usage:** rendered by UserQueue in every active row (the admin's own included)
-- **Accessibility:** a Switch with the visible Label "Cá nhân hoá AI" and the accessible name
+- **Accessibility:** a SwitchField with the visible Label "Cá nhân hoá AI" and the accessible name
   "Cá nhân hoá AI cho {name}" (`aria-label`, the visible label first — label in name), so each
   row's switch is told apart; the reason and the error are linked by `aria-describedby`; the
   state is the thumb's position, never colour alone
@@ -2639,8 +2681,8 @@ Task 6.6a adds these entries below this line (Part B-M6 decision 3).
   dialog closes; the re-rendered tab moves the item to the hidden ones, so the answer ("Đã ẩn mục
   này.", or "Mục này đã được ẩn trước đó.") comes as a toast; a failure is said beside the button
 - **Usage:** rendered by CustomItemsTab for each active item
-- **Accessibility:** an outline button with a decorative `EyeOff`, visible text "Ẩn" and the name
-  "Ẩn {title}" (label in name), so each row's button is told apart; the `alertdialog` returns focus
+- **Accessibility:** a ConfirmActionButton: an outline button with a decorative `EyeOff`, visible
+  text "Ẩn" and the name "Ẩn {title}" (label in name), so each row's button is told apart; the `alertdialog` returns focus
   to the button; a polite `role="status"`; 44 px
 
 ### TrackTabs
@@ -2686,7 +2728,7 @@ Task 6.6c adds these entries below this line (Part B-M6 decision 3).
 - **Layer:** feature (`features/settings`, client)
 - **File:** `features/settings/components/revoke-override-button.tsx`
 - **Props:** `action: RevokeAiOverrideAction`, `requestId: string`, `trackId: string`,
-  `overrideKey: string`, `title: string` (the override's line)
+  `overrideKey: string`, `title: string` (the override's line), `trackTitle: string`
 - **Variants:** —
 - **States:** default · asking (ConfirmDialog "Thu hồi điều chỉnh này?" / "Thay đổi có hiệu lực
   từ kế hoạch ngày mai." / "Thu hồi") · pending (the dialog busy) · answered through
@@ -2694,8 +2736,9 @@ Task 6.6c adds these entries below this line (Part B-M6 decision 3).
   hồi. …", or "Điều chỉnh này đã được thu hồi.") comes as a toast; a failure is said beside the
   button
 - **Usage:** rendered by AiOverrides for each override
-- **Accessibility:** an outline button with a decorative `Undo2`, visible text "Thu hồi" and the
-  name "Thu hồi: {line}" (label in name); the `alertdialog` returns focus to the button; a polite
+- **Accessibility:** a ConfirmActionButton: an outline button with a decorative `Undo2`, visible
+  text "Thu hồi" and the name "Thu hồi: {line} ({track})" (label in name; unique even when two
+  tracks have the same line); the `alertdialog` returns focus to the button; a polite
   `role="status"`; 44 px
 
 ### Publish components (`features/admin/components`)
@@ -2771,18 +2814,19 @@ Task 6.7b adds these entries below this line (Part B-M6 decision 3).
   section when off, §4.5), `shareNotesWithAi: boolean` (`SettingsData.user.shareNotesWithAi`),
   `requestId: string` (per render, decision 9), `updateNotesSharing: SettingsAction`
 - **Variants:** hidden (`aiPersonalization` off — renders nothing, no Section heading either) ·
-  shown (a Section titled "Chia sẻ ghi chú với bot AI", the §4.6 sentence as its description, one
-  Switch)
+  shown (a Section titled "Chia sẻ ghi chú với bot AI" with one SwitchField, the §4.6 sentence as
+  its description)
 - **States:** off (unchecked) · on (checked) · saving (`pending`, the switch disabled) · failed
-  (a danger Banner in an always-mounted `role="alert"` region below the switch — the switch keeps
-  the position it was flipped to, matching CodeLanguageForm's optimistic-then-resynced pattern;
-  the database's `ai_personalization_off` — a stale page whose AI flag turned off elsewhere — maps
-  to "Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.")
+  (the error line in the SwitchField's always-mounted `role="alert"` region, and the switch goes
+  back to the saved value — a failed "off" shows on, because the notes are still shared; the
+  database's `ai_personalization_off` — a stale page whose AI flag turned off elsewhere — maps
+  to "Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI."). Turning the AI flag off
+  clears the stored value too (decision 34, `admin_set_ai_flag`)
 - **Usage:** `<NotesSharing aiPersonalization={data.user.aiPersonalization}
   shareNotesWithAi={data.user.shareNotesWithAi} requestId={data.requestId}
   updateNotesSharing={updateNotesSharing} />`
 - **Accessibility:** the switch is named "Chia sẻ ghi chú với bot AI" by a paired `<Label>`
   (redundant with, but distinct from, the Section's own `h2` of the same text — the switch needs
-  its own accessible name); saves immediately on toggle (no separate "Lưu" button), the same
+  its own accessible name) and described by the §4.6 sentence (`aria-describedby`); saves immediately on toggle (no separate "Lưu" button), the same
   immediate-run pattern as TrackSettings' pause/resume; a toast confirms success, the failure
   Banner is the only feedback for a failure (never a toast alone)

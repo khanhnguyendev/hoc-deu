@@ -1,3 +1,4 @@
+import { RotateCcw, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import {
   ActionStatus,
@@ -5,6 +6,7 @@ import {
   type ActionAnswer,
   type ActionFeedback,
 } from '@/components/patterns/action-feedback'
+import { ConfirmActionButton } from '@/components/patterns/confirm-action-button'
 import {
   DataTable,
   DataTableCell,
@@ -17,8 +19,10 @@ import { LinkList } from '@/components/patterns/link-list'
 import { LinkRow } from '@/components/patterns/link-row'
 import { Section } from '@/components/patterns/section'
 import { StatusPill } from '@/components/patterns/status-pill'
+import { SwitchField } from '@/components/patterns/switch-field'
 import { TrackProgressCard, weekOfWeeks } from '@/components/patterns/track-progress-card'
 import { Button } from '@/components/ui/button'
+import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { Entry } from '../types'
 
@@ -118,6 +122,55 @@ function RemovedDemo() {
         )}
       </Section>
     </div>
+  )
+}
+
+const RESET_DIALOG = {
+  title: vi.extra.reset.title,
+  description: vi.extra.reset.description,
+  confirm: vi.extra.reset.confirm,
+}
+const REVOKE_DIALOG = {
+  title: vi.overrides.revoke.title,
+  description: vi.overrides.revoke.description,
+  confirm: vi.overrides.revoke.confirm,
+}
+
+/** A pretend action (0,6 s) that answers or refuses. */
+const pretend = (answer: ActionAnswer) => async () => {
+  await wait(600)
+  return answer
+}
+
+/** A switch saved by a pretend action: `fails` refuses and goes back to the saved position. */
+function SwitchFieldDemo({ fails = false }: { fails?: boolean }) {
+  const [saved, setSaved] = useState(false)
+  const [checked, setChecked] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const change = (next: boolean) => {
+    if (pending) return
+    setChecked(next)
+    setError(null)
+    setPending(true)
+    void wait(600).then(() => {
+      setPending(false)
+      if (fails) {
+        setChecked(saved)
+        setError(vi.errors.saveFailed)
+      } else setSaved(next)
+    })
+  }
+  return (
+    <SwitchField
+      id={fails ? 'demo-switch-fails' : 'demo-switch'}
+      label={vi.notesSharing.title}
+      description={vi.notesSharing.description}
+      error={error}
+      checked={checked}
+      pending={pending}
+      onCheckedChange={change}
+    />
   )
 }
 
@@ -259,6 +312,99 @@ export const PATTERN_ENTRIES: Entry[] = [
           </div>
         ),
       },
+    ],
+  },
+  {
+    name: 'ConfirmActionButton',
+    layer: 'patterns',
+    file: 'components/patterns/confirm-action-button.tsx',
+    demos: [
+      {
+        title: 'align="start", tone="destructive": hỏi trước, rồi trả lời bên cạnh nút',
+        render: () => (
+          <ConfirmActionButton
+            icon={RotateCcw}
+            label={vi.extra.reset.action}
+            dialog={RESET_DIALOG}
+            tone="destructive"
+            align="start"
+            send={pretend({ ok: true, message: fill(vi.extra.reset.done, { title: DSA }) })}
+          />
+        ),
+      },
+      {
+        title: 'align="end" (cuối một hàng), tên riêng (ariaLabel), bị từ chối',
+        render: () => (
+          <div className="flex w-full max-w-md items-center gap-3">
+            <span className="flex-1">Thêm 15 phút luyện Arrays &amp; Hashing</span>
+            <ConfirmActionButton
+              icon={Undo2}
+              label={vi.overrides.revoke.action}
+              ariaLabel="Thu hồi: Thêm 15 phút luyện Arrays & Hashing (mẫu)"
+              dialog={REVOKE_DIALOG}
+              send={pretend({ ok: false, message: vi.errors.saveFailed })}
+            />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'SwitchField',
+    layer: 'patterns',
+    file: 'components/patterns/switch-field.tsx',
+    demos: [
+      {
+        title: 'Tắt, bật, đang lưu (aria-busy), không dùng được (kèm lý do)',
+        render: () => (
+          <div className="flex flex-col gap-4">
+            <SwitchField
+              id="demo-switch-off"
+              label={vi.adminBot.controls.enabled.label}
+              description={vi.adminBot.controls.enabled.description}
+              checked={false}
+              onCheckedChange={() => {}}
+            />
+            <SwitchField
+              id="demo-switch-on"
+              label={vi.adminBot.controls.dryRun.label}
+              description={vi.adminBot.controls.dryRun.description}
+              checked
+              onCheckedChange={() => {}}
+            />
+            <SwitchField
+              id="demo-switch-pending"
+              label={vi.adminBot.controls.contentProposals.label}
+              checked
+              pending
+              onCheckedChange={() => {}}
+            />
+            <SwitchField
+              id="demo-switch-disabled"
+              label={vi.adminBot.aiFlag.label}
+              description={vi.adminBot.aiFlag.inactive}
+              checked={false}
+              disabled
+              onCheckedChange={() => {}}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Lưu thất bại: lỗi bên dưới, quay về vị trí đã lưu',
+        render: () => (
+          <SwitchField
+            id="demo-switch-error"
+            label={vi.notesSharing.title}
+            description={vi.notesSharing.description}
+            error={vi.errors.saveFailed}
+            checked={false}
+            onCheckedChange={() => {}}
+          />
+        ),
+      },
+      { title: 'Chạy thử: lưu thành công', render: () => <SwitchFieldDemo /> },
+      { title: 'Chạy thử: lưu thất bại', render: () => <SwitchFieldDemo fails /> },
     ],
   },
   {

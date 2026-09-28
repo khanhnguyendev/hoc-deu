@@ -312,9 +312,9 @@ test('task 5.4: "Bắt đầu lại" → confirm — item states gone, events an
   const dialog = page.getByRole('alertdialog', { name: 'Xoá tiến độ của lộ trình này?' })
   await dialog.getByRole('button', { name: 'Bắt đầu lại' }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.locator('[data-slot="reset-track-button"]').getByRole('status')).toHaveText(
-    `Đã bắt đầu lại lộ trình ${DSA}.`,
-  )
+  await expect(
+    progressRegion(page).locator('[data-slot="confirm-action-button"]').getByRole('status'),
+  ).toHaveText(`Đã bắt đầu lại lộ trình ${DSA}.`)
 
   expect(await itemStateCount(user.id, 'dsa')).toBe(0)
   // History stays: the events (the reset one added) and the day's activity.

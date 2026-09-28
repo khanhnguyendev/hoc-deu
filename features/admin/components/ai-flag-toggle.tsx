@@ -1,8 +1,6 @@
 'use client'
 
-import { CircleAlert } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { SwitchField } from '@/components/patterns/switch-field'
 import type { AccountStatus } from '@/lib/auth/dal'
 import { fill } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
@@ -28,38 +26,19 @@ function AiFlagToggle({
     setAiFlag(user.id, next),
   )
   const active = user.status === 'active'
-  const id = `ai-flag-${user.id}`
-  const describedBy = [!active && `${id}-inactive`, error && `${id}-error`]
-    .filter(Boolean)
-    .join(' ')
-
   return (
-    <div data-slot="ai-flag-toggle" className="flex flex-col gap-1">
-      <div className="flex items-center gap-3">
-        <Switch
-          id={id}
-          checked={value}
-          disabled={!active}
-          // The visible label, then the account: each row's switch has its own name (label in name).
-          aria-label={`${copy.label} ${fill(copy.forName, { name: user.name })}`}
-          aria-busy={pending || undefined}
-          aria-describedby={describedBy || undefined}
-          onCheckedChange={change}
-        />
-        <Label htmlFor={id}>{copy.label}</Label>
-      </div>
-      {!active && (
-        <p id={`${id}-inactive`} className="text-sm text-muted-foreground">
-          {copy.inactive}
-        </p>
-      )}
-      {error && (
-        <p id={`${id}-error`} className="flex items-center gap-1.5 text-sm text-danger">
-          <CircleAlert aria-hidden="true" strokeWidth={1.75} className="size-4 shrink-0" />
-          {error}
-        </p>
-      )}
-    </div>
+    <SwitchField
+      id={`ai-flag-${user.id}`}
+      label={copy.label}
+      // The visible label, then the account: each row's switch has its own name (label in name).
+      ariaLabel={`${copy.label} ${fill(copy.forName, { name: user.name })}`}
+      description={active ? undefined : copy.inactive}
+      error={error}
+      checked={value}
+      disabled={!active}
+      pending={pending}
+      onCheckedChange={change}
+    />
   )
 }
 
