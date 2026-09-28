@@ -3,14 +3,17 @@
  * `PUT /runs/{runId}/users/{userRef}/custom-items` creates per-user items — `user:<bot_ref>:<slug>`,
  * the ID is the server's — and retires the user's own. Every request object is strict (an unknown
  * key is `invalid`); the payload is validated on the server with the repository's item schemas
- * (`lib/content/user-items.ts`), so here it is only an object. Imports only `zod` (decision 3).
+ * (`lib/content/user-items.ts`), so here it is only an object. Imports only `zod` and
+ * `lib/domain` (decision 3).
  */
 import { z } from 'zod'
+import { CUSTOM_ITEM_ID_PATTERN } from '@/lib/domain/catalog'
+
+/** `user_items.item_id`'s check, next to `isCustomItemId` (lib/domain/catalog). */
+export { CUSTOM_ITEM_ID_PATTERN }
 
 /** A custom item's slug: unique per user, the last part of its ID. */
 export const CUSTOM_ITEM_SLUG_PATTERN = /^[a-z0-9-]{3,48}$/
-/** `user_items.item_id`'s check: `user:` + the profile's 16-hex `bot_ref` + `:` + the slug. */
-export const CUSTOM_ITEM_ID_PATTERN = /^user:[0-9a-f]{16}:[a-z0-9-]{3,48}$/
 
 /** The item types a custom item may have (§5.12); the track's `itemTypes` narrow them further. */
 export const CUSTOM_ITEM_TYPES = ['flashcard', 'exercise', 'prompt'] as const

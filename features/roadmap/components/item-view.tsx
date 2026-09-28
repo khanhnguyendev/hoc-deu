@@ -19,12 +19,13 @@ import { TODAY_HREF, TRACKS_HREF } from '../view-model'
  * `page` is ever built, so an unknown or hidden item answers a real 404 instead of streaming a 200
  * first (§7.5). A `contents` wrapper, so the link and the page keep the page's section spacing.
  * Task 6.6a: the learner's own custom item says "Mục riêng của bạn" (a badge with an icon) under
- * the link.
+ * the link, and "Đã ẩn" once the learner hid it.
  */
 function ItemView({
   backHref,
   trackTitle,
   custom = false,
+  hidden = false,
   page,
 }: {
   backHref: string
@@ -32,6 +33,8 @@ function ItemView({
   trackTitle: string
   /** The learner's own custom item (`user:…`). */
   custom?: boolean
+  /** A custom item the learner hid: "Đã ẩn" beside the label (never the retired notice). */
+  hidden?: boolean
   page: React.ReactNode
 }) {
   return (
@@ -48,10 +51,13 @@ function ItemView({
             : withTitle(vi.roadmap.backToTrack, trackTitle)}
       </Link>
       {custom && (
-        <Badge tone="primary" data-slot="custom-item-label">
-          <UserRound aria-hidden="true" strokeWidth={1.75} />
-          {vi.customItems.ownLabel}
-        </Badge>
+        <div data-slot="custom-item-label" className="flex flex-wrap items-center gap-2">
+          <Badge tone="primary">
+            <UserRound aria-hidden="true" strokeWidth={1.75} />
+            {vi.customItems.ownLabel}
+          </Badge>
+          {hidden && <Badge tone="neutral">{vi.customItems.hidden}</Badge>}
+        </div>
       )}
       <Suspense fallback={<LoadingState variant="page" />}>{page}</Suspense>
     </div>

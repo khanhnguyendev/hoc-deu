@@ -415,3 +415,59 @@ describe('writeCustomItems — dry run and the AI flag', () => {
     expect(writes(db)).toEqual([])
   })
 })
+
+describe('writeCustomItems — review round 1', () => {
+  it('a slug whose item is hidden or retired is taken, never "created" again', async () => {
+    for (const status of ['hidden', 'retired'] as const) {
+      const db = setup({ userItems: [stored('ah-card', { status })] })
+      const answer = await write({ items: [card('ah-card')] })
+      expect(answer.outcome).toBe('invalid')
+      expect(codes(answer)).toEqual(['slug_taken'])
+      expect(writes(db)).toEqual([])
+    }
+  })
+
+  it('a refusal part-way through says what was already written', async () => {
+    const db = setup({ userItems: [stored('old-drill')] })
+    let calls = 0
+    const real = db.rpc.apply_system_event!
+    db.rpc.apply_system_event = (args, fake) => {
+      calls += 1
+      if (calls === 3) throw new RaisedError('limit_reached')
+      return real(args, fake)
+    }
+    const answer = await write({
+      items: [card('one-card'), card('two-card')],
+      retire: [id('old-drill')],
+    })
+    expect(answer).toMatchObject({ status: 422, outcome: 'invalid' })
+    expect(details(answer)).toEqual([
+      expect.objectContaining({
+        path: 'items.1',
+        code: 'limit_reached',
+        written: { created: [id('one-card')], retired: [id('old-drill')] },
+      }),
+    ])
+  })
+
+  it('dry-run turned on mid-write (decision 8) is a retryable answer, not a 500', async () => {
+    const db = setup()
+    db.rpc.apply_system_event = (_args, fake) => {
+      fake.tables.bot_settings![0]!.dry_run = true
+      throw new RaisedError('invalid_event')
+    }
+    const answer = await write({ items: [card('ah-card')] })
+    expect(answer).toMatchObject({ status: 422, outcome: 'invalid' })
+    expect(details(answer)).toEqual([
+      expect.objectContaining({ code: 'dry_run_started', retryable: true }),
+    ])
+  })
+
+  it('any other invalid_event still reaches the route’s 500', async () => {
+    const db = setup()
+    db.rpc.apply_system_event = () => {
+      throw new RaisedError('invalid_event')
+    }
+    await expect(write({ items: [card('ah-card')] })).rejects.toThrow()
+  })
+})

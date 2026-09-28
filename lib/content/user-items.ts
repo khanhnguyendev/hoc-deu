@@ -143,15 +143,25 @@ export function parseCustomPayload(
 
 // C0 and C1 control characters (a newline and a tab included): plain text is one run of text.
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
-const URL_LIKE = /https?:\/\/|\bwww\./i
+/** A link in any form: `<scheme>://`, `mailto:`, `www.`, or a bare domain of a common TLD. */
+const URL_LIKE = [
+  /[a-z][a-z0-9+.-]*:\/\//i,
+  /\bmailto:/i,
+  /\bwww\./i,
+  /\b[a-z0-9-]+\.(?:com|net|org|io|dev|vn|app|co)\b/i,
+]
 
 /**
- * §6.4.4 "plain text only (no MDX, HTML or URLs)": no `<` or `>`, nothing that looks like a URL
- * (`http://`, `https://`, `www.`), no control characters. Vietnamese with diacritics is text.
+ * §6.4.4 "plain text only (no MDX, HTML or URLs)": no `<` or `>`, nothing that looks like a link
+ * (`URL_LIKE`: any `scheme://`, `mailto:`, `www.`, a bare `name.com`-style domain), no control
+ * characters. Vietnamese with diacritics is text.
  */
 export function isPlainText(value: string): boolean {
   return (
-    !value.includes('<') && !value.includes('>') && !URL_LIKE.test(value) && !CONTROL.test(value)
+    !value.includes('<') &&
+    !value.includes('>') &&
+    !URL_LIKE.some((pattern) => pattern.test(value)) &&
+    !CONTROL.test(value)
   )
 }
 
@@ -192,14 +202,18 @@ export function jsonbTextBytes(value: unknown): number {
 /** A card's sides: English front, Vietnamese back — the deck files' default (`deckFileSchema`). */
 const CARD_LANG: FlashcardContent['lang'] = { front: 'en', back: 'vi', hint: 'vi' }
 
-/** Hidden and retired custom items read as `retired` (decision 17). */
+/**
+ * The registry item's status: a retired row is `retired`; a hidden one keeps its page as it was —
+ * the page and the "Mục riêng" tab say "Đã ẩn" themselves, never the retired notice. The engine
+ * reads both as retired (`toPlanItem`, decision 17).
+ */
 const statusOf = (row: UserItemRow): 'active' | 'retired' =>
-  row.status === 'active' ? 'active' : 'retired'
+  row.status === 'retired' ? 'retired' : 'active'
 
 /**
  * The stored payload as the registry's item (the item page, `/today`'s rows, `/review`'s cards):
  * the payload re-validated with its server-owned fields, the item's own ID, `localId` = the whole
- * ID (so `itemHref` builds decision 39's URL). Throws when the stored payload no longer parses
+ * ID (so `itemHref` builds decision 39's URL); a hidden row stays `active` here (`statusOf`). Throws when the stored payload no longer parses
  * (`withUserItems` and `userCatalogItems` leave such a row out).
  */
 export function toCatalogItem(row: UserItemRow): UserCatalogItem {
@@ -268,7 +282,12 @@ export function toCatalogItem(row: UserItemRow): UserCatalogItem {
  * "Mục riêng" tab schedule it).
  */
 export function toPlanItem(row: UserItemRow, manifest: TrackManifest): PlanItem {
-  return { ...planItemOf(toCatalogItem(row), manifest), week: null, deckId: null }
+  return {
+    ...planItemOf(toCatalogItem(row), manifest),
+    status: row.status === 'active' ? 'active' : 'retired',
+    week: null,
+    deckId: null,
+  }
 }
 
 /** The rows that still read as items, by ID (a row whose payload no longer parses is left out). */

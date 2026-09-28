@@ -51,6 +51,7 @@ export default async function ItemPage(props: PageProps<'/t/[trackId]/items/[ite
       backHref={model.backHref}
       trackTitle={model.track.title}
       custom={model.custom}
+      hidden={model.hidden}
       page={
         <ItemBody
           item={model.item}

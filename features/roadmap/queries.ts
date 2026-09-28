@@ -120,6 +120,8 @@ export type ItemPageModel = {
   item: CatalogItem
   /** The learner's own custom item (`user:…`, task 6.6a): the page says "Mục riêng của bạn". */
   custom: boolean
+  /** A custom item the learner hid: the page says "Đã ẩn" and is read-only. */
+  hidden: boolean
   track: TrackSummary
   viewer: ItemViewer
   backHref: string
@@ -342,7 +344,15 @@ async function learnerContext(
   catalog: PlanCatalog,
 ): Promise<Pick<ItemPageModel, 'state' | 'outcome' | 'mockInterviewProblem'>> {
   const planItem = own(catalog.items, item.id)
-  if (!trackActive || item.status !== 'active' || planItem === undefined) return READ_ONLY
+  // A hidden custom item is active on its page but retired to the engine: read-only too.
+  if (
+    !trackActive ||
+    item.status !== 'active' ||
+    planItem === undefined ||
+    planItem.status !== 'active'
+  ) {
+    return READ_ONLY
+  }
 
   const mockInterview = planItem.tag === MOCK_INTERVIEW_TAG
   const supabase = await createClient()
@@ -406,14 +416,14 @@ function mockInterviewLink(
 async function customItem(
   user: SessionUser,
   itemId: string,
-): Promise<{ item: UserCatalogItem; catalog: PlanCatalog } | null> {
+): Promise<{ item: UserCatalogItem; catalog: PlanCatalog; hidden: boolean } | null> {
   const supabase = await createClient()
   const rows = await readUserItems(supabase, user.id)
   const row = rows.find((candidate) => candidate.itemId === itemId)
   if (row === undefined) return null
   const catalog = withUserItems(planCatalog(), [row], catalogAccess.catalog.tracks)
   try {
-    return { item: toCatalogItem(row), catalog }
+    return { item: toCatalogItem(row), catalog, hidden: row.status === 'hidden' }
   } catch {
     return null
   }
@@ -473,6 +483,7 @@ export const getItemPage = cache(
     return {
       item,
       custom,
+      hidden: found?.hidden ?? false,
       track: summaryOf(track),
       ...learner,
       viewer: {

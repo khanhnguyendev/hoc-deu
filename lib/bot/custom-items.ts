@@ -165,7 +165,11 @@ function checkItem(
 
   const itemId = customItemId(botRef, input.slug)
   const existing = day.userItems.find((row) => row.itemId === itemId)
-  if (existing !== undefined && !sameItem(existing, input, parsed.payload)) {
+  // Items are immutable and a slug is used once: a hidden or retired item keeps its slug.
+  if (
+    existing !== undefined &&
+    (existing.status !== 'active' || !sameItem(existing, input, parsed.payload))
+  ) {
     issue('.slug', 'slug_taken', 'the slug is in use by another item (retire it, use a new slug)')
     return { issues, item: null }
   }
@@ -303,22 +307,41 @@ async function recordProposal(admin: Admin, runUser: RunUser, request: CustomIte
   if (updated.error) throw new Error('Could not record the proposal', { cause: updated.error })
 }
 
-/** A database refusal of one write: the answer, or null to rethrow. */
-function refused(error: unknown, path: string): CustomItemsAnswer | null {
+/** What a live write had written when the database refused a later part of it. */
+type Written = { readonly created: string[]; readonly retired: string[] }
+
+/**
+ * A database refusal part-way through a live write: the answer, or null to rethrow. The details
+ * say what was already written (`written`: those rows stay — a retry finds them and is a no-op for
+ * them, their event ids being deterministic). `invalid_event` while `bot_settings.dry_run` is now
+ * on — an admin turned dry-run on mid-write (decision 8) — is a retryable answer: the retry runs
+ * as a dry run.
+ */
+async function refused(
+  error: unknown,
+  path: string,
+  written: Written,
+): Promise<CustomItemsAnswer | null> {
   if (!(error instanceof EventError)) return null
   if (error.code === 'ai_off') return { status: 409, body: { error: 'ai_off' } }
-  if (error.code === 'day_changed') {
-    return invalid([
+  const detail = (code: string, message: string, retryable: boolean): CustomItemsAnswer =>
+    invalid([
       {
         path,
-        code: 'day_changed',
-        message: "the learner's day changed during the request; retry it",
-        retryable: true,
+        code,
+        message,
+        ...(retryable ? { retryable: true } : {}),
+        written: { created: [...written.created], retired: [...written.retired] },
       },
     ])
+  if (error.code === 'day_changed') {
+    return detail('day_changed', "the learner's day changed during the request; retry it", true)
+  }
+  if (error.code === 'invalid_event' && (await readBotSettings()).settings.dryRun) {
+    return detail('dry_run_started', 'dry-run was turned on during the request; retry it', true)
   }
   if (['slug_taken', 'limit_reached', 'not_enrolled', 'invalid_transition'].includes(error.code)) {
-    return invalid([{ path, code: error.code, message: 'refused by the database' }])
+    return detail(error.code, 'refused by the database', false)
   }
   return null
 }
@@ -354,6 +377,7 @@ export async function writeCustomItems(
     return { status: 200, body: { outcome: 'dry_run', created, retired }, outcome: 'dry_run' }
   }
 
+  const written: Written = { created: [], retired: [] }
   for (const row of checked.retire) {
     try {
       await retireUserItem(admin, runUser.userId, {
@@ -363,31 +387,34 @@ export async function writeCustomItems(
         localDay: day.today,
       })
     } catch (error) {
-      const answer = refused(error, 'retire')
+      const answer = await refused(error, `retire.${request.retire.indexOf(row.itemId)}`, written)
       if (answer === null) throw error
       return answer
     }
+    written.retired.push(row.itemId)
   }
   for (const item of checked.items) {
-    if (item.unchanged) continue
-    try {
-      await createUserItem(admin, runUser.userId, {
-        eventId: deriveEventId(runUser.runUuid, `${runUser.userRef}:${KIND}:${item.input.slug}`),
-        runKey: runUser.runKey,
-        itemId: item.itemId,
-        slug: item.input.slug,
-        itemType: item.input.type,
-        trackId: item.input.trackId,
-        topicId: item.input.topicId,
-        payload: item.payload,
-        localDay: day.today,
-        limits,
-      })
-    } catch (error) {
-      const answer = refused(error, `items.${request.items.indexOf(item.input)}`)
-      if (answer === null) throw error
-      return answer
+    if (!item.unchanged) {
+      try {
+        await createUserItem(admin, runUser.userId, {
+          eventId: deriveEventId(runUser.runUuid, `${runUser.userRef}:${KIND}:${item.input.slug}`),
+          runKey: runUser.runKey,
+          itemId: item.itemId,
+          slug: item.input.slug,
+          itemType: item.input.type,
+          trackId: item.input.trackId,
+          topicId: item.input.topicId,
+          payload: item.payload,
+          localDay: day.today,
+          limits,
+        })
+      } catch (error) {
+        const answer = await refused(error, `items.${request.items.indexOf(item.input)}`, written)
+        if (answer === null) throw error
+        return answer
+      }
     }
+    written.created.push(item.itemId)
   }
   return { status: 200, body: { outcome: 'applied', created, retired }, outcome: 'applied' }
 }

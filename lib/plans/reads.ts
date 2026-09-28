@@ -9,6 +9,7 @@
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { HARD_LIMITS } from '@/lib/bot/limits'
 import { toEnrollment } from '@/lib/content/plan-catalog'
 import type { UserItemRow } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'
@@ -296,9 +297,6 @@ export async function readPlanMode(
   return PLAN_MODES.find((candidate) => candidate === mode) ?? null
 }
 
-/** The most active custom items a user may have (decision 33; `lib/bot/limits.ts`). */
-export const ACTIVE_USER_ITEMS_CAP = 200
-
 const USER_ITEM_COLUMNS = 'item_id, item_type, track_id, topic_id, payload, status, created_on'
 const USER_ITEM_TYPES = ['flashcard', 'exercise', 'prompt'] as const
 const USER_ITEM_STATUSES = ['active', 'hidden', 'retired'] as const
@@ -324,33 +322,38 @@ function userItemFromRow(row: UserItemDbRow): UserItemRow | null {
 }
 
 /**
- * The user's custom items (§4.1 `user_items`, §5.12; task 6.6a): the active ones (at most
- * `ACTIVE_USER_ITEMS_CAP`, the database's quota), then the hidden and retired ones (one page,
- * `PAGE_ROWS`) — each by ID. Hidden and retired rows are read too: their items stay readable and
- * the "Mục riêng" tab lists the hidden ones (`withUserItems` reads them as retired). The session
- * client (RLS: own rows) for a learner, the secret key for the bot (every read filters `user_id`).
+ * The user's custom items (§4.1 `user_items`, §5.12; task 6.6a): the active ones — at most
+ * `HARD_LIMITS.customItemsActive`, the quota the database enforces (decision 33), one read — then
+ * every hidden and retired one, paged by `PAGE_ROWS` (PostgREST `max_rows`) like
+ * `readItemStates`, so none is ever cut off (a retire target, an item page). Each by ID. Hidden
+ * and retired rows are read too: their items stay readable and the "Mục riêng" tab lists the
+ * hidden ones (`withUserItems` reads them as retired). The session client (RLS: own rows) for a
+ * learner, the secret key for the bot (every read filters `user_id`).
  */
 export async function readUserItems(supabase: Client, userId: string): Promise<UserItemRow[]> {
-  const [active, inactive] = await Promise.all([
-    supabase
-      .from('user_items')
-      .select(USER_ITEM_COLUMNS)
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('item_id')
-      .limit(ACTIVE_USER_ITEMS_CAP),
-    supabase
+  const active = await supabase
+    .from('user_items')
+    .select(USER_ITEM_COLUMNS)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('item_id')
+    .limit(HARD_LIMITS.customItemsActive)
+  if (active.error) throw failed('the custom items', active.error)
+  const rows: UserItemDbRow[] = [...active.data]
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await supabase
       .from('user_items')
       .select(USER_ITEM_COLUMNS)
       .eq('user_id', userId)
       .in('status', ['hidden', 'retired'])
       .order('status')
       .order('item_id')
-      .limit(PAGE_ROWS),
-  ])
-  if (active.error) throw failed('the custom items', active.error)
-  if (inactive.error) throw failed('the custom items', inactive.error)
-  return [...active.data, ...inactive.data].flatMap((row) => {
+      .range(from, from + PAGE_ROWS - 1)
+    if (error) throw failed('the custom items', error)
+    rows.push(...data)
+    if (data.length < PAGE_ROWS) break
+  }
+  return rows.flatMap((row) => {
     const item = userItemFromRow(row)
     return item === null ? [] : [item]
   })

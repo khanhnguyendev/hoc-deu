@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { CATALOG, itemState, statesOf, withItems } from './__tests__/fixtures'
+import type { PlanCatalog } from '../catalog'
+import { buildPlan } from './buildPlan'
+import {
+  CATALOG,
+  enrollment,
+  ENGLISH_SRS,
+  flat,
+  itemState,
+  planContext,
+  planItem,
+  statesOf,
+  withItems,
+} from './__tests__/fixtures'
 import {
   GRADE_RANK,
   mockInterviewProblem,
@@ -324,5 +336,70 @@ describe('mockInterviewProblem (platform design §5.6)', () => {
       itemState('dsa:p3', DAY, { lastResultOn: '2026-09-29' }),
     )
     expect(mockInterviewProblem({ trackId: 'dsa', items, catalog: CATALOG })).toBe('dsa:p3')
+  })
+})
+
+describe('custom items never enter the baseline practice pickers (§5.12, decision 17; M6-R25)', () => {
+  const CUSTOM_EXERCISE = planItem({
+    id: 'user:0123456789abcdef:standup-drill',
+    trackId: 'english',
+    itemType: 'exercise',
+    topicId: 'standup',
+    minutes: flat(5),
+  })
+  const CUSTOM_CARD = planItem({
+    id: 'user:0123456789abcdef:on-hold',
+    trackId: 'english',
+    itemType: 'flashcard',
+    topicId: 'standup',
+    srs: ENGLISH_SRS,
+    minutes: { ...flat(0.5), new: 1.5 },
+    tier: 'extended',
+    hasExample: true,
+  })
+  const catalog: PlanCatalog = {
+    ...CATALOG,
+    items: {
+      ...CATALOG.items,
+      [CUSTOM_EXERCISE.id]: CUSTOM_EXERCISE,
+      [CUSTOM_CARD.id]: CUSTOM_CARD,
+    },
+  }
+  const later = '2026-09-27'
+  const earlier = '2026-09-20'
+  // Every repository English item studied earlier; the custom ones studied last, the exercise
+  // with the worst grade — the pickers' fallbacks would choose them.
+  const items = statesOf(
+    ...Object.values(CATALOG.items)
+      .filter((item) => item.trackId === 'english')
+      .map((item) =>
+        itemState(item.id, earlier, {
+          lastResult: item.srs === null ? 'pass' : 'know',
+          dueOn: '2026-12-31',
+        }),
+      ),
+    itemState(CUSTOM_EXERCISE.id, later, { lastResult: 'miss' }, catalog),
+    itemState(CUSTOM_CARD.id, later, { lastResult: 'know', dueOn: '2026-12-31' }, catalog),
+  )
+
+  it('pickByItemType never picks a studied custom exercise, even the worst-graded', () => {
+    expect(
+      pickByItemType({ trackId: 'english', itemType: 'exercise', roadmapWeek: 3, items, catalog }),
+    ).not.toBe(CUSTOM_EXERCISE.id)
+  })
+
+  it('pickShadowing never picks a studied custom card with an example', () => {
+    expect(pickShadowing({ trackId: 'english', todaysNew: [], items, catalog })).not.toContain(
+      CUSTOM_CARD.id,
+    )
+  })
+
+  it('a baseline plan holds neither', () => {
+    const plan = buildPlan(planContext({ catalog, items, enrollments: [enrollment('english')] }))
+    const planned = [
+      ...plan.blocks.flatMap((block) => block.items.map((item) => item.itemId)),
+      ...plan.blocks.flatMap((block) => block.shadowing ?? []),
+    ]
+    expect(planned.filter((id) => id.startsWith('user:'))).toEqual([])
   })
 })

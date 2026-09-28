@@ -138,4 +138,18 @@ describe('ItemView — a custom item (task 6.6a)', () => {
     )
     expect(screen.queryByText(strings.customItems.ownLabel)).toBeNull()
   })
+
+  it('a hidden custom item says "Đã ẩn" beside the label', () => {
+    render(
+      <ItemView
+        backHref="/t/english"
+        trackTitle="Tiếng Anh cho môi trường IT"
+        custom
+        hidden
+        page={<ItemPageFrame status="active" title="on hold" />}
+      />,
+    )
+    expect(screen.getByText(strings.customItems.hidden)).toBeTruthy()
+    expect(screen.queryByText(/ngừng/i)).toBeNull()
+  })
 })

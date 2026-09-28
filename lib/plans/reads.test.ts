@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { blockKey } from '@/lib/domain/state'
+import { HARD_LIMITS } from '@/lib/bot/limits'
 import { createFakeSupabase, type RowOf } from '@/lib/testing/fake-supabase'
 import {
   blockStateRow,
@@ -427,6 +428,23 @@ describe('readUserItems (task 6.6a)', () => {
     expect(selects).toHaveLength(2)
     expect(selects[0]!.limit).toBe(200)
     expect(selects.every((select) => select.filters.some((f) => f.column === 'user_id'))).toBe(true)
+  })
+
+  it('pages the hidden and retired rows past PostgREST’s 1000 (a retire target is never missed)', async () => {
+    const hidden = Array.from({ length: 1001 }, (_, index) =>
+      userItem(`h-${String(index).padStart(4, '0')}`, { status: 'hidden' }),
+    )
+    const fake = createFakeSupabase({ user_items: [userItem('active-one'), ...hidden] })
+    const rows = await readUserItems(fake.client(), USER_ID)
+    expect(rows).toHaveLength(1002)
+    expect(rows.at(-1)?.itemId).toBe('user:0123456789abcdef:h-1000')
+    // The active cap is the bot's hard maximum (decision 33), one read.
+    const [active, ...inactive] = fake.selects('user_items')
+    expect(active!.limit).toBe(HARD_LIMITS.customItemsActive)
+    expect(inactive.map((select) => select.range)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
   })
 
   it('drops a row whose type or status the table would not allow', async () => {

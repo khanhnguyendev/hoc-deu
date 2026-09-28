@@ -124,6 +124,29 @@ describe('isPlainText (§6.4.4)', () => {
     expect(isPlainText(value)).toBe(false)
   })
 
+  it.each([
+    'ftp://files.example',
+    'git+ssh://host/repo',
+    'mailto:someone',
+    'MAILTO:x',
+    'xem leetcode.com',
+    'docs trên react.dev nhé',
+    'trang abc.vn',
+    'EXAMPLE.ORG',
+    'my-site.io',
+    'fly.app',
+    'x.co',
+    'example.net',
+  ])('refuses a link %j', (value) => {
+    expect(isPlainText(value)).toBe(false)
+  })
+
+  it('accepts Vietnamese sentences with periods, numbers and abbreviations', () => {
+    expect(isPlainText('Xong. Tiếp theo là Two Pointers. Độ phức tạp O(n).')).toBe(true)
+    expect(isPlainText('Phiên bản 1.2.3, ví dụ: a.b, e.g. mảng; v.v.')).toBe(true)
+    expect(isPlainText('Ngày 28.09.2026 họp lúc 9.30')).toBe(true)
+  })
+
   it('accepts Vietnamese with diacritics, braces and punctuation', () => {
     expect(isPlainText('Hai con trỏ giữ bất biến — đoạn giữa chưa xét!')).toBe(true)
     expect(isPlainText('Điền {{blank}} vào chỗ trống: "on hold"')).toBe(true)
@@ -155,9 +178,11 @@ describe('toCatalogItem', () => {
     expect(item.content).toMatchObject({ ...CARD, tier: 'extended', derivedFrom: null })
   })
 
-  it('reads hidden and retired rows as retired', () => {
-    expect(toCatalogItem(row('a-card', { status: 'hidden' })).status).toBe('retired')
+  it('a retired row reads as retired; a hidden one keeps its page as it was (it says "Đã ẩn")', () => {
+    expect(toCatalogItem(row('a-card', { status: 'hidden' })).status).toBe('active')
     expect(toCatalogItem(row('b-card', { status: 'retired' })).status).toBe('retired')
+    // The engine reads both as retired: out of queues and plans (decision 17).
+    expect(toPlanItem(row('a-card', { status: 'hidden' }), DSA).status).toBe('retired')
   })
 
   it('keeps an exercise’s stored week and topic', () => {

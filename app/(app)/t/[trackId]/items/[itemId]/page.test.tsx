@@ -49,6 +49,7 @@ const OUTCOME = {
 const MODEL: ItemPageModel = {
   item: problemItem(),
   custom: false,
+  hidden: false,
   track: {
     id: 'dsa',
     title: 'Cấu trúc dữ liệu & Giải thuật',

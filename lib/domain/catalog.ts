@@ -142,6 +142,10 @@ export type PlanCatalog = {
  *  catalog overlay (task 6.6a) adds them to `PlanCatalog.items`; they never enter a roadmap. */
 export const CUSTOM_ITEM_PREFIX = 'user:'
 
+/** A custom item's whole ID, as `user_items.item_id`'s check has it: `user:` + the profile's 16-hex
+ *  `bot_ref` + `:` + the slug (`[a-z0-9-]{3,48}`). */
+export const CUSTOM_ITEM_ID_PATTERN = /^user:[0-9a-f]{16}:[a-z0-9-]{3,48}$/
+
 export function isCustomItemId(itemId: string): boolean {
   return itemId.startsWith(CUSTOM_ITEM_PREFIX)
 }

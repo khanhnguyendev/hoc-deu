@@ -114,7 +114,16 @@ test('"Ẩn" asks, hides the item from the next plan on; after a reload it says 
   const item = customList(page).getByRole('listitem').filter({ hasText: 'heads-down' })
   await expect(item.getByText('Đã ẩn')).toBeVisible()
   await expect(item.getByRole('button')).toHaveCount(0)
+  await expect(item.getByText(/ngừng/i)).toHaveCount(0)
   await expect(customList(page).getByRole('button', { name: 'Ẩn on hold' })).toBeVisible()
+
+  // Its page stays readable, says "Đã ẩn" — never the retired notice — and is read-only.
+  await item.getByRole('link', { name: 'heads-down' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'heads-down' })).toBeVisible()
+  await expect(page.locator('[data-slot="custom-item-label"]')).toContainText('Đã ẩn')
+  await expect(page.getByText(/ngừng/i)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Xem nghĩa' }).click()
+  await expect(page.getByRole('group', { name: 'Bạn nhớ thẻ này không?' })).toHaveCount(0)
 })
 
 test.describe('another learner', () => {

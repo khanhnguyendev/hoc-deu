@@ -750,7 +750,11 @@ describe('getItemPage — a custom item (decision 39)', () => {
     learner.userItems = [customRow(CARD_ID, { status: 'hidden' })]
     learner.enrollments = [{ trackId: 'english', status: 'active' }]
     const model = await getItemPage('english', param)
-    expect(model?.item.status).toBe('retired')
+    // "Đã ẩn", never the retired notice: the item keeps its status, the page says it is hidden.
+    expect(model?.item.status).toBe('active')
+    expect(model?.hidden).toBe(true)
     expect(model?.outcome).toBeNull()
+    learner.userItems = [customRow(CARD_ID)]
+    expect((await getItemPage('english', param))?.hidden).toBe(false)
   })
 })
