@@ -20,8 +20,11 @@ import {
   SUNDAY,
   withItems,
 } from './__tests__/fixtures'
+import { LAB_CATALOG, labEnrollment, labStates } from './__tests__/overrideFixtures'
 import { buildPlan, checkInMinutes, largestItemMinutes, plannedMinutes } from './buildPlan'
-import type { DayPlan, PlanBlock, PlanBlockItem, PlanContext } from './types'
+import type { RoadmapOverride } from './overrides'
+import { buildResumePlan } from './resume'
+import type { DayPlan, PlanBlock, PlanBlockItem, PlanContext, StoredPlan } from './types'
 
 const LAST_WEEK = '2026-09-21'
 
@@ -940,5 +943,241 @@ describe('buildPlan — determinism and immutability', () => {
       expect(() => buildPlan({ ...ctx, planDate: day })).not.toThrow()
     }
     expect(ctx).toStrictEqual(before)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap overrides (§5.4 step 1, §5.12; task 6.6b)
+// ---------------------------------------------------------------------------------------------
+
+describe('buildPlan — roadmap overrides (§5.12)', () => {
+  const TUESDAY = addDays(MONDAY, 1)
+  const insertBlock = (
+    params: Partial<Extract<RoadmapOverride, { kind: 'insert_block' }>['params']> = {},
+  ): RoadmapOverride => ({
+    trackId: 'dsa',
+    key: 'ib',
+    kind: 'insert_block',
+    params: { topicId: 'arrays', weekdays: ['mon'], minutes: 15, until: '2026-10-05', ...params },
+    startLocalDay: MONDAY,
+  })
+  const extraWeek = (usedDays = 0, studyDays = 5): RoadmapOverride => ({
+    trackId: 'dsa',
+    key: 'ew',
+    kind: 'extra_week',
+    params: { topicId: 'arrays', studyDays },
+    startLocalDay: MONDAY,
+    usedDays,
+  })
+
+  /** Contexts across the week, with nothing, due, Weak and recap history. */
+  const baselineContexts = (): PlanContext[] =>
+    [MONDAY, TUESDAY, SATURDAY, SUNDAY].flatMap((planDate) => [
+      planContext({ planDate }),
+      planContext({
+        planDate,
+        items: statesOf(
+          due('dsa:p1', planDate),
+          due('dsa:p3', addDays(planDate, -9), { weak: true, status: 'weak' }),
+          due('english:e1', planDate),
+          itemState('english:ex-w1-a', LAST_WEEK),
+        ),
+        recapDone: { dsa: new Set([1]) },
+      }),
+    ])
+
+  it('overrides: [] → exactly the plan without overrides (every fixture context)', () => {
+    for (const ctx of baselineContexts()) {
+      expect(buildPlan({ ...ctx, overrides: [] })).toStrictEqual(buildPlan(ctx))
+    }
+  })
+
+  it('inactive overrides (an insert block past its until, a used-up extra week) change nothing', () => {
+    const inactive = [insertBlock({ until: addDays(MONDAY, -1) }), extraWeek(5)]
+    for (const ctx of baselineContexts()) {
+      expect(buildPlan({ ...ctx, overrides: inactive })).toStrictEqual(buildPlan(ctx))
+    }
+  })
+
+  it("another track's overrides change nothing", () => {
+    const english = { ...insertBlock(), trackId: 'english' }
+    for (const ctx of baselineContexts()) {
+      const plan = buildPlan({ ...ctx, overrides: [english] })
+      expect(blocksOf(plan, 'dsa')).toStrictEqual(blocksOf(buildPlan(ctx), 'dsa'))
+    }
+  })
+
+  describe('insert_block', () => {
+    const items = statesOf(
+      due('dsa:p1', MONDAY),
+      due('dsa:p2', MONDAY),
+      due('dsa:p3', addDays(MONDAY, 5), { weak: true, status: 'weak' }),
+      due('dsa:p5', MONDAY),
+    )
+
+    it('adds a fixed practice block first: the topic’s Weak / due items that fit its minutes', () => {
+      const plan = buildPlan(dsaOnly({ items, overrides: [insertBlock()] }))
+      const [first, ...rest] = blocksOf(plan, 'dsa')
+      // p3 (Weak, redo 21) does not fit 15 minutes; p1 and p2 are due (recall 5 each).
+      expect(first).toStrictEqual({
+        id: '2026-09-28:dsa:practice:1',
+        trackId: 'dsa',
+        kind: 'practice',
+        estMinutes: 15,
+        tag: 'topic-practice',
+        items: [item('dsa:p1', 'recall', 5), item('dsa:p2', 'recall', 5)],
+      })
+      const later = rest.flatMap((block) => block.items.map((planned) => planned.itemId))
+      expect(later).not.toContain('dsa:p1')
+      expect(later).not.toContain('dsa:p2')
+      expect(rest[0]).toMatchObject({ kind: 'review', items: [item('dsa:p5', 'recall', 5)] })
+      expect(plannedMinutes(plan, 'dsa')).toBeLessThanOrEqual(60 + largestItemMinutes(plan, 'dsa'))
+    })
+
+    it('then the learner’s custom items of the topic (new ones in mode new)', () => {
+      const custom = planItem({
+        id: 'user:u1:arrays-card',
+        trackId: 'dsa',
+        itemType: 'flashcard',
+        topicId: 'arrays',
+        srs: ENGLISH_SRS,
+        minutes: CARD_MINUTES,
+        tier: 'extended',
+      })
+      const catalog: PlanCatalog = {
+        ...CATALOG,
+        items: { ...CATALOG.items, [custom.id]: custom },
+      }
+      const plan = buildPlan(dsaOnly({ catalog, items, overrides: [insertBlock({ minutes: 12 })] }))
+      expect(blocksOf(plan, 'dsa')[0]?.items).toStrictEqual([
+        item('dsa:p1', 'recall', 5),
+        item('dsa:p2', 'recall', 5),
+        item('user:u1:arrays-card', 'new', 1.5),
+      ])
+    })
+
+    it('only on its weekdays', () => {
+      const ctx = dsaOnly({ planDate: TUESDAY, items })
+      expect(buildPlan({ ...ctx, overrides: [insertBlock()] })).toStrictEqual(buildPlan(ctx))
+    })
+
+    it('is dropped when the topic has nothing to practise (a new learner)', () => {
+      expect(buildPlan(dsaOnly({ overrides: [insertBlock()] }))).toStrictEqual(buildPlan(dsaOnly()))
+    })
+
+    it('leaves the snapshot as it is', () => {
+      const ctx = dsaOnly({ items })
+      expect(buildPlan({ ...ctx, overrides: [insertBlock()] }).tracks).toStrictEqual(
+        buildPlan(ctx).tracks,
+      )
+    })
+  })
+
+  describe('extra_week', () => {
+    const items = statesOf(
+      itemState('dsa:lesson-arrays', LAST_WEEK),
+      due('dsa:p1', addDays(MONDAY, 5)),
+      due('dsa:p2', addDays(MONDAY, 5), { weak: true, status: 'weak' }),
+    )
+
+    it('replaces the new block with topic practice and names the override in the snapshot', () => {
+      const plan = buildPlan(dsaOnly({ items, overrides: [extraWeek()] }))
+      const baseline = buildPlan(dsaOnly({ items }))
+      expect(plan.blocks).toStrictEqual([
+        {
+          id: '2026-09-28:dsa:practice:1',
+          trackId: 'dsa',
+          kind: 'practice',
+          estMinutes: 26,
+          tag: 'extra-week',
+          items: [item('dsa:p2', 'redo', 21), item('dsa:p1', 'recall', 5)],
+        },
+      ])
+      expect(plan.tracks).toStrictEqual({
+        dsa: { ...baseline.tracks.dsa!, extraWeek: 'ew' },
+      })
+    })
+
+    it('introduces no new item that day (the roadmap pointer pauses), Saturday included', () => {
+      for (const planDate of [MONDAY, TUESDAY, SATURDAY, SUNDAY]) {
+        const plan = buildPlan(dsaOnly({ planDate, items, overrides: [extraWeek()] }))
+        for (const block of plan.blocks) {
+          expect(block.kind, block.id).not.toBe('new')
+          for (const planned of block.items) {
+            if (planned.mode === 'new') expect(items[planned.itemId], planned.itemId).toBeDefined()
+          }
+        }
+        expect(plan.tracks.dsa?.extraWeek).toBe('ew')
+      }
+    })
+
+    it('a resume plan ("Học tiếp hôm nay") does not name it: it uses no study day', () => {
+      const staleDay = addDays(MONDAY, -5)
+      const built = buildPlan(dsaOnly({ planDate: staleDay }))
+      const stale: StoredPlan = {
+        id: 'stale',
+        planDate: staleDay,
+        version: 1,
+        source: 'baseline',
+        seenAt: `${staleDay}T03:00:00Z`,
+        blocks: built.blocks,
+        tracks: built.tracks,
+      }
+      const plan = buildResumePlan(dsaOnly({ items, overrides: [extraWeek()] }), stale)
+      expect(plan.tracks.dsa?.extraWeek).toBeUndefined()
+    })
+
+    it('ends once its study days are used', () => {
+      const ctx = dsaOnly({ items })
+      expect(buildPlan({ ...ctx, overrides: [extraWeek(5)] })).toStrictEqual(buildPlan(ctx))
+    })
+  })
+
+  describe('reorder_topics', () => {
+    const introduced = [
+      'dsa:lesson-arrays',
+      'dsa:lesson-two-pointers',
+      'dsa:a1',
+      'dsa:a2',
+      'dsa:a3',
+      'dsa:t1',
+    ]
+    const labCtx = (overrides: readonly RoadmapOverride[]): PlanContext => ({
+      planDate: MONDAY,
+      catalog: LAB_CATALOG,
+      enrollments: [labEnrollment()],
+      items: labStates(introduced),
+      recapDone: {},
+      overrides,
+    })
+    const heapFirst: RoadmapOverride = {
+      trackId: 'dsa',
+      key: 'ro',
+      kind: 'reorder_topics',
+      params: { order: ['heap', 'linked-list', 'trees', 'graphs', 'tries'] },
+      startLocalDay: MONDAY,
+    }
+
+    it('the new block follows the effective roadmap (heap before linked-list)', () => {
+      const newItems = (plan: DayPlan) =>
+        plan.blocks
+          .filter((block) => block.kind === 'new')
+          .flatMap((block) => block.items.map((planned) => planned.itemId))
+      // W3 lists linked-list and trees; with heap first it lists heap and linked-list.
+      expect(newItems(buildPlan(labCtx([])))).toEqual([
+        'dsa:t2',
+        'dsa:lesson-linked-list',
+        'dsa:lesson-trees',
+      ])
+      expect(newItems(buildPlan(labCtx([heapFirst])))).toEqual([
+        'dsa:t2',
+        'dsa:lesson-heap',
+        'dsa:lesson-linked-list',
+      ])
+    })
+
+    it('the snapshot week is the same (progress-based)', () => {
+      expect(buildPlan(labCtx([heapFirst])).tracks).toStrictEqual(buildPlan(labCtx([])).tracks)
+    })
   })
 })

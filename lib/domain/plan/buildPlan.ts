@@ -5,15 +5,25 @@
  * (`gate.ts`) first; `resume.ts` builds the stale-plan resume from the same per-track internals
  * (`track.ts`, which only these two modules import — M4 final review M-11).
  *
- * Per track (in `trackId` order): step 1–2 `trackSetup`; then, in this order, practice blocks
- * (step 3), review blocks (4), recap blocks (5), new blocks (6), the fallbacks and the spill of a
- * day without a `new` block (7), shadowing cards (8), and numbering (9). Every step spends the
+ * Per track (in `trackId` order): step 1–2 `trackSetup`; then, in this order, the blocks of the
+ * day's `insert_block` overrides (§5.12, reserved first — they come first in the track's blocks),
+ * practice blocks (step 3), review blocks (4), recap blocks (5), new blocks (6), the fallbacks and
+ * the spill of a day without a `new` block (7), shadowing cards (8), and numbering (9). During an
+ * `extra_week` (§5.12) every new-item selection (the new block, the fallback, the spill) is the
+ * topic's practice instead, so the roadmap pointer does not advance that day. Every step spends the
  * track's budget (`spend`) and records the items it placed, so no item is placed twice and the
  * track's one overshoot (decision 13) is used at most once. The track's new-item queue is built
  * once and read by every new-item selection (4.6 minor).
  */
 import type { PlanRoadmap, PlanTemplateBlock } from '../catalog'
 import { type Candidate, reserveFixed, selectSkipping } from './budget'
+import {
+  EXTRA_WEEK_TAG,
+  type InsertBlockOverride,
+  TOPIC_PRACTICE_TAG,
+  type TopicPool,
+  topicPracticeCandidates,
+} from './overrides'
 import { pickByItemType, pickByTag, pickShadowing, SHADOWING_TAG } from './practice'
 import { recapCandidates, recapSource } from './roadmap'
 import {
@@ -120,6 +130,79 @@ function placePractice(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Override blocks (§5.12)
+// ---------------------------------------------------------------------------------------------
+
+/** The candidates of a topic-practice block on `topicId` (`topicPracticeCandidates`), without
+ *  what the plan holds and within the new-item cap left today. */
+function topicCandidates(
+  setup: TrackSetup,
+  topicId: string,
+  pool: TopicPool,
+  progress: Progress,
+): Candidate[] {
+  const { ctx, enrollment } = setup
+  return topicPracticeCandidates({
+    trackId: enrollment.trackId,
+    topicId,
+    pool,
+    catalog: ctx.catalog,
+    items: ctx.items,
+    today: ctx.planDate,
+    exclude: progress.planned,
+    newCap: newCapLeft(setup, progress),
+  })
+}
+
+/** An `insert_block` (§5.12): a fixed practice block of `minutes` holding the topic's Weak / due
+ *  items, then its custom items, that fit those minutes (skipping what does not fit); dropped when
+ *  none fits (decision 14) or when its minutes cannot be reserved (§5.4 step 2, decision 13). */
+function placeInsertBlock(
+  setup: TrackSetup,
+  override: InsertBlockOverride,
+  progress: Progress,
+): Placed {
+  const { topicId, minutes } = override.params
+  const selection = selectSkipping(topicCandidates(setup, topicId, 'weak-or-due', progress), {
+    cap: minutes,
+  })
+  if (selection.picked.length === 0) return { draft: null, progress }
+  const reserve = reserveFixed(progress.budget, minutes)
+  if (!reserve.take) return { draft: null, progress }
+  const items = itemsOf(selection)
+  return {
+    draft: { kind: 'practice', items, minutes, tag: TOPIC_PRACTICE_TAG },
+    progress: take(setup, progress, { picked: items, minutes, overshoot: reserve.overshoot }),
+  }
+}
+
+/** An `extra_week`'s topic practice (§5.12) where new items would go: the topic's introduced
+ *  items in review modes, then its custom items, skipping what does not fit the remaining budget —
+ *  the first forced when `forceFirst` (the new block's first-item rule). */
+function placeExtraWeek(
+  setup: TrackSetup,
+  topicId: string,
+  progress: Progress,
+  forceFirst: boolean,
+): Placed {
+  const selection = selectSkipping(topicCandidates(setup, topicId, 'introduced', progress), {
+    cap: Math.max(0, progress.budget.remaining),
+    forceFirst,
+  })
+  return {
+    draft: { kind: 'practice', items: itemsOf(selection), tag: EXTRA_WEEK_TAG },
+    progress: { ...take(setup, progress, selection), newStarted: true },
+  }
+}
+
+/** New items from the queue (§5.4 step 5), or during an `extra_week` its topic practice. */
+function placeNewWork(setup: TrackSetup, progress: Progress, forceFirst: boolean): Placed {
+  return setup.extraWeek === null
+    ? placeNewItems(setup, setup.newQueue(), progress, forceFirst)
+    : placeExtraWeek(setup, setup.extraWeek.params.topicId, progress, forceFirst)
+}
+
+// ---------------------------------------------------------------------------------------------
 // Step 5: recap blocks
 // ---------------------------------------------------------------------------------------------
 
@@ -186,24 +269,35 @@ function placeRecap(setup: TrackSetup, count: number, progress: Progress): Place
 // Step 6: new blocks
 // ---------------------------------------------------------------------------------------------
 
-/** Step 6: a new block from the new-item queue. */
+/** Step 6: a new block from the new-item queue (during an `extra_week`, its topic practice). */
 function placeNew(setup: TrackSetup, progress: Progress): Placed {
-  return placeNewItems(setup, setup.newQueue(), progress, mayForceNew(progress))
+  return placeNewWork(setup, progress, mayForceNew(progress))
 }
 
 // ---------------------------------------------------------------------------------------------
 // Steps 3–9 over the day's template
 // ---------------------------------------------------------------------------------------------
 
-/** The track's blocks in template order (null = dropped), the spill block, and the state. */
+/** The track's override blocks and blocks in template order (null = dropped), the spill block,
+ *  and the state. */
 type TrackState = {
   readonly progress: Progress
+  /** One per `setup.insertBlocks` (§5.12). */
+  readonly inserted: readonly (DraftBlock | null)[]
   readonly slots: readonly (DraftBlock | null)[]
   readonly spill: DraftBlock | null
 }
 
 function withSlot(state: TrackState, index: number, placed: Placed): TrackState {
   return { ...state, progress: placed.progress, slots: state.slots.with(index, placed.draft) }
+}
+
+/** §5.12: the day's `insert_block`s, reserved before every template block. */
+function placeInsertBlocks(setup: TrackSetup, state: TrackState): TrackState {
+  return setup.insertBlocks.reduce((next, override, index) => {
+    const placed = placeInsertBlock(setup, override, next.progress)
+    return { ...next, progress: placed.progress, inserted: next.inserted.with(index, placed.draft) }
+  }, state)
 }
 
 /** Step 3, in template order. */
@@ -251,13 +345,17 @@ function placeNewBlocks(setup: TrackSetup, state: TrackState): TrackState {
 const isEmptyDraft = (draft: DraftBlock | null): boolean =>
   draft !== null && draft.items.length === 0
 
+/** A new block, or the `extra_week` practice that takes its place. */
+const isNewWork = (draft: DraftBlock | null): draft is DraftBlock =>
+  draft !== null && (draft.kind === 'new' || draft.tag === EXTRA_WEEK_TAG)
+
 /** An empty review block → a filler recap → new items; an empty recap block → new items. */
 function placeFallback(setup: TrackSetup, kind: 'review' | 'recap', progress: Progress): Placed {
   if (kind === 'review') {
     const filler = recapBlock(setup, null, FILLER_RECAP_COUNT, progress)
     if (filler.draft.items.length > 0) return filler
   }
-  return placeNewItems(setup, setup.newQueue(), progress, mayForceNew(progress))
+  return placeNewWork(setup, progress, mayForceNew(progress))
 }
 
 /** Step 7 (only on a day whose template has no `new` block): empty review and recap blocks fall
@@ -278,9 +376,9 @@ function placeSpill(setup: TrackSetup, state: TrackState): TrackState {
   const hasNewOrRecap = setup.template.some(
     (block) => block.kind === 'new' || block.kind === 'recap',
   )
-  const fellBackToNew = state.slots.some((draft) => draft?.kind === 'new' && draft.items.length > 0)
+  const fellBackToNew = state.slots.some((draft) => isNewWork(draft) && draft.items.length > 0)
   if (hasNewOrRecap || fellBackToNew) return state
-  const placed = placeNewItems(setup, setup.newQueue(), state.progress, false)
+  const placed = placeNewWork(setup, state.progress, false)
   return { ...state, progress: placed.progress, spill: placed.draft }
 }
 
@@ -315,6 +413,7 @@ function fillShadowing(
 function buildTrack(ctx: PlanContext, entry: TrackEntry): TrackPlan {
   const setup = trackSetup(ctx, entry)
   const steps = [
+    placeInsertBlocks,
     placePracticeBlocks,
     placeReviewBlocks,
     placeRecapBlocks,
@@ -324,15 +423,21 @@ function buildTrack(ctx: PlanContext, entry: TrackEntry): TrackPlan {
   ]
   const initial: TrackState = {
     progress: startProgress(setup),
+    inserted: setup.insertBlocks.map(() => null),
     slots: setup.template.map(() => null),
     spill: null,
   }
   const final = steps.reduce((state, step) => step(setup, state), initial)
-  const drafts = fillShadowing(setup, [...final.slots, final.spill])
+  const drafts = fillShadowing(setup, [...final.inserted, ...final.slots, final.spill])
   return {
     trackId: entry.enrollment.trackId,
     blocks: emitBlocks(setup, drafts),
-    snapshot: snapshotOf(setup),
+    // Only today's plan names the extra week: a resume plan does no topic practice, so it never
+    // uses one of its study days (decision 18 counts the plans that name it).
+    snapshot: {
+      ...snapshotOf(setup),
+      ...(setup.extraWeek !== null && { extraWeek: setup.extraWeek.key }),
+    },
   }
 }
 
@@ -357,12 +462,14 @@ export function plannedMinutes(plan: Pick<DayPlan, 'blocks'>, trackId: string): 
     .reduce((sum, block) => sum + block.estMinutes, 0)
 }
 
-/** The largest single item of the track: the max over item minutes and practice-block minutes. */
+/** The largest single item of the track: the max over item minutes and the minutes of fixed
+ *  practice blocks (a reserved block counts as one unit, §5.4 step 2). An `extra_week`'s practice
+ *  block is not fixed — the sum of its items, which count one by one (§5.12). */
 export function largestItemMinutes(plan: Pick<DayPlan, 'blocks'>, trackId: string): number {
   return plan.blocks
     .filter((block) => block.trackId === trackId)
     .flatMap((block) => [
-      ...(block.kind === 'practice' ? [block.estMinutes] : []),
+      ...(block.kind === 'practice' && block.tag !== EXTRA_WEEK_TAG ? [block.estMinutes] : []),
       ...block.items.map((planned) => planned.minutes),
     ])
     .reduce((largest, minutes) => Math.max(largest, minutes), 0)

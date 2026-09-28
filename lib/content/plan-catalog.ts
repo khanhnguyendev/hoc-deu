@@ -176,6 +176,8 @@ function toPlanTrack(
     roadmaps: Object.fromEntries(
       Object.entries(roadmaps).map(([variant, roadmap]) => [variant, toPlanRoadmap(roadmap)]),
     ),
+    // §5.12: a `reorder_topics` override is checked against the topics' `requires`.
+    topics: manifest.topics.map((topic) => ({ id: topic.id, requires: topic.requires })),
   }
 }
 

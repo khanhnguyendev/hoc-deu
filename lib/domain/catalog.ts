@@ -104,6 +104,10 @@ export type PlanRoadmapWeek = {
 
 export type PlanRoadmap = { readonly id: string; readonly weeks: readonly PlanRoadmapWeek[] }
 
+/** A manifest topic (§3.4): its ID and its prerequisite topics (`requires`), which a
+ *  `reorder_topics` override must respect (§5.12, task 6.6b). */
+export type PlanTopic = { readonly id: string; readonly requires: readonly string[] }
+
 export type PlanTrack = {
   readonly id: string
   readonly status: ContentStatus
@@ -115,6 +119,9 @@ export type PlanTrack = {
   }
   /** Variant → roadmap, for the roadmap files that exist (a missing one is coverage, M3 dec. 4). */
   readonly roadmaps: Readonly<Record<string, PlanRoadmap>>
+  /** The manifest's topics in manifest order (§5.12 overrides read them); absent = none. Optional
+   *  so that hand-built tracks (tests, the simulation) need not list them. */
+  readonly topics?: readonly PlanTopic[]
 }
 
 /** An authored deck; `cardIds` in file order. Derived decks are not listed (their cards are). */
@@ -129,6 +136,14 @@ export type PlanCatalog = {
   readonly tracks: Readonly<Record<string, PlanTrack>>
   readonly items: Readonly<Record<string, PlanItem>>
   readonly decks: Readonly<Record<string, PlanDeck>>
+}
+
+/** A learner's custom item (§5.12, Part B-M6 decision 17): `user:<bot_ref>:<slug>`. The per-user
+ *  catalog overlay (task 6.6a) adds them to `PlanCatalog.items`; they never enter a roadmap. */
+export const CUSTOM_ITEM_PREFIX = 'user:'
+
+export function isCustomItemId(itemId: string): boolean {
+  return itemId.startsWith(CUSTOM_ITEM_PREFIX)
 }
 
 /** The catalog has an `active` item `itemId` (draft, retired and unknown ones are not). */

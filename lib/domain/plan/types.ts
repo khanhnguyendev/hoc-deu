@@ -12,6 +12,7 @@ import {
 } from '../catalog'
 import type { ItemState } from '../state'
 import type { LocalDay } from '../time/localDay'
+import type { RoadmapOverride } from './overrides'
 
 export const BLOCK_KINDS = ['review', 'new', 'recap', 'practice', 'extra'] as const
 export type BlockKind = (typeof BLOCK_KINDS)[number]
@@ -56,6 +57,9 @@ export const trackSnapshotSchema = z.strictObject({
   newPerDay: z.number().int().min(0).nullable(),
   throttled: z.boolean(),
   reviewDebt: z.boolean(),
+  /** The key of the `extra_week` override that shaped this track's plan (§5.12); absent when
+   *  none. Decision 18 counts an extra week's used days from the plans that name it. */
+  extraWeek: z.string().min(1).max(64).optional(),
 })
 export type TrackSnapshot = z.infer<typeof trackSnapshotSchema>
 
@@ -107,4 +111,8 @@ export type PlanContext = {
   readonly items: Readonly<Record<string, ItemState>>
   /** Track → roadmap weeks whose recap is done (`recapWeeksDone`, 4.3). */
   readonly recapDone: Readonly<Record<string, ReadonlySet<number>>>
+  /** The learner's active roadmap overrides (§5.12, AI users only; status `active`, each
+   *  `extra_week` with its used days); `buildPlan` keeps those `overrideActive` on `planDate`.
+   *  Absent = none — a baseline plan. */
+  readonly overrides?: readonly RoadmapOverride[]
 }
