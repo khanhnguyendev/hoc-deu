@@ -1,0 +1,17 @@
+# digits are stored least significant first
+signature:
+  kind: linked-list
+  name: addTwoNumbers
+  params: { l1: ListNode, l2: ListNode }
+  returns: ListNode
+cases:
+  - { name: example-1, input: { l1: [2, 4, 3], l2: [5, 6, 4] }, expected: [7, 0, 8] }
+  - { name: example-2, input: { l1: [0], l2: [0] }, expected: [0] }
+  - name: example-3
+    input: { l1: [9, 9, 9, 9, 9, 9, 9], l2: [9, 9, 9, 9] }
+    expected: [8, 9, 9, 9, 0, 0, 0, 1]
+  # 5 + 5 = 10: the final carry adds a node
+  - { name: final-carry, input: { l1: [5], l2: [5] }, expected: [0, 1] }
+  - { name: different-lengths, input: { l1: [1], l2: [9, 9, 1] }, expected: [0, 0, 2] }
+  # 1 + 999 = 1000: the carry runs through the whole longer list
+  - { name: carry-chain, input: { l1: [9, 9, 9], l2: [1] }, expected: [0, 0, 0, 1] }
