@@ -69,4 +69,19 @@ describe('signInErrorPath', () => {
       expect(signInErrorPath(next)).toBe('/sign-in?error=oauth')
     },
   )
+
+  it('defaults to the oauth error code', () => {
+    expect(signInErrorPath(null)).toBe('/sign-in?error=oauth')
+  })
+
+  it(
+    'takes an error-code parameter (fix round 1, item 3: the OAuth callback and this helper ' +
+      'must not diverge)',
+    () => {
+      expect(signInErrorPath(null, 'rate_limited')).toBe('/sign-in?error=rate_limited')
+      expect(signInErrorPath('/today', 'rate_limited')).toBe(
+        '/sign-in?error=rate_limited&next=%2Ftoday',
+      )
+    },
+  )
 })

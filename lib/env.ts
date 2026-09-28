@@ -48,10 +48,12 @@ const RawEnvSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().min(32).optional(),
   ),
-  // Empty means unset: `.env.example` ships both lines empty (decision 22).
+  // Empty means unset: `.env.example` ships both lines empty (decision 22). https only: `new
+  // Redis({ url })` (lib/rate-limit.ts) throws for any other protocol, so this must be caught
+  // here rather than at limiter construction (fix round 1, item 1).
   UPSTASH_REDIS_REST_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.url().optional(),
+    z.url({ protocol: /^https$/ }).optional(),
   ),
   UPSTASH_REDIS_REST_TOKEN: z.preprocess(
     (value) => (value === '' ? undefined : value),

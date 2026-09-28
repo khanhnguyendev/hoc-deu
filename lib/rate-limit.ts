@@ -44,9 +44,17 @@ export type Limiter = {
   limit(identifier: string): Promise<{ success: boolean; reset: number; reason?: string }>
 }
 
-/** The identifier's request times, pruned to the window; bounded to 10 000 identifiers total. */
+/**
+ * The identifier's request times, pruned to the window; each `LimitName` has its own map, bounded
+ * to 10 000 identifiers (not 10 000 total across every limit name).
+ */
 const MAX_IDENTIFIERS = 10_000
 const memoryWindows = new Map<LimitName, Map<string, number[]>>()
+
+/** Test-only: clears every in-memory window, so a test never depends on another test's state. */
+export function __resetMemoryWindows(): void {
+  memoryWindows.clear()
+}
 
 /**
  * The in-memory decision for `name`/`identifier` at `nowMs`: allows the request and records it
@@ -142,7 +150,22 @@ export async function checkLimit(
   deps?: { readonly now?: () => number; readonly limiter?: Limiter },
 ): Promise<LimitResult> {
   const now = deps?.now ?? Date.now
-  const limiter = deps?.limiter ?? upstashLimiterFor(name)
+
+  let limiter: Limiter | undefined
+  if (deps?.limiter) {
+    limiter = deps.limiter
+  } else {
+    try {
+      limiter = upstashLimiterFor(name)
+    } catch {
+      // Upstash is configured but constructing the client or the limiter threw (e.g. a bad
+      // `UPSTASH_REDIS_REST_URL` that `new Redis({ url })` rejects at runtime, fix round 1, item
+      // 1): this is a real Upstash failure, not "not configured" — fail open and count it, same
+      // as a thrown `limiter.limit()` below.
+      bumpFailOpenMetric()
+      return { ...memoryDecision(name, identifier, now()), source: 'fail-open' }
+    }
+  }
 
   if (!limiter) {
     return { ...memoryDecision(name, identifier, now()), source: 'memory' }
@@ -162,12 +185,22 @@ export async function checkLimit(
 
   return {
     ok: response.success,
-    retryAfterSeconds: Math.max(0, Math.ceil((response.reset - now()) / 1000)),
+    // `reset` is when the sliding window clears, not a "try again at" time — it means nothing
+    // once the request is already allowed (fix round 1, item 4).
+    retryAfterSeconds: response.success
+      ? 0
+      : Math.max(0, Math.ceil((response.reset - now()) / 1000)),
     source: 'upstash',
   }
 }
 
-/** First `x-forwarded-for` entry (Vercel sets it at the edge), else `x-real-ip`, else `'unknown'`. */
+/**
+ * First `x-forwarded-for` entry, else `x-real-ip`, else `'unknown'`. On Vercel this is trustworthy:
+ * Vercel's edge overwrites `X-Forwarded-For` with the real client IP rather than passing a
+ * client-sent value through, so the first entry is never attacker-controlled there (controller
+ * ruling M6-R16). Off Vercel (local dev, another host) the header is client-suppliable and the
+ * limit becomes best-effort, same as the in-memory fallback already is.
+ */
 export function clientIp(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for')
   if (forwarded) {

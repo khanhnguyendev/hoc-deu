@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { publicRoute } from '@/lib/auth/guards'
-import { safeNextPath, signInErrorPath } from '@/lib/auth/paths'
+import { signInErrorPath } from '@/lib/auth/paths'
 import { completeSignIn } from '@/lib/auth/sign-in'
 import { checkLimit, clientIp } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
@@ -24,10 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const limit = await checkLimit('oauthCallback', clientIp(request.headers))
   if (!limit.ok) {
-    const params = new URLSearchParams({ error: 'rate_limited' })
-    const safeNext = safeNextPath(next)
-    if (safeNext) params.set('next', safeNext)
-    return redirectTo(`/sign-in?${params}`)
+    return redirectTo(signInErrorPath(next, 'rate_limited'))
   }
 
   if (code) {

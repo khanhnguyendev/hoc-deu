@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { __resetMemoryWindows } from '@/lib/rate-limit'
 
 const fake = vi.hoisted(() => ({
   exchange: { data: { user: { id: 'u1' } as { id: string } | null }, error: null as null | Error },
@@ -39,6 +40,9 @@ beforeEach(() => {
   fake.exchange = { data: { user: { id: 'u1' } }, error: null }
   fake.completeSignIn = null
   fake.calls = []
+  // The oauthCallback in-memory window is module state, shared across every test in this file
+  // (fix round 1, item 4): start each test with a clean slate rather than distinct IPs per test.
+  __resetMemoryWindows()
 })
 
 describe('GET /auth/callback', () => {
@@ -116,8 +120,8 @@ describe('GET /auth/callback', () => {
     },
   )
 
-  it('rate-limits callers by IP independently (a fresh IP is unaffected)', async () => {
-    const response = await GET(request('?code=abc123', { 'x-forwarded-for': '203.0.113.100' }))
+  it('is unaffected by the same IP’s previous test (each test starts with a clean window)', async () => {
+    const response = await GET(request('?code=abc123', { 'x-forwarded-for': '203.0.113.9' }))
     expect(location(response)).toBe('/today')
   })
 })

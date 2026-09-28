@@ -18,13 +18,25 @@ vi.mock('@/lib/supabase/admin', () => ({
     },
   }),
 }))
+// No test needs a working Redis client (every Upstash-path test injects `deps.limiter`, bypassing
+// real construction) — this lets one dedicated describe block exercise a construction failure
+// (fix round 1, item 1: `new Redis({ url })` throws `UrlError` for a bad URL, outside try/catch).
+vi.mock('@upstash/redis', () => ({
+  Redis: class {
+    constructor() {
+      throw new Error('Redis construction failed')
+    }
+  },
+}))
 
-const { checkLimit, clientIp, LIMITS, rateLimitMode } = await import('./rate-limit')
+const { __resetMemoryWindows, checkLimit, clientIp, LIMITS, rateLimitMode } =
+  await import('./rate-limit')
 type LimitName = Parameters<typeof checkLimit>[0]
 
 beforeEach(() => {
   fake.upstash = undefined
   fake.rpcCalls = []
+  __resetMemoryWindows()
 })
 
 const LIMIT_NAMES = Object.keys(LIMITS) as LimitName[]
@@ -85,6 +97,24 @@ describe('checkLimit — in-memory (no Upstash configured)', () => {
     // whole budget before the eviction.
     expect((await checkLimit('adminAction', evicted, { now })).ok).toBe(true)
   })
+
+  it(
+    '__resetMemoryWindows clears every in-memory window (test-only; fix round 1, item 4 — so ' +
+      "callers' tests don't depend on shared window state)",
+    async () => {
+      const now = () => 0
+      const { tokens } = LIMITS.adminAction
+      const id = 'reset-me'
+      for (let i = 0; i < tokens; i++) {
+        expect((await checkLimit('adminAction', id, { now })).ok).toBe(true)
+      }
+      expect((await checkLimit('adminAction', id, { now })).ok).toBe(false)
+
+      __resetMemoryWindows()
+
+      expect((await checkLimit('adminAction', id, { now })).ok).toBe(true)
+    },
+  )
 })
 
 describe('checkLimit — Upstash fails open', () => {
@@ -121,6 +151,29 @@ describe('checkLimit — Upstash fails open', () => {
   })
 })
 
+describe('checkLimit — Upstash configured but the limiter fails to construct (fix round 1, item 1)', () => {
+  it('falls back to memory and bumps the fail-open metric instead of throwing', async () => {
+    fake.upstash = { url: 'https://example.upstash.io', token: 'token' }
+    const result = await checkLimit('botApi', 'construction-fails', { now: () => 0 })
+    expect(result.source).toBe('fail-open')
+    expect(result.ok).toBe(true)
+    expect(fake.rpcCalls).toEqual([['ops_bump_metric', { p_key: 'ratelimit.fail_open' }]])
+  })
+
+  it('still enforces the in-memory window on repeated construction failures', async () => {
+    fake.upstash = { url: 'https://example.upstash.io', token: 'token' }
+    const now = () => 99
+    const id = 'construction-fails-window'
+    const { tokens } = LIMITS.accountDeletion
+    for (let i = 0; i < tokens; i++) {
+      expect((await checkLimit('accountDeletion', id, { now })).ok).toBe(true)
+    }
+    const over = await checkLimit('accountDeletion', id, { now })
+    expect(over.ok).toBe(false)
+    expect(over.source).toBe('fail-open')
+  })
+})
+
 describe('checkLimit — Upstash succeeds', () => {
   it('answers ok/refused straight from the limiter, converting reset (ms) to retryAfterSeconds', async () => {
     const limiter = { limit: async () => ({ success: false, reset: 5_000 }) }
@@ -134,6 +187,16 @@ describe('checkLimit — Upstash succeeds', () => {
     await checkLimit('botApi', 'upstash-user-2', { limiter, now: () => 0 })
     expect(fake.rpcCalls).toEqual([])
   })
+
+  it(
+    'answers retryAfterSeconds: 0 for an allowed request, even while the sliding window’s own ' +
+      'reset is still in the future (fix round 1, item 4: retryAfterSeconds only matters when refused)',
+    async () => {
+      const limiter = { limit: async () => ({ success: true, reset: 9_000 }) }
+      const result = await checkLimit('botApi', 'upstash-user-3', { limiter, now: () => 1_000 })
+      expect(result).toEqual({ ok: true, retryAfterSeconds: 0, source: 'upstash' })
+    },
+  )
 })
 
 describe('clientIp', () => {

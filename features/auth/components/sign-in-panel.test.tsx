@@ -6,6 +6,7 @@ import type { TestLoginState } from '../actions'
 import { SignInPanel } from './sign-in-panel'
 
 const OAUTH_ERROR = 'Đăng nhập không thành công. Bạn thử lại nhé.'
+const RATE_LIMITED_ERROR = 'Bạn thao tác quá nhanh. Hãy thử lại sau ít phút.'
 const WRONG_CREDENTIALS = 'Email hoặc mật khẩu không đúng.'
 
 function renderPanel(props: Partial<React.ComponentProps<typeof SignInPanel>> = {}) {
@@ -17,6 +18,7 @@ function renderPanel(props: Partial<React.ComponentProps<typeof SignInPanel>> = 
     <SignInPanel
       next={null}
       oauthError={false}
+      rateLimited={false}
       testLogin={false}
       signInWithProvider={signInWithProvider}
       signInWithTestLogin={signInWithTestLogin}
@@ -106,6 +108,13 @@ describe('SignInPanel', () => {
     renderPanel({ oauthError: false, testLogin: true })
     expect(screen.queryByText(OAUTH_ERROR)).toBeNull()
     expect(screen.queryByText(WRONG_CREDENTIALS)).toBeNull()
+    expect(screen.queryByText(RATE_LIMITED_ERROR)).toBeNull()
+  })
+
+  it('shows vi.rateLimit.tooMany after a rate-limited OAuth callback (§2.3, task 6.1)', () => {
+    renderPanel({ rateLimited: true })
+    expect(screen.getByText(RATE_LIMITED_ERROR)).toBeTruthy()
+    expect(screen.queryByText(OAUTH_ERROR)).toBeNull()
   })
 
   it('has one page heading', () => {

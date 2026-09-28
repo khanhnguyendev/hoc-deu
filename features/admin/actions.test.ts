@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { vi as copy } from '@/lib/i18n/vi'
+import { __resetMemoryWindows } from '@/lib/rate-limit'
 
 const ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
 
@@ -39,6 +40,9 @@ beforeEach(() => {
   fake.adminId = 'admin-id'
   fake.rpc = { data: null, error: null }
   fake.calls = []
+  // The adminAction in-memory window is module state, shared across every test in this file
+  // (fix round 1, item 4): start each test with a clean slate.
+  __resetMemoryWindows()
 })
 
 describe('setUserStatus', () => {

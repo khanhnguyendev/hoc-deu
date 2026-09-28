@@ -1621,6 +1621,7 @@ export const CATALOG: Entry[] = [
             <SignInPanel
               next={null}
               oauthError={false}
+              rateLimited={false}
               testLogin={false}
               signInWithProvider={async () => {}}
               signInWithTestLogin={async () => ({ error: null })}
@@ -1635,9 +1636,25 @@ export const CATALOG: Entry[] = [
             <SignInPanel
               next="/today"
               oauthError
+              rateLimited={false}
               testLogin
               signInWithProvider={async () => {}}
               signInWithTestLogin={async () => ({ error: vi.auth.wrongCredentials })}
+            />
+          </div>
+        ),
+      },
+      {
+        title: 'Rate-limited OAuth callback (§2.3, task 6.1)',
+        render: () => (
+          <div className="w-full max-w-md">
+            <SignInPanel
+              next={null}
+              oauthError={false}
+              rateLimited
+              testLogin={false}
+              signInWithProvider={async () => {}}
+              signInWithTestLogin={async () => ({ error: null })}
             />
           </div>
         ),

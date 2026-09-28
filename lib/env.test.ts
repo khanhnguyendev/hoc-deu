@@ -224,6 +224,32 @@ describe('parseServerEnv — UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (
       }),
     ).toThrow(EnvError)
   })
+
+  it.each([
+    'http://example.upstash.io',
+    'redis://example.upstash.io',
+    'rediss://example.upstash.io',
+  ])(
+    'rejects a non-https UPSTASH_REDIS_REST_URL (%s): new Redis({ url }) would otherwise throw ' +
+      'uncaught outside parseServerEnv (fix round 1, item 1)',
+    (url) => {
+      let error: unknown
+      try {
+        parseServerEnv({
+          ...validSource,
+          UPSTASH_REDIS_REST_URL: url,
+          UPSTASH_REDIS_REST_TOKEN: 'x',
+        })
+        expect.unreachable()
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toBeInstanceOf(EnvError)
+      const message = (error as EnvError).message
+      expect(message).toContain('UPSTASH_REDIS_REST_URL')
+      expect(message).not.toContain('UPSTASH_REDIS_REST_TOKEN')
+    },
+  )
 })
 
 describe('publicSupabaseEnv', () => {

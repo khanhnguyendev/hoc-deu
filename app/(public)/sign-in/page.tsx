@@ -24,6 +24,7 @@ export default async function SignInPage({ searchParams }: PageProps<'/sign-in'>
       <SignInPanel
         next={safeNextPath(first(params.next))}
         oauthError={first(params.error) === 'oauth'}
+        rateLimited={first(params.error) === 'rate_limited'}
         testLogin={serverEnv().authTestLogin}
         signInWithProvider={signInWithProvider}
         signInWithTestLogin={signInWithTestLogin}

@@ -866,16 +866,19 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 - **Layer:** feature (`features/auth`, client)
 - **File:** `features/auth/components/sign-in-panel.tsx`
 - **Props:** `next: string | null` (a path already checked with `safeNextPath`), `oauthError:
-  boolean` (`/sign-in?error=oauth`), `testLogin: boolean` (`serverEnv().authTestLogin`),
-  `signInWithProvider: (formData) => Promise<void>`, `signInWithTestLogin: (state, formData) =>
-  Promise<TestLoginState>` — the server actions come in as props, so the catalog passes no-ops
+  boolean` (`/sign-in?error=oauth`), `rateLimited: boolean` (`/sign-in?error=rate_limited`, §2.3,
+  task 6.1), `testLogin: boolean` (`serverEnv().authTestLogin`), `signInWithProvider: (formData)
+  => Promise<void>`, `signInWithTestLogin: (state, formData) => Promise<TestLoginState>` — the
+  server actions come in as props, so the catalog passes no-ops
 - **Variants:** providers only · with the test login (local and CI)
 - **States:** default; OAuth error (danger Banner "Đăng nhập không thành công. Bạn thử lại nhé.");
-  submitting (the pressed button shows its spinner); test-login error ("Email hoặc mật khẩu không
-  đúng.")
+  rate-limited (danger Banner "Bạn thao tác quá nhanh. Hãy thử lại sau ít phút.", mutually
+  exclusive with the OAuth error); submitting (the pressed button shows its spinner); test-login
+  error ("Email hoặc mật khẩu không đúng.")
 - **Usage:** `<FocusLayout><SignInPanel next={next} oauthError={error === 'oauth'}
-  testLogin={serverEnv().authTestLogin} signInWithProvider={signInWithProvider}
-  signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
+  rateLimited={error === 'rate_limited'} testLogin={serverEnv().authTestLogin}
+  signInWithProvider={signInWithProvider} signInWithTestLogin={signInWithTestLogin}
+  /></FocusLayout>` (`app/(public)/sign-in`)
 - **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
   GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
   region named by its h2 "Đăng nhập thử nghiệm" containing a form of its own, named "Biểu mẫu đăng
