@@ -9,14 +9,11 @@ describe('verificationFor', () => {
     expect(verificationFor(kind)).toBe('tested')
   })
 
-  it('design-class is compile-only until M3c', () => {
-    expect(verificationFor('design-class')).toBe('compile-only')
+  it('design-class is tested from M3c on', () => {
+    expect(verificationFor('design-class')).toBe('tested')
   })
 
-  it('SUPPORTED_SIGNATURE_KINDS is every kind but design-class in M3b', () => {
-    expect(SUPPORTED_SIGNATURE_KINDS).toEqual(['function', ...M3B])
-    expect(SIGNATURE_KINDS.filter((kind) => !SUPPORTED_SIGNATURE_KINDS.includes(kind))).toEqual([
-      'design-class',
-    ])
+  it('SUPPORTED_SIGNATURE_KINDS is every kind in M3c', () => {
+    expect(SUPPORTED_SIGNATURE_KINDS).toEqual([...SIGNATURE_KINDS])
   })
 })

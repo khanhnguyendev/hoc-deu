@@ -11,7 +11,12 @@ import { spawn } from 'node:child_process'
 import { chmodSync, mkdirSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
-import type { SignatureKind, TestsFile } from '@/lib/content/schemas/tests'
+import {
+  isAnyMarker,
+  type CompareSpec,
+  type SignatureKind,
+  type TestsFile,
+} from '@/lib/content/schemas/tests'
 import { verificationFor, type Verification } from '@/lib/content/verification'
 import { compare } from './comparators'
 import type { ProblemUnderTest } from './discover'
@@ -191,11 +196,36 @@ function resolveTool(command: Command, tools: ToolPaths): Command {
   return command
 }
 
+const EXACT: CompareSpec = { kind: 'exact' }
+
+/** A design-class case (M3c): one result per operation, each compared with its expected value by
+ * the problem's comparator (`exact` for a result that is not an array); `{ $any: true }` is not
+ * compared. `null` when every result passes. */
+function judgeOperations(
+  tests: TestsFile,
+  ops: readonly string[],
+  expected: readonly unknown[],
+  actual: unknown,
+): string | null {
+  if (!Array.isArray(actual) || actual.length !== expected.length) {
+    return `expected ${expected.length} results (one per operation) got ${shortJson(actual)}`
+  }
+  for (const [opIndex, want] of expected.entries()) {
+    if (isAnyMarker(want)) continue
+    // unordered / unordered-nested order an array result; a scalar or null result (a void
+    // method, the constructor, a getter) is compared exactly.
+    const spec = Array.isArray(want) || tests.compare.kind === 'float' ? tests.compare : EXACT
+    const verdict = compare(spec, actual[opIndex], want, {})
+    if (!verdict.ok) {
+      return `op ${opIndex} (${ops[opIndex] ?? '?'}): expected ${shortJson(want)} got ${shortJson(actual[opIndex])}`
+    }
+  }
+  return null
+}
+
 function judge(tests: TestsFile, index: number, command: Command, result: ExecResult): CaseResult {
   const testCase = tests.cases[index]
-  if (testCase === undefined || !('input' in testCase)) {
-    throw new Error(`case ${index} is not a { name, input, expected } case`)
-  }
+  if (testCase === undefined) throw new Error(`no case ${index}`)
   const base = { name: testCase.name, ms: result.ms }
   if (result.timedOut) {
     return { ...base, status: 'timeout', detail: `timed out after ${command.timeoutMs} ms` }
@@ -211,6 +241,12 @@ function judge(tests: TestsFile, index: number, command: Command, result: ExecRe
     const shown =
       result.stdout.trim() === '' ? '(empty)' : result.stdout.trim().slice(0, SHORT_JSON)
     return { ...base, status: 'error', detail: `invalid output: ${shown}` }
+  }
+  if ('ops' in testCase) {
+    const failure = judgeOperations(tests, testCase.ops, testCase.expected, actual)
+    return failure === null
+      ? { ...base, status: 'pass' }
+      : { ...base, status: 'fail', detail: failure }
   }
   const verdict = compare(tests.compare, actual, testCase.expected, testCase.input)
   if (verdict.ok) return { ...base, status: 'pass' }

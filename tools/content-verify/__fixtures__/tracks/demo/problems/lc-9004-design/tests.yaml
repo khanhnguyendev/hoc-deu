@@ -1,4 +1,4 @@
-# content-verify fixture: a design class — compile-only (plus the signature check) until M3c.
+# content-verify fixture: a design class (M3c) — MinStack, void methods recorded as null.
 signature:
   kind: design-class
   className: MinStack

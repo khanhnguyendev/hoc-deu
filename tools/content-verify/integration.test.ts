@@ -390,9 +390,34 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     expect(language('demo:lc-9008', 'java')).toMatchObject({ status: 'tested' })
   })
 
-  it('creates the Go design class through Constructor(start) in the compile-only stub', () => {
-    expect(language('demo:lc-9009', 'go')).toMatchObject({ status: 'compile-only' })
+  it('runs design classes as operation sequences in all three languages (M3c)', () => {
+    for (const id of ['demo:lc-9004', 'demo:lc-9009', 'demo:lc-9020']) {
+      expect(byId(id)).toMatchObject({ kind: 'design-class', verification: 'tested', ok: true })
+      expect(byId(id).languages.map((result) => result.status)).toEqual([
+        'tested',
+        'tested',
+        'tested',
+      ])
+    }
   })
+
+  it.each([
+    ['python', 'crashed: op 2 (boom): ZeroDivisionError: integer division or modulo by zero'],
+    ['java', 'crashed: op 2 (boom): java.lang.ArithmeticException: / by zero'],
+    ['go', 'crashed: op 2 (boom): panic: runtime error: integer divide by zero'],
+  ])(
+    '%s: an exception inside a method names the operation; a stuck method times out',
+    (lang, first) => {
+      const faults = language('demo:lc-9021', lang)
+      const crash = faults.cases.find((c) => c.name === 'crash')
+      expect(crash?.status).toBe('error')
+      expect(crash?.detail?.split('\n')[0]).toBe(first)
+      const spin = faults.cases.find((c) => c.name === 'spin')
+      expect(spin).toMatchObject({ status: 'timeout', detail: 'timed out after 1000 ms' })
+      // items() returned the object's own list: each result is recorded when its op returns
+      expect(faults.cases.find((c) => c.name === 'snapshots')?.status).toBe('pass')
+    },
+  )
 
   it('fails a Go design class whose Constructor does not return the class', async () => {
     const problem = discoverProblems(FIXTURES, { ids: ['demo:lc-9009'] }).problems[0]
@@ -412,7 +437,9 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
       tools: resolveToolchains(['go'], sandbox).tools,
     })
     expect(result?.languages[0]).toMatchObject({ lang: 'go', status: 'failed' })
-    expect(result?.languages[0]?.detail).toMatch(/cannot use Constructor\(\*new\(int\)\)/)
+    expect(result?.languages[0]?.detail).toMatch(
+      /cannot use Constructor\(10\) \(value of type \*Counter\) as Counter value/,
+    )
   }, 180_000)
 
   it('runs lists, trees, graph nodes and random lists in all three languages (M3b)', () => {
@@ -433,9 +460,5 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     expect(reused?.detail?.split('\n')[0]).toBe(
       'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
     )
-  })
-
-  it('runs an unsupported kind compile-only, the signature check passing', () => {
-    expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })
   })
 })

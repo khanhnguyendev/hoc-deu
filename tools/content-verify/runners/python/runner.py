@@ -8,9 +8,19 @@ an in-place signature, args[output] after the call). "codecs" (structured kinds,
 LeetCode encoding of each argument and of the result: "list" (an array; {"values", "pos"} adds a
 cycle), "lists", "tree" (level order with nulls), "graph" (adjacency list) or "random-list"
 ([[val, randomIndex | null], ...]); the dataclasses below are injected into the solution module as
-ListNode, TreeNode and Node. With "copyOf", a result that reuses a node of args[copyOf] fails. The solution's own print() output goes to
-stderr, so it never corrupts the result. A crash exits 1 with "<Type>: <message>" as the first
-line of stderr. The Node orchestrator enforces the timeout and compares.
+ListNode, TreeNode and Node. With "copyOf", a result that reuses a node of args[copyOf] fails.
+
+A design class (M3c) sends instead:
+    {"file": "solution.py", "design": {"className": "MinStack",
+     "ops": [{"name": "MinStack", "args": [], "void": true}, {"name": "push", "args": [1], ...}]}}
+ops[0] constructs the class, every later op calls a method on it; an argument {"$result": n} is
+op n's own result. The output is one JSON value per op (null for the constructor and void
+methods), each serialised when its op returns (a later op may change a list it returned); a crash
+names the op: "op <i> (<name>): <Type>: <message>".
+
+The solution's own print() output goes to stderr, so it never corrupts the result. A crash exits 1
+with "<Type>: <message>" as the first line of stderr. The Node orchestrator enforces the timeout
+and compares.
 """
 
 import importlib.util
@@ -255,6 +265,44 @@ def solve(request):
     return result if codec is None else ENCODERS[codec](result)
 
 
+class OperationError(Exception):
+    """A design-class operation raised: the report names the op."""
+
+    def __init__(self, index, name, error):
+        super().__init__(f"op {index} ({name}): {type(error).__name__}: {error}")
+
+
+def to_json(value):
+    return json.dumps(sanitize(value), separators=(",", ":"), allow_nan=False)
+
+
+def is_result_ref(value):
+    return isinstance(value, dict) and list(value) == ["$result"]
+
+
+def run_design(request):
+    design = request["design"]
+    spec = importlib.util.spec_from_file_location("solution", request["file"])
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    instance, results, encoded = None, [], []
+    for index, op in enumerate(design["ops"]):
+        args = [results[arg["$result"]] if is_result_ref(arg) else arg for arg in op["args"]]
+        try:
+            if index == 0:
+                instance = getattr(module, design["className"])(*args)
+                value = None
+            else:
+                value = getattr(instance, op["name"])(*args)
+            if op["void"]:
+                value = None  # LeetCode ignores what a void method returns
+            encoded.append(to_json(value))
+        except BaseException as error:
+            raise OperationError(index, op["name"], error) from error
+        results.append(value)
+    return "[" + ",".join(encoded) + "]"
+
+
 def main():
     request = json.loads(sys.stdin.read())
     real_stdout = sys.stdout
@@ -263,8 +311,10 @@ def main():
 
     def target():
         try:
-            result = sanitize(solve(request))
-            outcome["json"] = json.dumps(result, separators=(",", ":"), allow_nan=False)
+            if "design" in request:
+                outcome["json"] = run_design(request)
+            else:
+                outcome["json"] = to_json(solve(request))
         except BaseException as error:  # the solution's failure, reported below
             outcome["error"] = error
             outcome["trace"] = traceback.format_exc()
@@ -282,7 +332,8 @@ def main():
 
     if "error" in outcome:
         error = outcome["error"]
-        sys.stderr.write(f"{type(error).__name__}: {error}\n{outcome['trace']}")
+        first = str(error) if isinstance(error, OperationError) else f"{type(error).__name__}: {error}"
+        sys.stderr.write(f"{first}\n{outcome['trace']}")
         sys.stderr.flush()
         sys.exit(1)
     real_stdout.write(outcome["json"])

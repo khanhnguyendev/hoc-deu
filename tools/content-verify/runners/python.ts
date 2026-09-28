@@ -3,7 +3,8 @@
  * work directory with the solution (fix 6: every file the sandbox runs lives there). Cases send a
  * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check. For
  * the structured kinds (M3b) the request names the codecs: `runner.py` holds the `ListNode`,
- * `TreeNode` and `Node` dataclasses and their LeetCode encodings.
+ * `TreeNode` and `Node` dataclasses and their LeetCode encodings. A design class (M3c) sends its
+ * operations instead of a method and arguments.
  */
 import { join } from 'node:path'
 import type { ParamType, Structure } from '@/lib/content/schemas/tests'
@@ -13,6 +14,7 @@ import {
   caseArguments,
   copyRegularFile,
   COMPILE_TIMEOUT_MS,
+  designOperations,
   functionCall,
   modeOf,
   noCases,
@@ -51,6 +53,37 @@ export const pythonHarness: Harness = {
         warmUp: [],
         runCase: noCases,
         compileOnly: [check],
+        signatureIssues: [],
+        sharedDirs: [],
+      }
+    }
+    if (problem.tests.signature.kind === 'design-class') {
+      // M3c: the operations in order; `{ $result: n }` arguments travel as they are and runner.py
+      // passes the earlier operation's own (Python) result.
+      const { className } = problem.tests.signature
+      return {
+        compile: [check],
+        warmUp: [],
+        runCase: (index) => ({
+          cmd: 'python',
+          args: [...PYTHON_FLAGS, 'runner.py'],
+          cwd: workDir,
+          stdin: JSON.stringify({
+            file: SOLUTION,
+            design: {
+              className,
+              ops: designOperations(problem.tests, index).map((operation) => ({
+                name: operation.name,
+                args: operation.args.map((arg) =>
+                  arg.kind === 'result' ? { $result: arg.op } : arg.value,
+                ),
+                void: operation.returns === null,
+              })),
+            },
+          }),
+          timeoutMs: problem.tests.timeoutMs,
+        }),
+        compileOnly: [],
         signatureIssues: [],
         sharedDirs: [],
       }

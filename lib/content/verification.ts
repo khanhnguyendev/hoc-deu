@@ -8,13 +8,14 @@ import type { SignatureKind } from './schemas/tests'
 export type Verification = 'tested' | 'compile-only'
 
 /** M3a supports `function`; M3b adds `linked-list` / `tree` / `graph-node` / `random-list`;
- * M3c adds `design-class`. */
+ * M3c adds `design-class` (operation sequences) — every kind is tested from M3c on. */
 export const SUPPORTED_SIGNATURE_KINDS: readonly SignatureKind[] = [
   'function',
   'linked-list',
   'tree',
   'graph-node',
   'random-list',
+  'design-class',
 ]
 
 export function verificationFor(kind: SignatureKind): Verification {

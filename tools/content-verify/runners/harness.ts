@@ -7,8 +7,11 @@ import { constants, copyFileSync, lstatSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
 import {
+  isResultRef,
   parseParamType,
+  parseValueType,
   type ParamType,
+  type ValueType,
   type SignatureKind,
   type Structure,
   type TestsFile,
@@ -74,7 +77,7 @@ const DEEP_COPY_KINDS: ReadonlySet<SignatureKind> = new Set(['graph-node', 'rand
 export function functionCall(tests: TestsFile): FunctionCall {
   const { signature, compare } = tests
   if (signature.kind === 'design-class') {
-    throw new Error('a design-class signature has no runner yet')
+    throw new Error('a design-class signature runs operations (designOperations), not one call')
   }
   const parse = (label: string, text: string): ParamType => {
     const type = parseParamType(signature.kind, text)
@@ -101,6 +104,54 @@ export function functionCall(tests: TestsFile): FunctionCall {
   }
 }
 
+/** A design-class argument: a literal of its parameter type, or an earlier operation's result
+ * (`{ $result: n }`, always a whole argument — the schema checks its type). */
+export type DesignArgument =
+  { kind: 'value'; value: unknown; type: ValueType } | { kind: 'result'; op: number }
+
+export type DesignOperation = {
+  /** The `ops` entry: the class name for the constructor, else the method name. */
+  name: string
+  /** `null`: the constructor (operation 0). */
+  method: string | null
+  args: DesignArgument[]
+  /** `null`: the constructor or a `void` method — its result is recorded as `null`. */
+  returns: ValueType | null
+}
+
+/** The operations of design-class case `index` (M3c, decision 20): the constructor, then each
+ * method call in order. Every harness records one result per operation. */
+export function designOperations(tests: TestsFile, index: number): DesignOperation[] {
+  const { signature } = tests
+  const testCase = tests.cases[index]
+  if (signature.kind !== 'design-class' || testCase === undefined || !('ops' in testCase)) {
+    throw new Error(`case ${index} is not a design-class { name, ops, args, expected } case`)
+  }
+  const valueType = (label: string, text: string): ValueType => {
+    const type = parseValueType(text)
+    if (type === null) throw new Error(`${label}: unknown type "${text}"`)
+    return type
+  }
+  return testCase.ops.map((name, opIndex) => {
+    const method = opIndex === 0 ? null : name
+    const declared = method === null ? null : signature.methods[method]
+    if (method !== null && declared === undefined) {
+      throw new Error(`"${name}" is not a method of "${signature.className}"`)
+    }
+    const params = Object.entries(declared?.params ?? signature.constructor)
+    const args = (testCase.args[opIndex] ?? []).map((value, argIndex): DesignArgument => {
+      if (isResultRef(value)) return { kind: 'result', op: value.$result }
+      const [paramName = '', text = ''] = params[argIndex] ?? []
+      return { kind: 'value', value, type: valueType(`parameter "${paramName}"`, text) }
+    })
+    const returns =
+      declared === null || declared === undefined || declared.returns === 'void'
+        ? null
+        : valueType(`"${name}" returns`, declared.returns)
+    return { name, method, args, returns }
+  })
+}
+
 /** The structures a call decodes or encodes (which structure classes / codecs the harness needs). */
 export function callStructures(call: FunctionCall): Set<Structure> {
   const structures = new Set<Structure>()
@@ -115,7 +166,7 @@ export function reportedType(call: FunctionCall): ParamType | null {
   return call.output === null ? call.returns : (call.params[call.output]?.type ?? null)
 }
 
-/** The positional arguments of case `index`. */
+/** The positional arguments of case `index` (a `function` or structured signature). */
 export function caseArguments(tests: TestsFile, index: number): unknown[] {
   const testCase = tests.cases[index]
   if (testCase === undefined || !('input' in testCase)) {

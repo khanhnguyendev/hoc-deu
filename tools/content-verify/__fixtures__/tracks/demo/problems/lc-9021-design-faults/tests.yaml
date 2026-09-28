@@ -1,0 +1,30 @@
+# content-verify fixture: a design class whose operations fail — boom raises (the report names the
+# operation index), spin never returns (the per-case timeout) — and whose items() returns its own
+# list, which later operations change: each result is recorded when its operation returns.
+signature:
+  kind: design-class
+  className: Faulty
+  constructor: { start: int }
+  methods:
+    add: { params: { n: int }, returns: int }
+    items: { returns: 'int[]' }
+    boom: { returns: int }
+    spin: { returns: void }
+cases:
+  - name: example-1
+    ops: [Faulty, add, add]
+    args: [[0], [1], [2]]
+    expected: [null, 1, 3]
+  - name: snapshots
+    ops: [Faulty, add, items, add, items]
+    args: [[10], [1], [], [2], []]
+    expected: [null, 11, [1], 13, [1, 2]]
+  - name: crash
+    ops: [Faulty, add, boom, add]
+    args: [[0], [1], [], [2]]
+    expected: [null, 1, 0, 3]
+  - name: spin
+    ops: [Faulty, add, spin]
+    args: [[0], [1], []]
+    expected: [null, 1, null]
+timeoutMs: 1000

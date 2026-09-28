@@ -65,8 +65,7 @@ const returnsSchema = z.union([valueTypeTextSchema, z.literal('void')])
 const paramsSchema = z.record(identifierSchema, valueTypeTextSchema)
 
 /** `signature.kind` values (platform design §3.5, §3.7). M3a runs `function`, M3b the structured
- * kinds; `design-class` parses (so its `tests.yaml` is shaped now) but runs `compile-only` until
- * M3c. */
+ * kinds, M3c `design-class` (operation sequences). */
 export const SIGNATURE_KINDS = [
   'function',
   'linked-list',
@@ -311,7 +310,7 @@ const isDesignClassCase = (value: StructuredCase | DesignClassCase): value is De
 
 /** `{ $result: n }` — a design-class case argument that refers to an earlier operation's result
  * (decision 20; used for codec round-trips such as 271). */
-function isResultRef(value: unknown): value is { $result: number } {
+export function isResultRef(value: unknown): value is { $result: number } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -322,7 +321,7 @@ function isResultRef(value: unknown): value is { $result: number } {
 }
 
 /** `{ $any: true }` — a design-class expected value the runner skips comparing (decision 20). */
-function isAnyMarker(value: unknown): value is { $any: true } {
+export function isAnyMarker(value: unknown): value is { $any: true } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -479,12 +478,66 @@ function checkCallCases(
   }
 }
 
+/** Go exports a method under its capitalised name (`push` → `Push`, M3c). */
+export const goMethodName = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1)
+
+const DESIGN_COMPARE_KINDS: ReadonlySet<string> = new Set([...SIMPLE_COMPARE_KINDS, 'float'])
+
+const sameValueType = (a: ValueType, b: ValueType): boolean =>
+  a.base === b.base && a.dims === b.dims
+
+/** The design-class checks (M3c): `ops[0]` is the class, every later op a declared method; each
+ * argument matches its parameter type or is a whole `{ $result: n }` whose operation returns that
+ * type; each expected value matches the return type (`null` for the constructor and `void`) or is
+ * a whole `{ $any: true }`. One signature per method name — also in Go, which exports `push` as
+ * `Push` — and a comparator that compares one result with one expected value. */
 function checkDesignClassCases(
   signature: z.infer<typeof designClassSignatureSchema>,
+  compare: z.infer<typeof compareSpecSchema>,
   cases: readonly DesignClassCase[],
   ctx: z.core.$RefinementCtx,
   caseIndexOf: (testCase: DesignClassCase) => number,
 ): void {
+  if (!DESIGN_COMPARE_KINDS.has(compare.kind)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['compare'],
+      message: 'a design class compares each result: exact, unordered, unordered-nested or float',
+    })
+  }
+  const goNames = new Map<string, string>()
+  for (const name of Object.keys(signature.methods)) {
+    const exported = goMethodName(name)
+    const other = goNames.get(exported)
+    if (other !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['signature', 'methods', name],
+        message: `"${name}" and "${other}" are one method in Go (${exported}): one name, one signature`,
+      })
+    }
+    goNames.set(exported, name)
+  }
+
+  type Operation = { params: [string, ValueType | null][]; returns: ValueType | null; text: string }
+  const params = (record: Record<string, string>): [string, ValueType | null][] =>
+    Object.entries(record).map(([name, text]) => [name, parseValueType(text)])
+  const constructorOp: Operation = {
+    params: params(signature.constructor),
+    returns: null,
+    text: 'void',
+  }
+  const operationOf = (opIndex: number, name: string | undefined): Operation | undefined => {
+    if (opIndex === 0) return constructorOp
+    const method = signature.methods[name ?? '']
+    if (method === undefined) return undefined
+    return {
+      params: params(method.params),
+      returns: method.returns === 'void' ? null : parseValueType(method.returns),
+      text: method.returns,
+    }
+  }
+
   for (const testCase of cases) {
     const index = caseIndexOf(testCase)
     const path = ['cases', index] as const
@@ -509,50 +562,124 @@ function checkDesignClassCases(
     for (let opIndex = 0; opIndex < length; opIndex++) {
       const opName = ops[opIndex]
       const argList = args[opIndex] ?? []
-      const paramCount =
-        opIndex === 0
-          ? Object.keys(signature.constructor).length
-          : (() => {
-              const method = signature.methods[opName ?? '']
-              if (method === undefined) return undefined
-              return Object.keys(method.params).length
-            })()
+      const operation = operationOf(opIndex, opName)
 
-      if (opIndex > 0 && (opName === undefined || signature.methods[opName] === undefined)) {
+      if (operation === undefined) {
         ctx.addIssue({
           code: 'custom',
           path: [...path, 'ops', opIndex],
           message: `"${opName}" is not a method of "${signature.className}"`,
         })
-      } else if (paramCount !== undefined && argList.length !== paramCount) {
+      } else if (argList.length !== operation.params.length) {
         ctx.addIssue({
           code: 'custom',
           path: [...path, 'args', opIndex],
-          message: `expected ${paramCount} argument(s)`,
+          message: `expected ${operation.params.length} argument(s)`,
         })
       }
 
-      if (containsAnyMarker(argList)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [...path, 'args', opIndex],
-          message: '{ $any: true } is only allowed in expected',
-        })
-      }
-      for (const ref of collectResultRefs(argList)) {
-        if (!(Number.isInteger(ref) && ref >= 0 && ref < opIndex)) {
+      argList.forEach((arg, argIndex) => {
+        const argPath = [...path, 'args', opIndex, argIndex]
+        const param = operation?.params[argIndex]
+        if (containsAnyMarker(arg)) {
           ctx.addIssue({
             code: 'custom',
             path: [...path, 'args', opIndex],
-            message: `{ $result: ${ref} } must refer to an earlier operation`,
+            message: '{ $any: true } is only allowed in expected',
+          })
+          return
+        }
+        if (isResultRef(arg)) {
+          const ref = arg.$result
+          if (!(Number.isInteger(ref) && ref >= 0 && ref < opIndex)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } must refer to an earlier operation`,
+            })
+            return
+          }
+          const source = operationOf(ref, ops[ref])
+          if (ref === 0) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: 0 } refers to the constructor, which returns nothing`,
+            })
+          } else if (source?.text === 'void') {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } refers to "${ops[ref]}", which returns void`,
+            })
+          } else if (
+            source?.returns != null &&
+            param?.[1] != null &&
+            !sameValueType(source.returns, param[1])
+          ) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } is a ${source.text} ("${ops[ref]}"), but "${param[0]}" is a ${signature.methods[opName ?? '']?.params[param[0]] ?? '?'}`,
+            })
+          }
+          return
+        }
+        if (collectResultRefs(arg).length > 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: argPath,
+            message: '{ $result: n } must be a whole argument',
+          })
+          return
+        }
+        if (param?.[1] != null && !valueMatches(arg, param[1])) {
+          ctx.addIssue({
+            code: 'custom',
+            path: argPath,
+            message: `argument "${param[0]}" does not match its declared type`,
           })
         }
-      }
-      if (collectResultRefs(expected[opIndex]).length > 0) {
+      })
+
+      const value = expected[opIndex]
+      const expectedPath = [...path, 'expected', opIndex]
+      if (isAnyMarker(value)) continue
+      if (collectResultRefs(value).length > 0) {
         ctx.addIssue({
           code: 'custom',
-          path: [...path, 'expected', opIndex],
+          path: expectedPath,
           message: '{ $result } is only allowed in args',
+        })
+      } else if (containsAnyMarker(value)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: expectedPath,
+          message: '{ $any: true } must be a whole expected value',
+        })
+      } else if (operation === undefined) {
+        continue
+      } else if (opIndex === 0) {
+        if (value !== null) {
+          ctx.addIssue({
+            code: 'custom',
+            path: expectedPath,
+            message: 'the constructor returns nothing: expected null',
+          })
+        }
+      } else if (operation.text === 'void') {
+        if (value !== null) {
+          ctx.addIssue({
+            code: 'custom',
+            path: expectedPath,
+            message: `"${opName}" returns void: expected null`,
+          })
+        }
+      } else if (operation.returns !== null && !valueMatches(value, operation.returns)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: expectedPath,
+          message: `expected does not match the return type of "${opName}"`,
         })
       }
     }
@@ -612,7 +739,9 @@ export const testsFileSchema = z
     })
 
     if (signature.kind === 'design-class') {
-      checkDesignClassCases(signature, designCases, ctx, (testCase) => cases.indexOf(testCase))
+      checkDesignClassCases(signature, compare, designCases, ctx, (testCase) =>
+        cases.indexOf(testCase),
+      )
     } else {
       checkCallCases(signature, compare, structuredCases, ctx, (testCase) =>
         cases.indexOf(testCase),

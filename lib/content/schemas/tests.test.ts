@@ -629,3 +629,204 @@ describe('testsFileSchema — structured kinds (M3b)', () => {
     ])
   })
 })
+
+describe('testsFileSchema — design-class values (M3c)', () => {
+  const minStack = (cases: unknown[], extra: Record<string, unknown> = {}) => ({
+    signature: {
+      kind: 'design-class',
+      className: 'MinStack',
+      methods: {
+        push: { params: { val: 'int' }, returns: 'void' },
+        pop: { returns: 'void' },
+        top: { returns: 'int' },
+        getMin: { returns: 'int' },
+      },
+    },
+    ...extra,
+    cases: [
+      ...cases,
+      ...['example-1', 'edge-a', 'edge-b', 'edge-c'].slice(cases.length).map((name) => ({
+        name,
+        ops: ['MinStack', 'push', 'getMin'],
+        args: [[], [1], []],
+        expected: [null, null, 1],
+      })),
+    ].map((testCase, index) => ({
+      ...(testCase as object),
+      name: index === 0 ? 'example-1' : `edge-${index}`,
+    })),
+  })
+  const withCase = (testCase: Record<string, unknown>, extra?: Record<string, unknown>) =>
+    minStack([{ name: 'example-1', ...testCase }], extra)
+  const at = (value: unknown) => issuesOf(value).map((issue) => [issue.path, issue.message])
+
+  it('accepts the fixture shape (void → null, the constructor → null or $any)', () => {
+    expect(at(minStack([]))).toEqual([])
+    expect(
+      at(
+        withCase({
+          ops: ['MinStack', 'push', 'top'],
+          args: [[], [3], []],
+          expected: [{ $any: true }, null, { $any: true }],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('checks each argument against the parameter type', () => {
+    expect(
+      at(withCase({ ops: ['MinStack', 'push'], args: [[], ['3']], expected: [null, null] })),
+    ).toEqual([[['cases', 0, 'args', 1, 0], 'argument "val" does not match its declared type']])
+  })
+
+  it('checks constructor arguments against the constructor parameters', () => {
+    const value = withCase({ ops: ['MinStack', 'top'], args: [[1.5], []], expected: [null, 1] })
+    value.signature = { ...value.signature, constructor: { capacity: 'int' } } as never
+    expect(at(value).filter(([path]) => (path as unknown[])[1] === 0)).toEqual([
+      [['cases', 0, 'args', 0, 0], 'argument "capacity" does not match its declared type'],
+    ])
+  })
+
+  it('checks expected against the return type; void methods and the constructor expect null', () => {
+    expect(
+      at(
+        withCase({
+          ops: ['MinStack', 'push', 'top'],
+          args: [[], [3], []],
+          expected: [1, 0, 'three'],
+        }),
+      ),
+    ).toEqual([
+      [['cases', 0, 'expected', 0], 'the constructor returns nothing: expected null'],
+      [['cases', 0, 'expected', 1], '"push" returns void: expected null'],
+      [['cases', 0, 'expected', 2], 'expected does not match the return type of "top"'],
+    ])
+  })
+
+  it('{ $any: true } and { $result } must be whole values', () => {
+    const codec = {
+      signature: {
+        kind: 'design-class',
+        className: 'Codec',
+        methods: {
+          encode: { params: { strs: 'string[]' }, returns: 'string' },
+          decode: { params: { s: 'string' }, returns: 'string[]' },
+        },
+      },
+      cases: ['example-1', 'edge-a', 'edge-b', 'edge-c'].map((name, index) => ({
+        name,
+        ops: ['Codec', 'encode', 'decode'],
+        args:
+          index === 0
+            ? [[], [[{ $result: 0 }]], [{ $result: 1 }]]
+            : [[], [['a']], [{ $result: 1 }]],
+        expected:
+          index === 0
+            ? [null, { $any: true }, ['a', { $any: true }]]
+            : [null, { $any: true }, ['a']],
+      })),
+    }
+    expect(at(codec)).toEqual([
+      [['cases', 0, 'args', 1, 0], '{ $result: n } must be a whole argument'],
+      [['cases', 0, 'expected', 2], '{ $any: true } must be a whole expected value'],
+    ])
+  })
+
+  it('{ $result: n } must name a method whose return type is the parameter type', () => {
+    const codec = {
+      signature: {
+        kind: 'design-class',
+        className: 'Codec',
+        methods: {
+          encode: { params: { strs: 'string[]' }, returns: 'string' },
+          decode: { params: { s: 'string' }, returns: 'string[]' },
+          reset: { returns: 'void' },
+        },
+      },
+      cases: ['example-1', 'edge-a', 'edge-b', 'edge-c'].map((name, index) => ({
+        name,
+        ops: ['Codec', 'encode', 'reset', 'decode', 'decode', 'decode'],
+        args: [
+          [],
+          [['a']],
+          [],
+          [{ $result: index === 0 ? 3 : 1 }],
+          [{ $result: 2 }],
+          [{ $result: 0 }],
+        ],
+        expected: [null, { $any: true }, null, { $any: true }, { $any: true }, { $any: true }],
+      })),
+    }
+    const issues = at(codec)
+    expect(issues).toContainEqual([
+      ['cases', 0, 'args', 3, 0],
+      '{ $result: 3 } must refer to an earlier operation',
+    ])
+    expect(issues).toContainEqual([
+      ['cases', 1, 'args', 4, 0],
+      '{ $result: 2 } refers to "reset", which returns void',
+    ])
+    expect(issues).toContainEqual([
+      ['cases', 1, 'args', 5, 0],
+      '{ $result: 0 } refers to the constructor, which returns nothing',
+    ])
+  })
+
+  it('{ $result: n } of another type is refused (decode(decode(…)))', () => {
+    const codec = {
+      signature: {
+        kind: 'design-class',
+        className: 'Codec',
+        methods: {
+          encode: { params: { strs: 'string[]' }, returns: 'string' },
+          decode: { params: { s: 'string' }, returns: 'string[]' },
+        },
+      },
+      cases: ['example-1', 'edge-a', 'edge-b', 'edge-c'].map((name, index) => ({
+        name,
+        ops: ['Codec', 'encode', 'decode', 'encode'],
+        args: [[], [['a']], [{ $result: 1 }], [{ $result: index === 0 ? 1 : 2 }]],
+        expected: [null, { $any: true }, ['a'], { $any: true }],
+      })),
+    }
+    expect(at(codec)).toEqual([
+      [
+        ['cases', 0, 'args', 3, 0],
+        '{ $result: 1 } is a string ("encode"), but "strs" is a string[]',
+      ],
+    ])
+  })
+
+  it('one signature per method name: names that differ only in the first letter are refused (Go exports Push for push)', () => {
+    const value = minStack([])
+    value.signature = {
+      ...value.signature,
+      methods: { ...value.signature.methods, Push: { params: { val: 'int' }, returns: 'void' } },
+    } as never
+    expect(at(value)).toEqual([
+      [
+        ['signature', 'methods', 'Push'],
+        '"Push" and "push" are one method in Go (Push): one name, one signature',
+      ],
+    ])
+  })
+
+  it('a design class compares each result with exact, unordered, unordered-nested or float', () => {
+    expect(at(minStack([], { compare: 'unordered' }))).toEqual([])
+    expect(at(minStack([], { compare: { kind: 'float', tolerance: 0.001 } }))).toEqual([])
+    expect(at(minStack([], { compare: { kind: 'validator', name: 'topological-order' } }))).toEqual(
+      [
+        [
+          ['compare'],
+          'a design class compares each result: exact, unordered, unordered-nested or float',
+        ],
+      ],
+    )
+    expect(at(minStack([], { compare: { kind: 'in-place', arg: 'val' } }))).toEqual([
+      [
+        ['compare'],
+        'a design class compares each result: exact, unordered, unordered-nested or float',
+      ],
+    ])
+  })
+})

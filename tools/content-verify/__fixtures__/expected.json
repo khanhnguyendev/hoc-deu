@@ -54,19 +54,19 @@
     }
   },
   "demo:lc-9004": {
-    "verification": "compile-only",
+    "verification": "tested",
     "ok": true,
     "languages": {
       "python": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       },
       "java": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       },
       "go": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       }
     }
@@ -144,19 +144,19 @@
     }
   },
   "demo:lc-9009": {
-    "verification": "compile-only",
+    "verification": "tested",
     "ok": true,
     "languages": {
       "python": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       },
       "java": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       },
       "go": {
-        "status": "compile-only",
+        "status": "tested",
         "failing": []
       }
     }
@@ -338,6 +338,42 @@
       "go": {
         "status": "failed",
         "failing": ["example-1", "example-2", "two-nodes", "triangle"]
+      }
+    }
+  },
+  "demo:lc-9020": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9021": {
+    "verification": "tested",
+    "ok": false,
+    "languages": {
+      "python": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
+      },
+      "java": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
+      },
+      "go": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
       }
     }
   }
