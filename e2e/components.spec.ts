@@ -77,6 +77,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
       test(`${overlay.name} open passes axe (full page, aria-hidden-focus disabled)`, async ({
         page,
       }) => {
+        // full-page catalog axe, like the test above
+        test.slow()
         await gotoHydrated(page, '/dev/components')
         await overlay.open(page)
         await expectNoAxeViolations(page, { disableRules: ['aria-hidden-focus'] })
