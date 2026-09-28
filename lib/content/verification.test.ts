@@ -2,19 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { SIGNATURE_KINDS, type SignatureKind } from './schemas/tests'
 import { SUPPORTED_SIGNATURE_KINDS, verificationFor } from './verification'
 
+const M3B: SignatureKind[] = ['linked-list', 'tree', 'graph-node', 'random-list']
+
 describe('verificationFor', () => {
-  it('function is tested', () => {
-    expect(verificationFor('function')).toBe('tested')
+  it.each(['function', ...M3B] as SignatureKind[])('%s is tested (M3a, M3b)', (kind) => {
+    expect(verificationFor(kind)).toBe('tested')
   })
 
-  it.each(SIGNATURE_KINDS.filter((kind) => kind !== 'function'))(
-    '%s is compile-only (M3a)',
-    (kind: SignatureKind) => {
-      expect(verificationFor(kind)).toBe('compile-only')
-    },
-  )
+  it('design-class is compile-only until M3c', () => {
+    expect(verificationFor('design-class')).toBe('compile-only')
+  })
 
-  it('SUPPORTED_SIGNATURE_KINDS is exactly [function] in M3a', () => {
-    expect(SUPPORTED_SIGNATURE_KINDS).toEqual(['function'])
+  it('SUPPORTED_SIGNATURE_KINDS is every kind but design-class in M3b', () => {
+    expect(SUPPORTED_SIGNATURE_KINDS).toEqual(['function', ...M3B])
+    expect(SIGNATURE_KINDS.filter((kind) => !SUPPORTED_SIGNATURE_KINDS.includes(kind))).toEqual([
+      'design-class',
+    ])
   })
 })

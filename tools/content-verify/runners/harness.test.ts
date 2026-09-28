@@ -415,3 +415,141 @@ describe('Go design classes are created through Constructor() (M3 follow-up)', (
     }
   })
 })
+
+describe('structured kinds (M3b): the generated harnesses decode, call and encode', () => {
+  it('java: lists in and out, a cycle, ListNode[], in-place, trees, deep copies', () => {
+    expect(generateJavaMain(fixture('demo:lc-9010').tests)).toContain(`    // example-1
+    private static Object case0() {
+        ListNode arg0 = HarnessLists.decode(new int[]{1,2,3,4,5});
+        return HarnessLists.encode(new Solution().reverseList(arg0));
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9012').tests)).toContain(`    // example-1
+    private static Object case0() {
+        ListNode arg0 = HarnessLists.decode(new int[]{3,2,0,-4}, 1);
+        return new Solution().hasCycle(arg0);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9014').tests)).toContain(
+      '        ListNode[] arg0 = HarnessLists.decodeAll(new int[][]{{1,4,5},{1,3,4},{2,6}});',
+    )
+    expect(generateJavaMain(fixture('demo:lc-9015').tests)).toContain(`
+        ListNode arg0 = HarnessLists.decode(new int[]{1,2,3,4});
+        new Solution().reorderList(arg0);
+        return HarnessLists.encode(arg0);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9016').tests)).toContain(`    // null-gaps
+    private static Object case3() {
+        TreeNode arg0 = HarnessTrees.decode(new Integer[]{1,2,null,3});
+        return HarnessTrees.encode(new Solution().invertTree(arg0));
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9017').tests)).toContain(`    // example-2
+    private static Object case1() {
+        Node arg0 = HarnessRandomLists.decode(new Integer[][]{{1,1},{2,1}});
+        java.util.Set<Node> inputs = HarnessRandomLists.nodes(arg0);
+        return HarnessRandomLists.encodeCopy(new Solution().copyRandomList(arg0), inputs);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9018').tests)).toContain(`    // two-nodes
+    private static Object case3() {
+        Node arg0 = HarnessGraphs.decode(new int[][]{{2},{1}});
+        java.util.Set<Node> inputs = HarnessGraphs.nodes(arg0);
+        return HarnessGraphs.encodeCopy(new Solution().cloneGraph(arg0), inputs);
+    }`)
+  })
+
+  it('go: the same, with pointer structs', () => {
+    expect(generateGoHarness(fixture('demo:lc-9010').tests)).toContain(`	case 0: // example-1
+		arg0 := harnessDecodeList([]int{1,2,3,4,5}, -1)
+		caseResult = harnessEncodeList(reverseList(arg0))
+`)
+    expect(generateGoHarness(fixture('demo:lc-9012').tests)).toContain(`	case 0: // example-1
+		arg0 := harnessDecodeList([]int{3,2,0,-4}, 1)
+		caseResult = hasCycle(arg0)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9014').tests)).toContain(
+      '\t\targ0 := harnessDecodeLists([][]int{{1,4,5},{1,3,4},{2,6}})\n',
+    )
+    expect(generateGoHarness(fixture('demo:lc-9015').tests)).toContain(`	case 3: // two-nodes
+		arg0 := harnessDecodeList([]int{1,2}, -1)
+		reorderList(arg0)
+		caseResult = harnessEncodeList(arg0)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9016').tests)).toContain(`	case 3: // null-gaps
+		arg0 := harnessDecodeTree([]any{1,2,nil,3})
+		caseResult = harnessEncodeTree(invertTree(arg0))
+`)
+    expect(generateGoHarness(fixture('demo:lc-9017').tests)).toContain(`	case 1: // example-2
+		arg0 := harnessDecodeRandomList([][]any{{1,1},{2,1}})
+		harnessInputs := harnessRandomListNodes(arg0)
+		caseResult = harnessEncodeRandomListCopy(copyRandomList(arg0), harnessInputs)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9018').tests)).toContain(`	case 3: // two-nodes
+		arg0 := harnessDecodeGraph([][]int{{2},{1}})
+		harnessInputs := harnessGraphNodes(arg0)
+		caseResult = harnessEncodeGraphCopy(cloneGraph(arg0), harnessInputs)
+`)
+  })
+
+  describe('prepare', () => {
+    let root: string
+    let workDir: string
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), 'cv-harness-'))
+      workDir = join(root, 'unit')
+      mkdirSync(workDir)
+    })
+
+    afterEach(() => {
+      rmSync(root, { recursive: true, force: true })
+    })
+
+    it('python: the request names each argument codec, the result codec and the deep-copy check', () => {
+      expect(pythonHarness.prepare(fixture('demo:lc-9010'), workDir).runCase(0).stdin).toBe(
+        '{"file":"solution.py","method":"reverseList","args":[[1,2,3,4,5]],"output":null,' +
+          '"codecs":{"params":["list"],"returns":"list","copyOf":null}}',
+      )
+    })
+
+    it('python: an in-place list reports its argument; a graph clone must be a copy', () => {
+      const reorder = pythonHarness.prepare(fixture('demo:lc-9015'), join(workDir))
+      expect(JSON.parse(reorder.runCase(0).stdin ?? '')).toMatchObject({
+        output: 0,
+        codecs: { params: ['list'], returns: null, copyOf: null },
+      })
+      const clone = join(root, 'clone')
+      mkdirSync(clone)
+      expect(
+        JSON.parse(pythonHarness.prepare(fixture('demo:lc-9018'), clone).runCase(0).stdin ?? ''),
+      ).toMatchObject({ codecs: { params: ['graph'], returns: 'graph', copyOf: 0 } })
+    })
+
+    it('java: copies the structure classes of the kind and compiles them with the harness', () => {
+      const prepared = javaHarness.prepare(fixture('demo:lc-9016'), workDir)
+      for (const file of ['TreeNode.java', 'HarnessTrees.java']) {
+        expect(existsSync(join(workDir, file))).toBe(true)
+      }
+      expect(existsSync(join(workDir, 'ListNode.java'))).toBe(false)
+      expect(prepared.compile[0]?.args.slice(7)).toEqual([
+        'Solution.java',
+        'HarnessJson.java',
+        'TreeNode.java',
+        'HarnessTrees.java',
+        'HarnessMain.java',
+      ])
+    })
+
+    it('java: graph and random lists each bring their own Node', () => {
+      javaHarness.prepare(fixture('demo:lc-9018'), workDir)
+      expect(readFileSync(join(workDir, 'Node.java'), 'utf8')).toContain('List<Node> neighbors')
+      const other = join(root, 'random')
+      mkdirSync(other)
+      javaHarness.prepare(fixture('demo:lc-9017'), other)
+      expect(readFileSync(join(other, 'Node.java'), 'utf8')).toContain('Node random;')
+    })
+
+    it('go: copies the structure file of the kind', () => {
+      goHarness.prepare(fixture('demo:lc-9014'), workDir)
+      expect(existsSync(join(workDir, 'harness_list.go'))).toBe(true)
+      expect(existsSync(join(workDir, 'harness_tree.go'))).toBe(false)
+    })
+  })
+})

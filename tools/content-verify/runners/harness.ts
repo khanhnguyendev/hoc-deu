@@ -6,7 +6,13 @@
 import { constants, copyFileSync, lstatSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { CodeLanguage } from '@/lib/content/schemas/common'
-import { parseValueType, type TestsFile, type ValueType } from '@/lib/content/schemas/tests'
+import {
+  parseParamType,
+  type ParamType,
+  type SignatureKind,
+  type Structure,
+  type TestsFile,
+} from '@/lib/content/schemas/tests'
 import { verificationFor, type Verification } from '@/lib/content/verification'
 import type { ProblemUnderTest } from '../discover'
 import type { Command } from '../sandbox'
@@ -50,31 +56,63 @@ export const COMPILE_TIMEOUT_MS = {
 
 export type FunctionCall = {
   name: string
-  params: { name: string; type: ValueType }[]
-  returnsVoid: boolean
+  params: { name: string; type: ParamType }[]
+  /** `null`: `void`. */
+  returns: ParamType | null
   /** The parameter index an in-place signature reports instead of the return value. */
   output: number | null
+  /** `graph-node` / `random-list` (133, 138): the result must be a deep copy of this parameter —
+   * the harness fails a result that reuses one of its nodes. */
+  copyOf: number | null
 }
 
-/** The call a `function` signature describes: parameters in declaration order. */
+const DEEP_COPY_KINDS: ReadonlySet<SignatureKind> = new Set(['graph-node', 'random-list'])
+
+/** The call a `function` or structured signature (M3b) describes: parameters in declaration
+ * order, each a value type or a structure the harness decodes; a structure result is encoded
+ * back to its `tests.yaml` form before it is printed. */
 export function functionCall(tests: TestsFile): FunctionCall {
   const { signature, compare } = tests
-  if (signature.kind !== 'function') {
-    throw new Error(`a ${signature.kind} signature has no runner yet`)
+  if (signature.kind === 'design-class') {
+    throw new Error('a design-class signature has no runner yet')
   }
-  const params = Object.entries(signature.params).map(([name, text]) => {
-    const type = parseValueType(text)
-    if (type === null) throw new Error(`parameter "${name}": unknown type "${text}"`)
-    return { name, type }
-  })
+  const parse = (label: string, text: string): ParamType => {
+    const type = parseParamType(signature.kind, text)
+    if (type === null) throw new Error(`${label}: unknown type "${text}"`)
+    return type
+  }
+  const params = Object.entries(signature.params).map(([name, text]) => ({
+    name,
+    type: parse(`parameter "${name}"`, text),
+  }))
+  const returns = signature.returns === 'void' ? null : parse('returns', signature.returns)
   const output =
     compare.kind === 'in-place' ? params.findIndex((param) => param.name === compare.arg) : -1
+  const copyOf =
+    DEEP_COPY_KINDS.has(signature.kind) && returns?.kind === 'structure'
+      ? params.findIndex((param) => param.type.kind === 'structure')
+      : -1
   return {
     name: signature.name,
     params,
-    returnsVoid: signature.returns === 'void',
+    returns,
     output: output === -1 ? null : output,
+    copyOf: copyOf === -1 ? null : copyOf,
   }
+}
+
+/** The structures a call decodes or encodes (which structure classes / codecs the harness needs). */
+export function callStructures(call: FunctionCall): Set<Structure> {
+  const structures = new Set<Structure>()
+  for (const type of [...call.params.map((param) => param.type), call.returns]) {
+    if (type?.kind === 'structure') structures.add(type.structure)
+  }
+  return structures
+}
+
+/** The type whose encoding the harness prints: the in-place argument's, else the return type. */
+export function reportedType(call: FunctionCall): ParamType | null {
+  return call.output === null ? call.returns : (call.params[call.output]?.type ?? null)
 }
 
 /** The positional arguments of case `index`. */

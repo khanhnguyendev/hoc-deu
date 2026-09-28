@@ -3,14 +3,16 @@
  * calls the solution with literal arguments (`goLiteral`, 3.5a), then prints
  * `json.Marshal(harnessNormalize(result))` (the static `normalize.go`: nil slices → `[]`, fix 8).
  * Built once with cgo off (fix 6), no module proxy, the local toolchain only, and the build cache
- * under the work root.
+ * under the work root. The structured kinds (M3b) add LeetCode's `ListNode` / `TreeNode` / `Node`
+ * structs and their codecs (the static `harness_<structure>.go`).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { parseValueType, type TestsFile } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
-import { goLiteral, goType } from '../literals'
+import { goLiteral, GO_STRUCTURES, goStructureLiteral, goType } from '../literals'
 import {
+  callStructures,
   caseArguments,
   caseName,
   copyRegularFile,
@@ -18,6 +20,7 @@ import {
   functionCall,
   modeOf,
   noCases,
+  reportedType,
   signatureTargets,
   type Harness,
 } from './harness'
@@ -56,7 +59,9 @@ export function goMainStub(tests: TestsFile): string {
   ].join('\n')
 }
 
-/** `main_harness.go` for a `function` signature. */
+/** `main_harness.go` for a `function` or structured (M3b) signature: structures are decoded from
+ * their `tests.yaml` encoding (the static `harness_<structure>.go`) and a structure result is
+ * encoded back. */
 export function generateGoHarness(tests: TestsFile): string {
   const call = functionCall(tests)
   const lines = [
@@ -85,15 +90,32 @@ export function generateGoHarness(tests: TestsFile): string {
     const values = caseArguments(tests, index)
     lines.push(`\tcase ${index}: // ${caseName(tests, index)}`)
     call.params.forEach((param, position) => {
-      lines.push(`\t\targ${position} := ${goLiteral(values[position], param.type)}`)
+      const literal =
+        param.type.kind === 'structure'
+          ? goStructureLiteral(values[position], param.type.structure)
+          : goLiteral(values[position], param.type.type)
+      lines.push(`\t\targ${position} := ${literal}`)
     })
+    const copy = call.copyOf === null ? null : call.params[call.copyOf]?.type
+    const copyCodec = copy?.kind === 'structure' ? GO_STRUCTURES[copy.structure].codec : null
+    if (copyCodec !== null) {
+      lines.push(`\t\tharnessInputs := harness${copyCodec}Nodes(arg${call.copyOf})`)
+    }
     const invocation = `${call.name}(${call.params.map((_, position) => `arg${position}`).join(', ')})`
+    const reported = reportedType(call)
+    /** The printed value: a structure is encoded back to its tests.yaml form. */
+    const encoded = (expression: string): string => {
+      if (reported?.kind !== 'structure') return expression
+      const { codec } = GO_STRUCTURES[reported.structure]
+      if (copyCodec !== null) return `harnessEncode${codec}Copy(${expression}, harnessInputs)`
+      return `harnessEncode${codec}(${expression})`
+    }
     if (call.output !== null) {
-      lines.push(`\t\t${invocation}`, `\t\tcaseResult = arg${call.output}`)
-    } else if (call.returnsVoid) {
+      lines.push(`\t\t${invocation}`, `\t\tcaseResult = ${encoded(`arg${call.output}`)}`)
+    } else if (call.returns === null) {
       lines.push(`\t\t${invocation}`)
     } else {
-      lines.push(`\t\tcaseResult = ${invocation}`)
+      lines.push(`\t\tcaseResult = ${encoded(invocation)}`)
     }
   })
   lines.push(
@@ -182,6 +204,14 @@ export const goHarness: Harness = {
       }
     }
     copyRegularFile(join(STATIC_DIR, 'normalize.go'), join(workDir, 'normalize.go'))
+    const structureFiles = new Set(
+      [...callStructures(functionCall(problem.tests))].map(
+        (structure) => GO_STRUCTURES[structure].file,
+      ),
+    )
+    for (const file of structureFiles) {
+      copyRegularFile(join(STATIC_DIR, file), join(workDir, file))
+    }
     writeFileSync(join(workDir, 'main_harness.go'), generateGoHarness(problem.tests))
     const binary = join(workDir, 'bin')
     return {

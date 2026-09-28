@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { parseValueType, testsFileSchema, testsMinimumIssues, valueMatches } from './tests'
+import {
+  parseParamType,
+  parseValueType,
+  structureIssue,
+  testsFileSchema,
+  testsMinimumIssues,
+  valueMatches,
+} from './tests'
 
 const issueMessages = (result: ReturnType<typeof testsFileSchema.safeParse>): string[] => {
   if (result.success) return []
@@ -293,5 +300,332 @@ describe('valueMatches', () => {
     expect(valueMatches([1, '2'], { base: 'int', dims: 1 })).toBe(false)
     expect(valueMatches([[1, 2], [3]], { base: 'int', dims: 2 })).toBe(true)
     expect(valueMatches([1, 2], { base: 'int', dims: 2 })).toBe(false)
+  })
+})
+
+const issuesOf = (value: unknown) => {
+  const result = testsFileSchema.safeParse(value)
+  if (result.success) return []
+  return result.error.issues.map((issue) => ({ path: issue.path, message: issue.message }))
+}
+
+/** A structured file with 4 cases whose `values` fill `head`/`root`/`node` and `expected`. */
+function structured(
+  kind: string,
+  params: Record<string, string>,
+  returns: string,
+  cases: { input: Record<string, unknown>; expected: unknown }[],
+  compare?: unknown,
+) {
+  const names = ['example-1', 'edge-a', 'edge-b', 'edge-c']
+  return {
+    signature: { kind, name: 'solve', params, returns },
+    ...(compare === undefined ? {} : { compare }),
+    cases: cases.map((testCase, index) => ({ name: names[index], ...testCase })),
+  }
+}
+
+describe('parseParamType — the structured kinds (M3b)', () => {
+  it.each([
+    ['linked-list', 'ListNode', { kind: 'structure', structure: 'list' }],
+    ['linked-list', 'ListNode[]', { kind: 'structure', structure: 'lists' }],
+    ['tree', 'TreeNode', { kind: 'structure', structure: 'tree' }],
+    ['graph-node', 'Node', { kind: 'structure', structure: 'graph' }],
+    ['random-list', 'Node', { kind: 'structure', structure: 'random-list' }],
+    ['tree', 'int', { kind: 'value', type: { base: 'int', dims: 0 } }],
+    ['linked-list', 'int[][]', { kind: 'value', type: { base: 'int', dims: 2 } }],
+    ['function', 'int[]', { kind: 'value', type: { base: 'int', dims: 1 } }],
+    ['function', 'ListNode', null],
+    ['linked-list', 'TreeNode', null],
+    ['tree', 'ListNode', null],
+    ['tree', 'Node', null],
+    ['linked-list', 'Node', null],
+    ['graph-node', 'ListNode[]', null],
+    ['design-class', 'int', null],
+  ] as const)('%s: %s → %j', (kind, text, expected) => {
+    expect(parseParamType(kind, text)).toEqual(expected)
+  })
+})
+
+describe('structureIssue — the LeetCode encodings', () => {
+  it('list: an array of integers; { values, pos } only as an input', () => {
+    expect(structureIssue('list', [1, 2, 3], 'input')).toBeNull()
+    expect(structureIssue('list', [], 'input')).toBeNull()
+    expect(structureIssue('list', { values: [3, 2, 0, -4], pos: 1 }, 'input')).toBeNull()
+    expect(structureIssue('list', { values: [1], pos: -1 }, 'input')).toBeNull()
+    expect(structureIssue('list', { values: [1, 2], pos: 2 }, 'input')).toBe(
+      'pos must be -1 (no cycle) or the index of a node (0–1)',
+    )
+    expect(structureIssue('list', { values: [], pos: 0 }, 'input')).toBe(
+      'pos must be -1 (no cycle) for an empty list',
+    )
+    expect(structureIssue('list', { values: [1], pos: 0, extra: 1 }, 'input')).toBe(
+      'a linked list is an array of integers, or { values, pos } for a cycle',
+    )
+    expect(structureIssue('list', [1, null], 'input')).toBe(
+      'a linked list is an array of integers, or { values, pos } for a cycle',
+    )
+    expect(structureIssue('list', { values: [1], pos: 0 }, 'expected')).toBe(
+      'a returned linked list is an array of integers',
+    )
+  })
+
+  it('lists: an array of list encodings', () => {
+    expect(structureIssue('lists', [[1, 4], [], [2]], 'input')).toBeNull()
+    expect(structureIssue('lists', [1, 2], 'input')).toBe(
+      'ListNode[] is an array of linked lists (arrays of integers)',
+    )
+  })
+
+  it('tree: level order with null gaps, a non-null root, no trailing nulls, no orphan values', () => {
+    expect(structureIssue('tree', [3, 9, 20, null, null, 15, 7], 'input')).toBeNull()
+    expect(structureIssue('tree', [], 'input')).toBeNull()
+    expect(structureIssue('tree', [1, null, 2, null, 3], 'input')).toBeNull()
+    expect(structureIssue('tree', [null], 'input')).toBe(
+      'the root of a non-empty tree cannot be null ([] is the empty tree)',
+    )
+    expect(structureIssue('tree', [1, 2, null], 'expected')).toBe(
+      "drop the trailing nulls (LeetCode's level-order form)",
+    )
+    expect(structureIssue('tree', [1, null, null, 4], 'input')).toBe(
+      'value 3 has no parent: every null ends its branch',
+    )
+    expect(structureIssue('tree', [1, 'x'], 'input')).toBe(
+      'a tree is a level-order array of integers and nulls',
+    )
+  })
+
+  it('graph: node i + 1 at index i, neighbours in 1..n, no self-loop or repeat, connected', () => {
+    expect(
+      structureIssue(
+        'graph',
+        [
+          [2, 4],
+          [1, 3],
+          [2, 4],
+          [1, 3],
+        ],
+        'input',
+      ),
+    ).toBeNull()
+    expect(structureIssue('graph', [[]], 'input')).toBeNull()
+    expect(structureIssue('graph', [], 'input')).toBeNull()
+    expect(structureIssue('graph', [[2], [3]], 'input')).toBe(
+      'node 2 lists neighbour 3: neighbours are node numbers 1–2',
+    )
+    expect(structureIssue('graph', [[1]], 'input')).toBe('node 1 lists itself as a neighbour')
+    expect(structureIssue('graph', [[2, 2], [1]], 'input')).toBe('node 1 lists neighbour 2 twice')
+    expect(structureIssue('graph', [[2], [1], []], 'input')).toBe(
+      'node 3 cannot be reached from node 1',
+    )
+    expect(structureIssue('graph', [1, 2], 'input')).toBe(
+      'a graph is an adjacency list: node i + 1 at index i, an array of neighbour numbers',
+    )
+  })
+
+  it('random-list: [[val, randomIndex | null], …]', () => {
+    expect(
+      structureIssue(
+        'random-list',
+        [
+          [7, null],
+          [13, 0],
+        ],
+        'input',
+      ),
+    ).toBeNull()
+    expect(structureIssue('random-list', [], 'expected')).toBeNull()
+    expect(structureIssue('random-list', [[1, 2]], 'input')).toBe(
+      'node 0 has random index 2: random is null or a node index (0–0)',
+    )
+    expect(structureIssue('random-list', [[1]], 'input')).toBe(
+      'a random-pointer list is [[val, randomIndex | null], …]',
+    )
+  })
+})
+
+describe('testsFileSchema — structured kinds (M3b)', () => {
+  it('accepts a linked list in and out, a cycle input and a ListNode[] input', () => {
+    expect(
+      issuesOf(
+        structured('linked-list', { head: 'ListNode' }, 'ListNode', [
+          { input: { head: [1, 2] }, expected: [2, 1] },
+          { input: { head: [] }, expected: [] },
+          { input: { head: [1] }, expected: [1] },
+          { input: { head: [1, 2, 3] }, expected: [3, 2, 1] },
+        ]),
+      ),
+    ).toEqual([])
+    expect(
+      issuesOf(
+        structured('linked-list', { head: 'ListNode' }, 'bool', [
+          { input: { head: { values: [3, 2, 0, -4], pos: 1 } }, expected: true },
+          { input: { head: { values: [1], pos: -1 } }, expected: false },
+          { input: { head: [] }, expected: false },
+          { input: { head: { values: [1], pos: 0 } }, expected: true },
+        ]),
+      ),
+    ).toEqual([])
+    expect(
+      issuesOf(
+        structured('linked-list', { lists: 'ListNode[]' }, 'ListNode', [
+          {
+            input: {
+              lists: [
+                [1, 4, 5],
+                [1, 3, 4],
+              ],
+            },
+            expected: [1, 1, 3, 4, 4, 5],
+          },
+          { input: { lists: [] }, expected: [] },
+          { input: { lists: [[]] }, expected: [] },
+          { input: { lists: [[2], [1]] }, expected: [1, 2] },
+        ]),
+      ),
+    ).toEqual([])
+  })
+
+  it('a malformed encoding is an issue on the case path', () => {
+    expect(
+      issuesOf(
+        structured('tree', { root: 'TreeNode', k: 'int' }, 'TreeNode', [
+          { input: { root: [1, null, 2], k: 1 }, expected: [1, 2] },
+          { input: { root: [null, 1], k: 1 }, expected: [] },
+          { input: { root: [], k: 'x' }, expected: [] },
+          { input: { root: [1], k: 1 }, expected: [1, null] },
+        ]),
+      ),
+    ).toEqual([
+      {
+        path: ['cases', 1, 'input', 'root'],
+        message:
+          'input "root" is not a valid TreeNode: the root of a non-empty tree cannot be null ([] is the empty tree)',
+      },
+      {
+        path: ['cases', 2, 'input', 'k'],
+        message: 'input "k" does not match its declared type',
+      },
+      {
+        path: ['cases', 3, 'expected'],
+        message:
+          "expected is not a valid TreeNode: drop the trailing nulls (LeetCode's level-order form)",
+      },
+    ])
+  })
+
+  it('a cycle is an input only: expected is a plain list', () => {
+    expect(
+      issuesOf(
+        structured('linked-list', { head: 'ListNode' }, 'ListNode', [
+          { input: { head: [1] }, expected: { values: [1], pos: 0 } },
+          { input: { head: [] }, expected: [] },
+          { input: { head: [2] }, expected: [2] },
+          { input: { head: [3] }, expected: [3] },
+        ]),
+      ),
+    ).toEqual([
+      {
+        path: ['cases', 0, 'expected'],
+        message: 'expected is not a valid ListNode: a returned linked list is an array of integers',
+      },
+    ])
+  })
+
+  it('checks an in-place structure (143) against the argument type', () => {
+    expect(
+      issuesOf(
+        structured(
+          'linked-list',
+          { head: 'ListNode' },
+          'void',
+          [
+            { input: { head: [1, 2, 3, 4] }, expected: [1, 4, 2, 3] },
+            { input: { head: [1] }, expected: [1] },
+            { input: { head: [1, 2] }, expected: [1, 2] },
+            { input: { head: [1, 2, 3] }, expected: 'x' },
+          ],
+          { kind: 'in-place', arg: 'head' },
+        ),
+      ),
+    ).toEqual([
+      {
+        path: ['cases', 3, 'expected'],
+        message: 'expected is not a valid ListNode: a returned linked list is an array of integers',
+      },
+    ])
+  })
+
+  it('rejects a type the kind does not know, on the signature path', () => {
+    expect(
+      issuesOf(
+        structured('linked-list', { root: 'TreeNode' }, 'Node', [
+          { input: { root: [1] }, expected: [1] },
+          { input: { root: [1] }, expected: [1] },
+          { input: { root: [1] }, expected: [1] },
+          { input: { root: [1] }, expected: [1] },
+        ]),
+      ),
+    ).toEqual([
+      {
+        path: ['signature', 'params', 'root'],
+        message: 'not a linked-list type (ListNode, ListNode[] or a value type such as int[])',
+      },
+      {
+        path: ['signature', 'returns'],
+        message: 'not a linked-list type (ListNode, ListNode[] or a value type such as int[])',
+      },
+    ])
+  })
+
+  it('checks inputs by name for the structured kinds too', () => {
+    expect(
+      issuesOf(
+        structured('graph-node', { node: 'Node' }, 'Node', [
+          { input: { node: [[2], [1]] }, expected: [[2], [1]] },
+          { input: {}, expected: [] },
+          { input: { node: [], extra: 1 }, expected: [] },
+          { input: { node: [[3], [1]] }, expected: [[]] },
+        ]),
+      ),
+    ).toEqual([
+      { path: ['cases', 1, 'input'], message: 'missing input "node"' },
+      { path: ['cases', 2, 'input', 'extra'], message: 'unexpected input "extra"' },
+      {
+        path: ['cases', 3, 'input', 'node'],
+        message:
+          'input "node" is not a valid Node: node 1 lists neighbour 3: neighbours are node numbers 1–2',
+      },
+    ])
+  })
+
+  it('a random-pointer list round trip parses', () => {
+    expect(
+      issuesOf(
+        structured('random-list', { head: 'Node' }, 'Node', [
+          {
+            input: {
+              head: [
+                [7, null],
+                [13, 0],
+              ],
+            },
+            expected: [
+              [7, null],
+              [13, 0],
+            ],
+          },
+          { input: { head: [] }, expected: [] },
+          { input: { head: [[1, 0]] }, expected: [[1, 0]] },
+          { input: { head: [[1, 5]] }, expected: [[1, 0]] },
+        ]),
+      ),
+    ).toEqual([
+      {
+        path: ['cases', 3, 'input', 'head'],
+        message:
+          'input "head" is not a valid Node: node 0 has random index 5: random is null or a node index (0–0)',
+      },
+    ])
   })
 })

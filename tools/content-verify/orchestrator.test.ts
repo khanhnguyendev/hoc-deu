@@ -203,6 +203,24 @@ describe('verifyProblems — results', () => {
     expect(result?.languages[0]?.status).toBe('tested')
   })
 
+  it('runs a structured kind (M3b) as tested: the encoded tree is compared with expected', async () => {
+    const outputs = ['[4,7,2,9,6,3,1]', '[2,3,1]', '[]', '[1,null,2,null,3]', '[1,2,3]']
+    const [result] = await run(load(['demo:lc-9016'], 'java'), async (spawn) => {
+      const inner = innerCommand(spawn)
+      if (inner[0] === '/t/javac') return ok()
+      return ok(outputs[Number(inner.at(-1))])
+    })
+    expect(result).toMatchObject({ kind: 'tree', verification: 'tested', ok: false })
+    expect(result?.languages[0]?.cases.map((testCase) => testCase.status)).toEqual([
+      'pass',
+      'pass',
+      'pass',
+      'pass',
+      'fail',
+    ])
+    expect(result?.languages[0]?.cases[4]?.detail).toBe('expected [1,2,null,3] got [1,2,3]')
+  })
+
   it('a compile failure fails the language with the first 20 lines of stderr and runs no case', async () => {
     const stderr = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join('\n')
     const calls: string[][] = []

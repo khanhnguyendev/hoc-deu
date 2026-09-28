@@ -1,9 +1,12 @@
 /**
  * Python runner (Part B-M3 decision 19): the static `runner.py` and `check.py` are copied into the
  * work directory with the solution (fix 6: every file the sandbox runs lives there). Cases send a
- * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check.
+ * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check. For
+ * the structured kinds (M3b) the request names the codecs: `runner.py` holds the `ListNode`,
+ * `TreeNode` and `Node` dataclasses and their LeetCode encodings.
  */
 import { join } from 'node:path'
+import type { ParamType, Structure } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
 import type { Command } from '../sandbox'
 import {
@@ -53,6 +56,18 @@ export const pythonHarness: Harness = {
       }
     }
     const call = functionCall(problem.tests)
+    // Structured kinds (M3b): the codec of each argument and of the result (null: a plain JSON
+    // value; an in-place argument is encoded with its own codec) and the deep-copy check.
+    const codec = (type: ParamType | null): Structure | null =>
+      type?.kind === 'structure' ? type.structure : null
+    const codecs =
+      problem.tests.signature.kind === 'function'
+        ? null
+        : {
+            params: call.params.map((param) => codec(param.type)),
+            returns: codec(call.returns),
+            copyOf: call.copyOf,
+          }
     return {
       compile: [check],
       warmUp: [],
@@ -65,6 +80,7 @@ export const pythonHarness: Harness = {
           method: call.name,
           args: caseArguments(problem.tests, index),
           output: call.output,
+          ...(codecs === null ? {} : { codecs }),
         }),
         timeoutMs: problem.tests.timeoutMs,
       }),

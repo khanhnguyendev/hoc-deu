@@ -3,15 +3,18 @@
  * and calls the solution with literal arguments (`javaLiteral`, 3.5a); the static
  * `HarnessJson.java` prints the result. The `Harness` prefix keeps both clear of a solution's own
  * helper classes (`Main`, `Json`). One method per case keeps every case under the JVM's 64 KB
- * method limit. Compiled once with `-proc:none` (fix 6: no annotation processor runs).
+ * method limit. Compiled once with `-proc:none` (fix 6: no annotation processor runs). The
+ * structured kinds (M3b) add LeetCode's `ListNode` / `TreeNode` / `Node` classes and their codecs
+ * (`HarnessLists`, `HarnessTrees`, `HarnessGraphs`, `HarnessRandomLists`) in the default package.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { TestsFile } from '@/lib/content/schemas/tests'
+import type { Structure, TestsFile } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
-import { javaArgument } from '../literals'
+import { javaArgument, JAVA_STRUCTURES, javaStructureLiteral } from '../literals'
 import type { Command } from '../sandbox'
 import {
+  callStructures,
   caseArguments,
   caseName,
   copyRegularFile,
@@ -19,7 +22,9 @@ import {
   functionCall,
   modeOf,
   noCases,
+  reportedType,
   signatureTargets,
+  type FunctionCall,
   type Harness,
 } from './harness'
 
@@ -31,8 +36,10 @@ const JAVA_FLAGS = ['-Xss64m', '-Xmx512m', '-cp', 'out']
 const MAIN = 'HarnessMain'
 const JSON_CLASS = 'HarnessJson'
 
-/** `HarnessMain.java` for a `function` signature. With the solution's `source`, an array
- * parameter the solution declares as a `List<…>` is passed as one (`javaArgument`). */
+/** `HarnessMain.java` for a `function` or structured (M3b) signature: structures are decoded from
+ * their `tests.yaml` encoding before the call and a structure result is encoded back. With the
+ * solution's `source`, an array parameter the solution declares as a `List<…>` is passed as one
+ * (`javaArgument`). */
 export function generateJavaMain(tests: TestsFile, source?: string): string {
   const call = functionCall(tests)
   const declared = (source === undefined ? null : javaParameterTypes(source, call.name)) ?? []
@@ -54,17 +61,36 @@ export function generateJavaMain(tests: TestsFile, source?: string): string {
     const values = caseArguments(tests, index)
     lines.push('', `    // ${caseName(tests, index)}`, `    private static Object case${index}() {`)
     call.params.forEach((param, position) => {
-      const arg = javaArgument(values[position], param.type, declared[position] ?? null)
+      const arg =
+        param.type.kind === 'structure'
+          ? {
+              type: JAVA_STRUCTURES[param.type.structure].type,
+              expression: javaStructureLiteral(values[position], param.type.structure),
+            }
+          : javaArgument(values[position], param.type.type, declared[position] ?? null)
       lines.push(`        ${arg.type} arg${position} = ${arg.expression};`)
     })
+    const copy = call.copyOf === null ? null : call.params[call.copyOf]?.type
+    const copyCodec = copy?.kind === 'structure' ? JAVA_STRUCTURES[copy.structure].codec : null
+    if (copyCodec !== null) {
+      lines.push(`        java.util.Set<Node> inputs = ${copyCodec}.nodes(arg${call.copyOf});`)
+    }
     const args = call.params.map((_, position) => `arg${position}`).join(', ')
     const invocation = `new Solution().${call.name}(${args})`
+    const reported = reportedType(call)
+    /** The printed value: a structure is encoded back to its tests.yaml form. */
+    const encoded = (expression: string): string => {
+      if (reported?.kind !== 'structure') return expression
+      const { codec } = JAVA_STRUCTURES[reported.structure]
+      if (copyCodec !== null) return `${codec}.encodeCopy(${expression}, inputs)`
+      return `${codec}.${reported.structure === 'lists' ? 'encodeAll' : 'encode'}(${expression})`
+    }
     if (call.output !== null) {
-      lines.push(`        ${invocation};`, `        return arg${call.output};`)
-    } else if (call.returnsVoid) {
+      lines.push(`        ${invocation};`, `        return ${encoded(`arg${call.output}`)};`)
+    } else if (call.returns === null) {
       lines.push(`        ${invocation};`, '        return null;')
     } else {
-      lines.push(`        return ${invocation};`)
+      lines.push(`        return ${encoded(invocation)};`)
     }
     lines.push('    }')
   })
@@ -128,6 +154,39 @@ export function javaSignatureIssues(source: string, tests: TestsFile): string[] 
   return issues
 }
 
+/** The static structure classes a call needs, as [source under runners/java, file name]. Graph
+ * and random-pointer lists each have their own `Node`; a problem uses one of them. */
+const JAVA_STRUCTURE_FILES: Readonly<Record<Structure, readonly [string, string][]>> = {
+  list: [
+    ['ListNode.java', 'ListNode.java'],
+    ['HarnessLists.java', 'HarnessLists.java'],
+  ],
+  lists: [
+    ['ListNode.java', 'ListNode.java'],
+    ['HarnessLists.java', 'HarnessLists.java'],
+  ],
+  tree: [
+    ['TreeNode.java', 'TreeNode.java'],
+    ['HarnessTrees.java', 'HarnessTrees.java'],
+  ],
+  graph: [
+    ['graph/Node.java', 'Node.java'],
+    ['graph/HarnessGraphs.java', 'HarnessGraphs.java'],
+  ],
+  'random-list': [
+    ['random-list/Node.java', 'Node.java'],
+    ['random-list/HarnessRandomLists.java', 'HarnessRandomLists.java'],
+  ],
+}
+
+function javaStructureFiles(call: FunctionCall): [string, string][] {
+  const files = new Map<string, string>()
+  for (const structure of callStructures(call)) {
+    for (const [source, file] of JAVA_STRUCTURE_FILES[structure]) files.set(file, source)
+  }
+  return [...files].map(([file, source]) => [source, file])
+}
+
 const javac = (workDir: string, files: string[]): Command => ({
   cmd: 'javac',
   args: [...JAVAC_FLAGS, ...files],
@@ -153,10 +212,17 @@ export const javaHarness: Harness = {
       }
     }
     copyRegularFile(join(STATIC_DIR, `${JSON_CLASS}.java`), join(workDir, `${JSON_CLASS}.java`))
+    const structureFiles: string[] = []
+    for (const [source, file] of javaStructureFiles(functionCall(problem.tests))) {
+      copyRegularFile(join(STATIC_DIR, source), join(workDir, file))
+      structureFiles.push(file)
+    }
     const source = readFileSync(join(workDir, SOLUTION), 'utf8')
     writeFileSync(join(workDir, `${MAIN}.java`), generateJavaMain(problem.tests, source))
     return {
-      compile: [javac(workDir, [SOLUTION, `${JSON_CLASS}.java`, `${MAIN}.java`])],
+      compile: [
+        javac(workDir, [SOLUTION, `${JSON_CLASS}.java`, ...structureFiles, `${MAIN}.java`]),
+      ],
       warmUp: [],
       runCase: (index) => ({
         cmd: 'java',

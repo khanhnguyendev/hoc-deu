@@ -1,0 +1,9 @@
+# content-verify fixture: a list with a cycle as the input — { values, pos } (pos -1 = none).
+signature: { kind: linked-list, name: hasCycle, params: { head: ListNode }, returns: bool }
+cases:
+  - { name: example-1, input: { head: { values: [3, 2, 0, -4], pos: 1 } }, expected: true }
+  - { name: example-2, input: { head: { values: [1, 2], pos: 0 } }, expected: true }
+  - { name: example-3, input: { head: { values: [1], pos: -1 } }, expected: false }
+  - { name: empty, input: { head: [] }, expected: false }
+  - { name: self-loop, input: { head: { values: [1], pos: 0 } }, expected: true }
+  - { name: plain-list, input: { head: [1, 2, 3] }, expected: false }

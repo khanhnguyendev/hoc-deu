@@ -243,6 +243,51 @@ public class Probe {
     expect(deep.stdout).toBe('5000')
   }, 60_000)
 
+  it('runner.py: a returned list with a cycle and a shared tree node fail, never loop', () => {
+    const pyDir = mkdtempSync(join(dir, 'py-structures-'))
+    copyFileSync(join(RUNNERS, 'python', 'runner.py'), join(pyDir, 'runner.py'))
+    writeFileSync(
+      join(pyDir, 'solution.py'),
+      `from __future__ import annotations  # one file, two kinds: each request injects its own class
+
+
+class Solution:
+    def loop(self, head: ListNode) -> ListNode:
+        head.next = head
+        return head
+
+    def share(self, root: TreeNode) -> TreeNode:
+        root.left = root.right = TreeNode(1)
+        return root
+`,
+    )
+    const request = (method: string, codec: string, args: unknown[]) =>
+      JSON.stringify({
+        file: 'solution.py',
+        method,
+        args,
+        output: null,
+        codecs: { params: [codec], returns: codec, copyOf: null },
+      })
+    const cycle = run(
+      tools.python,
+      ['-I', '-B', 'runner.py'],
+      pyDir,
+      request('loop', 'list', [[1]]),
+    )
+    expect(cycle.code).toBe(1)
+    expect(cycle.stderr.split('\n')[0]).toBe('ContentVerifyError: the returned list has a cycle')
+    const shared = run(
+      tools.python,
+      ['-I', '-B', 'runner.py'],
+      pyDir,
+      request('share', 'tree', [[0]]),
+    )
+    expect(shared.stderr.split('\n')[0]).toBe(
+      'ContentVerifyError: the returned tree has a cycle or a shared node',
+    )
+  }, 60_000)
+
   it('check.py: a syntax error and a missing method fail with a reason on stderr', () => {
     const pyDir = mkdtempSync(join(dir, 'check-'))
     copyFileSync(join(RUNNERS, 'python', 'check.py'), join(pyDir, 'check.py'))
@@ -369,6 +414,26 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     expect(result?.languages[0]).toMatchObject({ lang: 'go', status: 'failed' })
     expect(result?.languages[0]?.detail).toMatch(/cannot use Constructor\(\*new\(int\)\)/)
   }, 180_000)
+
+  it('runs lists, trees, graph nodes and random lists in all three languages (M3b)', () => {
+    for (let number = 9010; number <= 9018; number++) {
+      expect(byId(`demo:lc-${number}`).languages.map((result) => result.status)).toEqual([
+        'tested',
+        'tested',
+        'tested',
+      ])
+    }
+  })
+
+  it('fails a graph "clone" that returns the input node; the empty graph still passes', () => {
+    const go = language('demo:lc-9019', 'go')
+    expect(go.cases.find((c) => c.name === 'example-3')?.status).toBe('pass')
+    const reused = go.cases.find((c) => c.name === 'example-1')
+    expect(reused?.status).toBe('error')
+    expect(reused?.detail?.split('\n')[0]).toBe(
+      'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
+    )
+  })
 
   it('runs an unsupported kind compile-only, the signature check passing', () => {
     expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })

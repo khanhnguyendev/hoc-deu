@@ -1,0 +1,8 @@
+# content-verify fixture: an in-place linked list — the runners print the encoded head argument.
+signature: { kind: linked-list, name: reorderList, params: { head: ListNode }, returns: void }
+compare: { kind: in-place, arg: head }
+cases:
+  - { name: example-1, input: { head: [1, 2, 3, 4] }, expected: [1, 4, 2, 3] }
+  - { name: example-2, input: { head: [1, 2, 3, 4, 5] }, expected: [1, 5, 2, 4, 3] }
+  - { name: single-node, input: { head: [1] }, expected: [1] }
+  - { name: two-nodes, input: { head: [1, 2] }, expected: [1, 2] }
