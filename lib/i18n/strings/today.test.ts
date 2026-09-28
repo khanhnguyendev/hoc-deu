@@ -74,8 +74,18 @@ describe('lib/i18n/strings/today.ts', () => {
       extra: 'Học thêm',
     })
     expect(Object.keys(today.practice).sort()).toEqual(
-      ['exercise', 'mock-interview', 'shadowing', 'weekend-task'].sort(),
+      [
+        'exercise',
+        'mock-interview',
+        'shadowing',
+        'weekend-task',
+        'topic-practice',
+        'extra-week',
+      ].sort(),
     )
     expect(today.practice['mock-interview']).toBe('Mock interview')
+    // The AI override tags (task 6.6b/6.6c) read vi.overrides.blockTags, one label each.
+    expect(today.practice['topic-practice']).toBe(vi.overrides.blockTags['topic-practice'])
+    expect(today.practice['extra-week']).toBe(vi.overrides.blockTags['extra-week'])
   })
 })

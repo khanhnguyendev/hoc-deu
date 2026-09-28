@@ -136,6 +136,19 @@ describe('buildTodayPage — blocks', () => {
     expect(labels).toEqual(['Mock interview', 'Nhiệm vụ cuối tuần', 'Luyện tập'])
   })
 
+  it('labels an AI override’s topic-practice and extra-week blocks (vi.overrides.blockTags)', () => {
+    const practice = (tag: string) =>
+      block(`${TODAY}:dsa:practice:${tag}`, { kind: 'practice', trackId: 'dsa', tag })
+    const labels = buildTodayPage(
+      todayData(
+        planState(storedPlan({ blocks: [practice('topic-practice'), practice('extra-week')] })),
+      ),
+      NO_ACTIVITY,
+      REQUEST_ID,
+    ).blocks.map((view) => view.kindLabel)
+    expect(labels).toEqual(['Luyện thêm chủ đề', 'Tuần luyện thêm'])
+  })
+
   it('links every item to its page with ?block= and ?mode= (derived card IDs encoded)', () => {
     const review = page.blocks[0]!
     expect(review.items.map((item) => [item.itemId, item.mode])).toEqual([

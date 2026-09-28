@@ -33,7 +33,7 @@ export const overrides = {
   /**
    * The practice blocks overrides add to a plan (§5.12), by tag: an `insert_block`'s block and the
    * one that replaces the new items during an `extra_week`. `/today`'s block label lookup
-   * (`vi.today.practice`, task 6.5b's area) should read these (reported to the controller).
+   * (`vi.today.practice`) spreads these in, so the label is defined once.
    */
   blockTags: {
     'topic-practice': 'Luyện thêm chủ đề',
