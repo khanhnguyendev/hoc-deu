@@ -9,6 +9,9 @@ const PORT = 3100
  */
 const E2E_BOT_REF_SECRET = 'e2e-bot-ref-secret-0123456789abcdefghijklmn'
 
+/** The bot API contract suite runs only in the `bot-api` project (task 6.8, owner Q2). */
+const BOT_API_SPEC = 'bot-api.spec.ts'
+
 // Workers inherit process.env from the runner, so `supabase status` runs once.
 if (!process.env.E2E_STACK_READY) {
   Object.assign(process.env, {
@@ -30,8 +33,11 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: `http://localhost:${PORT}`, trace: 'retain-on-failure' },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: BOT_API_SPEC },
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, testIgnore: BOT_API_SPEC },
+    // The §6.10 contract suite (task 6.8, decision 23): request-level, serial, its own CI job
+    // (`bot-contract`); it owns the global `bot_settings` switches and today's run keys.
+    { name: 'bot-api', use: { ...devices['Desktop Chrome'] }, testMatch: BOT_API_SPEC },
   ],
   webServer: {
     command: `pnpm build && pnpm start -p ${PORT}`,
