@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Một hoán vị là cách điền `n` vị trí, mỗi vị trí bằng một số **chưa dùng**. <Term vi="quay lui">Backtracking</Term> điền từ trái sang phải: ở mỗi vị trí, thử lần lượt mọi số chưa dùng, đi sâu để điền vị trí tiếp theo, rồi hoàn tác để thử số khác. Một mảng `used` đánh dấu số nào đang nằm trong hoán vị dở dang, nên kiểm tra "đã dùng chưa" chỉ tốn `O(1)`. Các số khác nhau đôi một, nên mỗi hoán vị chỉ xuất hiện một lần.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Trạng thái">`current` là hoán vị đang điền, `used[i]` cho biết `nums[i]` đã có trong `current` chưa.</Step>
+
+<Step title="Đích">Khi `current` đủ `n` số, thêm một bản sao vào kết quả.</Step>
+
+<Step title="Lựa chọn">Với mỗi `i` mà `used[i]` còn `false`: đặt `used[i] = true`, thêm `nums[i]`, gọi đệ quy.</Step>
+
+<Step title="Hoàn tác">Sau lời gọi đệ quy, bỏ `nums[i]` ra khỏi `current` và đặt lại `used[i] = false`, để số này dùng được ở nhánh khác.</Step>
+
+</Steps>
+
+<VarTable caption="nums = [4, 7, 9]: vị trí đầu là 4">
+
+| Bước | Việc làm | `current` | Ghi nhận |
+| --- | --- | --- | --- |
+| 1 | chọn 4 | `[4]` | — |
+| 2 | chọn 7, rồi 9 (số duy nhất còn lại) | `[4, 7, 9]` | `[4, 7, 9]` |
+| 3 | hoàn tác 9 và 7; chọn 9 | `[4, 9]` | — |
+| 4 | chọn 7 | `[4, 9, 7]` | `[4, 9, 7]` |
+| 5 | hoàn tác 7, 9 và 4; vị trí đầu thử 7 | `[7]` | — |
+
+</VarTable>
+
+Tiếp tục như vậy với 7 rồi 9 ở vị trí đầu, ta được đủ `3! = 6` hoán vị.
+
+<Callout tone="tip" title="Khác Subsets ở đâu?">
+
+Ở Subsets, mỗi phần tử chỉ được hỏi một lần theo thứ tự (lấy hay bỏ). Ở đây, mỗi vị trí được hỏi "số nào đứng ở đây?", và mọi số chưa dùng đều là ứng viên, kể cả số đứng trước trong mảng. Vì thế cần `used` thay vì một chỉ số `start`.
+
+</Callout>
+
+<Complexity time="O(n · n!)" space="O(n)" />
+
+Có `n!` hoán vị, mỗi hoán vị được sao chép trong `O(n)`; các nút trong của cây đệ quy không làm tăng bậc này. Bộ nhớ thêm là `used`, `current` và độ sâu đệ quy, đều `O(n)`; kết quả không tính.
+
+<Solution />
+
+<Bilingual vi="Điền hoán vị từ trái sang phải bằng quay lui: ở mỗi vị trí thử mọi số chưa dùng, đánh dấu nó trong mảng used, đi sâu, rồi bỏ đánh dấu; đủ n số thì sao chép vào kết quả." en="Build each permutation left to right by backtracking. At every position try each number not yet used: mark it in a used array, recurse, then unmark it. When all n positions are filled, append a copy. There are n! permutations, so O(n · n!) time and O(n) extra space." />

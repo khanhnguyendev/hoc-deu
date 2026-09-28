@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Cần số lớn thứ `k` của mảng theo thứ tự đã sắp xếp, tức các số trùng nhau vẫn được đếm riêng. Sắp xếp cả mảng tốn `O(n log n)`, trong khi ta chỉ cần biết `k` số lớn nhất. Giống Kth Largest Element in a Stream: giữ `k` số lớn nhất đã thấy trong một <Term vi="đống nhỏ nhất">min-heap</Term>; đỉnh của nó là số nhỏ nhất trong nhóm, cũng là số lớn thứ `k`. Cách khác là <Term>quickselect</Term>, trung bình `O(n)` (xem phần cuối).
+
+## Cách làm
+
+<Steps>
+
+<Step title="Duyệt mảng">Với mỗi số, đẩy nó vào min-heap.</Step>
+
+<Step title="Giữ cỡ k">Nếu heap có hơn `k` phần tử, lấy phần tử nhỏ nhất ra: nó nhỏ hơn ít nhất `k` số khác.</Step>
+
+<Step title="Đọc đáp án">Hết mảng, heap chứa `k` số lớn nhất; trả về đỉnh.</Step>
+
+</Steps>
+
+Các phần tử của heap được viết theo thứ tự tăng dần cho dễ đọc; trong mảng thật của heap, chỉ phần tử ở đỉnh chắc chắn là nhỏ nhất.
+
+<VarTable caption="nums = [4, 1, 7, 3, 7], k = 2">
+
+| Số | Heap sau khi push | Pop | Heap sau bước |
+| --- | --- | --- | --- |
+| 4 | `4` | — | `4` |
+| 1 | `1 4` | — | `1 4` |
+| 7 | `1 4 7` | 1 | `4 7` |
+| 3 | `3 4 7` | 3 | `4 7` |
+| 7 | `4 7 7` | 4 | `7 7` |
+
+</VarTable>
+
+Đỉnh là 7: hai số 7 được đếm là số lớn nhất và số lớn thứ hai.
+
+<Complexity time="O(n log k)" space="O(k)" />
+
+Mỗi số được push một lần và pop nhiều nhất một lần trên một heap không quá `k + 1` phần tử.
+
+<Callout tone="info" title="Cách khác: quickselect, trung bình O(n)">
+
+Quickselect mượn bước chia của quicksort: chọn một <Term vi="phần tử chốt">pivot</Term> ngẫu nhiên, xếp các số lớn hơn nó sang một bên và nhỏ hơn sang bên kia, rồi chỉ đi tiếp vào **một** bên chứa vị trí thứ `k`. Trung bình mỗi lần phần phải xét giảm còn khoảng một nửa, nên tổng là `O(n)` thời gian và `O(1)` bộ nhớ thêm (chia ngay trong mảng). Đổi lại, trường hợp xấu nhất là `O(n^2)` khi pivot liên tục rơi vào đầu mút, và mảng có nhiều số trùng cần chia làm ba phần (nhỏ hơn, bằng, lớn hơn pivot) để không bị chậm. Lời giải ở đây dùng heap vì đó là pattern của tuần và luôn là `O(n log k)`.
+
+</Callout>
+
+<Solution />
+
+<Bilingual vi="Duyệt mảng và giữ k số lớn nhất trong một min-heap, lấy số nhỏ nhất ra mỗi khi heap có hơn k phần tử; hết mảng, đỉnh heap là số lớn thứ k." en="Scan the array, keeping the k largest values in a min-heap and popping the smallest whenever it holds more than k. At the end the top is the k-th largest: O(n log k) time, O(k) space. Quickselect is the alternative, O(n) on average but O(n^2) in the worst case." />

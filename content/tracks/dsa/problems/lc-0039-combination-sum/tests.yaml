@@ -20,7 +20,7 @@ cases:
       input: { candidates: [3], target: 12 },
       expected: [[3, 3, 3, 3]],
     }
-  # unsorted candidates, a candidate larger than the target, the target itself as a candidate
+  # unsorted candidates (sorting enables the early break) and a candidate larger than the target
   - {
       name: unsorted-with-large-candidate,
       input: { candidates: [40, 5, 2, 4], target: 8 },

@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đây là một bài thiết kế lớp: các số tới dần từng số một, và sau mỗi lần `add` phải trả về số lớn thứ `k` trong mọi số đã thấy. Sắp xếp lại cả danh sách sau mỗi lần thêm là quá chậm. Mẹo then chốt: chỉ giữ **`k` số lớn nhất** trong một <Term vi="đống nhỏ nhất">min-heap</Term>. Số nhỏ nhất trong nhóm `k` số lớn nhất chính là số lớn thứ `k`, và min-heap đưa đúng số đó lên đỉnh. Số nào nhỏ hơn đỉnh thì không bao giờ trở thành đáp án nữa, nên có thể bỏ ngay.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">Lưu `k` và một min-heap rỗng, rồi gọi `add` cho từng số trong `nums`. Mảng ban đầu có thể có ít hơn `k` số; heap khi đó chỉ chưa đầy.</Step>
+
+<Step title="add(val): thêm vào">Đẩy `val` vào heap, tức <Term vi="đẩy vào">push</Term>.</Step>
+
+<Step title="add(val): cắt bớt">Nếu heap có hơn `k` phần tử, lấy phần tử nhỏ nhất ra, tức <Term vi="lấy ra">pop</Term>. Nó nhỏ hơn ít nhất `k` số khác nên không thể là số lớn thứ `k`.</Step>
+
+<Step title="add(val): trả lời">Trả về đỉnh heap. Đề bảo đảm lúc gọi `add` đã có ít nhất `k` số, nên heap lúc này có đúng `k` phần tử.</Step>
+
+</Steps>
+
+Các phần tử của heap được viết theo thứ tự tăng dần cho dễ đọc; trong mảng thật của heap, chỉ phần tử ở đỉnh chắc chắn là nhỏ nhất.
+
+<VarTable caption="k = 2, nums = [5, 1], rồi add(3), add(6), add(2)">
+
+| Thao tác | Heap sau khi push | Pop | Heap sau thao tác | Kết quả |
+| --- | --- | --- | --- | --- |
+| khởi tạo: 5 | `5` | — | `5` | — |
+| khởi tạo: 1 | `1 5` | — | `1 5` | — |
+| `add(3)` | `1 3 5` | 1 | `3 5` | 3 |
+| `add(6)` | `3 5 6` | 3 | `5 6` | 5 |
+| `add(2)` | `2 5 6` | 2 | `5 6` | 5 |
+
+</VarTable>
+
+<Callout tone="tip" title="Vì sao min-heap mà không phải max-heap?">
+
+Việc cần làm nhanh là **bỏ** số nhỏ nhất trong nhóm `k` số đang giữ và **đọc** số lớn thứ `k`; cả hai đều là phần tử nhỏ nhất của nhóm. Min-heap đặt đúng phần tử đó ở đỉnh. Một max-heap chứa mọi số thì phải lấy ra `k` lần mới tới được đáp án.
+
+</Callout>
+
+<Complexity time="O(log k) mỗi lần add" space="O(k)" />
+
+Heap không bao giờ giữ quá `k + 1` phần tử, nên push và pop tốn `O(log k)`, đọc đỉnh tốn `O(1)`. Khởi tạo với `n` số tốn `O(n log k)`.
+
+<Solution />
+
+<Bilingual vi="Giữ k số lớn nhất trong một min-heap: mỗi lần add đẩy số mới vào, nếu heap có hơn k phần tử thì lấy số nhỏ nhất ra, rồi trả về đỉnh heap." en="Keep the k largest values in a min-heap. Each add pushes the new value and pops the smallest one if the heap grows past k; the top is then the k-th largest. Each add costs O(log k) time, and the heap uses O(k) space." />

@@ -1,0 +1,52 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Cần mọi tổ hợp của các ứng viên có tổng bằng `target`, mỗi ứng viên được dùng nhiều lần. Đây là <Term vi="quay lui">backtracking</Term>: ở mỗi bước chọn thêm một ứng viên, đi sâu với phần tổng còn thiếu, rồi hoàn tác. Hai mẹo then chốt. Thứ nhất, chỉ chọn ứng viên có chỉ số **không nhỏ hơn** ứng viên vừa chọn (tham số `start`), nên mỗi tổ hợp chỉ được sinh theo một thứ tự: có `[2, 2, 3]` mà không có thêm `[3, 2, 2]`. Truyền lại chính `i` (không phải `i + 1`) là cách cho phép dùng lại ứng viên. Thứ hai, sắp xếp ứng viên trước để khi một ứng viên đã lớn hơn phần còn thiếu thì dừng hẳn vòng lặp: mọi ứng viên sau còn lớn hơn.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Sắp xếp">Sắp xếp một bản sao của `candidates` tăng dần.</Step>
+
+<Step title="Trạng thái">`backtrack(start, remaining)` với `current` là tổ hợp đang xây và `remaining` là phần tổng còn thiếu.</Step>
+
+<Step title="Đích">Khi `remaining == 0`, thêm một bản sao của `current` vào kết quả.</Step>
+
+<Step title="Lựa chọn">Với `i` từ `start` tới cuối: nếu `candidates[i] > remaining` thì dừng vòng lặp; nếu không, thêm `candidates[i]`, gọi `backtrack(i, remaining - candidates[i])`, rồi bỏ nó ra.</Step>
+
+</Steps>
+
+<VarTable caption="candidates = [3, 5, 2] (sắp xếp thành [2, 3, 5]), target = 7">
+
+| `current` | `remaining` | Chuyện gì xảy ra |
+| --- | --- | --- |
+| `[2, 2, 2]` | 1 | 2 > 1: dừng, quay lui |
+| `[2, 2, 3]` | 0 | ghi nhận `[2, 2, 3]` |
+| `[2, 2]` | 3 | sau `[2, 2, 3]`, thử 5 > 3: dừng |
+| `[2, 3]` | 2 | 3 > 2: dừng, quay lui |
+| `[2, 5]` | 0 | ghi nhận `[2, 5]` |
+| `[3, 3]` | 1 | 3 > 1: dừng, quay lui |
+| `[3]` | 4 | sau `[3, 3]`, thử 5 > 4: dừng |
+| `[5]` | 2 | 5 > 2: dừng; hết ứng viên |
+
+</VarTable>
+
+Kết quả là `[[2, 2, 3], [2, 5]]`.
+
+<Callout tone="warning" title="Hai lỗi hay gặp">
+
+Bắt đầu vòng lặp từ 0 thay vì `start` sinh ra cùng một tổ hợp theo nhiều thứ tự. Dùng `break` mà quên sắp xếp thì bỏ sót tổ hợp, vì một ứng viên nhỏ có thể nằm sau một ứng viên lớn.
+
+</Callout>
+
+<Complexity time="O(n^(t/m + 1))" space="O(t/m)" />
+
+Với `t` là `target` và `m` là ứng viên nhỏ nhất, một tổ hợp dài nhiều nhất `t/m` phần tử, nên cây đệ quy sâu tối đa `t/m` tầng và mỗi nút có tối đa `n` nhánh. Đây là cận trên thô; việc dừng sớm cắt bớt rất nhiều nhánh. Bộ nhớ thêm là độ sâu đệ quy và `current`; kết quả không tính.
+
+<Solution />
+
+<Bilingual vi="Sắp xếp ứng viên rồi quay lui: mỗi bước chọn một ứng viên từ vị trí start trở đi (được chọn lại chính nó), trừ vào phần còn thiếu, dừng vòng lặp khi ứng viên lớn hơn phần còn thiếu, ghi nhận khi còn thiếu 0." en="Sort the candidates and backtrack. Each step picks a candidate at index start or later, passing the same index so it can be reused, and subtracts it from the remaining target. Stop the loop once a candidate exceeds the remainder, and record the combination when the remainder is 0." />

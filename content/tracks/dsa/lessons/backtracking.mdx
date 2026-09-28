@@ -1,0 +1,180 @@
+---
+id: dsa:lesson-backtracking
+format: pattern
+topic: backtracking
+title: 'Backtracking: thử, đi sâu, rồi hoàn tác'
+anchor: dsa:lc-0078
+practice: dsa:lc-0039
+---
+
+<Section kind="signals">
+
+Nghĩ tới <Term vi="quay lui">backtracking</Term> khi gặp một trong các dấu hiệu sau:
+
+- Đề hỏi **mọi** tập con, tổ hợp, hoán vị hoặc mọi cách chia, chứ không chỉ đếm số cách.
+- Lời giải được xây từng bước, mỗi bước chọn một trong vài lựa chọn.
+- Có thể biết sớm một lời giải dở dang không thể thành đúng, để bỏ cả nhánh đó.
+- Đầu vào nhỏ (thường `n` từ 20 trở xuống), vì số kết quả có thể tăng theo hàm mũ.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Ở mỗi bước, các lựa chọn là gì, và khi nào một lời giải dở dang đã xong (hoặc đã hỏng)? Trả lời được hai câu này là viết được hàm đệ quy.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Đi mê cung trong khu vui chơi: tới mỗi ngã rẽ, bạn chọn một lối và đi tiếp. Gặp ngõ cụt thì lùi lại đúng ngã rẽ gần nhất và thử lối khác chưa đi. Bạn không chạy về cổng vào để bắt đầu lại từ đầu.
+
+Backtracking cũng vậy: mỗi ngã rẽ là một lựa chọn, đi tiếp là gọi đệ quy, và lùi lại là **hoàn tác** lựa chọn vừa làm để trạng thái trở về đúng như trước ngã rẽ.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Subsets: liệt kê mọi tập con của một mảng các số khác nhau. Với từng phần tử, ta **lấy** hoặc **bỏ qua** nó; mỗi lá của cây quyết định là một tập con.
+
+<VarTable caption="nums = [4, 6]">
+
+| Bước | Việc làm | `current` | Ghi nhận |
+| --- | --- | --- | --- |
+| 1 | `i = 0`: lấy 4 | `[4]` | — |
+| 2 | `i = 1`: lấy 6 | `[4, 6]` | — |
+| 3 | `i = 2`: lá | `[4, 6]` | `[4, 6]` |
+| 4 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[4]` | `[4]` |
+| 5 | hoàn tác 4; `i = 0`: bỏ qua 4; `i = 1`: lấy 6, tới lá | `[6]` | `[6]` |
+| 6 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[]` | `[]` |
+
+</VarTable>
+
+Hai phần tử cho `2^2 = 4` lá, tức 4 tập con. Chỉ có một danh sách `current` được dùng suốt quá trình; mỗi lần hoàn tác trả nó về đúng trạng thái của ngã rẽ trước.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Trạng thái">Chọn những gì mô tả một lời giải dở dang: thường là danh sách `current` và một chỉ số cho biết đã xét tới đâu (hoặc một mảng `used`).</Step>
+
+<Step title="Đích">Xác định khi nào `current` là một lời giải hoàn chỉnh. Khi đó thêm một **bản sao** của nó vào kết quả, vì `current` còn bị sửa tiếp.</Step>
+
+<Step title="Lựa chọn">Liệt kê các lựa chọn ở bước này: lấy hoặc bỏ qua, ứng viên nào tiếp theo, số nào chưa dùng.</Step>
+
+<Step title="Chọn, đi sâu, hoàn tác">Với mỗi lựa chọn: sửa trạng thái, gọi đệ quy, rồi hoàn tác đúng thay đổi đó. Đây là nhịp ba bước của mọi bài backtracking.</Step>
+
+<Step title="Cắt tỉa">Nếu biết chắc một nhánh không thể dẫn tới lời giải (tổng đã vượt `target`, ký tự không khớp), dừng nhánh đó ngay. Đây là chỗ backtracking nhanh hơn vét cạn thuần.</Step>
+
+</Steps>
+
+### Các biến thể trong tuần
+
+- **Subsets:** hai lựa chọn ở mỗi phần tử, lấy hoặc bỏ qua.
+- **Permutations:** mỗi vị trí chọn một số chưa dùng; mảng `used` thay cho chỉ số.
+- **Word Search:** đi trên lưới; đánh dấu ô trên đường đi rồi khôi phục khi quay lui.
+- **Combination Sum:** một ứng viên được dùng lại nhiều lần; nghĩ xem cần gì để mỗi tổ hợp chỉ xuất hiện một lần. Đó là phần để bạn tự khám phá.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải Python của Subsets. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import List
+
+
+class Solution:
+    def subsets(self, nums: List[int]) -> List[List[int]]:
+        # Backtracking: at each index, either take nums[i] or skip it; every leaf is a subset.
+        result: List[List[int]] = []
+        current: List[int] = []
+
+        def backtrack(i: int) -> None:
+            if i == len(nums):
+                result.append(current.copy())  # a copy: current keeps changing
+                return
+            current.append(nums[i])  # choose
+            backtrack(i + 1)  # explore
+            current.pop()  # undo
+            backtrack(i + 1)  # skip nums[i]
+
+        backtrack(0)
+        return result
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n · 2^n)" space="O(n)" />
+
+Có `2^n` tập con, mỗi tập được sao chép trong `O(n)`. Bộ nhớ thêm là độ sâu đệ quy và `current`, đều `O(n)`; kết quả không tính. Với backtracking, thời gian thường bị chặn bởi số kết quả phải sinh ra, nên không thể nhanh hơn kích thước đầu ra.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Backtracking xây lời giải từng bước: ở mỗi bước thử một lựa chọn, gọi đệ quy, rồi hoàn tác lựa chọn đó; khi lời giải hoàn chỉnh thì lưu một bản sao, và bỏ sớm các nhánh không thể đúng." en="Backtracking builds a solution step by step: try a choice, recurse, then undo that choice before trying the next. Save a copy when the solution is complete, and prune branches that cannot succeed. For subsets this means O(n · 2^n) time and O(n) extra space." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0039" />
+
+Thử Combination Sum: một ứng viên được dùng lại nhiều lần, vậy khi gọi đệ quy nên cho phép chọn lại những ứng viên nào để `[2, 2, 3]` và `[3, 2, 2]` không cùng xuất hiện?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Vì sao Subsets thêm current.copy() vào kết quả chứ không thêm chính current?" answer="b">
+
+<Choice id="a">Sao chép giúp chạy nhanh hơn</Choice>
+
+<Choice id="b">current còn bị sửa tiếp khi quay lui, nên mọi phần tử của kết quả sẽ cùng trỏ tới một danh sách</Choice>
+
+<Choice id="c">Python không cho thêm một list vào list khác</Choice>
+
+</Question>
+
+<Question prompt="Dòng current.pop() ngay sau lời gọi đệ quy có tác dụng gì?" answer="a">
+
+<Choice id="a">Hoàn tác lựa chọn vừa làm, để nhánh tiếp theo bắt đầu từ đúng trạng thái trước đó</Choice>
+
+<Choice id="b">Bỏ đi tập con không hợp lệ</Choice>
+
+<Choice id="c">Kết thúc đệ quy sớm</Choice>
+
+</Question>
+
+<Question prompt="Mảng có 10 phần tử khác nhau thì có bao nhiêu tập con, kể cả tập rỗng?" answer="c">
+
+<Choice id="a">10</Choice>
+
+<Choice id="b">100</Choice>
+
+<Choice id="c">1024</Choice>
+
+<Choice id="d">3628800</Choice>
+
+</Question>
+
+<Question prompt="Trong Word Search, vì sao phải trả ký tự cũ về ô sau khi thử xong các ô kề?" answer="b">
+
+<Choice id="a">Để kết quả trả về là true</Choice>
+
+<Choice id="b">Để ô đó vẫn dùng được cho các đường đi khác</Choice>
+
+<Choice id="c">Để không đi ra ngoài bảng</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>
