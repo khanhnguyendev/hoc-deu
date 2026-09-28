@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyHash } from '@/lib/bot/canonical'
+import { bodyHash } from '@/lib/canonical-json'
 import { catalogVersion, getCatalog } from './catalog'
 
 describe('catalogVersion (§6.4.1, decision 21)', () => {

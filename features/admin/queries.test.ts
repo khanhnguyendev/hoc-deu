@@ -303,10 +303,22 @@ describe('getAdminOverview', () => {
     ['admin_overview', { admin_overview: { data: null, error: { message: 'forbidden' } } }],
     ['an unreadable overview', { admin_overview: { data: { users: {} }, error: null } }],
     ['admin_track_positions', { admin_track_positions: { data: null, error: { message: 'x' } } }],
-    ['admin_bot_runs', { admin_bot_runs: { data: null, error: { message: 'x' } } }],
   ])('throws when %s fails, so the error boundary shows "Thử lại"', async (_name, rpcs) => {
     fake.rpcs = { admin_overview: { data: OVERVIEW, error: null }, ...rpcs }
     await expect(getAdminOverview()).rejects.toThrow()
+  })
+
+  it('degrades when admin_bot_runs fails: the Bot card says so, the page still renders', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_bot_runs: { data: null, error: { message: 'x' } },
+    }
+    const page = await getAdminOverview()
+    expect(page.system.find((card) => card.id === 'bot')).toMatchObject({
+      value: 'Không đọc được',
+    })
+    expect(page.warnings.map((warning) => warning.kind)).not.toContain('bot-deferred')
   })
 
   it('throws when a metric cannot be read (never "chưa có dữ liệu" for a failure)', async () => {

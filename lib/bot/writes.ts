@@ -23,7 +23,7 @@
 import 'server-only'
 import type { Json } from '@/lib/supabase/database.types'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { bodyHash, canonicalJson } from './canonical'
+import { bodyHash, canonicalJson } from '@/lib/canonical-json'
 import { botError, botJson } from './route'
 import type { RunUser } from './runs'
 
@@ -110,7 +110,12 @@ export async function idempotentWrite<T extends Record<string, unknown>>(
 
   const answer = await write()
   if (answer.outcome === undefined) return botJson(answer.status, answer.body)
-  const entry = fitted({ outcome: answer.outcome, status: answer.status, body: answer.body })
+  // Only an answer that binds the key is stored, so only it is cut to fit `writes`; an invalid
+  // one is only counted (its record carries no body) and is answered in full.
+  const binds = answer.outcome !== 'invalid'
+  const entry: Entry = binds
+    ? fitted({ outcome: answer.outcome, status: answer.status, body: answer.body })
+    : { outcome: answer.outcome, status: answer.status, body: {} }
 
   const recorded = await admin.rpc('bot_record_write', {
     p_run_user_id: runUser.runUserId,
@@ -126,6 +131,6 @@ export async function idempotentWrite<T extends Record<string, unknown>>(
   if (result.stored === true) return botJson(entry.status, entry.body)
   const stored = asStored(result.entry)
   if (stored !== null) return replay(stored, hash)
-  // An invalid answer, counted (it binds nothing).
-  return botJson(entry.status, entry.body)
+  // An invalid answer, counted (it binds nothing): its full details.
+  return botJson(answer.status, answer.body)
 }

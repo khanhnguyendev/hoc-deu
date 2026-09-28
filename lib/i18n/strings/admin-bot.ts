@@ -134,5 +134,8 @@ export const adminBot = {
     lastRun: 'Lần chạy gần nhất: {day}',
     never: 'Chưa chạy',
     neverHint: 'Bot chưa chạy lần nào.',
+    /** `admin_bot_runs` failed: unknown, never "Chưa chạy". */
+    unknown: 'Không đọc được',
+    unknownHint: 'Không đọc được nhật ký chạy của bot. Bạn tải lại trang để thử lại nhé.',
   },
 } as const

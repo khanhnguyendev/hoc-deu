@@ -70,6 +70,17 @@ describe('POST /api/bot/v1/runs (§6.4.1)', () => {
     expect(await response.json()).toEqual(PLAN)
   })
 
+  it('an empty body means {} (kind defaults to plan)', async () => {
+    const response = await POST(
+      new Request('https://hocdeu.test/api/bot/v1/runs', {
+        method: 'POST',
+        headers: { authorization: 'Bearer hdb_x' },
+      }),
+    )
+    expect(response.status).toBe(200)
+    expect(fake.startRun).toHaveBeenCalledWith({ kind: 'plan' }, expect.any(Date))
+  })
+
   it('a failure answers 500 internal, JSON and uncached', async () => {
     fake.startRun.mockRejectedValue(new Error('db down'))
     const response = await POST(post('{}'))

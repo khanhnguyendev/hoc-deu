@@ -54,6 +54,17 @@ describe('readJson (decision 38: 64 KB before parsing; 400 invalid_json; 422 inv
     expect(await result.response.json()).toEqual({ error: 'invalid_json' })
   })
 
+  it('an empty body reads as the given default when the route allows one', async () => {
+    await expect(readJson(post(null), schema, { empty: {} })).resolves.toEqual({
+      ok: true,
+      data: { kind: 'plan' },
+    })
+    await expect(readJson(post(''), schema, { empty: {} })).resolves.toEqual({
+      ok: true,
+      data: { kind: 'plan' },
+    })
+  })
+
   it('answers 413 too_large over 64 KB, before parsing', async () => {
     expect(BODY_LIMIT_BYTES).toBe(64 * 1024)
     const big = `{"kind":"plan","pad":"${'x'.repeat(65 * 1024)}"}`

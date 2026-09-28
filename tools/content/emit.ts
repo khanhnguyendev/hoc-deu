@@ -6,7 +6,7 @@
  */
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { bodyHash } from '@/lib/bot/canonical'
+import { bodyHash } from '@/lib/canonical-json'
 import type { Catalog } from '@/lib/content/catalog-types'
 import type { CodeBundle } from '@/lib/content/code-tokens'
 import { parseItemId } from '@/lib/content/schemas/ids'

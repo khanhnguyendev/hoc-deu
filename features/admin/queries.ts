@@ -144,11 +144,20 @@ async function readBotRuns(supabase: Client): Promise<AdminBotRun[]> {
   return adminBotRunsSchema.parse(data)
 }
 
+/** `readBotRuns`, or null when it fails (logged by name only): the pages degrade, not break. */
+function readBotRunsOrNull(supabase: Client): Promise<AdminBotRun[] | null> {
+  return readBotRuns(supabase).catch(() => {
+    console.error('[admin] the bot run log could not be read')
+    return null
+  })
+}
+
 /**
  * `/admin` (§2.4, §8.4 item 5): the aggregate readers (`admin_overview()`,
  * `admin_track_positions()` — counts only, §4.5), the latest ops metrics and the content catalog's
  * coverage, as the admin's own session. Any failed read throws, so the route's error boundary
- * shows "Thử lại".
+ * shows "Thử lại" — except the bot's run log (`admin_bot_runs`, task 6.4a), whose failure only
+ * makes the Bot card say it could not be read.
  */
 export async function getAdminOverview(): Promise<AdminOverviewPage> {
   await requireAdmin()
@@ -159,7 +168,8 @@ export async function getAdminOverview(): Promise<AdminOverviewPage> {
     readTrackPositions(supabase),
     readMetrics(supabase),
     readFailOpen7d(supabase, now),
-    readBotRuns(supabase),
+    // The bot is v1.1 and optional: a failed read degrades the Bot card, never the page.
+    readBotRunsOrNull(supabase),
   ])
   if (overview.error)
     throw new Error('Could not read the admin overview', { cause: overview.error })
@@ -202,10 +212,7 @@ export async function getAdminBot(): Promise<AdminBotPage> {
   const supabase = await createClient()
   const [settings, runs] = await Promise.all([
     supabase.rpc('admin_bot_settings'),
-    readBotRuns(supabase).catch(() => {
-      console.error('[admin] the bot run log could not be read')
-      return null
-    }),
+    readBotRunsOrNull(supabase),
   ])
   if (settings.error) throw new Error('Could not read the bot settings', { cause: settings.error })
   return buildAdminBotPage({

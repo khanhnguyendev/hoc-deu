@@ -59,6 +59,7 @@ class Query implements PromiseLike<Result> {
   private head = false
   private op: 'select' | 'insert' | 'update' | 'delete' = 'select'
   private payload: Row[] | Row = []
+  private skipDuplicates = false
 
   constructor(
     private readonly db: FakeDb,
@@ -75,6 +76,15 @@ class Query implements PromiseLike<Result> {
     this.op = 'insert'
     this.payload = Array.isArray(rows) ? rows : [rows]
     return this
+  }
+  /** `upsert(rows, { onConflict, ignoreDuplicates: true })` only: conflicting rows are skipped. */
+  upsert(
+    rows: Row | Row[],
+    options: { onConflict?: string; ignoreDuplicates?: boolean } = {},
+  ): this {
+    if (options.ignoreDuplicates !== true) throw new Error('fake-db: upsert needs ignoreDuplicates')
+    this.skipDuplicates = true
+    return this.insert(rows)
   }
   update(patch: Row): this {
     this.op = 'update'
@@ -209,18 +219,22 @@ class Query implements PromiseLike<Result> {
       return Object.assign(row, copy(input))
     })
     const all = [...this.rows()]
+    const kept: Row[] = []
     for (const row of rows) {
-      for (const columns of unique) {
-        if (all.some((other) => columns.every((column) => other[column] === row[column]))) {
-          return {
-            error: { code: '23505', message: `duplicate key value violates unique constraint` },
-          }
+      const duplicate = unique.some((columns) =>
+        all.some((other) => columns.every((column) => other[column] === row[column])),
+      )
+      if (duplicate && this.skipDuplicates) continue
+      if (duplicate) {
+        return {
+          error: { code: '23505', message: `duplicate key value violates unique constraint` },
         }
       }
       all.push(row)
+      kept.push(row)
     }
-    this.rows().push(...rows)
-    return { rows }
+    this.rows().push(...kept)
+    return { rows: kept }
   }
 }
 

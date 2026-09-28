@@ -504,7 +504,7 @@ describe('buildAdminOverview — the bot (task 6.4a, §2.4 "deferred AI users an
     finishedAt: '2026-09-26T23:00:00Z',
     ...patch,
   })
-  const withRuns = (botRuns: readonly AdminBotRun[]) =>
+  const withRuns = (botRuns: readonly AdminBotRun[] | null) =>
     buildAdminOverview({
       counts: COUNTS,
       metrics: HEALTHY,
@@ -514,7 +514,7 @@ describe('buildAdminOverview — the bot (task 6.4a, §2.4 "deferred AI users an
       botRuns,
       now: NOW,
     })
-  const botCard = (botRuns: readonly AdminBotRun[]) =>
+  const botCard = (botRuns: readonly AdminBotRun[] | null) =>
     withRuns(botRuns).system.find((card) => card.id === 'bot')
 
   it('warns while today’s plan run has deferred users, with a link to /admin/bot', () => {
@@ -552,5 +552,13 @@ describe('buildAdminOverview — the bot (task 6.4a, §2.4 "deferred AI users an
       value: 'Chưa chạy',
       hint: 'Bot chưa chạy lần nào.',
     })
+    // The run log could not be read: unknown, never "Chưa chạy", and no warning.
+    expect(botCard(null)).toEqual({
+      id: 'bot',
+      label: 'Bot AI',
+      value: 'Không đọc được',
+      hint: 'Không đọc được nhật ký chạy của bot. Bạn tải lại trang để thử lại nhé.',
+    })
+    expect(withRuns(null).warnings).toEqual([])
   })
 })

@@ -7,6 +7,7 @@
  * Nothing a learner wrote is logged: log lines hold codes only.
  */
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 import type { PostgrestSingleResponse, SupabaseClient } from '@supabase/supabase-js'
 import {
   RUN_KEY_PATTERN,
@@ -32,8 +33,11 @@ type Client = SupabaseClient<Database>
 type RunRow = Database['public']['Tables']['bot_runs']['Row']
 type Outcome = NonNullable<Database['public']['Tables']['bot_run_users']['Row']['outcome']>
 
-const RUN_COLUMNS = 'id, run_key, kind, mode, status, users_deferred'
-type Run = Pick<RunRow, 'id' | 'run_key' | 'kind' | 'mode' | 'status' | 'users_deferred'>
+const RUN_COLUMNS = 'id, run_key, kind, mode, status, users_eligible, users_deferred'
+type Run = Pick<
+  RunRow,
+  'id' | 'run_key' | 'kind' | 'mode' | 'status' | 'users_eligible' | 'users_deferred'
+>
 
 /** Postgres' unique violation. */
 const UNIQUE_VIOLATION = '23505'
@@ -102,33 +106,82 @@ async function startPlanRun(
     rulesVersion: RULES_VERSION,
     contentProposals: settings.contentProposals,
   }
-  const inserted = await admin
-    .from('bot_runs')
-    .insert({ run_key: runKey, kind: 'plan', ops_date: day, mode })
-    .select(RUN_COLUMNS)
-    .single()
-  if (!inserted.error) {
-    const { users, deferredUsers } = await walkNewRun(admin, inserted.data, settings, now)
-    return { ...base, mode, users, deferredUsers }
-  }
-  if (inserted.error.code !== UNIQUE_VIOLATION) throw failed('create the plan run', inserted.error)
+  const readRun = async () =>
+    must(
+      'read the plan run',
+      await admin.from('bot_runs').select(RUN_COLUMNS).eq('run_key', runKey).maybeSingle(),
+    )
 
   // One plan run per date: a retry or a second runner resumes it (decision 8).
-  const run = must(
-    'read the plan run',
-    await admin.from('bot_runs').select(RUN_COLUMNS).eq('run_key', runKey).single(),
-  )
-  const resumed = strictestMode(asMode(run.mode), mode)
-  if (run.status === 'completed') {
-    return { ...base, mode: resumed, users: [], deferredUsers: run.users_deferred }
+  const existing = await readRun()
+  if (existing !== null)
+    return { ...base, ...(await resumePlanRun(admin, existing, mode, settings, now)) }
+
+  // M6-R23b: walk read-only first, under a run id chosen here (the refs need it), then insert the
+  // run with its counts, then its users at once. A run row therefore never exists before its walk
+  // is done; a crash between the two inserts is repaired by the next resume.
+  const runUuid = randomUUID()
+  const walk = await walkUsers(admin, runUuid, settings, now)
+  const inserted = await admin.from('bot_runs').insert({
+    id: runUuid,
+    run_key: runKey,
+    kind: 'plan',
+    ops_date: day,
+    mode,
+    users_eligible: walk.eligible,
+    users_deferred: walk.deferred,
+  })
+  if (inserted.error) {
+    if (inserted.error.code !== UNIQUE_VIOLATION)
+      throw failed('create the plan run', inserted.error)
+    // Another start inserted first: this walk is discarded, that run resumed.
+    const winner = await readRun()
+    if (winner === null) throw new Error('The plan run vanished after a unique violation')
+    return { ...base, ...(await resumePlanRun(admin, winner, mode, settings, now)) }
   }
+  await insertRunUsers(admin, walk.rows)
+  return { ...base, mode, users: walk.users, deferredUsers: walk.deferred }
+}
+
+/**
+ * Resume (decision 8, M6-R23a/b): the strictest mode; a `completed` run answers `users: []`; a
+ * `running` or `failed` one goes back to `running` with `started_at = now`, so the 2-hour timeout
+ * counts from the last start or resume. A run that counted eligible users but has no user rows (a
+ * crash between the run's insert and its users') walks again under its own id and inserts them
+ * (`on conflict do nothing`: concurrent repairs are safe). The pending users in ref order.
+ */
+async function resumePlanRun(
+  admin: Client,
+  run: Run,
+  requested: RunMode,
+  settings: BotSettings,
+  now: Date,
+): Promise<{ mode: RunMode; users: string[]; deferredUsers: number }> {
+  const mode = strictestMode(asMode(run.mode), requested)
+  if (run.status === 'completed') return { mode, users: [], deferredUsers: run.users_deferred }
   must(
     'resume the plan run',
     await admin
       .from('bot_runs')
-      .update({ status: 'running', failure_reason: null, finished_at: null, mode: resumed })
+      .update({
+        status: 'running',
+        failure_reason: null,
+        finished_at: null,
+        mode,
+        started_at: now.toISOString(),
+      })
       .eq('id', run.id),
   )
+  if (run.users_eligible > 0) {
+    const recorded = await admin
+      .from('bot_run_users')
+      .select('id', { count: 'exact', head: true })
+      .eq('run_id', run.id)
+    if (recorded.error) throw failed("count the run's users", recorded.error)
+    if ((recorded.count ?? 0) === 0) {
+      await insertRunUsers(admin, (await walkUsers(admin, run.id, settings, now)).rows)
+    }
+  }
   const pending = must(
     'read the pending users',
     await admin
@@ -136,15 +189,9 @@ async function startPlanRun(
       .select('user_ref')
       .eq('run_id', run.id)
       .is('outcome', null)
-      .order('created_at')
       .order('user_ref'),
   )
-  return {
-    ...base,
-    mode: resumed,
-    users: pending.map((row) => row.user_ref),
-    deferredUsers: run.users_deferred,
-  }
+  return { mode, users: pending.map((row) => row.user_ref), deferredUsers: run.users_deferred }
 }
 
 /** What the pre-filter makes of one eligible user: a row's outcome, pending, or no row. */
@@ -200,65 +247,54 @@ async function preFilter(admin: Client, userId: string, now: Date): Promise<PreF
   }
 }
 
+type RunUserInsert = Database['public']['Tables']['bot_run_users']['Insert']
+
+/** The run's users at once; a row already there (a concurrent repair) is left as it is. */
+async function insertRunUsers(admin: Client, rows: readonly RunUserInsert[]): Promise<void> {
+  if (rows.length === 0) return
+  must(
+    'record the run users',
+    await admin
+      .from('bot_run_users')
+      .upsert([...rows], { onConflict: 'run_id,user_id', ignoreDuplicates: true }),
+  )
+}
+
 /**
- * A new plan run: the eligible users (`bot_eligible_users()`, least recently processed first),
- * pre-filtered in that order until `per_run_user_cap` are pending — each batch resolved in
- * parallel, never past the cap. The users never examined are deferred (§6.2). Rows are inserted
- * once the walk is done; a walk that fails deletes the run (best effort), so a retry starts over.
+ * The walk (read-only): the eligible users (`bot_eligible_users()`, least recently processed
+ * first), pre-filtered in that order until `per_run_user_cap` are pending — each batch resolved in
+ * parallel, never past the cap. The users never examined are deferred (§6.2).
  */
-async function walkNewRun(
+async function walkUsers(
   admin: Client,
-  run: Run,
+  runUuid: string,
   settings: BotSettings,
   now: Date,
-): Promise<{ users: string[]; deferredUsers: number }> {
-  try {
-    const eligible = must('read the eligible users', await admin.rpc('bot_eligible_users'))
-    const secret = refSecret()
-    const cap = settings.perRunUserCap
-    const rows: Database['public']['Tables']['bot_run_users']['Insert'][] = []
-    const users: string[] = []
-    let examined = 0
-    while (users.length < cap && examined < eligible.length) {
-      const batch = eligible.slice(examined, examined + (cap - users.length))
-      examined += batch.length
-      const outcomes = await Promise.all(batch.map((user) => preFilter(admin, user.user_id, now)))
-      batch.forEach((user, index) => {
-        const outcome = outcomes[index] ?? null
-        if (outcome === null) return
-        const ref = userRef(user.user_id, run.id, secret)
-        rows.push({
-          run_id: run.id,
-          user_id: user.user_id,
-          user_ref: ref,
-          outcome: outcome === 'pending' ? null : outcome,
-        })
-        if (outcome === 'pending') users.push(ref)
+): Promise<{ rows: RunUserInsert[]; users: string[]; eligible: number; deferred: number }> {
+  const eligible = must('read the eligible users', await admin.rpc('bot_eligible_users'))
+  const secret = refSecret()
+  const cap = settings.perRunUserCap
+  const rows: RunUserInsert[] = []
+  const users: string[] = []
+  let examined = 0
+  while (users.length < cap && examined < eligible.length) {
+    const batch = eligible.slice(examined, examined + (cap - users.length))
+    examined += batch.length
+    const outcomes = await Promise.all(batch.map((user) => preFilter(admin, user.user_id, now)))
+    batch.forEach((user, index) => {
+      const outcome = outcomes[index] ?? null
+      if (outcome === null) return
+      const ref = userRef(user.user_id, runUuid, secret)
+      rows.push({
+        run_id: runUuid,
+        user_id: user.user_id,
+        user_ref: ref,
+        outcome: outcome === 'pending' ? null : outcome,
       })
-    }
-    const deferredUsers = eligible.length - examined
-    if (rows.length > 0) {
-      must('record the run users', await admin.from('bot_run_users').insert(rows))
-    }
-    must(
-      'record the run counts',
-      await admin
-        .from('bot_runs')
-        .update({ users_eligible: eligible.length, users_deferred: deferredUsers })
-        .eq('id', run.id),
-    )
-    return { users, deferredUsers }
-  } catch (error) {
-    await admin
-      .from('bot_runs')
-      .delete()
-      .eq('id', run.id)
-      .then(
-        () => undefined,
-        () => undefined,
-      )
-    throw error
+      if (outcome === 'pending') users.push(ref)
+    })
   }
+  return { rows, users, eligible: eligible.length, deferred: eligible.length - examined }
 }
 
 /**

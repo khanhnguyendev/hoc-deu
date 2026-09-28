@@ -49,6 +49,28 @@ export function botRecordWrite(args: Record<string, unknown>, db: FakeDb): unkno
   return { stored: true, entry: stored }
 }
 
+/**
+ * `bot_timeout_runs()` at `clock()`: a run still running more than 2 hours after `started_at` is
+ * failed / timeout. Returns the count.
+ */
+export function botTimeoutRuns(clock: () => Date) {
+  return (_args: Record<string, unknown>, db: FakeDb): number => {
+    const cutoff = clock().getTime() - 2 * 60 * 60 * 1000
+    let count = 0
+    for (const run of db.tables.bot_runs ?? []) {
+      if (run.status === 'running' && Date.parse(run.started_at as string) < cutoff) {
+        Object.assign(run, {
+          status: 'failed',
+          failure_reason: 'timeout',
+          finished_at: clock().toISOString(),
+        })
+        count += 1
+      }
+    }
+    return count
+  }
+}
+
 /** `publish_set_pr(p_ids, p_pr_url)`: the PR on the listed pending requests; the count. */
 export function publishSetPr(args: Record<string, unknown>, db: FakeDb): number {
   const ids = args.p_ids as number[]

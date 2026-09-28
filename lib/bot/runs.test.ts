@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BOT_TABLES, publishSetPr } from './__fixtures__/bot-sql'
+import { BOT_TABLES, botTimeoutRuns, publishSetPr } from './__fixtures__/bot-sql'
 import { fakeDb, type FakeDb, type FakeDbOptions, type Row } from './__fixtures__/fake-db'
 import { userRef } from './refs'
 
@@ -12,6 +12,10 @@ const state = vi.hoisted(() => ({
   resolutions: {} as Record<string, unknown>,
   /** loadDay throws for these users. */
   broken: new Set<string>(),
+  /** The database's clock (bot_timeout_runs). */
+  clock: new Date('2026-10-04T22:30:00Z'),
+  /** Runs once, inside the first loadDay: another caller acting during a walk. */
+  duringWalk: null as null | (() => Promise<void>),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => state.db.client }))
@@ -19,6 +23,9 @@ vi.mock('@/lib/env', () => ({ serverEnv: () => ({ botRefSecret: SECRET }) }))
 vi.mock('@/lib/content/catalog', () => ({ catalogVersion: () => CATALOG_VERSION }))
 vi.mock('@/lib/plans/day', () => ({
   loadDay: vi.fn(async (_client: unknown, userId: string) => {
+    const during = state.duringWalk
+    state.duringWalk = null
+    if (during) await during()
     if (state.broken.has(userId)) throw new Error('boom')
     return { today: '2026-10-05', userId }
   }),
@@ -78,7 +85,7 @@ function setup(input: Setup = {}): FakeDb {
       ...BOT_TABLES,
       onInsert: input.onInsert,
       rpc: {
-        bot_timeout_runs: () => 0,
+        bot_timeout_runs: botTimeoutRuns(() => state.clock),
         bot_eligible_users: () =>
           eligible.map((userId) => ({ user_id: userId, last_processed_at: null })),
         publish_set_pr: publishSetPr,
@@ -94,6 +101,8 @@ const runUsers = (db: FakeDb) => db.tables.bot_run_users ?? []
 beforeEach(() => {
   state.resolutions = Object.fromEntries(USERS.map((id) => [id, OPEN]))
   state.broken = new Set()
+  state.clock = NOW
+  state.duringWalk = null
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -281,7 +290,7 @@ describe('startRun — the same day again (decision 8)', () => {
       catalogVersion: CATALOG_VERSION,
       rulesVersion: 3,
       contentProposals: true,
-      users: ['u_bbbbbbbbbbbbbbbb', 'u_aaaaaaaaaaaaaaaa'],
+      users: ['u_aaaaaaaaaaaaaaaa', 'u_bbbbbbbbbbbbbbbb'],
       deferredUsers: 2,
     })
     expect(db.calls).not.toContain('rpc:bot_eligible_users')
@@ -302,7 +311,26 @@ describe('startRun — the same day again (decision 8)', () => {
       failure_reason: null,
       finished_at: null,
       mode: 'dry_run',
+      started_at: NOW.toISOString(),
     })
+  })
+
+  it('a resumed run counts its 2 hours from the resume, so a later sweep leaves it running (M6-R23a)', async () => {
+    const db = setup({
+      runs: [stored({ status: 'running', started_at: '2026-10-04T19:00:00Z' })],
+      runUsers: users(),
+    })
+    // The start's own sweep fails the 3.5-hour-old run; the resume takes it back.
+    await startRun({ kind: 'plan' }, NOW)
+    expect(runRow(db)).toMatchObject({ status: 'running', started_at: NOW.toISOString() })
+
+    state.clock = new Date(NOW.getTime() + 60 * 60 * 1000)
+    await (db.client as { rpc: (name: string) => Promise<unknown> }).rpc('bot_timeout_runs')
+    expect(runRow(db)?.status).toBe('running')
+
+    state.clock = new Date(NOW.getTime() + 2 * 60 * 60 * 1000 + 60 * 1000)
+    await (db.client as { rpc: (name: string) => Promise<unknown> }).rpc('bot_timeout_runs')
+    expect(runRow(db)).toMatchObject({ status: 'failed', failure_reason: 'timeout' })
   })
 
   it('a live run resumed after an admin turned dry-run on becomes dry_run', async () => {
@@ -327,6 +355,55 @@ describe('startRun — the same day again (decision 8)', () => {
     const response = await startRun({ kind: 'plan' }, NOW)
     expect(response).toMatchObject({ runId: RUN_KEY, users: [], deferredUsers: 2 })
     expect(runRow(db)).toMatchObject({ status: 'completed', finished_at: 'x' })
+  })
+})
+
+describe('startRun — concurrent starts and crashes (M6-R23b)', () => {
+  it('a second start during the first one’s walk never gets an empty run', async () => {
+    const db = setup({ settings: { per_run_user_cap: 3 } })
+    let second: Awaited<ReturnType<typeof startRun>> | undefined
+    state.duringWalk = async () => {
+      second = await startRun({ kind: 'plan' }, NOW)
+    }
+    const first = await startRun({ kind: 'plan' }, NOW)
+    const run = runRow(db)
+    const refs = USERS.slice(0, 3).map((id) => userRef(id, run?.id as string, SECRET))
+    expect(db.tables.bot_runs).toHaveLength(1)
+    expect(second).toMatchObject({ runId: RUN_KEY, users: refs, deferredUsers: 3 })
+    // The first start lost the insert: it resumes the same run and its pending users.
+    expect(first).toMatchObject({ runId: RUN_KEY, users: [...refs].sort() })
+    expect(runUsers(db)).toHaveLength(3)
+  })
+
+  it('a resume after a crash between the two inserts walks again and returns the pending users', async () => {
+    let crash = true
+    const db = setup({
+      settings: { per_run_user_cap: 2 },
+      onInsert: (table) => {
+        if (table === 'bot_run_users' && crash) {
+          crash = false
+          throw new Error('connection reset')
+        }
+      },
+    })
+    await expect(startRun({ kind: 'plan' }, NOW)).rejects.toThrow()
+    // The run exists (never deleted: another caller may have resumed it), without users.
+    expect(runRow(db)).toMatchObject({ users_eligible: 6, users_deferred: 4 })
+    expect(runUsers(db)).toHaveLength(0)
+
+    const resumed = await startRun({ kind: 'plan' }, NOW)
+    const run = runRow(db)
+    const refs = USERS.slice(0, 2).map((id) => userRef(id, run?.id as string, SECRET))
+    expect(resumed).toMatchObject({ users: [...refs].sort(), deferredUsers: 4 })
+    expect(runUsers(db)).toHaveLength(2)
+  })
+
+  it('a resume with users recorded never walks again', async () => {
+    const db = setup({ settings: { per_run_user_cap: 2 } })
+    await startRun({ kind: 'plan' }, NOW)
+    db.calls.length = 0
+    await startRun({ kind: 'plan' }, NOW)
+    expect(db.calls).not.toContain('rpc:bot_eligible_users')
   })
 })
 

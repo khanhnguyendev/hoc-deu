@@ -33,12 +33,20 @@ it. The forces:
   the plan run is `run_<YYYY-MM-DD>`, unique per date across modes (`bot_runs.run_key` is unique).
   The API's `runId` is the key; `bot_runs.id` is a UUID that stays server-side and namespaces the
   run's event ids (`deriveEventId(<run uuid>, …)`) and refs.
-- **One plan run per date, resumable.** Start inserts `run_<date>` (a unique violation means it
-  exists) and walks the eligible users; starting again the same day returns the same run and its
-  still-pending users (`outcome is null`, in the order they were recorded). A `running` or
-  `failed` run goes back to `running` (`failure_reason` and `finished_at` cleared); a `completed`
-  one answers `users: []`. A resumed run adds no users. A walk that fails deletes its run row (best
-  effort), so a retry starts over rather than resuming an empty run.
+- **One plan run per date, resumable.** Start first reads `run_<date>`; when it exists, the run is
+  resumed. Otherwise the eligible users are walked **read-only**, under a run UUID chosen by the
+  server (the refs need it), and only then is the run inserted — with its id, mode and counts —
+  followed by all its users in one insert (ruling M6-R23b; no schema change). A unique violation
+  on the run key means another start inserted first: this walk is discarded and that run resumed.
+  So a run row never exists before its walk is done, and a start during another start's walk
+  never sees an empty run. Starting again the same day returns the same run and its still-pending
+  users (`outcome is null`, in ref order). A `running` or `failed` run goes back to `running`
+  (`failure_reason` and `finished_at` cleared, `started_at` set to now — M6-R23a); a `completed`
+  one answers `users: []`. A resume adds no users, with one exception: a run that counted eligible
+  users (`users_eligible > 0`) but has no user rows — a crash between the run's insert and its
+  users' — walks again under its own id and inserts them (`unique (run_id, user_id)` with `on
+  conflict do nothing`, so concurrent repairs are safe). Nothing ever deletes a run row: another
+  caller may already have resumed it.
 - **The stricter mode wins.** At start the mode is `live` only when `bot_settings.dry_run` is off
   **and** the request did not ask for `dry_run`. A resume, and every later write (through
   `resolveRunUser`), takes the strictest of the stored mode, the requested mode and the **current**
@@ -63,7 +71,9 @@ it. The forces:
   được xử lý hôm nay — tăng giới hạn hoặc giảm số người dùng AI." while today's plan run has
   deferred users.
 - **The lazy 2-hour timeout.** A run still `running` two hours after `started_at` is `failed` with
-  reason `timeout` (`bot_timeout_runs()`), applied whenever runs are read: on every run start, on
+  reason `timeout` (`bot_timeout_runs()`). A resume sets `started_at` to the resume's time, so the
+  two hours count from the last start or resume (M6-R23a) and a resumed run is not failed again by
+  the next sweep. The timeout is applied whenever runs are read: on every run start, on
   `/admin/bot`'s render (`admin_bot_runs`) and in the daily maintenance cron (step `botRuns`; step
   `botDetails` drops the `detail` of runs older than 30 days). A run the bot finishes as `failed`
   records the reason `reported`.
@@ -84,8 +94,10 @@ it. The forces:
 
 ## Consequences
 
-- Retries and a second runner are safe by construction: the date key makes them the same run, and
-  the stored write answers make repeated requests replays.
+- Retries and a second runner are safe: the date key makes them the same run (the loser of the
+  insert resumes the winner's run, walking again only to repair a run without users), and the
+  stored write answers make repeated requests replays. Two starts racing may each walk once;
+  only one walk is kept.
 - Far-west learners (Americas) rarely get an AI plan: one run per Vietnamese date means their day
   may not have started, or may already be half over, when the run happens (§6.11). Accepted for v1.
 - A dry-run request or an admin's switch can only make a run stricter; turning dry-run off takes

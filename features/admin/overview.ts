@@ -279,7 +279,10 @@ function rateLimitFailOpenCard(rateLimit: RateLimitOverview): SystemCard {
 }
 
 /** §2.4 "deferred AI users": today's plan run left eligible users out (task 6.4a, §6.2). */
-function botDeferredWarning(botRuns: readonly AdminBotRun[], now: Date): AdminWarning | null {
+function botDeferredWarning(
+  botRuns: readonly AdminBotRun[] | null,
+  now: Date,
+): AdminWarning | null {
   const message = deferredWarning(botRuns, now)
   if (message === null) return null
   return {
@@ -291,9 +294,15 @@ function botDeferredWarning(botRuns: readonly AdminBotRun[], now: Date): AdminWa
   }
 }
 
-/** §2.4 "bot health": the latest run's status (and a failure's reason) and its date. */
-function botCard(botRuns: readonly AdminBotRun[]): SystemCard {
+/**
+ * §2.4 "bot health": the latest run's status (and a failure's reason) and its date; unknown when
+ * the runs could not be read.
+ */
+function botCard(botRuns: readonly AdminBotRun[] | null): SystemCard {
   const base = { id: 'bot' as const, label: vi.adminBot.overview.label }
+  if (botRuns === null) {
+    return { ...base, value: vi.adminBot.overview.unknown, hint: vi.adminBot.overview.unknownHint }
+  }
   const [latest] = botRuns
   if (latest === undefined) {
     return { ...base, value: vi.adminBot.overview.never, hint: vi.adminBot.overview.neverHint }
@@ -343,7 +352,7 @@ function dbSizeCard(reading: MetricReading | null, now: Date): SystemCard {
 function systemCards(
   metrics: OpsMetrics,
   rateLimit: RateLimitOverview,
-  botRuns: readonly AdminBotRun[],
+  botRuns: readonly AdminBotRun[] | null,
   now: Date,
 ): SystemCard[] {
   const cronHasRun = metrics['cron.last_run_at'] !== null
@@ -368,12 +377,15 @@ export function buildAdminOverview(input: {
   coverage: readonly CoverageWarning[]
   rateLimit: RateLimitOverview
   vercelEnv: VercelEnv | undefined
-  /** `admin_bot_runs(20)`, newest first (task 6.4a); none by default. */
-  botRuns?: readonly AdminBotRun[]
+  /**
+   * `admin_bot_runs(20)`, newest first (task 6.4a); none by default; null when it could not be
+   * read (the Bot card says so, no bot warning — the rest of `/admin` still renders).
+   */
+  botRuns?: readonly AdminBotRun[] | null
   now: Date
 }): AdminOverviewPage {
   const { counts, metrics, rateLimit, vercelEnv, now } = input
-  const botRuns = input.botRuns ?? []
+  const botRuns = input.botRuns === undefined ? [] : input.botRuns
   const cron = metrics['cron.last_run_at']
   const cronIsStale = cron !== null && isOldReading(cron, now)
   const redWeeks = input.coverage.reduce((sum, warning) => sum + warning.weeks.length, 0)

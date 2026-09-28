@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BOT_TABLES, botRecordWrite } from './__fixtures__/bot-sql'
 import { fakeDb, type FakeDb, type Row } from './__fixtures__/fake-db'
-import { bodyHash } from './canonical'
+import { bodyHash } from '@/lib/canonical-json'
 import { readBody } from './route'
 import type { RunUser } from './runs'
 
@@ -238,6 +238,22 @@ describe('idempotentWrite — bounds', () => {
     expect(stored?.body.details.length).toBeLessThan(400)
     expect(answered.details).toEqual(stored?.body.details)
     expect(JSON.stringify(stored).length).toBeLessThanOrEqual(STORED_ENTRY_BYTES + 100)
+  })
+
+  it('an invalid answer (it binds nothing) returns every detail, uncut', async () => {
+    setup()
+    const details = Array.from({ length: 400 }, (_, index) => ({
+      path: `items.${index}`,
+      message: 'x'.repeat(60),
+    }))
+    const response = await idempotentWrite(RUN_USER, 'plan', request(), BODY, async () => ({
+      status: 422,
+      body: { error: 'invalid', details },
+      outcome: 'invalid' as const,
+    }))
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { details: unknown[] }).details).toHaveLength(400)
+    expect(row().writes).toEqual({})
   })
 
   it('a 65 KB body is refused with 413 by readBody, before any key check or write', async () => {

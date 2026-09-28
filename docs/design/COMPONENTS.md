@@ -2411,7 +2411,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
   (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam; the
   Upstash rate-limit fail-open count of the last 7 days, task 6.1; "Bot AI" — the latest bot run's
   status with a failure's reason and "Lần chạy gần nhất: {day}", or "Chưa chạy" / "Bot chưa chạy
-  lần nào.", task 6.4a); "Trang quản trị" (a LinkList of
+  lần nào.", or "Không đọc được" when the run log could not be read — the page still renders,
+  task 6.4a); "Trang quản trị" (a LinkList of
   LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
 - **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
   named (§4.5)

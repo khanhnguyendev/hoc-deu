@@ -54,11 +54,21 @@ async function boundedBytes(request: Request): Promise<Uint8Array | null> {
  * The body as JSON, unvalidated: 413 over 64 KB (a declared `Content-Length` over it is refused
  * without reading), 400 when it is not UTF-8 JSON. Write routes hash this value (`idempotentWrite`).
  */
-export async function readBody(request: Request): Promise<Read<unknown>> {
+export type ReadOptions = {
+  /** What an empty body reads as (`POST /runs`: `{}`); without it, empty is `invalid_json`. */
+  empty?: unknown
+}
+
+export async function readBody(
+  request: Request,
+  options: ReadOptions = {},
+): Promise<Read<unknown>> {
   const declared = Number(request.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > BODY_LIMIT_BYTES) return tooLarge()
   const bytes = await boundedBytes(request)
   if (bytes === null) return tooLarge()
+  if (bytes.byteLength === 0 && options.empty !== undefined)
+    return { ok: true, data: options.empty }
   try {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
     return { ok: true, data: JSON.parse(text) as unknown }
@@ -80,8 +90,9 @@ export function issueDetails(error: z.ZodError): { path: string; code: string; m
 export async function readJson<S extends z.ZodType>(
   request: Request,
   schema: S,
+  options: ReadOptions = {},
 ): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> {
-  const body = await readBody(request)
+  const body = await readBody(request, options)
   if (!body.ok) return body
   const parsed = schema.safeParse(body.data)
   if (!parsed.success) {

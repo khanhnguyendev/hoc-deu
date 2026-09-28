@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { bodyHash, canonicalJson } from './canonical'
+import { bodyHash, canonicalJson } from './canonical-json'
 
 describe('canonicalJson (decision 10: sorted keys, no whitespace)', () => {
   it('sorts object keys at every depth and drops whitespace', () => {
@@ -21,6 +21,14 @@ describe('canonicalJson (decision 10: sorted keys, no whitespace)', () => {
 
   it('sorts keys by code unit, never by locale', () => {
     expect(canonicalJson({ b: 1, B: 2, á: 3, a: 4 })).toBe('{"B":2,"a":4,"b":1,"á":3}')
+  })
+})
+
+describe('canonicalJson — hostile keys', () => {
+  it('hashes a "__proto__" key as data, never as the prototype', () => {
+    const parsed = JSON.parse('{"b":1,"__proto__":{"x":1}}') as unknown
+    expect(canonicalJson(parsed)).toBe('{"__proto__":{"x":1},"b":1}')
+    expect(bodyHash(parsed)).not.toBe(bodyHash({ b: 1 }))
   })
 })
 
