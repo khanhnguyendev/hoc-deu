@@ -697,6 +697,11 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<ThemeToggle />` (settings, catalog)
 - **Accessibility:** radio group labelled "Giao diện"
 
+
+### Brand (`components/patterns/logo-mark.tsx`)
+
+Task 6.0b adds these entries below this line (Part B-M6 decision 3).
+
 ## features
 
 ### OnboardingWizard
@@ -2450,3 +2455,27 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Accessibility:** each group a LinkList, each entry a LinkRow (44 px) to its page — admins see
   drafts; LeetCode
   titles and English card fronts carry `lang="en"`; group titles are `h3`
+
+### Admin bot components (`features/admin/components`)
+
+Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
+
+### AI plan components (`features/today/components`)
+
+Task 6.5b adds these entries below this line (Part B-M6 decision 3).
+
+### Custom item components (`features/roadmap/components`)
+
+Task 6.6a adds these entries below this line (Part B-M6 decision 3).
+
+### Override components (`features/settings/components`)
+
+Task 6.6c adds these entries below this line (Part B-M6 decision 3).
+
+### Publish components (`features/admin/components`)
+
+Task 6.7a adds these entries below this line (Part B-M6 decision 3).
+
+### Notes sharing components (`features/settings/components`)
+
+Task 6.7b adds these entries below this line (Part B-M6 decision 3).

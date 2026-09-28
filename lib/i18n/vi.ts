@@ -3,6 +3,14 @@
  * not here. Keep strings in NFC (tested) and sentence case.
  */
 import { adminOverview } from './strings/admin-overview'
+import { brand } from './strings/brand'
+import { rateLimit } from './strings/rate-limit'
+import { adminBot } from './strings/admin-bot'
+import { aiPlan } from './strings/ai-plan'
+import { customItems } from './strings/custom-items'
+import { overrides } from './strings/overrides'
+import { publish } from './strings/publish'
+import { notesSharing } from './strings/notes-sharing'
 import { checkIn } from './strings/check-in'
 import { extra } from './strings/extra'
 import { outcomes } from './strings/outcomes'
@@ -630,4 +638,13 @@ export const vi = {
   progress,
   extra,
   adminOverview,
+  /** M6 areas, one file each (Part B-M6 decision 3): only the task that owns an area edits it. */
+  brand,
+  rateLimit,
+  adminBot,
+  aiPlan,
+  customItems,
+  overrides,
+  publish,
+  notesSharing,
 } as const

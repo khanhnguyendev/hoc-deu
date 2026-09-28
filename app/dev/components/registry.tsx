@@ -151,6 +151,13 @@ import { PROGRESS_ENTRIES } from './entries/progress'
 import { EXTRA_ENTRIES } from './entries/extra'
 import { ADMIN_ENTRIES } from './entries/admin'
 import { PATTERN_ENTRIES } from './entries/patterns'
+import { BRAND_ENTRIES } from './entries/brand'
+import { ADMIN_BOT_ENTRIES } from './entries/admin-bot'
+import { AI_PLAN_ENTRIES } from './entries/ai-plan'
+import { CUSTOM_ITEMS_ENTRIES } from './entries/custom-items'
+import { OVERRIDES_ENTRIES } from './entries/overrides'
+import { PUBLISH_ENTRIES } from './entries/publish'
+import { NOTES_SHARING_ENTRIES } from './entries/notes-sharing'
 import type { Entry } from './types'
 
 const DEMO_TODAY = '2026-02-04'
@@ -2821,4 +2828,11 @@ export const CATALOG: Entry[] = [
   ...EXTRA_ENTRIES,
   ...ADMIN_ENTRIES,
   ...PATTERN_ENTRIES,
+  ...BRAND_ENTRIES,
+  ...ADMIN_BOT_ENTRIES,
+  ...AI_PLAN_ENTRIES,
+  ...CUSTOM_ITEMS_ENTRIES,
+  ...OVERRIDES_ENTRIES,
+  ...PUBLISH_ENTRIES,
+  ...NOTES_SHARING_ENTRIES,
 ]
