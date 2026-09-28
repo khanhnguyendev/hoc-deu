@@ -36,16 +36,16 @@ Backtracking cũng vậy: mỗi ngã rẽ là một lựa chọn, đi tiếp là
 
 Bài mẫu là Subsets: liệt kê mọi tập con của một mảng các số khác nhau. Với từng phần tử, ta **lấy** hoặc **bỏ qua** nó; mỗi lá của cây quyết định là một tập con.
 
-<VarTable caption="nums = [4, 6]">
+<VarTable caption="nums = [1, 5]">
 
 | Bước | Việc làm | `current` | Ghi nhận |
 | --- | --- | --- | --- |
-| 1 | `i = 0`: lấy 4 | `[4]` | — |
-| 2 | `i = 1`: lấy 6 | `[4, 6]` | — |
-| 3 | `i = 2`: lá | `[4, 6]` | `[4, 6]` |
-| 4 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[4]` | `[4]` |
-| 5 | hoàn tác 4; `i = 0`: bỏ qua 4; `i = 1`: lấy 6, tới lá | `[6]` | `[6]` |
-| 6 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[]` | `[]` |
+| 1 | `i = 0`: lấy 1 | `[1]` | — |
+| 2 | `i = 1`: lấy 5 | `[1, 5]` | — |
+| 3 | `i = 2`: lá | `[1, 5]` | `[1, 5]` |
+| 4 | hoàn tác 5; `i = 1`: bỏ qua 5, tới lá | `[1]` | `[1]` |
+| 5 | hoàn tác 1; `i = 0`: bỏ qua 1; `i = 1`: lấy 5, tới lá | `[5]` | `[5]` |
+| 6 | hoàn tác 5; `i = 1`: bỏ qua 5, tới lá | `[]` | `[]` |
 
 </VarTable>
 
@@ -94,12 +94,12 @@ class Solution:
 
         def backtrack(i: int) -> None:
             if i == len(nums):
-                result.append(current.copy())  # a copy: current keeps changing
+                result.append(current.copy())
                 return
-            current.append(nums[i])  # choose
-            backtrack(i + 1)  # explore
-            current.pop()  # undo
-            backtrack(i + 1)  # skip nums[i]
+            current.append(nums[i])
+            backtrack(i + 1)
+            current.pop()
+            backtrack(i + 1)
 
         backtrack(0)
         return result

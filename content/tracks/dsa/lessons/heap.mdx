@@ -28,13 +28,13 @@ Trong những phần tử đang giữ, phần tử nào cần lấy ra hoặc đ
 
 Một đội bóng phong trào chỉ có `k` suất đá chính và muốn giữ `k` cầu thủ giỏi nhất. Huấn luyện viên không cần xếp hạng cả đội; ông chỉ cần luôn biết ai là người **yếu nhất trong nhóm đá chính**. Có cầu thủ mới tới thử việc: nếu giỏi hơn người yếu nhất đó, người mới vào đội hình và người yếu nhất ra ghế dự bị; nếu không, người mới ngồi ngoài. Người yếu nhất trong nhóm `k` người giỏi nhất cũng chính là người giỏi thứ `k` của cả đội.
 
-Min-heap đóng vai cuốn sổ của huấn luyện viên: nó luôn đưa người yếu nhất trong nhóm lên trang đầu, và cập nhật sổ sau mỗi lần đổi người chỉ tốn `O(log k)`.
+<Term vi="đống nhỏ nhất">Min-heap</Term> đóng vai cuốn sổ của huấn luyện viên: nó luôn đưa người yếu nhất trong nhóm lên trang đầu, và cập nhật sổ sau mỗi lần đổi người chỉ tốn `O(log k)`.
 
 </Section>
 
 <Section kind="visual">
 
-Bài mẫu là Kth Largest Element in a Stream: các số tới dần, và sau mỗi lần thêm phải trả về số lớn thứ `k`. Giữ `k` số lớn nhất trong một <Term vi="đống nhỏ nhất">min-heap</Term>. Heap được viết theo thứ tự tăng dần cho dễ đọc; đỉnh là số đầu tiên.
+Bài mẫu là Kth Largest Element in a Stream: các số tới dần, và sau mỗi lần thêm phải trả về số lớn thứ `k`. Giữ `k` số lớn nhất trong một min-heap. Heap được viết theo thứ tự tăng dần cho dễ đọc; đỉnh là số đầu tiên.
 
 <VarTable caption="k = 3, nums = [4, 8, 2], rồi add(5), add(1), add(9)">
 
@@ -68,12 +68,12 @@ Sau `add(9)`, các số đã thấy là 4, 8, 2, 5, 1, 9; ba số lớn nhất l
 ### Heap trong ba ngôn ngữ
 
 - **Python:** `heapq` làm việc trên một list và chỉ có min-heap. Muốn max-heap, đẩy vào giá trị âm (hoặc một tuple có khóa âm).
-- **Java:** `PriorityQueue` là min-heap; truyền comparator ngược, như `(a, b) -> b - a`, để có max-heap.
+- **Java:** `PriorityQueue` là min-heap; truyền comparator ngược, như `Collections.reverseOrder()` hoặc `(a, b) -> Integer.compare(b, a)` (tránh `b - a`, có thể tràn số), để có max-heap.
 - **Go:** gói `container/heap` cần một kiểu cài đặt `Len`, `Less`, `Swap`, `Push`, `Pop`; đảo `Less` để có max-heap.
 
 ### Vì sao đúng
 
-Một số bị pop khi heap có `k + 1` số và nó nhỏ nhất trong đó, tức có ít nhất `k` số lớn hơn nó. Số đó không thể là số lớn thứ `k` lúc này, và về sau càng không, vì số mới chỉ đẩy nó xuống thấp hơn. Vì thế bỏ nó là an toàn.
+Một số bị pop khi heap có `k + 1` số và nó không lớn hơn số nào trong đó, tức có ít nhất `k` số lớn hơn hoặc bằng nó. Vì thế `k` số còn lại đã đủ cho `k` vị trí lớn nhất, và nếu có số bằng nó thì số đó vẫn nằm trong heap: phần tử này không cần giữ, lúc này cũng như về sau, vì số mới chỉ đẩy nó xuống thấp hơn.
 
 </Section>
 
@@ -141,7 +141,7 @@ Thử K Closest Points to Origin: lần này cần `k` điểm **gần** nhất,
 
 <Question prompt="Một min-heap đang có k + 1 số sau khi push. Pop đỉnh ra thì bỏ đi số nào?" answer="a">
 
-<Choice id="a">Số nhỏ nhất: có ít nhất k số lớn hơn nó nên nó không thể là số lớn thứ k</Choice>
+<Choice id="a">Số nhỏ nhất: có ít nhất k số lớn hơn hoặc bằng nó nên phần tử này không cần giữ</Choice>
 
 <Choice id="b">Số vừa được push</Choice>
 

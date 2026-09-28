@@ -14,9 +14,9 @@ status: active
 
 <Step title="add(val): thêm vào">Đẩy `val` vào heap, tức <Term vi="đẩy vào">push</Term>.</Step>
 
-<Step title="add(val): cắt bớt">Nếu heap có hơn `k` phần tử, lấy phần tử nhỏ nhất ra, tức <Term vi="lấy ra">pop</Term>. Nó nhỏ hơn ít nhất `k` số khác nên không thể là số lớn thứ `k`.</Step>
+<Step title="add(val): cắt bớt">Nếu heap có hơn `k` phần tử, lấy phần tử nhỏ nhất ra, tức <Term vi="lấy ra">pop</Term>. Có ít nhất `k` số lớn hơn hoặc bằng nó, nên `k` số còn lại đã đủ và phần tử này không cần giữ.</Step>
 
-<Step title="add(val): trả lời">Trả về đỉnh heap. Đề bảo đảm lúc gọi `add` đã có ít nhất `k` số, nên heap lúc này có đúng `k` phần tử.</Step>
+<Step title="add(val): trả lời">Trả về đỉnh heap. Đề bảo đảm sau khi thêm `val` đã có ít nhất `k` số (`nums` có thể chỉ có `k - 1` số), nên heap lúc này có đúng `k` phần tử.</Step>
 
 </Steps>
 
