@@ -51,11 +51,11 @@ import { loadDay, type Day } from '@/lib/plans/day'
 import { readOverrideRows, type OverrideRow } from '@/lib/plans/reads'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/lib/supabase/database.types'
+import { boundedProposal, PROPOSAL_BYTES, recordProposal } from './proposals'
 
 export const KIND = 'overrides'
 
-/** Decision 11: a dry-run proposal is at most 16 KB as JSON (a request is far below it). */
-export const PROPOSAL_BYTES = 16 * 1024
+export { PROPOSAL_BYTES }
 
 export type Detail = {
   readonly path: string
@@ -333,39 +333,14 @@ function plan(
 }
 
 /** Decision 11: the proposal in `bot_run_users.detail.overrides` (its other keys — the invalid
- *  attempts — kept). Local to this endpoint (6.5b extracts a shared helper in parallel). */
-async function recordProposal(admin: Admin, runUser: RunUser, request: OverridesRequest) {
-  const full = request as unknown as Json
-  const proposal =
-    Buffer.byteLength(canonicalJson(full), 'utf8') <= PROPOSAL_BYTES
-      ? full
-      : ({
-          set: request.set.map(({ key, kind, trackId }) => ({ key, kind, trackId })),
-          revoke: request.revoke,
-          paramsOmitted: true,
-        } as unknown as Json)
-  const current = await admin
-    .from('bot_run_users')
-    .select('detail')
-    .eq('id', runUser.runUserId)
-    .single()
-  if (current.error) throw new Error('Could not read the run detail', { cause: current.error })
-  const detail =
-    current.data.detail !== null &&
-    typeof current.data.detail === 'object' &&
-    !Array.isArray(current.data.detail)
-      ? current.data.detail
-      : {}
-  const own = detail[KIND]
-  const entry =
-    own !== null && typeof own === 'object' && !Array.isArray(own)
-      ? { ...own, proposal }
-      : { proposal }
-  const updated = await admin
-    .from('bot_run_users')
-    .update({ detail: { ...detail, [KIND]: entry } })
-    .eq('id', runUser.runUserId)
-  if (updated.error) throw new Error('Could not record the proposal', { cause: updated.error })
+ *  attempts — kept), via `recordProposal` (`lib/bot/proposals.ts`, shared with 6.5b's `plan.ts`
+ *  and `custom-items.ts`). */
+function overridesProposal(request: OverridesRequest): Json {
+  return boundedProposal(request as unknown as Json, () => ({
+    set: request.set.map(({ key, kind, trackId }) => ({ key, kind, trackId })),
+    revoke: request.revoke,
+    paramsOmitted: true,
+  }))
 }
 
 /** What a live write had written when the database refused a later part of it. */
@@ -436,7 +411,7 @@ export async function writeOverrides(
   if ('details' in checked) return invalid(checked.details, activeOf(rows, day.today))
 
   if (runUser.mode === 'dry_run') {
-    await recordProposal(admin, runUser, request)
+    await recordProposal(admin, runUser, KIND, overridesProposal(request))
     return {
       status: 200,
       body: { outcome: 'dry_run', active: activeOf(rows, day.today) },
