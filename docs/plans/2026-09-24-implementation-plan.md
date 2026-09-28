@@ -12863,6 +12863,24 @@ with decision 22's identifiers and the in-memory mode; §6.7's `lib/bot/contract
 - Report: files changed, the commit(s), the verification output (test counts; e2e spec names and
   counts; `content:verify` counts), and anything you decided that this section does not say.
 
+**Amendments ruled during execution** (ledger `.superpowers/sdd/2026-09-24-implementation-plan/progress.md`; the
+code is the reference where an Interfaces block below differs):
+
+- 6.4a: `finishRun` returns `{ outcome: 'ok', ignored } | { outcome: 'not_found' }`; write routes call `readBody` →
+  `idempotentWrite` → validate inside `write()` (so `invalid` answers are counted); `WriteOutcome` is a typed union;
+  a new run is walked read-only before its row is inserted and a resume restarts the 2-hour clock (M6-R23a–c);
+  canonical JSON lives in `lib/canonical-json.ts`.
+- 6.4b: `UserDay` carries `resolution`; `dayFacts` is exported for the engine-parity tests (M6-R27).
+- 6.5a: the AI budget check uses the largest item, never a practice block's total (M6-R5).
+- 6.5b: outcome inputs carry the rendered plan's id and version; item-page and `/review` results keep M5 behaviour
+  (M6-R29); the shared dry-run proposal helper is `lib/bot/proposals.ts`.
+- 6.6a: `createUserItem` takes `itemId`, `retireUserItem` / `hideUserItem` take `itemType`, `Day.userItems`,
+  `itemPageHref` (M6-R26); baseline practice pickers skip custom items (M6-R25).
+- 6.6c: override set event ids carry a kind+params digest; a variant change revokes the track's reorders (M6-R28).
+- 6.2b: the bot may revoke (`roadmap_overrides.revoked_by`, M6-R17); a valid body after three invalid ones is
+  accepted (M6-R18); an override key never changes kind.
+- 6.8: the content-signals `highFail` path through the route stays unit-tested (M6-R30).
+
 ### Task 6.0: Plan commit, dependencies and the hot-file split (controller)
 
 **Files:**
