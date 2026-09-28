@@ -3,6 +3,12 @@ import { localSupabaseEnv } from './tools/db/local-env'
 
 const PORT = 3100
 
+/**
+ * The bot API is on for e2e (task 6.3): the env lock open, so the specs exercise the row lock and
+ * the token (6.8). A fixed, obviously fake 43-character HMAC key for the per-run user refs.
+ */
+const E2E_BOT_REF_SECRET = 'e2e-bot-ref-secret-0123456789abcdefghijklmn'
+
 // Workers inherit process.env from the runner, so `supabase status` runs once.
 if (!process.env.E2E_STACK_READY) {
   Object.assign(process.env, {
@@ -39,6 +45,8 @@ export default defineConfig({
       NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL!,
       AUTH_TEST_LOGIN: process.env.AUTH_TEST_LOGIN!,
       ADMIN_EMAILS: process.env.ADMIN_EMAILS!,
+      BOT_API_ENABLED: 'true',
+      BOT_REF_SECRET: E2E_BOT_REF_SECRET,
     },
   },
 })

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { deleteOpsMetric, seedOpsMetric } from './support/admin'
+import { getAiFlag } from './support/bot'
 import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { seedPlan, snapshot } from './support/plans'
@@ -172,6 +173,38 @@ test.describe('/admin/users', () => {
     await expect(own.getByText('Bạn', { exact: true })).toBeVisible()
     await expect(own.getByText('Quản trị viên', { exact: true })).toBeVisible()
     await expect(own.getByRole('button')).toHaveCount(0)
+    // Only the AI flag (decision 34: the owner is the first AI learner).
+    await expect(own.getByRole('switch')).toHaveCount(1)
+  })
+
+  test('an admin turns the AI flag on and off for a learner, and on their own row (task 6.3)', async ({
+    page,
+  }) => {
+    const learner = await user({ status: 'active', name: uniqueName('Cá nhân hoá') })
+    const pending = await user({ status: 'pending', name: uniqueName('Chưa duyệt AI') })
+    const admin = await openQueueAsAdmin(page)
+    const flag = (name: string) =>
+      row(page, ACTIVE, name).getByRole('switch', { name: 'Cá nhân hoá AI', exact: true })
+
+    await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'false')
+    // Active accounts only: none in the queue.
+    await expect(row(page, PENDING, pending.name).getByRole('switch')).toHaveCount(0)
+    await expectNoAxeViolationsInBothThemes(page)
+
+    await flag(learner.name).click()
+    await expect(page.getByText('Đã bật cá nhân hoá AI.').first()).toBeVisible()
+    await expect.poll(() => getAiFlag(learner.id)).toBe(true)
+    await page.reload()
+    await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'true')
+
+    await flag(learner.name).click()
+    await expect(page.getByText('Đã tắt cá nhân hoá AI.').first()).toBeVisible()
+    await expect.poll(() => getAiFlag(learner.id)).toBe(false)
+
+    await flag(admin.name).click()
+    await expect.poll(() => getAiFlag(admin.id)).toBe(true)
+    await page.reload()
+    await expect(flag(admin.name)).toHaveAttribute('aria-checked', 'true')
   })
 
   test('a stale "Duyệt" does not re-activate an account another admin rejected (p_expected_from)', async ({
@@ -329,14 +362,14 @@ test.describe('/admin/users for a learner', () => {
   // The 404 page answers with status 404, which Chromium logs as a failed resource load.
   test.use({ allowedConsoleErrors: [/status of 404/] })
 
-  test('a learner gets the Vietnamese 404, on /admin and /admin/content as well', async ({
+  test('a learner gets the Vietnamese 404, on /admin, /admin/content and /admin/bot as well', async ({
     page,
   }) => {
     const learner = await user({ status: 'active', onboarded: true })
     await signIn(page, learner)
     await expectPath(page, '/today')
 
-    for (const path of ['/admin/users', '/admin', '/admin/content']) {
+    for (const path of ['/admin/users', '/admin', '/admin/content', '/admin/bot']) {
       const response = await page.goto(path)
       expect(response?.status()).toBe(404)
       await expect(

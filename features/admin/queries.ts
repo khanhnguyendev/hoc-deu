@@ -5,6 +5,7 @@ import { getCatalog } from '@/lib/content/catalog'
 import { serverEnv } from '@/lib/env'
 import { rateLimitMode } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
+import { adminBotSettingsSchema, buildAdminBotPage, type AdminBotPage } from './bot'
 import { buildContentPage, coverageWarnings, type ContentPage, type TrackPosition } from './content'
 import {
   buildAdminOverview,
@@ -28,6 +29,8 @@ export type AdminUserRow = {
   createdAt: string
   approvedAt: string | null
   onboardedAt: string | null
+  /** `profiles.ai_personalization` — the AI flag toggle's state (task 6.3, decision 34). */
+  aiPersonalization: boolean
   /** The acting admin's own row: no actions (decision 17). */
   isSelf: boolean
 }
@@ -56,6 +59,7 @@ export async function listUsers(): Promise<AdminUserRow[]> {
     createdAt: row.created_at,
     approvedAt: row.approved_at ?? null,
     onboardedAt: row.onboarded_at ?? null,
+    aiPersonalization: row.ai_personalization === true,
     isSelf: row.id === admin.id,
   }))
 }
@@ -161,4 +165,22 @@ export async function getAdminContent(): Promise<ContentPage> {
   await requireAdmin()
   const supabase = await createClient()
   return buildContentPage(getCatalog(), await readTrackPositions(supabase))
+}
+
+/**
+ * `/admin/bot` (§2.4, §6.2, §6.3): `admin_bot_settings()` as the admin's own session (it checks
+ * `is_admin()` itself and never returns a hash) and `BOT_API_ENABLED`, read on the server — the
+ * page can say the env lock is off, the switch itself is env-only. Any failed read throws, so the
+ * route's error boundary shows "Thử lại".
+ */
+export async function getAdminBot(): Promise<AdminBotPage> {
+  await requireAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('admin_bot_settings')
+  if (error) throw new Error('Could not read the bot settings', { cause: error })
+  return buildAdminBotPage({
+    settings: adminBotSettingsSchema.parse(data),
+    apiEnabled: serverEnv().botApiEnabled,
+    now: new Date(),
+  })
 }

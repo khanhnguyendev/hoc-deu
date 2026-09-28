@@ -443,6 +443,10 @@ const demoSetUserRole = async (): Promise<AdminActionResult> => ({
   ok: true,
   message: vi.admin.results.promoted,
 })
+const demoSetAiFlag = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.adminBot.results.aiOn,
+})
 const demoFailure = async (): Promise<AdminActionResult> => ({
   ok: false,
   message: vi.admin.errors.changed,
@@ -456,6 +460,7 @@ const demoUser = (user: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): Admin
   createdAt: '2026-01-12T02:00:00Z',
   approvedAt: null,
   onboardedAt: null,
+  aiPersonalization: false,
   isSelf: false,
   ...user,
 })
@@ -475,7 +480,7 @@ const DEMO_ADMIN_USERS: AdminUserRow[] = [
   demoUser({ id: 'cuong', status: 'pending', createdAt: '2026-02-03T20:00:00Z' }),
   demoUser({ id: 'an', displayName: DEMO_ADMIN_SELF, role: 'admin', isSelf: true }),
   demoUser({ id: 'dung', displayName: DEMO_OTHER_ADMIN, role: 'admin' }),
-  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
+  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang', aiPersonalization: true }),
   demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
 ]
 
@@ -518,13 +523,14 @@ export const ADMIN_ENTRIES: Entry[] = [
     file: 'features/admin/components/user-queue.tsx',
     demos: [
       {
-        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn không có thao tác',
+        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn chỉ có công tắc cá nhân hoá AI',
         render: () => (
           <div className="flex w-full flex-col gap-6">
             <UserQueue
               users={DEMO_ADMIN_USERS}
               setUserStatus={demoSetUserStatus}
               setUserRole={demoSetUserRole}
+              setAiFlag={demoSetAiFlag}
             />
           </div>
         ),
@@ -541,6 +547,7 @@ export const ADMIN_ENTRIES: Entry[] = [
               }))}
               setUserStatus={demoSetUserStatus}
               setUserRole={demoSetUserRole}
+              setAiFlag={demoSetAiFlag}
             />
           </div>
         ),

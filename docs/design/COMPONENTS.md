@@ -787,17 +787,20 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 - **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
   `setUserStatus: (userId, 'active' | 'rejected' | 'suspended', expectedFrom: AccountStatus) =>
   Promise<AdminActionResult>` (`expectedFrom`: the status the row was rendered with —
-  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the
-  server actions come in as props (passed on to `UserRowActions`), so the catalog passes no-ops
+  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>`,
+  `setAiFlag: (userId, on: boolean) => Promise<AdminActionResult>` (task 6.3) — the server actions
+  come in as props (passed on to `UserRowActions` and `AiFlagToggle`), so the catalog passes no-ops
 - **Variants:** none
 - **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
   khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
   duyệt." for the queue); a row shows the name (the e-mail when there is none), the e-mail, "Tham
   gia {day}" (the sign-up's calendar day in Asia/Ho_Chi_Minh, `formatDay`), a "Quản trị viên"
-  Badge for admins, and `UserRowActions` — the acting admin's own row shows a "Bạn" Badge and no
-  actions (decision 17)
+  Badge for admins, the `AiFlagToggle` ("Cá nhân hoá AI", task 6.3) on every active row — and,
+  disabled, on another row whose flag is still on — and `UserRowActions`; the acting admin's own
+  row shows a "Bạn" Badge, its AI flag toggle (decision 34) and no other actions (decision 17)
 - **Usage:** `<PageHeader title="Người dùng" /><UserQueue users={await listUsers()}
-  setUserStatus={setUserStatus} setUserRole={setUserRole} />` (`app/(admin)/admin/users/page.tsx`)
+  setUserStatus={setUserStatus} setUserRole={setUserRole} setAiFlag={setAiFlag} />`
+  (`app/(admin)/admin/users/page.tsx`)
 - **Accessibility:** each section is a region named by its h2; the empty-state titles are h3;
   rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone;
   each row's content is a programmatic focus target (`id={userRowId(user.id)}`, `tabIndex={-1}`,
@@ -2478,6 +2481,63 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 ### Admin bot components (`features/admin/components`)
 
 Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
+
+### BotControls
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/bot-controls.tsx`
+- **Props:** `controls: BotControlsView` (`enabled`, `dryRun`, `contentProposals`,
+  `perRunUserCap`, `capMax` — from `getAdminBot()`), `updateBotSettings: (input:
+  BotSettingsInput) => Promise<AdminActionResult>` (the server action, a prop so the catalog
+  passes a stub)
+- **Variants:** —
+- **States:** three Switches — "Bật bot" (`enabled`, the kill switch's row lock), "Chạy thử
+  (dry-run)" (`dry_run`), "Đề xuất nội dung" (`content_proposals`), each with its description and
+  saved on its own the moment it changes (`updateBotSettings({ [field]: value })`); saving (the
+  switch shows the new position, `aria-busy`); failed — back to the saved position, the message
+  beside the switch and a toast. The per-run cap: a number field (1–`capMax`, "Từ 1 đến 100 (giới
+  hạn cứng).") with its own "Lưu" form; an invalid value is refused in the form ("Nhập một số
+  nguyên từ 1 đến 100.", `aria-invalid`) without a request; a failed save shows a danger Banner
+  (FormActions) and a toast. The page follows a re-render with new saved values
+- **Usage:** `<Section title="Điều khiển"><BotControls controls={page.controls}
+  updateBotSettings={updateBotSettings} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
+- **Accessibility:** each Switch labelled by its visible Label and described by its description
+  (and its error); the cap field is a FormField (label, description, error by `aria-describedby`);
+  results are polite toasts, never the only feedback for a failure
+
+### BotToken
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/bot-token.tsx`
+- **Props:** `token: BotTokenView` (`{ state: 'none' }` or `{ state: 'set', createdAt,
+  previousValidUntil }`, times already formatted in Asia/Ho_Chi_Minh), `rotateBotToken: () =>
+  Promise<{ ok: true; token; message } | { ok: false; message }>`
+- **Variants:** —
+- **States:** no token ("Chưa có token"); a token ("Token hiện tại tạo lúc {time}", or "Đã có
+  token" without a time); the 24-hour overlap (also "Token cũ còn dùng được đến {time}");
+  confirming — "Tạo token mới" opens a ConfirmDialog ("Tạo token mới?", the old token works 24 more
+  hours); rotating (pending); shown — the new token **once** in a read-only field with "Sao chép"
+  and a warning Banner "Token chỉ hiện một lần" (it lives only in this component's state: a reload
+  shows only the times, ADR-0026); failed — a danger Banner and a toast, no token
+- **Usage:** `<Section title="Token truy cập"><BotToken token={page.token}
+  rotateBotToken={rotateBotToken} /></Section>`
+- **Accessibility:** the dialog is an `alertdialog`, focus returns to "Tạo token mới"; the token
+  field is labelled "Token mới", `lang="en"`, selected on focus, described by the shown-once
+  warning; copy success or failure is a polite toast (a failure asks to copy by hand)
+
+### AiFlagToggle
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/ai-flag-toggle.tsx`
+- **Props:** `user: { id, name, status: AccountStatus, aiPersonalization: boolean }`, `setAiFlag:
+  (userId, on) => Promise<AdminActionResult>`
+- **Variants:** —
+- **States:** off, on — saved at once (`admin_set_ai_flag`), the row re-renders; saving
+  (`aria-busy`); failed — back to the saved value, the message in the row and a toast; not
+  `active` — disabled, with "Chỉ đổi được cho tài khoản đang hoạt động." (decision 34)
+- **Usage:** rendered by UserQueue in every active row (the admin's own included)
+- **Accessibility:** a Switch labelled by the visible "Cá nhân hoá AI"; the reason and the error
+  are linked by `aria-describedby`; the state is the thumb's position, never colour alone
 
 ### AI plan components (`features/today/components`)
 

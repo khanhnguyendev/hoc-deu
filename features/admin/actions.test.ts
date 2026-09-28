@@ -33,7 +33,17 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 
-const { setUserRole, setUserStatus } = await import('./actions')
+const TOKEN = `hdb_${'T'.repeat(43)}`
+const HASH = 'f'.repeat(64)
+vi.mock('@/lib/bot/token', () => ({
+  newBotToken: () => {
+    fake.calls.push(['newBotToken'])
+    return { token: TOKEN, hash: HASH }
+  },
+}))
+
+const { rotateBotToken, setAiFlag, setUserRole, setUserStatus, updateBotSettings } =
+  await import('./actions')
 
 beforeEach(() => {
   fake.admin = true
@@ -171,5 +181,210 @@ describe('admin actions — rate limit (§2.3, decision 22: 60 / min per admin)'
     fake.adminId = 'admin-rate-limit-untouched'
     const result = await setUserStatus(ID, 'active', 'pending')
     expect(result.ok).toBe(true)
+  })
+})
+
+/** Spends the admin's 60 actions of this minute (decision 22) with `action`. */
+async function exhaust(action: () => Promise<unknown>) {
+  for (let i = 0; i < 60; i++) await action()
+  fake.calls = []
+}
+
+describe('updateBotSettings (§6.2: each switch and the cap saved on its own)', () => {
+  const SAVED = { ok: true, message: 'Đã lưu cài đặt bot.' }
+
+  it.each([
+    [{ enabled: true }, { p_enabled: true }],
+    [{ dryRun: false }, { p_dry_run: false }],
+    [{ contentProposals: true }, { p_content_proposals: true }],
+    [{ perRunUserCap: 25 }, { p_per_run_user_cap: 25 }],
+    [{ limits: { customItemsPerDay: 4 } }, { p_limits: { customItemsPerDay: 4 } }],
+  ])(
+    'saves %j (every other argument null: unchanged), then /admin/bot re-renders',
+    async (input, args) => {
+      await expect(updateBotSettings(input)).resolves.toEqual(SAVED)
+      expect(fake.calls).toEqual([
+        ['requireAdmin'],
+        [
+          'rpc',
+          'admin_update_bot_settings',
+          {
+            p_enabled: null,
+            p_dry_run: null,
+            p_content_proposals: null,
+            p_per_run_user_cap: null,
+            p_limits: null,
+            ...args,
+          },
+        ],
+        ['revalidatePath', '/admin/bot'],
+      ])
+    },
+  )
+
+  it('refuses a non-admin before touching the database', async () => {
+    fake.admin = false
+    await expect(updateBotSettings({ enabled: true })).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it.each([
+    [{}],
+    [{ perRunUserCap: 0 }],
+    [{ perRunUserCap: 101 }],
+    [{ perRunUserCap: 2.5 }],
+    [{ enabled: 'yes' }],
+    [{ limits: { customItemsPerDay: 11 } }],
+    [{ limits: { unknown: 1 } }],
+    [{ tokenHash: 'x' }],
+  ])('refuses %j without an RPC (a limit above its hard maximum included)', async (input) => {
+    const result = await updateBotSettings(input as never)
+    expect(result).toEqual({ ok: false, message: 'Cài đặt bot không hợp lệ.' })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it.each([
+    ['invalid_settings', 'Cài đặt bot không hợp lệ.'],
+    ['forbidden', copy.errors.notAllowed],
+    ['boom', 'Không lưu được cài đặt bot. Bạn thử lại nhé.'],
+  ])('maps the RPC error %s', async (code, message) => {
+    fake.rpc = { data: null, error: { message: code } }
+    await expect(updateBotSettings({ enabled: true })).resolves.toEqual({ ok: false, message })
+    expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc'])
+  })
+
+  it('is rate limited after the guard, before the input is parsed', async () => {
+    fake.adminId = 'admin-bot-settings-rate'
+    await exhaust(() => updateBotSettings({ enabled: true }))
+    await expect(updateBotSettings({ enabled: true })).resolves.toEqual({
+      ok: false,
+      message: copy.rateLimit.tooMany,
+    })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+})
+
+describe('rotateBotToken (§6.3, ADR-0026)', () => {
+  it('sends only the hash and returns the token once; /admin/bot re-renders', async () => {
+    fake.rpc = { data: { rotatedAt: 'x', prevValidUntil: null }, error: null }
+    await expect(rotateBotToken()).resolves.toEqual({
+      ok: true,
+      token: TOKEN,
+      message: 'Đã tạo token mới.',
+    })
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['newBotToken'],
+      ['rpc', 'admin_rotate_bot_token', { p_token_hash: HASH }],
+      ['revalidatePath', '/admin/bot'],
+    ])
+  })
+
+  it('never logs the token, also when the RPC fails', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => {}),
+    )
+    try {
+      await rotateBotToken()
+      fake.rpc = { data: null, error: { message: 'boom' } }
+      await rotateBotToken()
+      for (const spy of spies) {
+        for (const call of spy.mock.calls) expect(JSON.stringify(call)).not.toContain(TOKEN)
+      }
+    } finally {
+      for (const spy of spies) spy.mockRestore()
+    }
+  })
+
+  it.each([
+    ['invalid_token', 'Không tạo được token mới. Bạn thử lại nhé.'],
+    ['forbidden', copy.errors.notAllowed],
+    ['boom', 'Không tạo được token mới. Bạn thử lại nhé.'],
+  ])('maps the RPC error %s, and returns no token', async (code, message) => {
+    fake.rpc = { data: null, error: { message: code } }
+    const result = await rotateBotToken()
+    expect(result).toEqual({ ok: false, message })
+    expect(JSON.stringify(result)).not.toContain(TOKEN)
+    expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'newBotToken', 'rpc'])
+  })
+
+  it('refuses a non-admin before making a token', async () => {
+    fake.admin = false
+    await expect(rotateBotToken()).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('is rate limited before a token is made', async () => {
+    fake.adminId = 'admin-rotate-rate'
+    await exhaust(() => rotateBotToken())
+    await expect(rotateBotToken()).resolves.toEqual({
+      ok: false,
+      message: copy.rateLimit.tooMany,
+    })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+})
+
+describe('setAiFlag (§2.4 /admin/users, decision 34)', () => {
+  it.each([
+    [true, 'Đã bật cá nhân hoá AI.'],
+    [false, 'Đã tắt cá nhân hoá AI.'],
+  ])('on=%s: "%s", then the list re-renders', async (on, message) => {
+    fake.rpc = { data: { from: on ? 'off' : 'on', to: on ? 'on' : 'off' }, error: null }
+    await expect(setAiFlag(ID, on)).resolves.toEqual({ ok: true, message })
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_set_ai_flag', { p_user_id: ID, p_on: on }],
+      ['revalidatePath', '/admin/users'],
+    ])
+  })
+
+  it('works on the admin’s own account (the owner is the first AI learner)', async () => {
+    fake.adminId = ID
+    await expect(setAiFlag(ID, true)).resolves.toMatchObject({ ok: true })
+  })
+
+  it.each([
+    ['not-a-uuid', true],
+    [ID, 'yes'],
+    [ID, undefined],
+  ])('refuses invalid input (%s, %s) without an RPC', async (id, on) => {
+    await expect(setAiFlag(id, on as boolean)).resolves.toEqual({
+      ok: false,
+      message: 'Yêu cầu không hợp lệ.',
+    })
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it.each([
+    ['invalid_transition', copy.admin.errors.changed, true],
+    ['no_change', copy.adminBot.aiFlag.changed, true],
+    ['not_found', copy.admin.errors.notFound, true],
+    ['forbidden', copy.errors.notAllowed, false],
+    ['boom', copy.admin.errors.failed, false],
+  ])(
+    'maps %s (stale: %s — the list re-renders with the current state)',
+    async (code, message, stale) => {
+      fake.rpc = { data: null, error: { message: code } }
+      const result = await setAiFlag(ID, true)
+      expect(result).toEqual(stale ? { ok: false, message, stale: true } : { ok: false, message })
+      expect(fake.calls.some((call) => call[0] === 'revalidatePath')).toBe(stale)
+    },
+  )
+
+  it('refuses a non-admin before touching the database', async () => {
+    fake.admin = false
+    await expect(setAiFlag(ID, true)).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('shares the admin action budget', async () => {
+    fake.adminId = 'admin-ai-flag-rate'
+    await exhaust(() => setUserRole(ID, 'admin'))
+    await expect(setAiFlag(ID, true)).resolves.toEqual({
+      ok: false,
+      message: copy.rateLimit.tooMany,
+    })
+    expect(fake.calls).toEqual([['requireAdmin']])
   })
 })

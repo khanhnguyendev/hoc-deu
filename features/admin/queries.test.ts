@@ -13,6 +13,7 @@ const fake = vi.hoisted(() => ({
   failOpenRows: { data: [], error: null } as Response,
   vercelEnv: undefined as 'production' | 'preview' | 'development' | undefined,
   rateLimitMode: 'upstash' as 'upstash' | 'memory',
+  botApiEnabled: false,
   calls: [] as unknown[][],
 }))
 
@@ -24,7 +25,7 @@ vi.mock('@/lib/auth/dal', () => ({
   },
 }))
 vi.mock('@/lib/env', () => ({
-  serverEnv: () => ({ vercelEnv: fake.vercelEnv }),
+  serverEnv: () => ({ vercelEnv: fake.vercelEnv, botApiEnabled: fake.botApiEnabled }),
 }))
 vi.mock('@/lib/rate-limit', () => ({
   rateLimitMode: () => fake.rateLimitMode,
@@ -101,7 +102,7 @@ const CATALOG = vi.hoisted(() => ({
   },
 }))
 
-const { getAdminContent, getAdminOverview, listUsers } = await import('./queries')
+const { getAdminBot, getAdminContent, getAdminOverview, listUsers } = await import('./queries')
 
 const dbRow = (id: string, overrides: Record<string, unknown> = {}) => ({
   id,
@@ -113,6 +114,7 @@ const dbRow = (id: string, overrides: Record<string, unknown> = {}) => ({
   created_at: '2026-01-10T03:00:00+00:00',
   approved_at: '2026-01-11T03:00:00+00:00',
   onboarded_at: null,
+  ai_personalization: false,
   ...overrides,
 })
 
@@ -124,6 +126,7 @@ beforeEach(() => {
   fake.failOpenRows = { data: [], error: null }
   fake.vercelEnv = undefined
   fake.rateLimitMode = 'upstash'
+  fake.botApiEnabled = false
   fake.calls = []
 })
 
@@ -132,7 +135,7 @@ describe('listUsers', () => {
     fake.rpc = {
       data: [
         dbRow('p1', { status: 'pending', approved_at: null, display_name: null }),
-        dbRow('me', { role: 'admin' }),
+        dbRow('me', { role: 'admin', ai_personalization: true }),
       ],
       error: null,
     }
@@ -146,6 +149,7 @@ describe('listUsers', () => {
         createdAt: '2026-01-10T03:00:00+00:00',
         approvedAt: null,
         onboardedAt: null,
+        aiPersonalization: false,
         isSelf: false,
       },
       {
@@ -157,6 +161,7 @@ describe('listUsers', () => {
         createdAt: '2026-01-10T03:00:00+00:00',
         approvedAt: '2026-01-11T03:00:00+00:00',
         onboardedAt: null,
+        aiPersonalization: true,
         isSelf: true,
       },
     ])
@@ -334,5 +339,54 @@ describe('getAdminContent', () => {
   it('throws on an RPC error', async () => {
     fake.rpcs = { admin_track_positions: { data: null, error: { message: 'forbidden' } } }
     await expect(getAdminContent()).rejects.toThrow()
+  })
+})
+
+const BOT_SETTINGS = {
+  enabled: false,
+  dryRun: true,
+  contentProposals: false,
+  perRunUserCap: 10,
+  limits: {},
+  hasToken: false,
+  prevValidUntil: null,
+  rotatedAt: null,
+  updatedAt: '2026-09-28T00:00:00+00:00',
+}
+
+describe('getAdminBot (/admin/bot, §2.4)', () => {
+  it('reads admin_bot_settings as the admin, with the env lock read on the server', async () => {
+    fake.rpcs = { admin_bot_settings: { data: BOT_SETTINGS, error: null } }
+    fake.botApiEnabled = true
+    await expect(getAdminBot()).resolves.toEqual({
+      apiEnabled: true,
+      controls: {
+        enabled: false,
+        dryRun: true,
+        contentProposals: false,
+        perRunUserCap: 10,
+        capMax: 100,
+      },
+      token: { state: 'none' },
+    })
+    expect(fake.calls).toEqual([['requireAdmin'], ['rpc', 'admin_bot_settings']])
+  })
+
+  it('says when BOT_API_ENABLED is off', async () => {
+    fake.rpcs = { admin_bot_settings: { data: BOT_SETTINGS, error: null } }
+    expect((await getAdminBot()).apiEnabled).toBe(false)
+  })
+
+  it('refuses a non-admin before touching the database', async () => {
+    fake.admin = false
+    await expect(getAdminBot()).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('throws on an RPC error or a malformed answer (the error boundary shows "Thử lại")', async () => {
+    fake.rpcs = { admin_bot_settings: { data: null, error: { message: 'forbidden' } } }
+    await expect(getAdminBot()).rejects.toThrow()
+    fake.rpcs = { admin_bot_settings: { data: { enabled: 'yes' }, error: null } }
+    await expect(getAdminBot()).rejects.toThrow()
   })
 })

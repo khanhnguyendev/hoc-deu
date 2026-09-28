@@ -3,8 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, type AccountStatus, type Role } from '@/lib/auth/dal'
+import { botLimitsInput } from '@/lib/bot/limits'
+import { newBotToken } from '@/lib/bot/token'
 import { vi } from '@/lib/i18n/vi'
 import { checkLimit } from '@/lib/rate-limit'
+import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -45,8 +48,11 @@ const STALE: ReadonlySet<string> = new Set([
   'no_change',
 ])
 
-function failure(error: { message: string }): AdminActionResult {
-  const message = ERRORS.get(error.message) ?? vi.admin.errors.failed
+function failure(
+  error: { message: string },
+  errors: ReadonlyMap<string, string> = ERRORS,
+): AdminActionResult {
+  const message = errors.get(error.message) ?? vi.admin.errors.failed
   if (!STALE.has(error.message)) return { ok: false, message }
   revalidatePath('/admin/users')
   return { ok: false, message, stale: true }
@@ -109,5 +115,121 @@ export async function setUserRole(userId: string, role: Role): Promise<AdminActi
   return {
     ok: true,
     message: input.data.role === 'admin' ? vi.admin.results.promoted : vi.admin.results.demoted,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// /admin/bot and the AI flag (task 6.3; §2.4, §6.2, §6.3, ADR-0026). Each: requireAdmin, then the
+// admin-action rate limit, then the input; the RPCs run with the admin's own session.
+// ---------------------------------------------------------------------------------------------
+
+/** One field per form (§2.4): a switch, the per-run cap (1–100) or limits under the hard maxima. */
+const botSettingsInput = z
+  .strictObject({
+    enabled: z.boolean().optional(),
+    dryRun: z.boolean().optional(),
+    contentProposals: z.boolean().optional(),
+    perRunUserCap: z.number().int().min(1).max(100).optional(),
+    limits: botLimitsInput.optional(),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined))
+
+export type BotSettingsInput = z.input<typeof botSettingsInput>
+
+const BOT_ERRORS: ReadonlyMap<string, string> = new Map([
+  ['forbidden', vi.errors.notAllowed],
+  ['invalid_settings', vi.adminBot.errors.invalid],
+])
+
+type UpdateBotSettingsArgs = Database['public']['Functions']['admin_update_bot_settings']['Args']
+
+/**
+ * Saves one `/admin/bot` control (§6.2): null leaves every other column as it is
+ * (`admin_update_bot_settings`, 6.2b). No event: `updated_at` / `updated_by` on the row say who
+ * changed it (decision 31).
+ */
+export async function updateBotSettings(input: BotSettingsInput): Promise<AdminActionResult> {
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+  const parsed = botSettingsInput.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.adminBot.errors.invalid }
+
+  const { enabled, dryRun, contentProposals, perRunUserCap, limits } = parsed.data
+  // The generated types mark every argument as required; SQL reads null as "unchanged".
+  const args = {
+    p_enabled: enabled ?? null,
+    p_dry_run: dryRun ?? null,
+    p_content_proposals: contentProposals ?? null,
+    p_per_run_user_cap: perRunUserCap ?? null,
+    p_limits: limits ?? null,
+  } as unknown as UpdateBotSettingsArgs
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_update_bot_settings', args)
+  if (error) {
+    return { ok: false, message: BOT_ERRORS.get(error.message) ?? vi.adminBot.errors.failed }
+  }
+  revalidatePath('/admin/bot')
+  return { ok: true, message: vi.adminBot.results.saved }
+}
+
+/**
+ * "Tạo token mới" (§6.3, ADR-0026): a fresh 32-byte token; only its SHA-256 goes to
+ * `admin_rotate_bot_token`, which keeps the old hash valid for 24 hours and writes
+ * `admin.bot_token_rotated`. The token is returned once, to the page that asked, and is never
+ * logged or stored.
+ */
+export async function rotateBotToken(): Promise<
+  { ok: true; token: string; message: string } | { ok: false; message: string }
+> {
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+
+  const { token, hash } = newBotToken()
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_rotate_bot_token', { p_token_hash: hash })
+  if (error) {
+    return {
+      ok: false,
+      message:
+        error.message === 'forbidden' ? vi.errors.notAllowed : vi.adminBot.errors.rotateFailed,
+    }
+  }
+  revalidatePath('/admin/bot')
+  return { ok: true, token, message: vi.adminBot.results.rotated }
+}
+
+const aiFlagInput = z.object({ userId: z.uuid(), on: z.boolean() })
+
+const AI_FLAG_ERRORS: ReadonlyMap<string, string> = new Map([
+  ...ERRORS,
+  ['no_change', vi.adminBot.aiFlag.changed],
+])
+
+/**
+ * The AI flag (§2.4 `/admin/users`, decision 34): active accounts only, the admin's own included
+ * (the owner is the first AI learner). `admin_set_ai_flag` also turns notes sharing off with the
+ * flag and suspends / resumes the overrides, and writes `admin.ai_flag_changed`. The list
+ * re-renders — also after a stale failure, so it shows the account's current state.
+ */
+export async function setAiFlag(userId: string, on: boolean): Promise<AdminActionResult> {
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+  const input = aiFlagInput.safeParse({ userId, on })
+  if (!input.success) return { ok: false, message: vi.admin.errors.invalid }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_set_ai_flag', {
+    p_user_id: input.data.userId,
+    p_on: input.data.on,
+  })
+  if (error) return failure(error, AI_FLAG_ERRORS)
+
+  revalidatePath('/admin/users')
+  return {
+    ok: true,
+    message: input.data.on ? vi.adminBot.results.aiOn : vi.adminBot.results.aiOff,
   }
 }
