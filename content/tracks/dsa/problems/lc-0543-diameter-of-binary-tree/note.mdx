@@ -1,0 +1,52 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đường kính là số **cạnh** trên đường dài nhất giữa hai node bất kỳ. Mọi đường đi trong cây đều có một node cao nhất, nơi đường "gập" lại: từ đó nó đi xuống nhánh trái một đoạn và xuống nhánh phải một đoạn. Nếu biết chiều cao hai cây con của một node, đường dài nhất gập tại node đó dài `trái + phải` cạnh. Vì vậy ta dùng cùng một hàm <Term vi="hậu thứ tự">post-order</Term> như Maximum Depth of Binary Tree: hàm **trả về** chiều cao cho node cha, và **tiện thể** cập nhật một biến `best` chung mỗi khi thấy `trái + phải` lớn hơn.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Biến chung">Khởi tạo `best = 0`, dùng chung cho mọi lời gọi đệ quy.</Step>
+
+<Step title="Hàm chiều cao">`height(node)` trả về số node trên đường dài nhất từ `node` đi xuống; node rỗng trả về 0.</Step>
+
+<Step title="Cập nhật tại mỗi node">Sau khi có `left = height(node.left)` và `right = height(node.right)`, đường gập tại `node` có `left + right` cạnh: gán `best = max(best, left + right)`.</Step>
+
+<Step title="Trả về cho cha">Trả về `1 + max(left, right)`. Gọi `height(root)` xong thì `best` là đáp án.</Step>
+
+</Steps>
+
+Chạy thử với `root = [4, 2, 7, 1, 3, null, null, 0]`:
+
+<VarTable caption="root = [4, 2, 7, 1, 3, null, null, 0]">
+
+| Node | left | right | left + right | best | Trả về |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0 | 0 | 0 | 0 | 1 |
+| 1 | 1 | 0 | 1 | 1 | 2 |
+| 3 | 0 | 0 | 0 | 1 | 1 |
+| 2 | 2 | 1 | 3 | 3 | 3 |
+| 7 | 0 | 0 | 0 | 3 | 1 |
+| 4 | 3 | 1 | 4 | 4 | 4 |
+
+</VarTable>
+
+Đường kính là 4, đường 0 → 1 → 2 → 4 → 7.
+
+<Callout tone="warning" title="Đường dài nhất không nhất thiết đi qua gốc">
+
+Chỉ tính `height(root.left) + height(root.right)` là sai khi một cây con rất sâu và rộng còn nhánh kia ngắn: với `[1, 2, null, 3, 4, 5, null, null, 6]`, đường qua gốc chỉ dài 3 cạnh, còn đường 5 → 3 → 2 → 4 → 6 dài 4. Vì thế phải cập nhật `best` ở **mọi** node.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được thăm một lần; bộ nhớ là <Term vi="ngăn xếp lời gọi">call stack</Term> sâu bằng chiều cao `h` của cây.
+
+<Solution />
+
+<Bilingual vi="Một hàm post-order trả về chiều cao của mỗi cây con; tại mỗi node, tổng chiều cao hai bên là đường dài nhất gập ở đó, nên ghi lại giá trị lớn nhất." en="Run a post-order height function. At each node, the longest path that bends there has height(left) + height(right) edges, so keep the maximum over all nodes while returning 1 + max(left, right) to the parent. O(n) time, O(h) space." />

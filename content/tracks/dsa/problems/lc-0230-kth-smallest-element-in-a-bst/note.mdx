@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Duyệt <Term vi="trung thứ tự">in-order</Term> (cây con trái, node, cây con phải) một <Term vi="cây nhị phân tìm kiếm">binary search tree</Term> thăm các giá trị theo thứ tự **tăng dần**. Vậy phần tử nhỏ thứ `k` chính là node được thăm thứ `k`. Không cần duyệt hết cây hay lưu cả dãy: viết in-order bằng một <Term vi="ngăn xếp">stack</Term> tường minh, đếm ngược `k` mỗi lần thăm một node và dừng ngay khi `k` về 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Đi hết về bên trái">Từ `node` hiện tại, đẩy lần lượt `node`, con trái của nó, con trái của con trái… vào stack cho tới khi gặp `null`.</Step>
+
+<Step title="Thăm node">Lấy node ở đỉnh stack ra: đó là giá trị nhỏ nhất chưa được thăm. Giảm `k`; nếu `k == 0`, trả về giá trị của nó.</Step>
+
+<Step title="Sang cây con phải">Gán `node = node.right` rồi quay lại bước 1: các giá trị trong cây con phải nhỏ hơn mọi node còn trong stack.</Step>
+
+</Steps>
+
+Chạy thử với `root = [6, 3, 8, 1, 4, 7, 9]` và `k = 4`:
+
+<VarTable caption="root = [6, 3, 8, 1, 4, 7, 9], k = 4">
+
+| Bước | Hành động | Stack (đáy → đỉnh) | k sau bước |
+| --- | --- | --- | --- |
+| 1 | đi trái từ 6: đẩy 6, 3, 1 | `6, 3, 1` | 4 |
+| 2 | thăm 1; con phải rỗng | `6, 3` | 3 |
+| 3 | thăm 3; sang con phải 4, đẩy 4 | `6, 4` | 2 |
+| 4 | thăm 4; con phải rỗng | `6` | 1 |
+| 5 | thăm 6 | rỗng | 0: trả về 6 |
+
+</VarTable>
+
+Dãy in-order bắt đầu `1, 3, 4, 6, …`, và phần tử thứ 4 là 6. Các node 7, 8, 9 không bao giờ được thăm.
+
+<Callout tone="tip" title="Vì sao dùng stack thay cho đệ quy">
+
+In-order đệ quy cũng đúng, nhưng muốn dừng sớm phải truyền cờ hay biến đếm qua các lời gọi. Với stack tường minh, `return` ngay trong vòng lặp là xong.
+
+</Callout>
+
+<Complexity time="O(h + k)" space="O(h)" />
+
+Trước khi thăm node đầu tiên, ta đi xuống `h` tầng; sau đó mỗi lần thăm tốn trung bình `O(1)`, nên tổng là `O(h + k)`, tệ nhất `O(n)`. Stack chứa nhiều nhất một đường từ gốc xuống, tức `O(h)` node.
+
+<Solution />
+
+<Bilingual vi="Duyệt in-order một BST cho các giá trị tăng dần; làm bằng stack, đếm ngược k mỗi lần lấy một node ra và trả về node làm k về 0." en="An in-order traversal of a BST visits values in ascending order. Do it iteratively with a stack: push the left spine, pop a node, count it, then move to its right child. The k-th popped node is the answer. O(h + k) time, O(h) space." />

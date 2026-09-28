@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đi theo từng tầng là việc của <Term vi="tìm kiếm theo chiều rộng">BFS</Term> với một <Term vi="hàng đợi">queue</Term>: node vào trước ra trước, nên các node được lấy ra đúng theo thứ tự tầng, từ trái sang phải. Mẹo then chốt để **tách** các tầng: ở đầu mỗi vòng, queue chứa đúng toàn bộ một tầng. Ghi lại kích thước queue lúc đó, lấy ra đúng chừng ấy node; các con được thêm vào trong lúc này thuộc tầng sau và chờ vòng tiếp theo.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">Queue chứa `root` nếu cây không rỗng; `result` rỗng. Cây rỗng thì trả về `[]` luôn.</Step>
+
+<Step title="Chốt kích thước tầng">Đầu mỗi vòng, `size = len(queue)`: đó là số node của tầng hiện tại.</Step>
+
+<Step title="Xử lý một tầng">Lấy ra `size` node; mỗi node thêm giá trị vào `level` và đưa con trái rồi con phải (nếu có) vào cuối queue.</Step>
+
+<Step title="Ghi tầng">Thêm `level` vào `result`; lặp lại tới khi queue rỗng.</Step>
+
+</Steps>
+
+Chạy thử với `root = [6, 2, 9, 1, 4, 7]`:
+
+<VarTable caption="root = [6, 2, 9, 1, 4, 7]">
+
+| Vòng | Queue đầu vòng | size | level | Queue cuối vòng |
+| --- | --- | --- | --- | --- |
+| 1 | `6` | 1 | `[6]` | `2, 9` |
+| 2 | `2, 9` | 2 | `[2, 9]` | `1, 4, 7` |
+| 3 | `1, 4, 7` | 3 | `[1, 4, 7]` | rỗng |
+
+</VarTable>
+
+Kết quả là `[[6], [2, 9], [1, 4, 7]]`.
+
+<Callout tone="warning" title="Chốt size trước vòng lặp trong">
+
+Nếu vòng lặp trong đọc `len(queue)` mỗi lần lặp, nó sẽ thấy cả các con vừa được thêm vào và trộn hai tầng làm một. Lưu kích thước vào một biến **trước** khi bắt đầu tầng. Trong Python, dùng `collections.deque` để lấy ra ở đầu trong `O(1)`; `list.pop(0)` tốn `O(n)`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi node vào và ra khỏi queue đúng một lần. Queue lớn nhất khi chứa tầng rộng nhất, tới khoảng `n / 2` node ở tầng đáy của một cây đầy đủ.
+
+<Solution />
+
+<Bilingual vi="BFS với một queue: đầu mỗi vòng, queue chứa đúng một tầng; ghi lại kích thước, lấy ra chừng ấy node thành một tầng và đưa con của chúng vào cho tầng sau." en="Breadth-first search with a queue. At the start of each round the queue holds exactly one level: record its size, pop that many nodes into a list, and enqueue their children for the next level. Every node enters the queue once: O(n) time and space." />
