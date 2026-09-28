@@ -22,7 +22,7 @@ test.afterEach(async () => {
 
 const DSA = 'Cấu trúc dữ liệu & Giải thuật'
 const BADGE = 'Cá nhân hoá bởi AI'
-const NOTE = 'Kế hoạch hôm nay do AI cá nhân hoá'
+const NOTE = 'Kế hoạch do AI cá nhân hoá'
 const STALE = 'Kế hoạch vừa thay đổi. Trang đã được làm mới.'
 const RATIONALE = 'Ôn lại Contains Duplicate vì lần trước còn cần gợi ý, sau đó học tiếp.'
 

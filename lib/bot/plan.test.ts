@@ -360,6 +360,15 @@ describe('putPlan (PUT …/plan, §6.4.3)', () => {
     })
   })
 
+  it('inactive (the account deactivated mid-run) → invalid, not a 500', async () => {
+    vi.mocked(storeAiPlan).mockRejectedValue(new EventError('inactive'))
+    expect(await putPlan(RUN_USER, BODY, NOW)).toEqual({
+      status: 422,
+      body: { outcome: 'invalid', details: [{ code: 'inactive' }] },
+      outcome: 'invalid',
+    })
+  })
+
   it('invalid_event while bot_settings.dry_run is now on (turned on mid-write) → invalid, retryable', async () => {
     vi.mocked(storeAiPlan).mockRejectedValue(new EventError('invalid_event'))
     state.settingsDryRun = true

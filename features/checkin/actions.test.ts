@@ -706,7 +706,9 @@ describe('recordOutcome', () => {
 
   it('[decision 36] a result graded on /today at version 1 while the plan is now version 2: stale, nothing written', async () => {
     const fake = setup({ day_plans: [{ ...plan, version: 2, source: 'ai' }] })
-    expect(await recordOutcome(solved({ blockId: pair.id, planVersion: 1 }))).toEqual({
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: plan.id, planVersion: 1 })),
+    ).toEqual({
       ok: false,
       message: copy.checkIn.errors.stale,
       autoCheckedIn: [],
@@ -717,8 +719,34 @@ describe('recordOutcome', () => {
 
   it('[decision 36] a result with the current version records normally', async () => {
     const fake = setup({ day_plans: [{ ...plan, version: 2 }] })
-    expect((await recordOutcome(solved({ blockId: pair.id, planVersion: 2 }))).ok).toBe(true)
+    expect(
+      (await recordOutcome(solved({ blockId: pair.id, planId: plan.id, planVersion: 2 }))).ok,
+    ).toBe(true)
     expect(learnerCalls(fake)).toHaveLength(1)
+  })
+
+  it('[decision 36] the same version of another plan (a stale day-D page, a new AI plan v1 for D+1): stale, no result, no auto check-in', async () => {
+    const fake = setup({ day_plans: [plan] })
+    const otherDay = '0d6c1b2a-3e4f-4a5b-8c7d-9e0f1a2b3c4d'
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: otherDay, planVersion: 1 })),
+    ).toEqual({ ok: false, message: copy.checkIn.errors.stale, autoCheckedIn: [] })
+    expect(fake.rpcs()).toEqual([])
+  })
+
+  it('[decision 36] a /today grade across a day start, before the new day’s plan exists: stale', async () => {
+    // Yesterday's plan, seen and checked in: after the day start the gate is open and today has
+    // no plan yet, so there is no current plan for the rendered one to match.
+    const yesterday = planRow({ date: YESTERDAY, blocks: [pair], seenAt: seen(YESTERDAY) })
+    vi.setSystemTime(AFTER_DAY_START)
+    const fake = setup({
+      day_plans: [yesterday],
+      plan_block_state: [blockStateRow(yesterday, pair, 'done', YESTERDAY)],
+    })
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: yesterday.id, planVersion: 1 })),
+    ).toEqual({ ok: false, message: copy.checkIn.errors.stale, autoCheckedIn: [] })
+    expect(fake.rpcs()).toEqual([])
   })
 
   describe('which block the result names (decision 14)', () => {

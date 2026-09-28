@@ -123,7 +123,7 @@ function Dashboard({
                               items={blockSlots.items}
                               requestId={page.requestId}
                               record={record}
-                              planVersion={planVersion}
+                              plan={{ id: planId, version: planVersion }}
                             />
                           )
                         }

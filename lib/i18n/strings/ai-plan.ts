@@ -6,6 +6,7 @@
 export const aiPlan = {
   /** The mode badge (an icon and these words — never colour alone). */
   badge: 'Cá nhân hoá bởi AI',
-  /** The note's accessible name: the badge and the rationale read as one group. */
-  label: 'Kế hoạch hôm nay do AI cá nhân hoá',
+  /** The note's accessible name: the badge and the rationale read as one group (neutral: the
+   *  paused view shows an older plan). */
+  label: 'Kế hoạch do AI cá nhân hoá',
 } as const

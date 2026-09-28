@@ -265,8 +265,15 @@ async function outcomeAttempt(
 ): Promise<string | null | typeof NOT_APPLICABLE | typeof STALE> {
   const { today, current } = await currentNow(supabase, userId)
   const plan = current?.plan ?? null
-  // Decision 36: a result graded on a /today that showed another version of the plan.
-  if (request.planVersion !== undefined && plan?.version !== request.planVersion) return STALE
+  // Decision 36: a result graded on a /today that showed another plan, or another version of it
+  // (a day-D page must not grade on a new day's plan that is also version 1; no current plan —
+  // a day start before the new day's plan exists — is stale too).
+  if (
+    request.planId !== undefined &&
+    (plan?.id !== request.planId || plan.version !== request.planVersion)
+  ) {
+    return STALE
+  }
   const block = plan === null ? undefined : blockFor(plan, request.itemId, request.blockId)
   const { type, payload } = outcomeEvent(request.outcome)
   const id = deriveEventId(request.requestId, outcomeKey(request))

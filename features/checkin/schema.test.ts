@@ -202,9 +202,13 @@ describe('outcomeInputSchema', () => {
 
   it('takes the rendered plan version from /today, and none from other pages (decision 36)', () => {
     const solved = { type: 'item.result', result: 'solved' }
-    expect(outcome(solved, { planVersion: 2 }).data?.planVersion).toBe(2)
+    const rendered = { planId: PLAN_ID, planVersion: 2 }
+    expect(outcome(solved, rendered).data).toMatchObject(rendered)
     expect(outcome(solved).data?.planVersion).toBeUndefined()
-    expect(outcome(solved, { planVersion: 0 }).success).toBe(false)
+    expect(outcome(solved, { planId: PLAN_ID, planVersion: 0 }).success).toBe(false)
+    // The plan's id and version travel together (a version alone names no plan).
+    expect(outcome(solved, { planVersion: 2 }).success).toBe(false)
+    expect(outcome(solved, { planId: PLAN_ID }).success).toBe(false)
   })
 
   it.each([

@@ -107,13 +107,14 @@ async function skipped(admin: Admin, userId: string, u: UserDay): Promise<PlanAn
 /**
  * A database refusal as an answer, or null to rethrow: `day_changed` (the request crossed the
  * learner's day start — retry, the context has the new day), `ai_off` (the flag turned off
- * mid-run), `invalid_event` while `bot_settings.dry_run` is now on (an admin turned dry-run on
+ * mid-run), `inactive` (the account deactivated mid-run), `invalid_event` while `bot_settings.dry_run` is now on (an admin turned dry-run on
  * mid-write, decision 8 — the retry runs as a dry run).
  */
 async function refused(error: unknown): Promise<PlanAnswer | null> {
   if (!(error instanceof EventError)) return null
   if (error.code === 'day_changed') return invalid([{ code: 'day_changed', retryable: true }])
   if (error.code === 'ai_off') return invalid([{ code: 'ai_off' }])
+  if (error.code === 'inactive') return invalid([{ code: 'inactive' }])
   if (error.code === 'invalid_event' && (await readBotSettings()).settings.dryRun) {
     return invalid([{ code: 'dry_run_started', retryable: true }])
   }

@@ -53,7 +53,7 @@ const ENGLISH_BLOCK = `${TODAY}:english:review:1`
 const plan = storedPlan()
 
 const RATIONALE = 'Ôn lại Group Anagrams vì lần trước chưa làm được, sau đó học tiếp Stack.'
-const aiBadge = () => screen.queryByRole('group', { name: 'Kế hoạch hôm nay do AI cá nhân hoá' })
+const aiBadge = () => screen.queryByRole('group', { name: 'Kế hoạch do AI cá nhân hoá' })
 
 const blocks = [
   blockView({ block: block(NEW_BLOCK, { kind: 'new', trackId: 'dsa', estMinutes: 35 }) }),
@@ -397,6 +397,7 @@ describe('TodayView — check-in (5.2b)', () => {
         requestId: REQUEST_ID,
         itemId: card.id,
         blockId: ENGLISH_BLOCK,
+        planId: PLAN_ID,
         planVersion: plan.version,
         outcome: { type: 'item.result', result: 'know' },
       })

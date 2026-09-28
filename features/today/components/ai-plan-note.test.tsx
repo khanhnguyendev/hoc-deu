@@ -7,7 +7,7 @@ const RATIONALE = 'Ôn lại Group Anagrams vì lần trước chưa làm đư�
 describe('AiPlanNote (spec §2.4, decision 16)', () => {
   it('shows the badge — an icon and words, never colour alone — and the rationale as plain text', () => {
     const { container } = render(<AiPlanNote view={{ rationale: RATIONALE }} />)
-    const group = screen.getByRole('group', { name: 'Kế hoạch hôm nay do AI cá nhân hoá' })
+    const group = screen.getByRole('group', { name: 'Kế hoạch do AI cá nhân hoá' })
     const badge = group.querySelector('[data-slot="badge"]')!
     expect(badge.textContent).toBe('Cá nhân hoá bởi AI')
     expect(badge.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')

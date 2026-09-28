@@ -54,8 +54,12 @@ rebuilt by a settings change. The forces:
   untouched plan replaces an AI plan too and clears `rationale` and `bot_run_id`; the bot does not
   come back that day.
 - **A stale page cannot act on a plan it never showed** (decision 36). Check-ins and the results
-  graded on `/today` carry the rendered plan `version`; a mismatch with the current plan is
-  answered with the existing "stale" message and `/today` re-renders.
+  graded inline on `/today` carry the rendered plan's id and `version`; another plan, another
+  version or no current plan is answered with the existing "stale" message, nothing is written,
+  and `/today` re-renders. The guarantee covers exactly these two: results recorded on an item's
+  own page (`/t/…/items/…`, reached with `?block=`) and on `/review` carry no version and keep
+  M5's behaviour (ruling M6-R29) — `?block=` is used only when that block of the current plan
+  lists the item, else the first block listing it, else off-plan study.
 - **The learner sees it.** `/today` shows a "Cá nhân hoá bởi AI" badge (an icon and words) and the
   cleaned rationale as plain text for a plan with `source 'ai'` — also in the paused and resumed
   views when their plan is an AI plan; a baseline plan shows nothing (v1.0 unchanged).
@@ -66,6 +70,8 @@ rebuilt by a settings change. The forces:
   the baseline plan for the day.
 - An untouched plan the learner has already opened can change under them; they see the AI plan on
   the next load, and any action from the old page is refused as stale and re-renders.
+- "Học thêm" or off-plan study in one tab bumps the plan's version, so other open `/today` tabs
+  answer "stale" once on their next check-in or inline grade, then show the current plan.
 - Far-west learners rarely get AI plans: one run per Vietnamese date means their plan is usually
   in use by the time the bot writes (§6.8; ADR-0028 in M7 records it as a v1 limitation).
 - The bot's `skipped_*` answers are normal outcomes, not errors; the run log counts them.

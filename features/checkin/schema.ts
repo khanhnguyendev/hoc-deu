@@ -123,8 +123,10 @@ export type OutcomeInput = {
   readonly itemId: string
   /** From `?block=`: prefers this block when several list the item (decision 14). */
   readonly blockId?: string
-  /** Sent by `/today`'s own result controls (decision 36): the rendered plan's version, which
-   *  must still be the current plan's. Omitted off `/today` (an item page, `/review`). */
+  /** Sent by `/today`'s own result controls (decision 36), always together: the rendered plan's
+   *  id and version, which must still be the current plan's. Omitted off `/today` (an item page,
+   *  `/review` — ruling M6-R29: they keep M5's behaviour). */
+  readonly planId?: string
   readonly planVersion?: number
   readonly outcome: Outcome
 }
@@ -142,13 +144,19 @@ const outcomeSchema = z.discriminatedUnion('type', [
   EVENT_PAYLOADS['item.readded'].extend({ type: z.literal('item.readded') }),
 ])
 
-export const outcomeInputSchema: z.ZodType<OutcomeInput> = z.strictObject({
-  requestId,
-  itemId,
-  blockId: blockId.optional(),
-  planVersion: planVersion.optional(),
-  outcome: outcomeSchema,
-})
+export const outcomeInputSchema: z.ZodType<OutcomeInput> = z
+  .strictObject({
+    requestId,
+    itemId,
+    blockId: blockId.optional(),
+    planId: z.uuid().optional(),
+    planVersion: planVersion.optional(),
+    outcome: outcomeSchema,
+  })
+  // A version names no plan on its own: the id and the version come together, or neither.
+  .refine((input) => (input.planId === undefined) === (input.planVersion === undefined), {
+    message: 'planId and planVersion go together',
+  })
 
 type OutcomeType = Outcome['type']
 

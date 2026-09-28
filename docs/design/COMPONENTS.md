@@ -1719,7 +1719,7 @@ Copy: `vi.today`.
   lists an ExtraButton per active, started track (`page.extra`). Task 6.5b: when the plan shown
   (today's, resumed or paused) is an AI plan, `page.aiPlan` puts an AiPlanNote under the page
   header; a baseline plan shows no badge (v1.0 unchanged). Every CheckInButton, CheckInSheet and
-  CardBlock gets the shown plan's `version` (decision 36)
+  CardBlock gets the shown plan's id and `version` (decision 36)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
   error (`unreadable`; `error.tsx`: ErrorState `h1` "Không tải được kế hoạch hôm nay" + "Thử lại")
   · ready — all in the catalog (m-3)
@@ -2329,8 +2329,8 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **File:** `features/today/components/card-block.tsx`
 - **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
   `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
-  (`recordOutcome`, unbound), `planVersion?: number` (the rendered plan's version, sent with each
-  grade — decision 36, task 6.5b; omitted in demos)
+  (`recordOutcome`, unbound), `plan?: { id, version }` (the rendered plan, sent with each grade
+  — decision 36, task 6.5b; omitted in demos)
 - **Variants:** session (CardSession with `headingLevel={4}` — under the block's `h3`, parked #7 —
   and an outline "Xem nghĩa", the block's "Check-in" being the view's primary, m-12;
   FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows (every card was handled before the
@@ -2600,7 +2600,7 @@ Task 6.5b adds these entries below this line (Part B-M6 decision 3).
   note at all (spec §2.4 mode badge, decision 16; v1.0 unchanged)
 - **Usage:** `{page.aiPlan !== null && <AiPlanNote view={page.aiPlan} />}` right under
   TodayView's PageHeader
-- **Accessibility:** a `group` named "Kế hoạch hôm nay do AI cá nhân hoá"; the `primary` Badge is
+- **Accessibility:** a `group` named "Kế hoạch do AI cá nhân hoá" (neutral: also the paused view); the `primary` Badge is
   a decorative `Sparkles` icon and the words "Cá nhân hoá bởi AI" — never colour alone; the
   rationale is plain text (cleaned on the server, escaped by React) in `text-muted-foreground`,
   `max-w-prose`, `break-words` so a long word wraps at 320 px; theme tokens only (light and dark)
