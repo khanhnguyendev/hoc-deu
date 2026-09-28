@@ -26,16 +26,16 @@ and rows 0005, 0029, 0031, 0034, 0036, 0038 and 0039 for M5 (task 5.0).
 | [0015](0015-dsa-variant-follows-budget.md) | DSA variant follows the budget; simulated finish shown | 2.10 |
 | [0016](0016-gate-on-last-seen-plan.md) | Gate rule on the last **seen** plan; stale-plan resume | 4.3 |
 | [0017](0017-day-start-and-schedule-versions.md) | Per-user day start; schedule versions effective at the next day start | 2.3 |
-| 0018 | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5 |
+| [0018](0018-ai-plan-precedence.md) | Baseline vs AI plan precedence: replace only an **untouched** plan (no check-in, no event with its `plan_id`); keep `seen_at` | 6.5b |
 | [0019](0019-cache-components-off.md) | Cache Components off in v1 | 2.6 |
 | [0020](0020-intl-only-time.md) | Intl-only time handling in `lib/domain`; no date library | 2.3 |
 | [0021](0021-layer-rules-and-guards.md) | Layer rules via an in-repo ESLint rule + architecture tests; token guard | 1.10 |
 | 0022 | Daily bot: two loops, app code off-limits; weekly code Routine is future work | 7.2 |
 | 0023 | Auto-merge `claude/content-*` without an approving review (self-approval impossible) | 7.3 |
-| 0024 | Content PRs only from the Routine; publishing via admin requests; no GitHub token in the app | 6.7 |
-| 0025 | Publishing tiers for bot content | 6.7 |
-| 0026 | Bot token hash in the database, rotated from admin | 6.3 |
-| 0027 | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | 6.4 |
+| [0024](0024-content-prs-from-routine.md) | Content PRs only from the Routine; publishing via admin requests; no GitHub token in the app | 6.7a |
+| [0025](0025-publishing-tiers.md) | Publishing tiers for bot content | 6.7a |
+| [0026](0026-bot-token-hash.md) | Bot token hash in the database, rotated from admin | 6.3 |
+| [0027](0027-run-keys.md) | Run keys by Asia/Ho_Chi_Minh date; numbered publish runs | 6.4a |
 | 0028 | Far-west time-zone limitation accepted for v1 | 7.4 |
 | [0029](0029-backups.md) | Backups: simple daily full dumps in v1.0; incremental, derived-free chain (incl. `day_plans` by `updated_at`) from 100 MB; chain restore test | 5.7b |
 | [0030](0030-learner-write-quota.md) | Learner write quota: `SECURITY DEFINER` `BEFORE INSERT` trigger + internal `event_quota` table (no learner access); Upstash only from v1.1, for bot/auth/admin | 2.5 |
@@ -48,4 +48,4 @@ and rows 0005, 0029, 0031, 0034, 0036, 0038 and 0039 for M5 (task 5.0).
 | [0037](0037-projection-inputs-hash.md) | Projection table keyed by a projection inputs hash; bots cannot edit manifests or roadmaps | 4.8 |
 | [0038](0038-release-boundary.md) | Release boundary v1.0 / v1.1 / later, week-4 content + harness constraint, dogfooding rollout | 5.8a |
 | [0039](0039-seen-at-browser-effect.md) | `seen_at` set only by a browser-side effect on `/today` (never by `ensurePlan` or prefetch) | 5.1b |
-| 0040 | Bot-written notes show "tested (bot tests)" until an admin publishes them via the checklist | 6.7 |
+| [0040](0040-bot-tests-badge.md) | Bot-written notes show "tested (bot tests)" until an admin publishes them via the checklist | 6.7a |

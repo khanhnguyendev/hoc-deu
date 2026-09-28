@@ -49,7 +49,11 @@ sections for every task.
   (PR #10, merged 2026-09-26). M5: step-level detail in
   [Part B-M5](#part-b-m5--dashboard-check-in-review--v10-launch-step-by-step), written at the start
   of M5 and gate-reviewed; executed subagent-driven in parallel waves (owner answer 2026-09-26); the
-  owner ruled M-5 (A) and M-6 (a) (2026-09-26).
+  owner ruled M-5 (A) and M-6 (a) (2026-09-26). M5 done (PR #11, merged 2026-09-27). M6: step-level
+  detail in [Part B-M6](#part-b-m6--admin-ai-controls--bot-api-v11-step-by-step), written at the
+  start of M6 and gate-reviewed; subagent-driven in parallel waves (owner answer 2026-09-27); two
+  pull requests — PR C (content-verify M3b/M3c, W4–W5 content) and PR B (bot API), both stopping
+  for the owner (2026-09-28).
 - **ADR ownership:** every ADR in platform design §9.2 is written by the task that implements it
   (marked **Writes ADR-NNNN** below); `docs/adr/README.md` lists the same mapping.
 
@@ -59,7 +63,8 @@ sections for every task.
 | --- | --- |
 | M0 | **Native** (superpowers:executing-plans), then one fresh reviewer on the whole branch |
 | M1 | Native, with an end-of-milestone review |
-| M2, M6 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M2 | **Subagent-driven** (superpowers:subagent-driven-development) — fresh implementer and reviewer per task |
+| M6 | **Subagent-driven, parallel waves in git worktrees** (owner answer 2026-09-27, Part B-M6 decision 1) |
 | M4 | **Subagent-driven, parallel waves in git worktrees** (owner request 2026-09-25, Part B-M4 decision 1) |
 | M3 | **Subagent-driven, parallel waves in git worktrees** — one worktree per task, one integration worktree per target branch (owner decision 2026-09-25, Part B-M3 OD5) |
 | M5 | **Subagent-driven, parallel waves in git worktrees** (owner answer 2026-09-26, Part B-M5 decision 1) |
@@ -287,13 +292,15 @@ M5 SQL, sandbox tests as root and the `sim` job, M2 carry-overs) (2); no mode ba
 | L5 | On a resume day a track can show two "Học thêm" cards (its `extra:1` and a fresh `extra:<n>`, ADR-0016); label the later one "Học thêm (2)" or merge their display | M5 fix-pass re-reviews N-4 / B |
 | L6 | An e2e helper that backdates `ops_metrics.recorded_at`, so the `/admin` cron-staleness warning (ADR-0034) gets an end-to-end case (unit-tested in v1.0) | M5 fix-pass C report |
 | L7 | The Settings and track-page throttle rule lines still count "thẻ" ("Trên {dueAbove} thẻ cần ôn: {n} thẻ mới mỗi ngày", "Giới hạn thẻ mới"); align them with the settled nouns "mục cần ôn" / "bài mới" (lib/i18n + lib/content tests) | M5 fix-pass B round 2 |
+| L9 | A future secret-key updater of `schedule_versions` must take the per-user schedule lock before any row lock (the M4-R22 order); M6 adds none | Part B-M6 decision 27 |
 | L8 | During dogfooding, measure events per active learner per day, learner vs system (`events.source`). If the mean exceeds ~60, write `plan.extra_added` at most once per track per day (later results append their items in the same write), and update spec §8's storage estimate with the measured number | owner, 2026-09-27 (PR #11 decision 2); owned by 5.8b step 5 (dogfooding) |
 
 **Before any learner reaches week 4 (§0 constraint):** `content-verify` M3b (linked lists, trees,
 graph nodes, random-pointer lists) and M3c (design classes) — tasks written just-in-time — and
 either W4–W5 notes/lessons written or v1.1 shipped. The **M3b** harness task's first step (M3
 follow-up, Part B-M4 decision 28): the Java harness bridges `List<String>` parameters and Go
-design classes are created via `Constructor()` (problems 139, 127, 271).
+design classes are created via `Constructor()` (problems 139, 127, 271). **Scheduled in M6 as PR C**
+(tasks 6.9a, 6.9b, 6.10, 6.11 — Part B-M6 decisions 24, 25, 40; owner 2026-09-27 / 2026-09-28).
 
 ### M6 — Admin AI controls + bot API (v1.1)
 
@@ -308,6 +315,14 @@ design classes are created via `Constructor()` (problems 139, 127, 271).
 | 6.7 | `GET …/content-signals`, publish requests (admin "Xuất bản", public endpoint), `share_notes_with_ai` | **Writes ADR-0024, ADR-0025, ADR-0040.**
 | 6.8 | Contract test suite (§6.10) |
 
+**Part B-M6 changes to this table** (decisions there): 6.2 splits into **6.2a** (tables) and
+**6.2b** (every M6 SQL function); 6.4 into **6.4a** (runs) and **6.4b** (context); 6.5 into **6.5a**
+(pure validation) and **6.5b** (write path, badge); 6.6 into **6.6a** (custom items), **6.6b**
+(override engine) and **6.6c** (override wiring); 6.7 into **6.7a** (signals, publish requests) and
+**6.7b** (notes sharing); the AI flag toggle moves to 6.3; new **6.0** (controller), **6.0b** (brand
+kit), **6.9a / 6.9b** (content-verify M3b / M3c) and **6.10 / 6.11** (W4–W5 content) — decisions 2,
+24–26, 40; "Chạy ngay" moves to 7.4 (decision 20).
+
 ### M7 — Claude Code Routine in dry-run (v1.1)
 
 | Task | Deliverable |
@@ -315,8 +330,8 @@ design classes are created via `Constructor()` (problems 139, 127, 271).
 | 7.1 | `pnpm bot` CLI (`tools/bot/cli.ts`) sharing `lib/bot/contract.ts` |
 | 7.2 | `bot/ROUTINE_PROMPT.md`, `.claude/settings.json` deny rules | **Writes ADR-0022.**
 | 7.3 | Bot PR workflows: `path-guard`, `bot-content-policy`, `bot-automerge`, stale-PR closer + fixture PR tests; adds `path-guard` and `bot-content-policy` to the existing `main` ruleset (0.10; `content-build` and `content-verify` are required from M3's PR A, Part B-M3 decision 22); pins every GitHub Action by commit SHA (deferred minor #11) **Writes ADR-0023, ADR-0035.** |
-| 7.4 **[owner]** | Routine environment (Custom network, API credential, no connectors, schedule 22:30 UTC); fallback workflow (dry-run) | **Writes ADR-0028.**
-| 7.5 | Dry-run acceptance week on real data → `dry_run` off, `content_proposals` on |
+| 7.4 **[owner]** | Routine environment (Custom network, API credential, no connectors, schedule 22:30 UTC); fallback workflow (dry-run); the "Chạy ngay" button (`ROUTINE_FIRE_URL` / `ROUTINE_FIRE_TOKEN`, Part B-M6 decision 20) | **Writes ADR-0028.**
+| 7.5 | Dry-run acceptance week on real data → `dry_run` off, `content_proposals` on; measure `bot_run_users.writes` / `detail` per run and add it to spec §8 — if it matters, `bot_prune_details` also trims `writes` older than 30 days to their outcomes (Part B-M6 decision 41) |
 
 ---
 

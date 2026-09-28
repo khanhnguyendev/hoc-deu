@@ -323,7 +323,11 @@ Vercel cron (daily): /api/cron/maintenance (idempotent housekeeping, §2.3)
   OAuth callback 20 / 10 min per IP; account deletion 3 / day per user; admin actions 60 / min per
   admin; data export (when built) 5 / day per user. Fail-open events are counted in `ops_metrics`.
   v1.0 has no Upstash: sign-up is gated by manual approval, and learner writes are capped by the
-  Postgres quota (§4.5).
+  Postgres quota (§4.5). **As built in M6** (implementation plan Part B-M6 decision 22): identifiers
+  are the token hash's first 16 hex characters, the first `x-forwarded-for` entry, the user id and
+  the admin id; without the `UPSTASH_*` variables every limiter runs in memory per instance
+  (best-effort; the owner signed off on these limits applying in production from the M6 merge,
+  2026-09-28) and `/admin` warns in production.
 - **`/api/health`** returns only `200 {"ok":true}` or `503 {"ok":false}` (cheap DB query). No
   versions or dependency details.
 
@@ -882,7 +886,9 @@ All in the `public` schema with RLS on.
   acceptance), `content_proposals` (default true; seeded false during the M7 dry-run week),
   `per_run_user_cap` (default 10), `limits` jsonb (custom-item and override quotas, capped by hard
   maxima in code), `token_hash`, `token_prev_hash`, `token_prev_valid_until`.
-  A hard env switch `BOT_API_ENABLED` also exists; both must be on.
+  A hard env switch `BOT_API_ENABLED` also exists; both must be on. **As built in M6** (Part B-M6
+  decision 5): the row is seeded `enabled = false`, `dry_run = true`, `content_proposals = false`,
+  so nothing turns on by merging.
 - **`bot_runs`**: `run_key` (`run_<date>` or `run_<date>_publish-<n>`, unique), `kind`
   (plan / publish), mode, status (running / completed /
   failed), `failure_reason` (incl. `timeout`, set lazily after 2 h), users eligible / processed /
@@ -1536,7 +1542,9 @@ roadmap.
 
 - **Limits:** ≤ 3 active overrides per track (reorders count). `insert_block` expires at `until`,
   `extra_week` after its study days; `reorder_topics` ends when revoked or once every reordered
-  topic has started.
+  topic has started. **As built in M6** (Part B-M6 decision 18): expiry is computed, never stored —
+  `study_days_left` is built as `study_days` and the used days are counted from the stored plans;
+  `roadmap_overrides.status` does not allow `expired`.
 - **Invariants (property-tested, §6.10):** every core item stays in the effective queue exactly
   once; the planned-minutes invariant (§5.4) holds with any accepted override set.
 - **Custom items** (`user:<bot_ref>:<slug>`, types flashcard / exercise / prompt):
@@ -1948,7 +1956,8 @@ loop.
   tests)" into "tested".
   - "Xuất bản" records a `content_publish_requests` row (target = item ID or `<itemId>#note`).
     **Creating requests is admin-only**; the app holds **no GitHub write token**.
-  - A **publish run** (§6.2) — started by "Chạy ngay" (the Routine's `/fire` trigger) or by the next
+  - A **publish run** (§6.2) — started by "Chạy ngay" (the Routine's `/fire` trigger; built in M7 task
+    7.4, Part B-M6 decision 20) or by the next
     Routine run — executes the deterministic `pnpm bot content:publish`: it takes the pending
     requests that are not already in an open PR, flips exactly those targets to `active`, opens
     `claude/content-publish-<date>-<n>` (auto-merging through the same required checks) and reports
@@ -1991,7 +2000,8 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
 - Contexts are written to files, and stdout prints only short summaries (outcomes, counts, error
   codes) — so logs never contain learner data.
 - `.bot/` is git-ignored. The CLI validates request bodies with the same Zod schemas the server
-  uses (shared package `lib/bot/contract.ts`) before sending.
+  uses (shared package `lib/bot/contract.ts` — built as `lib/bot/contract/index.ts`, one file per
+  endpoint, Part B-M6 decision 3) before sending.
 
 ### 6.8 Routine setup
 
@@ -2043,7 +2053,9 @@ pnpm bot run:finish <completed|failed> [--summary "..."] [--pr-url URL] [--reque
 
 ### 6.10 Testing
 
-- Contract tests (Vitest) for every endpoint: kill switch, bad/rotated/previous token, rate
+- Contract tests (Vitest — **as built in M6**: Playwright request-level specs against the local
+  stack in their own required CI job `bot-contract`, plus per-route Vitest unit tests; Part B-M6
+  decision 23) for every endpoint: kill switch, bad/rotated/previous token, rate
   limit, each validation rule, each outcome, idempotent repeat, `409` on key reuse, dry-run writes
   nothing, lazy timeout, resume never escalating the mode, cap + `deferredUsers`, publish-request
   lifecycle (pending → `pr_url` → merged; closed PR → retry).
