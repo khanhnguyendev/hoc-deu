@@ -55,7 +55,7 @@ const entryFiles = (path: string) =>
 const ENTRIES_DIR = 'app/dev/components/entries'
 const entriesFiles = () =>
   list(ENTRIES_DIR)
-    .filter((name) => name.endsWith('.tsx'))
+    .filter(isComponent)
     .map((name) => `${ENTRIES_DIR}/${name}`)
 const catalogFiles = () => [REGISTRY, ...entriesFiles()].flatMap(entryFiles)
 const galleryFiles = () => entryFiles(ITEMS_GALLERY)

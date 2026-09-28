@@ -209,19 +209,29 @@ export const ADMIN_BOT_ENTRIES: Entry[] = [
       {
         title: 'Có lần chạy; hôm nay còn người dùng AI bị để lại',
         render: () => (
-          <BotRunLog
-            log={botRunLog(DEMO_RUNS)}
-            deferredWarning={fill(copy.deferred.warning, { count: '3' })}
-          />
+          <div className="w-full">
+            <BotRunLog
+              log={botRunLog(DEMO_RUNS)}
+              deferredWarning={fill(copy.deferred.warning, { count: '3' })}
+            />
+          </div>
         ),
       },
       {
         title: 'Chưa có lần chạy nào',
-        render: () => <BotRunLog log={botRunLog([])} />,
+        render: () => (
+          <div className="w-full">
+            <BotRunLog log={botRunLog([])} />
+          </div>
+        ),
       },
       {
         title: 'Không đọc được nhật ký chạy',
-        render: () => <BotRunLog log={botRunLog(null)} />,
+        render: () => (
+          <div className="w-full">
+            <BotRunLog log={botRunLog(null)} />
+          </div>
+        ),
       },
     ],
   },
