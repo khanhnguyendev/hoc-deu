@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { publicRoute } from '@/lib/auth/guards'
-import { signInErrorPath } from '@/lib/auth/paths'
+import { safeNextPath, signInErrorPath } from '@/lib/auth/paths'
 import { completeSignIn } from '@/lib/auth/sign-in'
+import { checkLimit, clientIp } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -11,13 +12,23 @@ import { createClient } from '@/lib/supabase/server'
  * No code (e.g. the user cancelled) or a failed exchange → `/sign-in?error=oauth`. A failure
  * *after* the exchange succeeded — the bootstrap RPC or the profile read, inside `completeSignIn`
  * — signs the exchanged session out locally (cookies only) and returns the same way, instead of
- * a bare 500 (route handlers bypass `error.tsx`, M2 minor; ADR-0003).
+ * a bare 500 (route handlers bypass `error.tsx`, M2 minor; ADR-0003). Over the `oauthCallback`
+ * limit (20 / 10 min per IP, §2.3, decision 22) → `/sign-in?error=rate_limited`, before any
+ * Supabase call.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   publicRoute()
   const code = request.nextUrl.searchParams.get('code')
   const next = request.nextUrl.searchParams.get('next')
   const redirectTo = (path: string) => NextResponse.redirect(new URL(path, request.url))
+
+  const limit = await checkLimit('oauthCallback', clientIp(request.headers))
+  if (!limit.ok) {
+    const params = new URLSearchParams({ error: 'rate_limited' })
+    const safeNext = safeNextPath(next)
+    if (safeNext) params.set('next', safeNext)
+    return redirectTo(`/sign-in?${params}`)
+  }
 
   if (code) {
     const supabase = await createClient()

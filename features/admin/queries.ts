@@ -2,6 +2,8 @@ import 'server-only'
 import { z } from 'zod'
 import { requireAdmin, type AccountStatus, type Role } from '@/lib/auth/dal'
 import { getCatalog } from '@/lib/content/catalog'
+import { serverEnv } from '@/lib/env'
+import { rateLimitMode } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
 import { buildContentPage, coverageWarnings, type ContentPage, type TrackPosition } from './content'
 import {
@@ -103,6 +105,22 @@ async function readMetrics(supabase: Client): Promise<OpsMetrics> {
 }
 
 /**
+ * The sum of `ratelimit.fail_open` rows over the last 7 days (§8.4 item 5, decision 22): each row
+ * is one UTC day's count (`ops_bump_metric`), so this reads every row recorded since, not just the
+ * latest.
+ */
+async function readFailOpen7d(supabase: Client, now: Date): Promise<number> {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('ops_metrics')
+    .select('value')
+    .eq('key', 'ratelimit.fail_open')
+    .gte('recorded_at', since)
+  if (error) throw new Error('Could not read the fail-open count', { cause: error })
+  return data.reduce((sum, row) => sum + Number(row.value), 0)
+}
+
+/**
  * `/admin` (§2.4, §8.4 item 5): the aggregate readers (`admin_overview()`,
  * `admin_track_positions()` — counts only, §4.5), the latest ops metrics and the content catalog's
  * coverage, as the admin's own session. Any failed read throws, so the route's error boundary
@@ -111,10 +129,12 @@ async function readMetrics(supabase: Client): Promise<OpsMetrics> {
 export async function getAdminOverview(): Promise<AdminOverviewPage> {
   await requireAdmin()
   const supabase = await createClient()
-  const [overview, positions, metrics] = await Promise.all([
+  const now = new Date()
+  const [overview, positions, metrics, failOpen7d] = await Promise.all([
     supabase.rpc('admin_overview'),
     readTrackPositions(supabase),
     readMetrics(supabase),
+    readFailOpen7d(supabase, now),
   ])
   if (overview.error)
     throw new Error('Could not read the admin overview', { cause: overview.error })
@@ -127,7 +147,9 @@ export async function getAdminOverview(): Promise<AdminOverviewPage> {
     },
     metrics,
     coverage: coverageWarnings(getCatalog(), positions),
-    now: new Date(),
+    rateLimit: { mode: rateLimitMode(), failOpen7d },
+    vercelEnv: serverEnv().vercelEnv,
+    now,
   })
 }
 

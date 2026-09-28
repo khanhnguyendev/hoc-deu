@@ -858,42 +858,71 @@ describe('deleteAccount — §4.6', () => {
   // useSettingsAction calls every other settings action.
   const run: SettingsAction = deleteAccount
 
+  // Each test uses its own user id: `checkLimit('accountDeletion', …)` (decision 22) is real, not
+  // mocked (an in-memory sliding window, module-scoped), and `Date.now()` is frozen at `NOW` for
+  // every test in this file — so a shared id would carry its call count from test to test.
+  const freshUser = (suffix: string) => {
+    fake.user = { id: `${USER_ID}-${suffix}`, codeLanguage: 'python' }
+    return fake.user.id
+  }
+
   it('guards with requireUser (pending users may delete too), deletes, signs out locally, redirects', async () => {
+    const id = freshUser('1')
     await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
     expect(fake.calls).toEqual([
       ['requireUser'],
-      ['deleteUser', USER_ID],
+      ['deleteUser', id],
       ['signOut', { scope: 'local' }],
       ['redirect', '/?account=deleted'],
     ])
   })
 
   it('returns a failure message instead of signing out or redirecting when the admin API errors', async () => {
+    const id = freshUser('2')
     fake.deleteUserResult = { error: { message: 'boom' } }
     const result = await run(null, new FormData())
     expect(result).toEqual({ ok: false, message: 'Không xoá được tài khoản. Bạn thử lại nhé.' })
-    expect(fake.calls).toEqual([['requireUser'], ['deleteUser', USER_ID]])
+    expect(fake.calls).toEqual([['requireUser'], ['deleteUser', id]])
   })
 
   it('still redirects when the local sign-out returns an error, after the account is already deleted (controller ruling, M2 minor)', async () => {
+    const id = freshUser('3')
     fake.deleteAccountSignOutResult = { error: new Error('cookies unavailable') }
     await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
     expect(fake.calls).toEqual([
       ['requireUser'],
-      ['deleteUser', USER_ID],
+      ['deleteUser', id],
       ['signOut', { scope: 'local' }],
       ['redirect', '/?account=deleted'],
     ])
   })
 
   it('still redirects when the local sign-out rejects (controller ruling, M2 minor)', async () => {
+    const id = freshUser('4')
     fake.deleteAccountSignOutThrows = new Error('network down')
     await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
     expect(fake.calls).toEqual([
       ['requireUser'],
-      ['deleteUser', USER_ID],
+      ['deleteUser', id],
       ['signOut', { scope: 'local' }],
       ['redirect', '/?account=deleted'],
     ])
+  })
+
+  it('rate-limits account deletion to 3 / day per user (§2.3, decision 22): the fourth call answers the message without deleting', async () => {
+    const id = freshUser('rate-limited')
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    // The next two calls "delete" the same already-deleted account again — the mock does not
+    // model that; only the rate limiter's own count matters here.
+    fake.user = { id, codeLanguage: 'python' }
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    fake.user = { id, codeLanguage: 'python' }
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+
+    fake.user = { id, codeLanguage: 'python' }
+    fake.calls = []
+    const fourth = await run(null, new FormData())
+    expect(fourth).toEqual({ ok: false, message: copy.rateLimit.tooMany })
+    expect(fake.calls).toEqual([['requireUser']])
   })
 })

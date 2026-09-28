@@ -2402,9 +2402,9 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
-  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam);
-  "Trang quản trị" (a LinkList of LinkRows to `/admin/users` and `/admin/content` with one-line
-  summaries)
+  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam; the
+  Upstash rate-limit fail-open count of the last 7 days, task 6.1); "Trang quản trị" (a LinkList of
+  LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
 - **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
   named (§4.5)
 
@@ -2416,7 +2416,8 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Variants:** Banner `danger` (danger-soft: the red content-coverage warning, DB ≥ 450 MB) ·
   Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
   "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days, and —
-  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào")
+  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào"; task 6.1:
+  the in-memory rate-limit mode in production, and a fail-open count above 0 in the last 7 days)
 - **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
 - **Usage:** rendered by AdminOverview
 - **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link

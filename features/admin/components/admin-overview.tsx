@@ -3,6 +3,7 @@ import {
   CalendarCheck,
   CalendarClock,
   Database,
+  Gauge,
   HardDriveDownload,
   Inbox,
   ListChecks,
@@ -27,6 +28,7 @@ const SYSTEM_ICONS: Readonly<Record<SystemCard['id'], LucideIcon>> = {
   backup: HardDriveDownload,
   'restore-test': RotateCcw,
   cron: CalendarClock,
+  'rate-limit-fail-open': Gauge,
 }
 
 /**

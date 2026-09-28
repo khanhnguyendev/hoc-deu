@@ -32,6 +32,7 @@ describe('parseServerEnv', () => {
       authTestLogin: false,
       vercelEnv: undefined,
       cronSecret: undefined,
+      upstash: undefined,
     })
   })
 
@@ -170,6 +171,58 @@ describe('parseServerEnv', () => {
     })
     expect(env.cronSecret).toBe(cronSecret)
     expect(env.vercelEnv).toBe('production')
+  })
+})
+
+describe('parseServerEnv — UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (§2.3, decision 22)', () => {
+  it('leaves upstash undefined when both are unset', () => {
+    expect(parseServerEnv(validSource).upstash).toBeUndefined()
+  })
+
+  it('leaves upstash undefined when both are empty strings (.env.example placeholders)', () => {
+    const env = parseServerEnv({
+      ...validSource,
+      UPSTASH_REDIS_REST_URL: '',
+      UPSTASH_REDIS_REST_TOKEN: '',
+    })
+    expect(env.upstash).toBeUndefined()
+  })
+
+  it('reads both when both are set', () => {
+    const env = parseServerEnv({
+      ...validSource,
+      UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+      UPSTASH_REDIS_REST_TOKEN: 'sentinel-token',
+    })
+    expect(env.upstash).toEqual({ url: 'https://example.upstash.io', token: 'sentinel-token' })
+  })
+
+  it.each([
+    ['UPSTASH_REDIS_REST_URL', { UPSTASH_REDIS_REST_URL: 'https://example.upstash.io' }],
+    ['UPSTASH_REDIS_REST_TOKEN', { UPSTASH_REDIS_REST_TOKEN: SENTINEL }],
+  ])('throws EnvError naming both when only %s is set', (_, extra) => {
+    let error: unknown
+    try {
+      parseServerEnv({ ...validSource, ...extra })
+      expect.unreachable()
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(EnvError)
+    const message = (error as EnvError).message
+    expect(message).toContain('UPSTASH_REDIS_REST_URL')
+    expect(message).toContain('UPSTASH_REDIS_REST_TOKEN')
+    expect(message).not.toContain(SENTINEL)
+  })
+
+  it('rejects a non-URL UPSTASH_REDIS_REST_URL', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validSource,
+        UPSTASH_REDIS_REST_URL: 'not a url',
+        UPSTASH_REDIS_REST_TOKEN: 'token',
+      }),
+    ).toThrow(EnvError)
   })
 })
 

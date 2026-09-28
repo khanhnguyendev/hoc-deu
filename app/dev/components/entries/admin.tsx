@@ -16,6 +16,7 @@ import {
   type AdminWarning,
   type MetricReading,
   type OpsMetrics,
+  type RateLimitOverview,
 } from '@/features/admin/overview'
 import type { AdminUserRow } from '@/features/admin/queries'
 import { vi } from '@/lib/i18n/vi'
@@ -64,10 +65,17 @@ const DEMO_COVERAGE_WARNING = {
   weeks: [4, 5],
 }
 
+/** Upstash configured, no fail-open events (task 6.1): neither new warning fires. */
+const DEMO_RATE_LIMIT_OK: RateLimitOverview = { mode: 'upstash', failOpen7d: 0 }
+/** No Upstash configured, a few fail-open events in the last 7 days (task 6.1). */
+const DEMO_RATE_LIMIT_MEMORY: RateLimitOverview = { mode: 'memory', failOpen7d: 3 }
+
 const DEMO_OVERVIEW = buildAdminOverview({
   counts: DEMO_COUNTS,
   metrics: DEMO_METRICS,
   coverage: [DEMO_COVERAGE_WARNING],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 const DEMO_FIRST_RUN = buildAdminOverview({
@@ -78,6 +86,8 @@ const DEMO_FIRST_RUN = buildAdminOverview({
   },
   metrics: DEMO_NO_METRICS,
   coverage: [],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 /**
@@ -98,6 +108,8 @@ const DEMO_NO_RUNS = buildAdminOverview({
     },
   },
   coverage: [],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 /** Every warning kind and tone: the red coverage warning, a critical DB size, the rest. */
@@ -111,6 +123,9 @@ const DEMO_ALL_WARNINGS: AdminWarning[] = [
       'cron.last_run_at': demoInstant(1),
     },
     coverage: [DEMO_COVERAGE_WARNING],
+    // The in-memory rate-limit warning and the fail-open count, task 6.1.
+    rateLimit: DEMO_RATE_LIMIT_MEMORY,
+    vercelEnv: 'production',
     now: DEMO_NOW,
   }).warnings,
   ...buildAdminOverview({
@@ -120,6 +135,8 @@ const DEMO_ALL_WARNINGS: AdminWarning[] = [
       'db.size_bytes': { value: 120 * MB, recordedAt: DEMO_NOW.toISOString() },
     },
     coverage: [],
+    rateLimit: DEMO_RATE_LIMIT_OK,
+    vercelEnv: 'production',
     now: DEMO_NOW,
   }).warnings,
   // "Chưa có lần … thành công nào": the cron has run, no success was ever read.

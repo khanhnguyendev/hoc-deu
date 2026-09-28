@@ -5,6 +5,7 @@
  * `ops_metrics` row per key come in; `now` is a parameter.
  */
 import type { AccountStatus } from '@/lib/auth/dal'
+import type { VercelEnv } from '@/lib/env'
 import { fill, formatDayTimeIn, formatNumber, variantLabel } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { REPOSITORY_URL } from '@/lib/ops/repository'
@@ -36,6 +37,7 @@ const LINKS = {
   backupRuns: `${REPOSITORY_URL}/actions/workflows/backup.yml`,
   restoreRuns: `${REPOSITORY_URL}/actions/workflows/restore-test.yml`,
   maintenanceCron: `${REPOSITORY_URL}/blob/main/docs/adr/0034-maintenance-cron.md`,
+  envVars: `${REPOSITORY_URL}/blob/main/docs/plans/2026-09-23-platform-design.md#25-environment-variables-and-admin-bootstrap`,
 } as const
 
 /** The `ops_metrics` keys (20260927000200_ops.sql). */
@@ -64,7 +66,14 @@ export type AdminCounts = {
 
 export type AdminWarning = {
   readonly key: string
-  readonly kind: 'db-size' | 'backup' | 'restore-test' | 'cron' | 'coverage'
+  readonly kind:
+    | 'db-size'
+    | 'backup'
+    | 'restore-test'
+    | 'cron'
+    | 'coverage'
+    | 'rate-limit-memory'
+    | 'rate-limit-fail-open'
   /** `danger`: red (coverage) and critical; `warning`: the rest (DESIGN_SYSTEM §9 Banners). */
   readonly tone: 'danger' | 'warning'
   readonly message: string
@@ -73,10 +82,16 @@ export type AdminWarning = {
 }
 
 export type SystemCard = {
-  readonly id: 'db-size' | 'backup' | 'restore-test' | 'cron'
+  readonly id: 'db-size' | 'backup' | 'restore-test' | 'cron' | 'rate-limit-fail-open'
   readonly label: string
   readonly value: string
   readonly hint: string
+}
+
+/** `rateLimitMode()` and the last 7 days' `ratelimit.fail_open` sum (task 6.1, decision 22). */
+export type RateLimitOverview = {
+  readonly mode: 'upstash' | 'memory'
+  readonly failOpen7d: number
 }
 
 export type AdminLink = { readonly href: string; readonly title: string; readonly meta: string }
@@ -220,6 +235,47 @@ function coverageWarning(warning: CoverageWarning): AdminWarning {
   }
 }
 
+/**
+ * Shown in production only, while `rateLimitMode()` is `memory` (§8.4 item 5, decision 22): no
+ * `UPSTASH_*` variables, so every limiter runs per instance, best-effort.
+ */
+function rateLimitMemoryWarning(
+  rateLimit: RateLimitOverview,
+  vercelEnv: VercelEnv | undefined,
+): AdminWarning | null {
+  if (rateLimit.mode !== 'memory' || vercelEnv !== 'production') return null
+  return {
+    key: 'rate-limit-memory',
+    kind: 'rate-limit-memory',
+    tone: 'warning',
+    message: vi.rateLimit.admin.memoryWarning,
+    action: { label: vi.rateLimit.admin.memoryWarningAction, href: LINKS.envVars },
+  }
+}
+
+/** The fail-open count of the last 7 days, always shown; a warning above 0 (decision 22). */
+function rateLimitFailOpenWarning(rateLimit: RateLimitOverview): AdminWarning | null {
+  if (rateLimit.failOpen7d <= 0) return null
+  return {
+    key: 'rate-limit-fail-open',
+    kind: 'rate-limit-fail-open',
+    tone: 'warning',
+    message: fill(vi.rateLimit.admin.failOpen.warning, {
+      count: formatNumber(rateLimit.failOpen7d),
+    }),
+    action: { label: vi.rateLimit.admin.memoryWarningAction, href: LINKS.envVars },
+  }
+}
+
+function rateLimitFailOpenCard(rateLimit: RateLimitOverview): SystemCard {
+  return {
+    id: 'rate-limit-fail-open',
+    label: vi.rateLimit.admin.failOpen.label,
+    value: fill(vi.rateLimit.admin.failOpen.value, { count: formatNumber(rateLimit.failOpen7d) }),
+    hint: vi.rateLimit.admin.failOpen.hint,
+  }
+}
+
 const NO_DATA = { value: copy.system.noData, hint: copy.system.noDataHint }
 
 /**
@@ -255,7 +311,7 @@ function dbSizeCard(reading: MetricReading | null, now: Date): SystemCard {
   }
 }
 
-function systemCards(metrics: OpsMetrics, now: Date): SystemCard[] {
+function systemCards(metrics: OpsMetrics, rateLimit: RateLimitOverview, now: Date): SystemCard[] {
   const cronHasRun = metrics['cron.last_run_at'] !== null
   return [
     dbSizeCard(metrics['db.size_bytes'], now),
@@ -267,6 +323,7 @@ function systemCards(metrics: OpsMetrics, now: Date): SystemCard[] {
       cronHasRun,
     ),
     instantCard('cron', copy.system.cron, metrics['cron.last_run_at'], false),
+    rateLimitFailOpenCard(rateLimit),
   ]
 }
 
@@ -274,9 +331,11 @@ export function buildAdminOverview(input: {
   counts: AdminCounts
   metrics: OpsMetrics
   coverage: readonly CoverageWarning[]
+  rateLimit: RateLimitOverview
+  vercelEnv: VercelEnv | undefined
   now: Date
 }): AdminOverviewPage {
-  const { counts, metrics, now } = input
+  const { counts, metrics, rateLimit, vercelEnv, now } = input
   const cron = metrics['cron.last_run_at']
   const cronIsStale = cron !== null && isOldReading(cron, now)
   const redWeeks = input.coverage.reduce((sum, warning) => sum + warning.weeks.length, 0)
@@ -286,6 +345,8 @@ export function buildAdminOverview(input: {
     cronWarning(cron, now),
     runWarning('backup', metrics['backup.last_success_at'], cron, cronIsStale, now),
     runWarning('restore-test', metrics['restore_test.last_success_at'], cron, cronIsStale, now),
+    rateLimitMemoryWarning(rateLimit, vercelEnv),
+    rateLimitFailOpenWarning(rateLimit),
   ].filter((warning) => warning !== null)
   return {
     // A stable sort: red and critical first, each group in the order above.
@@ -294,7 +355,7 @@ export function buildAdminOverview(input: {
       ...warnings.filter((warning) => warning.tone === 'warning'),
     ],
     counts,
-    system: systemCards(metrics, now),
+    system: systemCards(metrics, rateLimit, now),
     links: [
       {
         href: '/admin/users',

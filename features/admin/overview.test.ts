@@ -7,7 +7,11 @@ import {
   type AdminCounts,
   type MetricReading,
   type OpsMetrics,
+  type RateLimitOverview,
 } from './overview'
+
+/** Upstash configured, no fail-open events: neither rate-limit warning or card fires by default. */
+const RATE_LIMIT_OK: RateLimitOverview = { mode: 'upstash', failOpen7d: 0 }
 
 const NOW = new Date('2026-09-27T12:00:00Z')
 const HOUR = 3_600_000
@@ -40,7 +44,14 @@ const HEALTHY: OpsMetrics = {
 }
 
 const build = (metrics: Partial<OpsMetrics> = {}, coverage: readonly CoverageWarning[] = []) =>
-  buildAdminOverview({ counts: COUNTS, metrics: { ...HEALTHY, ...metrics }, coverage, now: NOW })
+  buildAdminOverview({
+    counts: COUNTS,
+    metrics: { ...HEALTHY, ...metrics },
+    coverage,
+    rateLimit: RATE_LIMIT_OK,
+    vercelEnv: 'production',
+    now: NOW,
+  })
 
 describe('dbSizeLevel (§8.4 item 5, ADR-0031)', () => {
   it.each([
@@ -203,6 +214,8 @@ describe('buildAdminOverview — before the first cron run', () => {
     counts: COUNTS,
     metrics: NO_METRICS,
     coverage: [],
+    rateLimit: RATE_LIMIT_OK,
+    vercelEnv: 'production',
     now: NOW,
   })
 
@@ -212,6 +225,7 @@ describe('buildAdminOverview — before the first cron run', () => {
       'backup',
       'restore-test',
       'cron',
+      'rate-limit-fail-open',
     ])
     expect(page.system.map((card) => [card.label, card.value, card.hint])).toEqual([
       ['Dung lượng cơ sở dữ liệu', 'chưa có dữ liệu', 'Có sau lần chạy đầu tiên của cron bảo trì.'],
@@ -225,6 +239,11 @@ describe('buildAdminOverview — before the first cron run', () => {
         'Cron bảo trì chạy gần nhất',
         'chưa có dữ liệu',
         'Có sau lần chạy đầu tiên của cron bảo trì.',
+      ],
+      [
+        'Giới hạn tần suất mở khi lỗi',
+        '0 lần',
+        'Trong 7 ngày qua — Upstash lỗi hoặc quá thời gian, bộ nhớ quyết định thay.',
       ],
     ])
   })
@@ -310,6 +329,8 @@ describe('buildAdminOverview — counts and links', () => {
         { trackId: 'dsa', trackTitle: 'DSA', variant: '10w', weeks: [4, 5] },
         { trackId: 'dsa', trackTitle: 'DSA', variant: '8w', weeks: [4] },
       ],
+      rateLimit: RATE_LIMIT_OK,
+      vercelEnv: 'production',
       now: NOW,
     })
     expect(page.counts).toEqual(COUNTS)
@@ -327,6 +348,8 @@ describe('buildAdminOverview — the cron ran, but no backup or restore test eve
       counts: COUNTS,
       metrics: { ...NO_METRICS, 'db.size_bytes': size(40), 'cron.last_run_at': cron },
       coverage: [],
+      rateLimit: RATE_LIMIT_OK,
+      vercelEnv: 'production',
       now: NOW,
     })
 
@@ -396,5 +419,67 @@ describe('buildAdminOverview — a DB size not measured for 36 hours', () => {
 
   it('keeps the plan limit as the hint while the size is fresh', () => {
     expect(sizeCard(35 * HOUR).hint).toBe('Giới hạn của gói miễn phí: 500 MB')
+  })
+})
+
+describe('buildAdminOverview — rate limits (§8.4 item 5, decision 22)', () => {
+  it('shows the memory warning only in production, and only while in memory mode', () => {
+    const memory: RateLimitOverview = { mode: 'memory', failOpen7d: 0 }
+    const upstash: RateLimitOverview = { mode: 'upstash', failOpen7d: 0 }
+
+    const inProduction = buildAdminOverview({
+      counts: COUNTS,
+      metrics: HEALTHY,
+      coverage: [],
+      rateLimit: memory,
+      vercelEnv: 'production',
+      now: NOW,
+    })
+    expect(inProduction.warnings.map((w) => w.kind)).toContain('rate-limit-memory')
+    expect(inProduction.warnings.find((w) => w.kind === 'rate-limit-memory')).toMatchObject({
+      tone: 'warning',
+      message: 'Giới hạn tần suất đang chạy trong bộ nhớ (chưa cấu hình Upstash)',
+    })
+
+    const inPreview = buildAdminOverview({
+      counts: COUNTS,
+      metrics: HEALTHY,
+      coverage: [],
+      rateLimit: memory,
+      vercelEnv: 'preview',
+      now: NOW,
+    })
+    expect(inPreview.warnings.map((w) => w.kind)).not.toContain('rate-limit-memory')
+
+    const upstashInProduction = buildAdminOverview({
+      counts: COUNTS,
+      metrics: HEALTHY,
+      coverage: [],
+      rateLimit: upstash,
+      vercelEnv: 'production',
+      now: NOW,
+    })
+    expect(upstashInProduction.warnings.map((w) => w.kind)).not.toContain('rate-limit-memory')
+  })
+
+  it('always shows the fail-open count as a system card, and warns only above 0', () => {
+    const zero = build()
+    expect(zero.system.find((c) => c.id === 'rate-limit-fail-open')?.value).toBe('0 lần')
+    expect(zero.warnings.map((w) => w.kind)).not.toContain('rate-limit-fail-open')
+
+    const some = buildAdminOverview({
+      counts: COUNTS,
+      metrics: HEALTHY,
+      coverage: [],
+      rateLimit: { mode: 'upstash', failOpen7d: 3 },
+      vercelEnv: 'production',
+      now: NOW,
+    })
+    expect(some.system.find((c) => c.id === 'rate-limit-fail-open')?.value).toBe('3 lần')
+    const warning = some.warnings.find((w) => w.kind === 'rate-limit-fail-open')
+    expect(warning).toMatchObject({
+      tone: 'warning',
+      message: 'Giới hạn tần suất đã mở khi lỗi 3 lần trong 7 ngày qua.',
+    })
   })
 })

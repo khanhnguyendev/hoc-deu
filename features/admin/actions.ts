@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, type AccountStatus, type Role } from '@/lib/auth/dal'
 import { vi } from '@/lib/i18n/vi'
+import { checkLimit } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -71,7 +72,9 @@ export async function setUserStatus(
   status: 'active' | 'rejected' | 'suspended',
   expectedFrom: AccountStatus,
 ): Promise<AdminActionResult> {
-  await requireAdmin()
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
   const input = statusInput.safeParse({ userId, status, expectedFrom })
   if (!input.success) return { ok: false, message: vi.admin.errors.invalid }
 
@@ -89,7 +92,9 @@ export async function setUserStatus(
 
 /** Makes an account an admin or a learner again (§2.4); never the acting admin (decision 17). */
 export async function setUserRole(userId: string, role: Role): Promise<AdminActionResult> {
-  await requireAdmin()
+  const admin = await requireAdmin()
+  const limit = await checkLimit('adminAction', admin.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
   const input = roleInput.safeParse({ userId, role })
   if (!input.success) return { ok: false, message: vi.admin.errors.invalid }
 

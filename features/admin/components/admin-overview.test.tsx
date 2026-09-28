@@ -25,6 +25,8 @@ const page = (metrics: Partial<OpsMetrics> = {}, withCoverage = false) =>
     coverage: withCoverage
       ? [{ trackId: 'dsa', trackTitle: 'DSA', variant: '10w', weeks: [4, 5] }]
       : [],
+    rateLimit: { mode: 'upstash', failOpen7d: 0 },
+    vercelEnv: 'production',
     now: NOW,
   })
 

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { vi as copy } from '@/lib/i18n/vi'
 
 const ID = '5b0c61a2-7f5e-4c3b-9a41-2f1d7c8e9a10'
 
 const fake = vi.hoisted(() => ({
   admin: true,
+  adminId: 'admin-id',
   rpc: { data: null, error: null } as {
     data: unknown
     error: { message: string; code?: string } | null
@@ -18,7 +20,7 @@ vi.mock('@/lib/auth/dal', () => ({
   requireAdmin: async () => {
     fake.calls.push(['requireAdmin'])
     if (!fake.admin) throw new Error('NOT_FOUND')
-    return { id: 'admin-id' }
+    return { id: fake.adminId }
   },
 }))
 vi.mock('@/lib/supabase/server', () => ({
@@ -34,6 +36,7 @@ const { setUserRole, setUserStatus } = await import('./actions')
 
 beforeEach(() => {
   fake.admin = true
+  fake.adminId = 'admin-id'
   fake.rpc = { data: null, error: null }
   fake.calls = []
 })
@@ -134,5 +137,35 @@ describe('setUserRole', () => {
     fake.rpc = { data: null, error: { message: 'forbidden' } }
     await setUserRole(ID, 'admin')
     expect(fake.calls.map((call) => call[0])).toEqual(['requireAdmin', 'rpc'])
+  })
+})
+
+describe('admin actions — rate limit (§2.3, decision 22: 60 / min per admin)', () => {
+  it('answers vi.rateLimit.tooMany on the 61st admin action in a minute, before validating input', async () => {
+    fake.adminId = 'admin-rate-limit-test'
+    for (let i = 0; i < 60; i++) {
+      const result = await setUserStatus(ID, 'active', 'pending')
+      expect(result.ok).toBe(true)
+    }
+    fake.calls = []
+    const result = await setUserStatus(ID, 'active', 'pending')
+    expect(result).toEqual({ ok: false, message: copy.rateLimit.tooMany })
+    // The rate check runs right after the guard, before the input is even parsed.
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('shares one budget across setUserStatus and setUserRole for the same admin', async () => {
+    fake.adminId = 'admin-rate-limit-shared'
+    for (let i = 0; i < 60; i++) {
+      await setUserRole(ID, 'admin')
+    }
+    const result = await setUserStatus(ID, 'active', 'pending')
+    expect(result).toEqual({ ok: false, message: copy.rateLimit.tooMany })
+  })
+
+  it('does not rate-limit a different admin', async () => {
+    fake.adminId = 'admin-rate-limit-untouched'
+    const result = await setUserStatus(ID, 'active', 'pending')
+    expect(result.ok).toBe(true)
   })
 })

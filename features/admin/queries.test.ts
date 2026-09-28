@@ -9,6 +9,10 @@ const fake = vi.hoisted(() => ({
   rpcs: {} as Record<string, Response>,
   /** The latest ops_metrics row per key (`maybeSingle`), or an error. */
   metrics: {} as Record<string, Response>,
+  /** The `ratelimit.fail_open` rows of the last 7 days (`readFailOpen7d`), or an error. */
+  failOpenRows: { data: [], error: null } as Response,
+  vercelEnv: undefined as 'production' | 'preview' | 'development' | undefined,
+  rateLimitMode: 'upstash' as 'upstash' | 'memory',
   calls: [] as unknown[][],
 }))
 
@@ -18,6 +22,12 @@ vi.mock('@/lib/auth/dal', () => ({
     if (!fake.admin) throw new Error('NOT_FOUND')
     return { id: 'me' }
   },
+}))
+vi.mock('@/lib/env', () => ({
+  serverEnv: () => ({ vercelEnv: fake.vercelEnv }),
+}))
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimitMode: () => fake.rateLimitMode,
 }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
@@ -43,6 +53,11 @@ vi.mock('@/lib/supabase/server', () => ({
         maybeSingle: async () => {
           fake.calls.push(['from', ...query])
           return fake.metrics[key] ?? { data: null, error: null }
+        },
+        gte: async (column: string, value: string) => {
+          query.push(`${column}>=${value}`)
+          fake.calls.push(['from', ...query])
+          return fake.failOpenRows
         },
       }
       return chain
@@ -106,6 +121,9 @@ beforeEach(() => {
   fake.rpc = { data: [], error: null }
   fake.rpcs = {}
   fake.metrics = {}
+  fake.failOpenRows = { data: [], error: null }
+  fake.vercelEnv = undefined
+  fake.rateLimitMode = 'upstash'
   fake.calls = []
 })
 
@@ -199,9 +217,16 @@ describe('getAdminOverview', () => {
           'order recorded_at desc',
           'limit 1',
         ]),
+        [
+          'from',
+          'ops_metrics',
+          'select value',
+          'key=ratelimit.fail_open',
+          expect.stringMatching(/^recorded_at>=/),
+        ],
       ]),
     )
-    expect(fake.calls).toHaveLength(7)
+    expect(fake.calls).toHaveLength(8)
     expect(page.counts).toEqual({
       users: { pending: 2, active: 7, suspended: 1, rejected: 0 },
       learnersCompleted7d: 4,
@@ -215,7 +240,50 @@ describe('getAdminOverview', () => {
       'chưa có dữ liệu',
       'chưa có dữ liệu',
       'chưa có dữ liệu',
+      '0 lần',
     ])
+  })
+
+  it('sums the fail-open rows of the last 7 days into the system card', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.failOpenRows = { data: [{ value: 2 }, { value: 5 }], error: null }
+    const page = await getAdminOverview()
+    const card = page.system.find((card) => card.id === 'rate-limit-fail-open')
+    expect(card?.value).toBe('7 lần')
+  })
+
+  it('warns about the fail-open count only above 0', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.failOpenRows = { data: [{ value: 3 }], error: null }
+    const page = await getAdminOverview()
+    expect(page.warnings.map((warning) => warning.kind)).toContain('rate-limit-fail-open')
+  })
+
+  it('throws when the fail-open rows cannot be read', async () => {
+    fake.rpcs = { admin_overview: { data: OVERVIEW, error: null } }
+    fake.failOpenRows = { data: null, error: { message: 'boom' } }
+    await expect(getAdminOverview()).rejects.toThrow()
+  })
+
+  it('warns about the memory rate-limit mode in production only', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.rateLimitMode = 'memory'
+    fake.vercelEnv = 'preview'
+    expect((await getAdminOverview()).warnings.map((w) => w.kind)).not.toContain(
+      'rate-limit-memory',
+    )
+
+    fake.vercelEnv = 'production'
+    expect((await getAdminOverview()).warnings.map((w) => w.kind)).toContain('rate-limit-memory')
   })
 
   it('refuses a non-admin before touching the database', async () => {

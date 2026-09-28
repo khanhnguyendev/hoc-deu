@@ -20,6 +20,7 @@ import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import { rebuildTodayIfUntouched } from '@/lib/plans/rebuild'
+import { checkLimit } from '@/lib/rate-limit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
@@ -400,10 +401,14 @@ export async function resetTrack(input: {
  * rejection — and never blocks the redirect (controller ruling, M2 minor): the account row is
  * already gone by then, so a thrown error here would be misleading (the learner would see a
  * failure for a delete that actually went through), and auth-js has already cleared the session
- * client-side for most error cases regardless.
+ * client-side for most error cases regardless. Rate-limited 3 / day per user (§2.3, decision 22):
+ * over the limit, answers the generic message without calling the admin API.
  */
 export async function deleteAccount(): Promise<SettingsResult> {
   const user = await requireUser()
+  const limit = await checkLimit('accountDeletion', user.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+
   const { error } = await createAdminClient().auth.admin.deleteUser(user.id)
   if (error) return { ok: false, message: copy.deleteAccount.failed }
 
