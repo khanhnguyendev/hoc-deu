@@ -27,6 +27,17 @@ export type ServerEnv = {
    * optional — both or neither. Without them every rate limiter runs in memory, per instance.
    */
   upstash: { readonly url: string; readonly token: string } | undefined
+  /**
+   * `BOT_API_ENABLED` (§2.5, §6.2; task 6.3, decision 7): the kill switch's hard lock — true only
+   * for exactly `true`. Unset (production until the owner flips it), every bot route answers
+   * `503 {"error":"disabled"}` whatever `bot_settings.enabled` says (ADR-0026).
+   */
+  botApiEnabled: boolean
+  /**
+   * `BOT_REF_SECRET` (§2.5, §6.3): the HMAC key of the per-run user refs, at least 32 characters.
+   * Required while `botApiEnabled`; otherwise optional.
+   */
+  botRefSecret: string | undefined
 }
 
 /** Message lists variable NAMES only, never values — never printed or logged with a value. */
@@ -58,6 +69,15 @@ const RawEnvSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.string().min(1).optional(),
+  ),
+  // Empty means unset (`.env.example` ships both lines empty): the bot API stays off (decision 5).
+  BOT_API_ENABLED: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['true', 'false']).optional(),
+  ),
+  BOT_REF_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(32).optional(),
   ),
 })
 
@@ -114,6 +134,12 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
       ? { url: raw.UPSTASH_REDIS_REST_URL, token: raw.UPSTASH_REDIS_REST_TOKEN }
       : undefined
 
+  // The bot API cannot address anyone without its ref key (§6.3): on without it is a broken deploy.
+  const botApiEnabled = raw.BOT_API_ENABLED === 'true'
+  if (botApiEnabled && raw.BOT_REF_SECRET === undefined) {
+    throw new EnvError('Invalid environment variables: BOT_REF_SECRET')
+  }
+
   return {
     supabaseUrl: raw.NEXT_PUBLIC_SUPABASE_URL,
     supabasePublishableKey: raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -124,6 +150,8 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     vercelEnv,
     cronSecret: raw.CRON_SECRET,
     upstash,
+    botApiEnabled,
+    botRefSecret: raw.BOT_REF_SECRET,
   }
 }
 
