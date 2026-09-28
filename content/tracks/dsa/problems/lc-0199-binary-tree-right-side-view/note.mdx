@@ -14,7 +14,7 @@ status: active
 
 <Step title="Chốt kích thước tầng">Đầu mỗi vòng, `size = len(queue)`.</Step>
 
-<Step title="Duyệt tầng">Lấy ra `size` node theo thứ tự trái sang phải; node thứ `size - 1` (cuối cùng) được thêm vào `result`. Mỗi node đưa con trái rồi con phải vào queue.</Step>
+<Step title="Duyệt tầng">Lấy ra `size` node theo thứ tự trái sang phải; node thứ `size - 1` (cuối cùng) được thêm vào `result`. Mỗi node đưa con trái rồi con phải vào queue. Bản Go làm cách tương đương: lấy node cuối cùng của `queue` (`queue[len(queue)-1]`) làm node nhìn thấy của tầng, rồi duyệt hết `queue` và gom các con vào một slice `next` riêng, thay `queue` bằng `next` cho tầng sau.</Step>
 
 <Step title="Kết thúc">Queue rỗng thì trả về `result`.</Step>
 

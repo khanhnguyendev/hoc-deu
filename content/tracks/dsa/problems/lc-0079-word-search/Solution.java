@@ -1,5 +1,3 @@
-import java.util.*;
-
 class Solution {
     public boolean exist(char[][] board, String word) {
         // Backtracking DFS from every cell: match word[i], mark the cell as used, try the four
