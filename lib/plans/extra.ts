@@ -31,7 +31,13 @@ import { createClient } from '@/lib/supabase/server'
 import { planCatalog } from './catalog'
 import { currentPlan } from './current'
 import { catalogWith, loadDay } from './day'
-import { readEnrollments, readScheduleVersions, readUserItems, todayOf } from './reads'
+import {
+  readEnrollments,
+  readOverrides,
+  readScheduleVersions,
+  readUserItems,
+  todayOf,
+} from './reads'
 import { assertSessionUser } from './session'
 import { ensureToday } from './today'
 
@@ -67,12 +73,14 @@ export async function addExtraForTrack(
     if (current === null || current.kind === 'paused') return 'no_plan'
     const { plan } = current
     if (own(plan.tracks, trackId)?.newPerDay === 0) return 'throttled'
+    // Task 6.6c: the effective roadmap, and no new item during an extra week (§5.12).
     const ctx = {
       planDate: day.today,
       catalog: day.catalog,
       enrollments: day.enrollments,
       items: day.items,
       recapDone: {},
+      overrides: await readOverrides(supabase, userId, day.today),
     }
     const items = extraCandidates(ctx, plan, trackId)
     if (items.length === 0) return 'nothing_to_add'

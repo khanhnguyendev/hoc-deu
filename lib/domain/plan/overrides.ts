@@ -341,6 +341,7 @@ export type OverrideIssue = {
     | 'until_too_far'
     | 'no_weak_item'
     | 'too_many_days'
+    | 'not_reorderable'
 }
 type IssueCode = OverrideIssue['code']
 
@@ -419,6 +420,13 @@ function extraWeekIssues(
   return issues
 }
 
+/** A reorder permutes topics by moving their `core` items (decision 35); a roadmap whose core
+ *  items all live in decks (English) has nothing a reorder could move (task 6.6c) — the bot
+ *  context's `upcomingTopics` is empty for it, and `validateOverride` refuses a reorder of it. */
+export function reorderable(roadmap: PlanRoadmap): boolean {
+  return roadmap.weeks.some((week) => week.core.length > 0)
+}
+
 function reorderIssues(
   o: RoadmapOverride,
   params: ReorderParams,
@@ -427,6 +435,7 @@ function reorderIssues(
   known: ReadonlySet<string>,
   ctx: ValidationContext,
 ): IssueCode[] {
+  if (!reorderable(roadmap)) return ['not_reorderable']
   const others = (ctx.overrides ?? []).filter(
     (other) => other.trackId === o.trackId && other.key !== o.key,
   )
@@ -460,7 +469,7 @@ function reorderIssues(
  * then per kind — `insert_block`: a known topic, `minutes` ≤ the budget share, `until` ≤ the days
  * ahead; `extra_week`: a known topic with a Weak item, `studyDays` ≤ the limit; `reorder_topics`:
  * a permutation of the upcoming topics (unknown → `unknown_topic`, started → `not_upcoming`,
- * missing or repeated → `not_permutation`) whose order puts every topic after the topics it
+ * missing or repeated → `not_permutation`; a roadmap with no core slot → `not_reorderable`) whose order puts every topic after the topics it
  * `requires` that have not started (`breaks_requires`). [] = accepted.
  */
 export function validateOverride(o: RoadmapOverride, ctx: ValidationContext): OverrideIssue[] {

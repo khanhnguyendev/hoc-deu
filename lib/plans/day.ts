@@ -28,6 +28,7 @@ import {
   readEnrollments,
   readItemStates,
   readLastSeenPlan,
+  readOverrides,
   readPlan,
   readRecapHistory,
   readScheduleVersions,
@@ -153,19 +154,28 @@ export async function resolveDay(supabase: Client, userId: string, day: Day): Pr
   return (await gateState(supabase, userId, day.today, day.activeTrackIds)) ?? { kind: 'open' }
 }
 
-/** What `buildPlan` / `buildResumePlan` read for `day` (§5.4): the recap weeks done included. */
+/**
+ * What `buildPlan` / `buildResumePlan` read for `day` (§5.4): the recap weeks done included, and
+ * the learner's roadmap overrides in force today (§5.12, `readOverrides` — none unless the AI flag
+ * is on; task 6.6c), so `ensureToday`, rebuilds, the bot context and the AI plan write all build
+ * with the effective roadmap and the day's override blocks.
+ */
 export async function planContext(
   supabase: Client,
   userId: string,
   day: Day,
 ): Promise<PlanContext> {
-  const history = await readRecapHistory(supabase, userId)
+  const [history, overrides] = await Promise.all([
+    readRecapHistory(supabase, userId),
+    readOverrides(supabase, userId, day.today),
+  ])
   return {
     planDate: day.today,
     catalog: day.catalog,
     enrollments: day.enrollments,
     items: day.items,
     recapDone: recapWeeksDone(history.plans, history.blocks, day.enrollments),
+    overrides,
   }
 }
 

@@ -21,6 +21,7 @@ import {
   USER_ID,
   YESTERDAY,
 } from './__tests__/fixtures'
+import { overrideRow, profileRow } from './__tests__/override-rows'
 
 vi.mock('@/lib/auth/dal', async () => (await import('./__tests__/env')).dalMock)
 vi.mock('@/lib/supabase/server', async () => (await import('./__tests__/env')).serverMock)
@@ -241,6 +242,16 @@ describe('addExtraForTrack ("Học thêm", decision 20)', () => {
       .map((item) => itemStateRow(itemState(item.id, '2026-09-20')))
     const fake = learner({ day_plans: [plan], item_state: states })
     expect(await addExtraForTrack(USER_ID, 'english', REQUEST_ID, NOW)).toBe('nothing_to_add')
+    expect(fake.rpcs()).toEqual([])
+  })
+
+  it('adds nothing to a track in an active extra week (§5.12, task 6.6c)', async () => {
+    const fake = learner({
+      day_plans: [plan],
+      profiles: [profileRow()],
+      roadmap_overrides: [overrideRow('extra_week', { start_local_day: TODAY })],
+    })
+    expect(await addExtraForTrack(USER_ID, 'dsa', REQUEST_ID, NOW)).toBe('nothing_to_add')
     expect(fake.rpcs()).toEqual([])
   })
 

@@ -17,6 +17,7 @@ import {
   OVERRIDE_LIMITS,
   overrideActive,
   overrideParamsSchemas,
+  reorderable,
   type RoadmapOverride,
   upcomingTopics,
   validateOverride,
@@ -438,6 +439,20 @@ describe('validateOverride (§5.12, §6.4.5)', () => {
       const withoutHeap = HEAP_FIRST.filter((topic) => topic !== 'heap')
       expect(codes(reorder(withoutHeap), { items })).toEqual([])
       expect(codes(reorder(HEAP_FIRST), { items })).toEqual(['not_upcoming'])
+    })
+
+    it('a roadmap whose core items all live in decks (English) cannot be reordered (6.6c)', () => {
+      const deckOnly = {
+        ...LAB_ROADMAP,
+        weeks: LAB_ROADMAP.weeks.map((week) => ({ ...week, core: [] })),
+      }
+      const catalog = {
+        ...LAB_CATALOG,
+        tracks: { dsa: { ...LAB_TRACK, roadmaps: { '6w': deckOnly } } },
+      }
+      expect(reorderable(deckOnly)).toBe(false)
+      expect(reorderable(LAB_ROADMAP)).toBe(true)
+      expect(codes(reorder(HEAP_FIRST), { catalog })).toEqual(['not_reorderable'])
     })
 
     it('checks against the other active overrides’ effective roadmap; a same key is replaced', () => {

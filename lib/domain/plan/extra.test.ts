@@ -264,6 +264,48 @@ describe('extraCandidates ("Học thêm", decision 20)', () => {
     expect(ids(items)).toEqual(free.slice(0, EXTRA_MAX_ITEMS).map((item) => item.id))
   })
 
+  describe('with roadmap overrides (§5.12; task 6.6c)', () => {
+    const reorder = {
+      trackId: 'dsa',
+      key: 'tp-first',
+      kind: 'reorder_topics' as const,
+      params: { order: ['two-pointers', 'arrays'] },
+      startLocalDay: MONDAY,
+    }
+    const extraWeek = (usedDays: number) => ({
+      trackId: 'dsa',
+      key: 'arrays-extra',
+      kind: 'extra_week' as const,
+      params: { topicId: 'arrays', studyDays: 5 },
+      startLocalDay: MONDAY,
+      usedDays,
+    })
+
+    it('reads the effective roadmap (an active reorder)', () => {
+      const ctx = planContext({ overrides: [reorder] })
+      expect(ids(extraCandidates(ctx, plan([]), 'dsa'))).toEqual(['dsa:lesson-two-pointers'])
+      expect(ids(extraCandidates(planContext(), plan([]), 'dsa'))).toEqual(['dsa:lesson-arrays'])
+    })
+
+    it('adds no new item while the track is in an extra week (the plan names it)', () => {
+      const today = plan([], { dsa: { ...SNAPSHOT, extraWeek: 'arrays-extra' } })
+      expect(extraCandidates(planContext(), today, 'dsa')).toEqual([])
+    })
+
+    it('adds no new item while an extra week of the track is active, but again once it is used up', () => {
+      expect(extraCandidates(planContext({ overrides: [extraWeek(2)] }), plan([]), 'dsa')).toEqual(
+        [],
+      )
+      expect(
+        ids(extraCandidates(planContext({ overrides: [extraWeek(5)] }), plan([]), 'dsa')),
+      ).toEqual(['dsa:lesson-arrays'])
+      // Another track's extra week does not stop English.
+      expect(
+        extraCandidates(planContext({ overrides: [extraWeek(0)] }), plan([]), 'english').length,
+      ).toBeGreaterThan(0)
+    })
+  })
+
   it('never modifies its inputs', () => {
     const ctx = deepFreeze(planContext())
     expect(() => extraCandidates(ctx, plan([]), 'english')).not.toThrow()

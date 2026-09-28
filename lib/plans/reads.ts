@@ -13,6 +13,11 @@ import { HARD_LIMITS } from '@/lib/bot/limits'
 import { toEnrollment } from '@/lib/content/plan-catalog'
 import type { UserItemRow } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'
+import {
+  overrideActive,
+  overrideParamsSchemas,
+  type RoadmapOverride,
+} from '@/lib/domain/plan/overrides'
 import type { Enrollment, StoredPlan } from '@/lib/domain/plan/types'
 import { blockKey, type BlockState, type DailyActivity, type ItemState } from '@/lib/domain/state'
 import {
@@ -357,4 +362,165 @@ export async function readUserItems(supabase: Client, userId: string): Promise<U
     const item = userItemFromRow(row)
     return item === null ? [] : [item]
   })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roadmap overrides (§5.12; Part B-M6 decision 18; task 6.6c)
+// ---------------------------------------------------------------------------------------------
+
+const OVERRIDE_KINDS = ['insert_block', 'extra_week', 'reorder_topics'] as const
+const OVERRIDE_STATUSES = ['active', 'revoked', 'suspended'] as const
+const OVERRIDE_COLUMNS =
+  'track_id, key, kind, params, status, revoked_by, until_local_day, study_days, start_local_day'
+/** Plans an extra week's count reads: it names at most `study_days` (≤ 5) plans while it runs. */
+const EXTRA_WEEK_PLAN_ROWS = 32
+
+/** One `roadmap_overrides` row as the plan service, the bot and `/settings` read it. */
+export type OverrideRow = {
+  readonly trackId: string
+  readonly key: string
+  readonly kind: RoadmapOverride['kind']
+  readonly status: (typeof OVERRIDE_STATUSES)[number]
+  readonly revokedBy: 'learner' | 'bot' | null
+  readonly startLocalDay: LocalDay
+  /** The stored params as they are (the bot's `unchanged` check compares them). */
+  readonly params: unknown
+  /**
+   * The override as the engine reads it, its params parsed (`overrideParamsSchemas`); null when
+   * they no longer parse. An `extra_week`'s `usedDays` counts the stored plans dated on or after
+   * its start **and before `today`** whose track snapshot names it: today's own plan is left out,
+   * so building or rebuilding today's plan sees the extra week it is part of (decision 18's count
+   * less today's row — carried item (b)).
+   */
+  readonly override: RoadmapOverride | null
+  /** An `extra_week`'s plans before `today` (as `override.usedDays`); 0 for other kinds. */
+  readonly usedDays: number
+  /** SQL's count (`roadmap_override_active`): today's plan included. 0 for other kinds. */
+  readonly sqlUsedDays: number
+}
+
+/** Plan dates on or after `from` whose `trackId` snapshot names extra week `key` (jsonb
+ *  containment, so any track id works). */
+async function extraWeekPlanDates(
+  supabase: Client,
+  userId: string,
+  trackId: string,
+  key: string,
+  from: LocalDay,
+): Promise<LocalDay[]> {
+  const { data, error } = await supabase
+    .from('day_plans')
+    .select('plan_date')
+    .eq('user_id', userId)
+    .gte('plan_date', from)
+    .contains('roadmap_weeks', JSON.stringify({ [trackId]: { extraWeek: key } }))
+    .order('plan_date')
+    .limit(EXTRA_WEEK_PLAN_ROWS)
+  if (error) throw failed("the extra week's plans", error)
+  return data.map((row) => row.plan_date)
+}
+
+type OverrideDbRow = Pick<
+  Database['public']['Tables']['roadmap_overrides']['Row'],
+  | 'track_id'
+  | 'key'
+  | 'kind'
+  | 'params'
+  | 'status'
+  | 'revoked_by'
+  | 'until_local_day'
+  | 'study_days'
+  | 'start_local_day'
+>
+
+function engineOverride(row: OverrideDbRow, usedDays: number): RoadmapOverride | null {
+  const base = { trackId: row.track_id, key: row.key, startLocalDay: row.start_local_day }
+  switch (row.kind) {
+    case 'insert_block': {
+      const parsed = overrideParamsSchemas.insert_block.safeParse(row.params)
+      return parsed.success ? { ...base, kind: 'insert_block', params: parsed.data } : null
+    }
+    case 'extra_week': {
+      const parsed = overrideParamsSchemas.extra_week.safeParse(row.params)
+      return parsed.success ? { ...base, kind: 'extra_week', params: parsed.data, usedDays } : null
+    }
+    case 'reorder_topics': {
+      const parsed = overrideParamsSchemas.reorder_topics.safeParse(row.params)
+      return parsed.success ? { ...base, kind: 'reorder_topics', params: parsed.data } : null
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * The user's `roadmap_overrides` rows of `statuses` (every status by default), by track and key,
+ * each with its engine form and an `extra_week`'s counts (one bounded read per extra week that is
+ * not revoked). The session client (RLS: own rows) for a learner, the secret key for the bot.
+ */
+export async function readOverrideRows(
+  supabase: Client,
+  userId: string,
+  today: LocalDay,
+  statuses: readonly OverrideRow['status'][] = OVERRIDE_STATUSES,
+): Promise<OverrideRow[]> {
+  const { data, error } = await supabase
+    .from('roadmap_overrides')
+    .select(OVERRIDE_COLUMNS)
+    .eq('user_id', userId)
+    .in('status', [...statuses])
+    .order('track_id')
+    .order('key')
+  if (error) throw failed('the roadmap overrides', error)
+  const rows = await Promise.all(
+    data.map(async (row): Promise<OverrideRow | null> => {
+      const kind = OVERRIDE_KINDS.find((candidate) => candidate === row.kind)
+      const status = OVERRIDE_STATUSES.find((candidate) => candidate === row.status)
+      if (kind === undefined || status === undefined) return null
+      const dates =
+        kind === 'extra_week' && status !== 'revoked'
+          ? await extraWeekPlanDates(supabase, userId, row.track_id, row.key, row.start_local_day)
+          : []
+      // LocalDay is a zero-padded `YYYY-MM-DD` string: string order is chronological order.
+      const usedDays = dates.filter((date) => date < today).length
+      return {
+        trackId: row.track_id,
+        key: row.key,
+        kind,
+        status,
+        revokedBy: row.revoked_by === 'learner' || row.revoked_by === 'bot' ? row.revoked_by : null,
+        startLocalDay: row.start_local_day,
+        params: row.params,
+        override: engineOverride(row, usedDays),
+        usedDays,
+        sqlUsedDays: dates.length,
+      }
+    }),
+  )
+  return rows.flatMap((row) => (row === null ? [] : [row]))
+}
+
+/**
+ * The overrides the plan engine applies on `today` (§5.12, decision 18): only while the user's AI
+ * flag is on (`profiles.ai_personalization`; none without a profile row), status `active` (not
+ * revoked, not suspended), params that parse, and active by the computed expiry
+ * (`overrideActive`). `PlanContext.overrides` (`planContext`) — so `ensureToday`, rebuilds,
+ * "Học thêm", the bot context and the AI plan write all see the effective roadmap.
+ */
+export async function readOverrides(
+  supabase: Client,
+  userId: string,
+  today: LocalDay,
+): Promise<RoadmapOverride[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('ai_personalization')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw failed("the learner's AI flag", error)
+  if (data?.ai_personalization !== true) return []
+  const rows = await readOverrideRows(supabase, userId, today, ['active'])
+  return rows.flatMap((row) =>
+    row.override !== null && overrideActive(row.override, today) ? [row.override] : [],
+  )
 }
