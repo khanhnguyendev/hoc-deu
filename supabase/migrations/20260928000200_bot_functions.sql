@@ -437,7 +437,8 @@ begin
     -- { perTrack } (a whole number ≥ 0, clamped to 3 — decision 33); p_changes = [{ table:
     -- roadmap_overrides, row: { until_local_day?, study_days?, created_by_run } }] — until for an
     -- insert_block only (checked against the local day under the lock), study_days 1–5 for an
-    -- extra_week only; p_expected = {}.
+    -- extra_week only, each equal to its params value (params.until, params.studyDays: the row
+    -- never says something else than the event); p_expected = {}.
     v_row := case when jsonb_array_length(v_changes) = 1
       and v_changes -> 0 ->> 'table' = 'roadmap_overrides' then v_changes -> 0 -> 'row' end;
     v_limits := p_event -> 'limits';
@@ -477,6 +478,18 @@ begin
     v_until := (v_row ->> 'until_local_day')::date;
     v_study_days := (v_row ->> 'study_days')::integer;
     if (v_limits ->> 'perTrack')::integer < 0 or v_study_days not between 1 and 5 then
+      raise exception 'invalid_event';
+    end if;
+    -- The columns repeat the params: until = params.until, study_days = params.studyDays.
+    if (v_ov_kind = 'insert_block'
+        and (v_payload -> 'params' -> 'until') is distinct from (v_row -> 'until_local_day'))
+      or (v_ov_kind = 'extra_week' and not (
+        case when jsonb_typeof(v_payload -> 'params' -> 'studyDays') = 'number'
+            and coalesce(pg_catalog.pg_input_is_valid(
+              v_payload -> 'params' ->> 'studyDays', 'integer'), false)
+          then (v_payload -> 'params' ->> 'studyDays')::integer = v_study_days
+          else false end))
+    then
       raise exception 'invalid_event';
     end if;
     v_per_track := least((v_limits ->> 'perTrack')::integer, 3);
@@ -566,11 +579,21 @@ begin
   end if;
 
   -- 5b. The bot's writes (decision 8): a plan comes from a live, running plan run whose key is
-  --     payload.runId; nothing is written while bot_settings.dry_run is on (an admin who turns it
-  --     on mid-run makes the rest of the run dry).
+  --     payload.runId and which the user is in (a bot_run_users row); a custom item or an
+  --     override names, as created_by_run, a live, running plan run; nothing is written while
+  --     bot_settings.dry_run is on (an admin who turns it on mid-run makes the rest of the run
+  --     dry).
   if v_type = 'plan.ai_proposed' and not exists (
     select 1 from public.bot_runs r
+    join public.bot_run_users u on u.run_id = r.id and u.user_id = p_user_id
     where r.id = (v_row ->> 'bot_run_id')::uuid and r.run_key = v_run_key
+      and r.kind = 'plan' and r.status = 'running' and r.mode = 'live'
+  ) then
+    raise exception 'invalid_event';
+  end if;
+  if v_type in ('user_item.created', 'roadmap.override_set') and not exists (
+    select 1 from public.bot_runs r
+    where r.run_key = v_row ->> 'created_by_run'
       and r.kind = 'plan' and r.status = 'running' and r.mode = 'live'
   ) then
     raise exception 'invalid_event';

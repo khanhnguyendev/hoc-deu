@@ -3,7 +3,7 @@ set client_min_messages = warning;
 create extension if not exists pgtap with schema extensions;
 \ir _helpers.psql
 
-select plan(90);
+select plan(94);
 
 -- Task 6.2b: apply_system_event's M6 branches — plan.ai_proposed with the untouched-plan
 -- precedence, user_item.created / retired / hidden, roadmap.override_set / revoked — and
@@ -207,6 +207,13 @@ insert into public.bot_runs (id, run_key, kind, ops_date, mode, status) values
   ('91000000-0000-4000-8000-00000000f004', 'run_2001-01-01_publish-1', 'publish', '2001-01-01',
    'live', 'running');
 \set live_run '91000000-0000-4000-8000-00000000f001'
+-- Every learner but items_full is in the live run (plan.ai_proposed needs a bot_run_users row in
+-- the plan's run, review item 26).
+insert into public.bot_run_users (run_id, user_id, user_ref)
+select :'live_run', u, 'u_aaaaaaaaaaaaaaa' || chr(97 + n::integer)
+from unnest(array[:'fresh', :'untouched', :'touched', :'resumed', :'flag_off', :'items', :'ovr',
+                  :'ovr_cap', :'ovr_ew', :'ovr_cool', :'ovr_reset', :'ovr_kind',
+                  :'ovr_bot']::uuid[]) with ordinality as t (u, n);
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. No plan for the date → inserted (source ai, version 1), one plan.ai_applied event under the
@@ -400,6 +407,12 @@ select results_eq(
   'invalid_event'
 );
 select is(
+  tests.sys_error(:'items_full',
+    tests.ai_event(gen_random_uuid()::text, 'run_2001-01-01', :'today'),
+    tests.ai_changes(:'today', 45, :'live_run')),
+  'invalid_event', 'a user who is not in the plan''s run (no bot_run_users row) → invalid_event'
+);
+select is(
   tests.sys_error(:'fresh',
     tests.ai_event('91000000-0000-4000-8000-000000000042', 'run_2001-01-01', :'yesterday'),
     tests.ai_changes(:'yesterday', 45, :'live_run')),
@@ -533,6 +546,18 @@ select results_eq(
   $$select 'invalid_event'::text from generate_series(1, 9)$$,
   'another user''s bot_ref, a bad slug, an unknown itemType, an extra payload key, no limits, '
   'a negative limit, another source, a publish run or a plan_id → invalid_event'
+);
+select results_eq(
+  format(
+    $$select tests.sys_error(%1$L,
+        tests.item_event(gen_random_uuid()::text, %2$L, 'ah-run-' || r.n),
+        jsonb_set(tests.item_changes(), '{0,row,created_by_run}', to_jsonb(r.key)))
+      from (values ('run_2001-01-09', 1), ('run_2001-01-02', 2), ('run_2001-01-03', 3))
+        as r (key, n)
+      order by r.n$$,
+    :'items', :'items_ref'),
+  $$select 'invalid_event'::text from generate_series(1, 3)$$,
+  'created_by_run naming an unknown, a dry-run or a completed run → invalid_event'
 );
 select is(
   tests.sys_error(:'items',
@@ -751,6 +776,39 @@ select results_eq(
   'an until more than 14 days ahead or before today, 6 study days, an insert_block without '
   'until, an extra_week with one, a bad key, an unknown kind, no limits or another source → '
   'invalid_event'
+);
+select results_eq(
+  format(
+    $$select tests.sys_error(%1$L,
+        tests.ovr_event(gen_random_uuid()::text, 'ib-run-' || r.n, 'insert_block',
+          tests.ib_params(tests.d(3))),
+        jsonb_set(tests.ovr_changes(tests.d(3)), '{0,row,created_by_run}', to_jsonb(r.key)))
+      from (values ('run_2001-01-09', 1), ('run_2001-01-02', 2), ('run_2001-01-03', 3))
+        as r (key, n)
+      order by r.n$$,
+    :'ovr'),
+  $$select 'invalid_event'::text from generate_series(1, 3)$$,
+  'an override whose created_by_run names an unknown, a dry-run or a completed run → '
+  'invalid_event'
+);
+select results_eq(
+  format(
+    $$select tests.sys_error(%1$L, e.event, e.changes)
+      from (values
+        (1, tests.ovr_event(gen_random_uuid()::text, 'ib-cols', 'insert_block',
+              tests.ib_params(tests.d(3))), tests.ovr_changes(tests.d(4))),
+        (2, tests.ovr_event(gen_random_uuid()::text, 'ew-cols', 'extra_week', tests.ew_params(2)),
+         tests.ovr_changes(null, 3)),
+        (3, tests.ovr_event(gen_random_uuid()::text, 'ew-str', 'extra_week',
+              '{"topicId": "arrays-hashing", "studyDays": "2"}'), tests.ovr_changes(null, 2)),
+        (4, tests.ovr_event(gen_random_uuid()::text, 'ew-none', 'extra_week',
+              '{"topicId": "arrays-hashing"}'), tests.ovr_changes(null, 2))
+      ) as e (n, event, changes)
+      order by e.n$$,
+    :'ovr'),
+  $$select 'invalid_event'::text from generate_series(1, 4)$$,
+  'until_local_day other than params.until, study_days other than params.studyDays (or no whole '
+  'number there) → invalid_event'
 );
 select is(
   tests.sys_error(:'ovr',
