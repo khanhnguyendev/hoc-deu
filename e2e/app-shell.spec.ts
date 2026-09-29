@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expectNoAxeViolations } from './support/axe'
+import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { gotoHydrated } from './support/hydration'
 import { expect, test } from './support/test'
 
@@ -172,5 +172,53 @@ test.describe('heatmap on a large touch screen', () => {
     expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true)
     await expect(page.locator('[data-view="month"]')).toBeVisible()
     await expect(page.locator('[data-view="year"]')).toBeHidden()
+  })
+})
+
+// Task 6.0b: the brand kit's favicons, app icons, Open Graph image and web manifest, wired in by
+// Next's file conventions (app/icon.svg, app/apple-icon.png, app/opengraph-image.png,
+// app/manifest.ts), plus the inline LogoMark before the "Học Đều" wordmark.
+test.describe('brand assets', () => {
+  const ASSETS: ReadonlyArray<readonly [string, string]> = [
+    ['/icon.svg', 'image/svg+xml'],
+    ['/favicon.ico', 'image/x-icon'],
+    ['/apple-icon.png', 'image/png'],
+    ['/opengraph-image.png', 'image/png'],
+    ['/manifest.webmanifest', 'application/manifest+json'],
+  ]
+
+  for (const [path, contentType] of ASSETS) {
+    test(`GET ${path} answers 200 (${contentType})`, async ({ page }) => {
+      const response = await page.request.get(path)
+      expect(response.status()).toBe(200)
+      expect(response.headers()['content-type']).toContain(contentType)
+    })
+  }
+})
+
+test.describe('LogoMark in the sidebar and on the sign-in page', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('the sidebar shows the mark before the "Học Đều" title', async ({ page }) => {
+    await gotoHydrated(page, '/dev/app-shell')
+    const title = page.locator('aside').getByText('Học Đều', { exact: true })
+    await expect(title.locator('svg[aria-hidden="true"]')).toBeVisible()
+  })
+
+  test('the sign-in page shows the mark before the "Học Đều" link text', async ({ page }) => {
+    // FocusLayout pages (/sign-in) carry no HydrationMarker (that is a /dev catalog fixture).
+    await page.goto('/sign-in')
+    const link = page.getByRole('link', { name: 'Học Đều' })
+    await expect(link.locator('svg[aria-hidden="true"]')).toBeVisible()
+  })
+
+  test('/dev/app-shell passes axe in light and dark', async ({ page }) => {
+    await gotoHydrated(page, '/dev/app-shell')
+    await expectNoAxeViolationsInBothThemes(page)
+  })
+
+  test('/sign-in passes axe in light and dark', async ({ page }) => {
+    await page.goto('/sign-in')
+    await expectNoAxeViolationsInBothThemes(page)
   })
 })

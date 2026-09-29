@@ -79,9 +79,15 @@ const requestId = z.uuid()
 const blockId = z.string().min(1).max(128)
 const itemId = z.string().min(1).max(128)
 
+/** `day_plans.version` as the page rendered it (decision 36). */
+const planVersion = z.number().int().min(1)
+
 export type CheckInInput = {
   readonly requestId: string
   readonly planId: string
+  /** The rendered plan's version (decision 36): block ids repeat across versions, so a page that
+   *  never showed the current version (an AI plan replaced it) must not check it in. */
+  readonly planVersion: number
   readonly blockId: string
   readonly status: CheckInStatus
   /** Omitted = oneTapMinutes (one-tap: the block's estimate less its skipped items, ruling
@@ -93,6 +99,7 @@ export type CheckInInput = {
 export const checkInInputSchema: z.ZodType<CheckInInput> = z.strictObject({
   requestId,
   planId: z.uuid(),
+  planVersion,
   blockId,
   status: z.enum(CHECK_IN_STATUSES),
   minutes: EVENT_PAYLOADS['block.checked_in'].shape.minutes.optional(),
@@ -116,6 +123,11 @@ export type OutcomeInput = {
   readonly itemId: string
   /** From `?block=`: prefers this block when several list the item (decision 14). */
   readonly blockId?: string
+  /** Sent by `/today`'s own result controls (decision 36), always together: the rendered plan's
+   *  id and version, which must still be the current plan's. Omitted off `/today` (an item page,
+   *  `/review` — ruling M6-R29: they keep M5's behaviour). */
+  readonly planId?: string
+  readonly planVersion?: number
   readonly outcome: Outcome
 }
 
@@ -132,12 +144,19 @@ const outcomeSchema = z.discriminatedUnion('type', [
   EVENT_PAYLOADS['item.readded'].extend({ type: z.literal('item.readded') }),
 ])
 
-export const outcomeInputSchema: z.ZodType<OutcomeInput> = z.strictObject({
-  requestId,
-  itemId,
-  blockId: blockId.optional(),
-  outcome: outcomeSchema,
-})
+export const outcomeInputSchema: z.ZodType<OutcomeInput> = z
+  .strictObject({
+    requestId,
+    itemId,
+    blockId: blockId.optional(),
+    planId: z.uuid().optional(),
+    planVersion: planVersion.optional(),
+    outcome: outcomeSchema,
+  })
+  // A version names no plan on its own: the id and the version come together, or neither.
+  .refine((input) => (input.planId === undefined) === (input.planVersion === undefined), {
+    message: 'planId and planVersion go together',
+  })
 
 type OutcomeType = Outcome['type']
 

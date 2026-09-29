@@ -13,6 +13,9 @@ type CardBlockProps = {
   items: readonly BlockItemSlot[]
   requestId: string
   record: RecordOutcome
+  /** The rendered plan's id and version (decision 36): each grade sends them, and another plan
+   *  or version answers "stale". Omitted in catalog demos. */
+  plan?: { readonly id: string; readonly version: number }
 }
 
 type CardDeckProps = CardBlockProps & {
@@ -43,8 +46,8 @@ function CardDeck({ cards, items, requestId, record, revealed, onRevealChange }:
  * card focus is in — two blocks never both take a key). Under the block's `h3`, the card front is
  * an `h4` (parked #7), and "Xem nghĩa" is `outline`: the block's "Check-in" is the view's primary
  * (DESIGN_SYSTEM §9, §12; m-12). `cards` are the block's cards not handled yet (`todaySlots`); each
- * grade sends `recordOutcome` (unbound, from the page) with the block's id and the render's request
- * id. While the block's items stay the same, the deck is the one from mount: a session keeps its
+ * grade sends `recordOutcome` (unbound, from the page) with the block's id, the render's request
+ * id and the rendered plan's id and version (decision 36). While the block's items stay the same, the deck is the one from mount: a session keeps its
  * deck to its end state ("Đã ôn xong") while the revalidated page drops the graded cards, and a
  * block whose cards were all handled before the page rendered lists its rows (BlockItemList). When
  * the block grows — "Học thêm" on English, an off-plan result landing in the extra block (ruling
@@ -54,7 +57,7 @@ function CardDeck({ cards, items, requestId, record, revealed, onRevealChange }:
  * page), so focus is elsewhere and stays there; that button's own live region announces the
  * addition.
  */
-function CardBlock(props: CardBlockProps) {
+function CardBlock({ plan, record, ...props }: CardBlockProps) {
   // The revealed card outlives a deck remount: the block (not the deck) remembers it.
   const [revealed, setRevealed] = useState<string | null>(null)
   const onRevealChange = (itemId: string, open: boolean) => {
@@ -63,7 +66,19 @@ function CardBlock(props: CardBlockProps) {
   // Blocks only grow by appending (plan.extra_added), and a rebuilt plan replaces them: the item
   // ids are the deck's identity.
   const deck = props.items.map((item) => item.itemId).join(' ')
-  return <CardDeck key={deck} {...props} revealed={revealed} onRevealChange={onRevealChange} />
+  const send: RecordOutcome =
+    plan === undefined
+      ? record
+      : (input) => record({ ...input, planId: plan.id, planVersion: plan.version })
+  return (
+    <CardDeck
+      key={deck}
+      {...props}
+      record={send}
+      revealed={revealed}
+      onRevealChange={onRevealChange}
+    />
+  )
 }
 
 export { CardBlock }

@@ -489,8 +489,8 @@ select results_eq(
   '... leaves that plan unchanged and writes no event'
 );
 
--- A check-in row that no event names (a learner may insert one directly, within the 4.9a bounds)
--- makes a plan touched too.
+-- A check-in row that no event names (a learner may insert one directly, within the 4.9a bounds
+-- and, since task 6.2a, only for their local day) makes a plan touched too.
 select tests.authenticate_as_service_role();
 select public.apply_system_event(
   :'learner',
@@ -504,8 +504,8 @@ select lives_ok(
   format(
     $$insert into public.plan_block_state
         (plan_id, block_id, user_id, track_id, status, minutes, checked_in_on)
-      values (%L, '2026-01-10:dsa:review:1', %L, 'dsa', 'done', 15, '2026-01-10')$$,
-    :'plan_older', :'learner'
+      values (%L, '2026-01-10:dsa:review:1', %L, 'dsa', 'done', 15, %L)$$,
+    :'plan_older', :'learner', :'today'
   ),
   'the learner inserts a check-in row for a third plan directly, with no event'
 );
@@ -1047,17 +1047,20 @@ select is(
   '... and neither onboards the user'
 );
 
--- Every other system type stays not_implemented, before any lock or lookup (its owning task:
--- plan.ai_* 6.5, user_item.* and roadmap.override_* 6.6,
--- admin.bot_token_rotated 6.3, item.snapshot the compaction job; the admin decisions have their
--- own functions).
+-- Every other system type stays not_implemented, before any lock or lookup: task 6.2b
+-- implements plan.ai_proposed, user_item.* and roadmap.override_set / revoked (091); the others
+-- are written only by functions — plan.ai_applied / ai_skipped by plan.ai_proposed,
+-- roadmap.override_suspended / resumed and the admin decisions by the admin_* functions — or by
+-- nobody yet (item.snapshot, the compaction job).
 select results_eq(
   format(
     $$select t, tests.system_error(%L, jsonb_build_object(
           'id', gen_random_uuid(), 'type', t, 'payload', '{}'::jsonb))
       from unnest(public.system_event_types()) as t
       where t not in (
-        'onboarding.completed', 'plan.generated', 'plan.extra_added', 'block.checked_in')
+        'onboarding.completed', 'plan.generated', 'plan.extra_added', 'block.checked_in',
+        'plan.ai_proposed', 'user_item.created', 'user_item.retired', 'user_item.hidden',
+        'roadmap.override_set', 'roadmap.override_revoked')
       order by 1$$,
     :'learner'
   ),
@@ -1065,12 +1068,11 @@ select results_eq(
     from unnest(array[
       'admin.ai_flag_changed', 'admin.bootstrapped', 'admin.bot_token_rotated',
       'admin.role_changed', 'admin.user_approved', 'admin.user_rejected', 'admin.user_suspended',
-      'item.snapshot', 'plan.ai_applied', 'plan.ai_proposed', 'plan.ai_skipped',
-      'roadmap.override_resumed', 'roadmap.override_revoked',
-      'roadmap.override_set', 'roadmap.override_suspended', 'user_item.created',
-      'user_item.hidden', 'user_item.retired'
+      'item.snapshot', 'plan.ai_applied', 'plan.ai_skipped',
+      'roadmap.override_resumed', 'roadmap.override_suspended'
     ]) as t order by 1$$,
-  'every other system type (18) raises not_implemented (plan.extra_added: task 5.0b, 073)'
+  'every other system type (12) raises not_implemented (plan.extra_added: task 5.0b, 073; the M6 '
+  'branches: task 6.2b, 091)'
 );
 
 select * from finish();

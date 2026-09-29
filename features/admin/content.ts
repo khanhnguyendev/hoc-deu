@@ -5,13 +5,16 @@
  */
 import { itemHref } from '@/features/items/href'
 import { isItemOfType } from '@/features/items/narrow'
-import type { Catalog, CatalogItem, WeekCoverage } from '@/lib/content/catalog-types'
+import { OPS_TIMEZONE } from '@/lib/bot/ops-day'
+import type { Catalog, CatalogItem, ProblemNote, WeekCoverage } from '@/lib/content/catalog-types'
+import { NOTE_SUFFIX } from '@/lib/content/publish-targets'
 import type { ItemStatus, ItemType } from '@/lib/content/schemas/common'
 import type { TrackManifest } from '@/lib/content/schemas/manifest'
-import { variantLabel } from '@/lib/i18n/format'
+import { fill, formatDayTimeIn, variantLabel } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 
 const copy = vi.adminOverview.content
+const publishCopy = vi.publish
 
 /**
  * Decision 25: a roadmap week is about seven study days, so the weeks an active learner reaches
@@ -108,6 +111,18 @@ export type TrackContent = {
   readonly roadmaps: readonly RoadmapCoverage[]
 }
 
+/** A pull request link: `PR #41`. */
+export type PullRequestLink = { readonly href: string; readonly label: string }
+
+/** A draft's pending publish request (§6.6): its id ("Huỷ"), and its PR once a run set one. */
+export type PendingPublish = { readonly requestId: number; readonly pr: PullRequestLink | null }
+
+/**
+ * A draft note's verification badge (§3.5, §3.7): `tested-by-bot` is ADR-0040's "tested (bot
+ * tests)" — a bot-written note whose solution and tests the same bot wrote.
+ */
+export type DraftVerification = 'tested' | 'compile-only' | 'tested-by-bot'
+
 /** A row of the drafts list: a link to the item's page (admins see drafts, §3.3). */
 export type DraftEntry = {
   readonly id: string
@@ -116,7 +131,51 @@ export type DraftEntry = {
   readonly titleLang: 'en' | 'vi' | undefined
   readonly meta: readonly string[]
   readonly href: string
+  /**
+   * The publish target (§6.6, task 6.7a): the item ID, or `<itemId>#note`. Without it (a draft
+   * track), the row has no "Xuất bản".
+   */
+  readonly target?: string
+  /** Which publish checklist the dialog shows: a problem or note's (§6.6), or any other item's. */
+  readonly checklist?: 'problem' | 'item'
+  /** A draft note's verification badge; null for an item. */
+  readonly verification?: DraftVerification | null
+  /** The pending publish request for the target, or null. */
+  readonly request?: PendingPublish | null
 }
+
+/** One `content_publish_requests` row as admins read it (RLS: admins only, §4.2). */
+export type PublishRequestRow = {
+  readonly id: number
+  readonly target: string
+  readonly status: 'pending' | 'merged' | 'cancelled'
+  readonly prUrl: string | null
+  /** ISO-8601 instant. */
+  readonly requestedAt: string
+}
+
+/** A row of the "Yêu cầu xuất bản" section. */
+export type PublishRequestView = {
+  readonly id: number
+  readonly target: string
+  /** The item's title, or the target when the deployed catalog no longer has it. */
+  readonly title: string
+  readonly titleLang: 'en' | 'vi' | undefined
+  /** `Ghi chú` for a note, the item type's label otherwise; null for an unknown target. */
+  readonly kind: string | null
+  readonly href: string | null
+  readonly status: PublishRequestRow['status']
+  readonly statusLabel: string
+  readonly pr: PullRequestLink | null
+  /** `09:00, 2 tháng 10, 2026` (Asia/Ho_Chi_Minh). */
+  readonly requestedAt: string
+}
+
+/** Pending and recent requests; `error` when they could not be read (the page still renders). */
+export type PublishRequestsView =
+  | { readonly state: 'ready'; readonly rows: readonly PublishRequestView[] }
+  | { readonly state: 'empty' }
+  | { readonly state: 'error' }
 
 export type Drafts = {
   readonly tracks: readonly { id: string; title: string; href: string }[]
@@ -128,6 +187,8 @@ export type Drafts = {
 export type ContentPage = {
   readonly tracks: readonly TrackContent[]
   readonly drafts: Drafts
+  /** The "Yêu cầu xuất bản" section (§2.4, §6.6; task 6.7a). */
+  readonly publishRequests: PublishRequestsView
   /** Red weeks over every track and variant (the `/admin` link's summary). */
   readonly redWeeks: number
 }
@@ -241,14 +302,50 @@ function titleLang(item: CatalogItem): 'en' | 'vi' | undefined {
   return undefined
 }
 
-function drafts(catalog: Catalog, trackTitle: (id: string) => string): Drafts {
+const PR_NUMBER = /\/pull\/([1-9][0-9]*)$/
+
+function pullRequest(url: string | null): PullRequestLink | null {
+  if (url === null) return null
+  const number = PR_NUMBER.exec(url)?.[1]
+  return { href: url, label: number === undefined ? url : fill(publishCopy.prLabel, { number }) }
+}
+
+/** ADR-0040: a bot-written note that passed its (bot-written) tests is "tested (bot tests)". */
+function noteVerification(note: ProblemNote): DraftVerification {
+  return note.verification === 'tested' && note.origin === 'bot'
+    ? 'tested-by-bot'
+    : note.verification
+}
+
+function drafts(
+  catalog: Catalog,
+  trackTitle: (id: string) => string,
+  requests: readonly PublishRequestRow[],
+): Drafts {
   const items = Object.values(catalog.items).sort(byId)
-  const entry = (item: CatalogItem, what: string, id = item.id): DraftEntry => ({
+  const pending = new Map(
+    requests
+      .filter((request) => request.status === 'pending')
+      .map((request) => [
+        request.target,
+        { requestId: request.id, pr: pullRequest(request.prUrl) } satisfies PendingPublish,
+      ]),
+  )
+  const entry = (
+    item: CatalogItem,
+    what: string,
+    id: string,
+    verification: DraftVerification | null,
+  ): DraftEntry => ({
     id,
     title: item.title,
     titleLang: titleLang(item),
     meta: [trackTitle(item.trackId), what],
     href: itemHref(item),
+    target: id,
+    checklist: isItemOfType(item, 'problem') ? 'problem' : 'item',
+    verification,
+    request: pending.get(id) ?? null,
   })
   return {
     tracks: catalog.tracks
@@ -256,19 +353,65 @@ function drafts(catalog: Catalog, trackTitle: (id: string) => string): Drafts {
       .map((track) => ({ id: track.id, title: track.title.vi, href: `/t/${track.id}` })),
     items: items
       .filter((item) => item.status === 'draft')
-      .map((item) => entry(item, copy.stats.types[item.type])),
+      .map((item) => entry(item, copy.stats.types[item.type], item.id, null)),
     notes: items.flatMap((item) =>
       isItemOfType(item, 'problem') && item.content.note?.status === 'draft'
-        ? [entry(item, copy.drafts.note, item.content.note.mdxKey)]
+        ? [
+            entry(
+              item,
+              copy.drafts.note,
+              item.content.note.mdxKey,
+              noteVerification(item.content.note),
+            ),
+          ]
         : [],
     ),
   }
 }
 
-/** Every track of the catalog with its stats and coverage, then the drafts. */
+/** Pending first, then the others; newest first within each (then by id). */
+function requestOrder(a: PublishRequestRow, b: PublishRequestRow): number {
+  const pendingFirst = Number(b.status === 'pending') - Number(a.status === 'pending')
+  return pendingFirst || b.requestedAt.localeCompare(a.requestedAt) || b.id - a.id
+}
+
+function publishRequestsView(
+  catalog: Catalog,
+  requests: readonly PublishRequestRow[] | null,
+): PublishRequestsView {
+  if (requests === null) return { state: 'error' }
+  if (requests.length === 0) return { state: 'empty' }
+  const rows = [...requests].sort(requestOrder).map((request): PublishRequestView => {
+    const isNote = request.target.endsWith(NOTE_SUFFIX)
+    const itemId = isNote ? request.target.slice(0, -NOTE_SUFFIX.length) : request.target
+    const item = Object.hasOwn(catalog.items, itemId) ? catalog.items[itemId] : undefined
+    return {
+      id: request.id,
+      target: request.target,
+      title: item?.title ?? request.target,
+      titleLang: item === undefined ? undefined : titleLang(item),
+      kind: item === undefined ? null : isNote ? copy.drafts.note : copy.stats.types[item.type],
+      href: item === undefined ? null : itemHref(item),
+      status: request.status,
+      statusLabel: publishCopy.requests.status[request.status],
+      pr: pullRequest(request.prUrl),
+      requestedAt: fill(
+        publishCopy.requests.at,
+        formatDayTimeIn(request.requestedAt, OPS_TIMEZONE),
+      ),
+    }
+  })
+  return { state: 'ready', rows }
+}
+
+/**
+ * Every track of the catalog with its stats and coverage, then the drafts with their publish
+ * state, and the publish requests (`null`: they could not be read).
+ */
 export function buildContentPage(
   catalog: Catalog,
   positions: readonly TrackPosition[],
+  requests: readonly PublishRequestRow[] | null = [],
 ): ContentPage {
   const allItems = Object.values(catalog.items)
   const tracks = catalog.tracks.map((track) => ({
@@ -285,7 +428,8 @@ export function buildContentPage(
   const titles = new Map(catalog.tracks.map((track) => [track.id, track.title.vi]))
   return {
     tracks,
-    drafts: drafts(catalog, (id) => titles.get(id) ?? id),
+    drafts: drafts(catalog, (id) => titles.get(id) ?? id, requests ?? []),
+    publishRequests: publishRequestsView(catalog, requests),
     redWeeks: tracks
       .flatMap((track) => track.roadmaps)
       .reduce((sum, roadmap) => sum + redWeeksOf(roadmap).length, 0),

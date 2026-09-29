@@ -12,7 +12,8 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Catalog } from '@/lib/content/catalog-types'
 import type { CodeBundle } from '@/lib/content/code-tokens'
-import { emitGenerated, type EmitInput } from './emit'
+import { bodyHash } from '@/lib/canonical-json'
+import { catalogVersionOf, emitGenerated, type EmitInput } from './emit'
 
 const temps: string[] = []
 afterEach(() => {
@@ -102,6 +103,24 @@ describe('emitGenerated', () => {
     expect(outsideStrings.filter((text) => text.includes('{'))).toEqual([
       "import type { Catalog } from '../lib/content/catalog-types'",
     ])
+  })
+
+  it('catalog.ts exports CATALOG_VERSION: 16 hex digits of the SHA-256 of the canonical catalog (decision 21)', () => {
+    const root = tempRoot()
+    emitGenerated(input(root))
+    const source = readFileSync(path.join(root, '.generated/catalog.ts'), 'utf8')
+    const version = bodyHash(CATALOG).slice(0, 16)
+    expect(catalogVersionOf(CATALOG)).toBe(version)
+    expect(source.split('\n')).toContain(`export const CATALOG_VERSION = '${version}'`)
+  })
+
+  it('the catalog version ignores key order and follows every value', () => {
+    const shuffled = Object.fromEntries(Object.entries(CATALOG).reverse()) as Catalog
+    expect(catalogVersionOf(shuffled)).toBe(catalogVersionOf(CATALOG))
+    expect(
+      catalogVersionOf({ ...CATALOG, missingRoadmaps: [{ trackId: 'dsa', variant: '8w' }] }),
+    ).not.toBe(catalogVersionOf(CATALOG))
+    expect(catalogVersionOf(CATALOG)).toMatch(/^[0-9a-f]{16}$/)
   })
 
   it('mdx.ts starts with the mdx types reference and maps each key to its file, relative', () => {

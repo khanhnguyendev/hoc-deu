@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemHref, itemHrefFromId, itemIdFromRoute, reviewHref } from './href'
+import { itemHref, itemHrefFromId, itemIdFromRoute, itemPageHref, reviewHref } from './href'
 
 describe('itemHref (decision 24)', () => {
   it('links a catalog item by its local ID under its track', () => {
@@ -60,5 +60,38 @@ describe('reviewHref (m-2: the one /review link)', () => {
   it('is /review, or /review?track=<id> for one track', () => {
     expect(reviewHref(null)).toBe('/review')
     expect(reviewHref('english')).toBe('/review?track=english')
+  })
+})
+
+describe('the user: item URL (decision 39, task 6.6a)', () => {
+  const ID = 'user:0123456789abcdef:ah-card'
+  const HREF = '/t/dsa/items/user%3A0123456789abcdef%3Aah-card'
+
+  it('is /t/<trackId>/items/<the encoded whole ID>', () => {
+    expect(itemPageHref({ id: ID, trackId: 'dsa' })).toBe(HREF)
+    expect(itemHrefFromId(ID, undefined, 'dsa')).toBe(HREF)
+    expect(itemHrefFromId(ID, { mode: 'review' }, 'dsa')).toBe(`${HREF}?mode=review`)
+  })
+
+  it('refuses a user: ID without its trackId (the ID names no track: never /t/user/…)', () => {
+    expect(() => itemHrefFromId(ID)).toThrow(/trackId/)
+    expect(() => itemHrefFromId(ID, { mode: 'review' })).toThrow(/trackId/)
+  })
+
+  it('round-trips through itemIdFromRoute, encoded or already decoded', () => {
+    const param = itemPageHref({ id: ID, trackId: 'dsa' }).split('/').at(-1) ?? ''
+    expect(itemIdFromRoute('dsa', param)).toBe(ID)
+    expect(itemIdFromRoute('dsa', decodeURIComponent(param))).toBe(ID)
+  })
+
+  it('keeps the local-ID form for repository items', () => {
+    expect(itemPageHref({ id: 'dsa:lc-0001', trackId: 'dsa' })).toBe('/t/dsa/items/lc-0001')
+    expect(itemPageHref({ id: 'english:explaining-code:dsa:lc-0001', trackId: 'english' })).toBe(
+      '/t/english/items/explaining-code%3Adsa%3Alc-0001',
+    )
+    expect(itemPageHref({ id: 'dsa:lc-0001', trackId: 'dsa' }, { mode: 'recall' })).toBe(
+      '/t/dsa/items/lc-0001?mode=recall',
+    )
+    expect(itemHrefFromId('dsa:lc-0001', undefined, 'dsa')).toBe('/t/dsa/items/lc-0001')
   })
 })

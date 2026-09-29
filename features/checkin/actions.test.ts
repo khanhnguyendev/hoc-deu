@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { itemState } from '@/lib/domain/plan/__tests__/fixtures'
+import { dueQueue } from '@/lib/domain/plan/queues'
 import type { PlanBlock } from '@/lib/domain/plan/types'
 import { RULES_VERSION } from '@/lib/domain/rules'
 import type { LocalDay } from '@/lib/domain/time/localDay'
@@ -157,6 +158,7 @@ describe('checkInBlock', () => {
   const input = (change: Partial<CheckInInput> = {}): CheckInInput => ({
     requestId: REQUEST_ID,
     planId: plan.id,
+    planVersion: plan.version,
     blockId: block.id,
     status: 'done',
     ...change,
@@ -389,6 +391,31 @@ describe('checkInBlock', () => {
       ok: false,
       message: copy.checkIn.errors.stale,
     })
+    expect(fake.rpcs()).toEqual([])
+  })
+
+  it('[decision 36] a page rendered at version 1 while an AI plan replaced it (version 2, same block ids): stale, nothing written', async () => {
+    const replaced = { ...plan, version: 2, source: 'ai' }
+    const fake = setup({ day_plans: [replaced] })
+    expect(await checkInBlock(input({ planVersion: 1 }))).toEqual({
+      ok: false,
+      message: copy.checkIn.errors.stale,
+    })
+    expect(fake.rpcs()).toEqual([])
+    expect(state.log).toContainEqual(['revalidatePath', '/today'])
+  })
+
+  it('[decision 36] the rendered version equal to the current one records the check-in', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2 }] })
+    expect((await checkInBlock(input({ planVersion: 2, minutes: 5 }))).ok).toBe(true)
+    expect(learnerCalls(fake)).toHaveLength(1)
+  })
+
+  it('refuses an input without the rendered plan version, reading nothing', async () => {
+    const rest: Record<string, unknown> = { ...input() }
+    delete rest.planVersion
+    const fake = setup({ day_plans: [plan] })
+    expect((await checkInBlock(rest as CheckInInput)).ok).toBe(false)
     expect(fake.rpcs()).toEqual([])
   })
 
@@ -675,6 +702,51 @@ describe('recordOutcome', () => {
     expect(calls[1]?.p_event).toMatchObject({ plan_id: plan.id, block_id: pair.id })
     expect(fake.tables.item_state?.[0]?.last_result_on).toBe(TOMORROW)
     expect(databaseDay(fake, USER_ID)).toBe(TOMORROW)
+  })
+
+  it('[decision 36] a result graded on /today at version 1 while the plan is now version 2: stale, nothing written', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2, source: 'ai' }] })
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: plan.id, planVersion: 1 })),
+    ).toEqual({
+      ok: false,
+      message: copy.checkIn.errors.stale,
+      autoCheckedIn: [],
+    })
+    expect(fake.rpcs()).toEqual([])
+    expect(state.log).toContainEqual(['revalidatePath', '/today'])
+  })
+
+  it('[decision 36] a result with the current version records normally', async () => {
+    const fake = setup({ day_plans: [{ ...plan, version: 2 }] })
+    expect(
+      (await recordOutcome(solved({ blockId: pair.id, planId: plan.id, planVersion: 2 }))).ok,
+    ).toBe(true)
+    expect(learnerCalls(fake)).toHaveLength(1)
+  })
+
+  it('[decision 36] the same version of another plan (a stale day-D page, a new AI plan v1 for D+1): stale, no result, no auto check-in', async () => {
+    const fake = setup({ day_plans: [plan] })
+    const otherDay = '0d6c1b2a-3e4f-4a5b-8c7d-9e0f1a2b3c4d'
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: otherDay, planVersion: 1 })),
+    ).toEqual({ ok: false, message: copy.checkIn.errors.stale, autoCheckedIn: [] })
+    expect(fake.rpcs()).toEqual([])
+  })
+
+  it('[decision 36] a /today grade across a day start, before the new day’s plan exists: stale', async () => {
+    // Yesterday's plan, seen and checked in: after the day start the gate is open and today has
+    // no plan yet, so there is no current plan for the rendered one to match.
+    const yesterday = planRow({ date: YESTERDAY, blocks: [pair], seenAt: seen(YESTERDAY) })
+    vi.setSystemTime(AFTER_DAY_START)
+    const fake = setup({
+      day_plans: [yesterday],
+      plan_block_state: [blockStateRow(yesterday, pair, 'done', YESTERDAY)],
+    })
+    expect(
+      await recordOutcome(solved({ blockId: pair.id, planId: yesterday.id, planVersion: 1 })),
+    ).toEqual({ ok: false, message: copy.checkIn.errors.stale, autoCheckedIn: [] })
+    expect(fake.rpcs()).toEqual([])
   })
 
   describe('which block the result names (decision 14)', () => {
@@ -1072,6 +1144,86 @@ describe('recordOutcome', () => {
       autoCheckedIn: [],
     })
     expect(fake.rpcs()).toEqual([])
+  })
+
+  describe('a custom item (task 6.6a: the per-user catalog overlay, decision 17)', () => {
+    const CARD = 'user:0123456789abcdef:ah-card'
+    const customCard = (change: Partial<RowOf<'user_items'>> = {}): RowOf<'user_items'> => ({
+      user_id: USER_ID,
+      item_id: CARD,
+      item_type: 'flashcard',
+      track_id: 'dsa',
+      topic_id: 'arrays',
+      payload: { front: 'two pointers', back: 'hai con trỏ', tags: [] },
+      status: 'active',
+      created_by_run: 'run_2026-09-28',
+      created_on: TODAY,
+      created_at: '2026-09-28T00:00:00.000Z',
+      ...change,
+    })
+    const know = solved({ itemId: CARD, outcome: { type: 'item.result', result: 'know' } })
+
+    it('grading a custom card creates its item_state (the track’s card SRS), due later in the review queue', async () => {
+      const fake = setup({ day_plans: [plan], user_items: [customCard()] })
+      expect(await recordOutcome(know)).toMatchObject({ ok: true })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({
+        type: 'item.result',
+        item_id: CARD,
+        track_id: 'dsa',
+        payload: { result: 'know' },
+      })
+      // DSA cards recall on [1, 3, 7, 14] (§5.7 srs.byType): due tomorrow.
+      expect(fake.tables.item_state).toMatchObject([
+        {
+          item_id: CARD,
+          track_id: 'dsa',
+          item_type: 'flashcard',
+          topic_id: 'arrays',
+          level: 1,
+          due_on: TOMORROW,
+        },
+      ])
+      const { readItemStates } = await import('@/lib/plans/reads')
+      const { catalogWith } = await import('@/lib/plans/day')
+      const { readUserItems } = await import('@/lib/plans/reads')
+      const client = fake.client('check')
+      const items = await readItemStates(client, USER_ID)
+      const catalog = catalogWith(await readUserItems(client, USER_ID))
+      const due = (today: LocalDay) =>
+        dueQueue({ trackId: 'dsa', items, catalog, today, weakTopicIds: new Set() }).map(
+          (entry) => entry.itemId,
+        )
+      expect(due(TODAY)).not.toContain(CARD)
+      expect(due(TOMORROW)).toContain(CARD)
+      expect(state.log).toContainEqual([
+        'revalidatePath',
+        '/t/dsa/items/user%3A0123456789abcdef%3Aah-card',
+      ])
+    })
+
+    it('studied off the plan, it joins the track’s extra block like any item', async () => {
+      const fake = setup({ day_plans: [plan], user_items: [customCard()] })
+      await recordOutcome(know)
+      expect(systemCalls(fake)[0]?.p_event).toMatchObject({
+        type: 'plan.extra_added',
+        track_id: 'dsa',
+        payload: { itemIds: [CARD] },
+      })
+      expect(learnerCalls(fake)[0]?.p_event).toMatchObject({ block_id: `${TODAY}:dsa:extra:1` })
+    })
+
+    it("another learner's custom item is unknown (RLS: own rows only), reading no plan", async () => {
+      const fake = setup({
+        day_plans: [plan],
+        user_items: [customCard({ user_id: '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10' })],
+      })
+      expect(await recordOutcome(know)).toEqual({
+        ok: false,
+        message: copy.checkIn.errors.unknownItem,
+        autoCheckedIn: [],
+      })
+      expect(fake.rpcs()).toEqual([])
+    })
   })
 
   it('refuses an item the catalog does not have, reading nothing', async () => {

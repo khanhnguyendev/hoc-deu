@@ -156,6 +156,7 @@ export function todayPage(
 ): TodayPage {
   return {
     data: todayData(state),
+    aiPlan: null,
     blocks: [],
     tracks: [],
     streak: 0,

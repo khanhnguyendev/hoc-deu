@@ -32,6 +32,9 @@ describe('parseServerEnv', () => {
       authTestLogin: false,
       vercelEnv: undefined,
       cronSecret: undefined,
+      upstash: undefined,
+      botApiEnabled: false,
+      botRefSecret: undefined,
     })
   })
 
@@ -170,6 +173,146 @@ describe('parseServerEnv', () => {
     })
     expect(env.cronSecret).toBe(cronSecret)
     expect(env.vercelEnv).toBe('production')
+  })
+})
+
+describe('parseServerEnv — UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (§2.3, decision 22)', () => {
+  it('leaves upstash undefined when both are unset', () => {
+    expect(parseServerEnv(validSource).upstash).toBeUndefined()
+  })
+
+  it('leaves upstash undefined when both are empty strings (.env.example placeholders)', () => {
+    const env = parseServerEnv({
+      ...validSource,
+      UPSTASH_REDIS_REST_URL: '',
+      UPSTASH_REDIS_REST_TOKEN: '',
+    })
+    expect(env.upstash).toBeUndefined()
+  })
+
+  it('reads both when both are set', () => {
+    const env = parseServerEnv({
+      ...validSource,
+      UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+      UPSTASH_REDIS_REST_TOKEN: 'sentinel-token',
+    })
+    expect(env.upstash).toEqual({ url: 'https://example.upstash.io', token: 'sentinel-token' })
+  })
+
+  it.each([
+    ['UPSTASH_REDIS_REST_URL', { UPSTASH_REDIS_REST_URL: 'https://example.upstash.io' }],
+    ['UPSTASH_REDIS_REST_TOKEN', { UPSTASH_REDIS_REST_TOKEN: SENTINEL }],
+  ])('throws EnvError naming both when only %s is set', (_, extra) => {
+    let error: unknown
+    try {
+      parseServerEnv({ ...validSource, ...extra })
+      expect.unreachable()
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(EnvError)
+    const message = (error as EnvError).message
+    expect(message).toContain('UPSTASH_REDIS_REST_URL')
+    expect(message).toContain('UPSTASH_REDIS_REST_TOKEN')
+    expect(message).not.toContain(SENTINEL)
+  })
+
+  it('rejects a non-URL UPSTASH_REDIS_REST_URL', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validSource,
+        UPSTASH_REDIS_REST_URL: 'not a url',
+        UPSTASH_REDIS_REST_TOKEN: 'token',
+      }),
+    ).toThrow(EnvError)
+  })
+
+  it.each([
+    'http://example.upstash.io',
+    'redis://example.upstash.io',
+    'rediss://example.upstash.io',
+  ])(
+    'rejects a non-https UPSTASH_REDIS_REST_URL (%s): new Redis({ url }) would otherwise throw ' +
+      'uncaught outside parseServerEnv (fix round 1, item 1)',
+    (url) => {
+      let error: unknown
+      try {
+        parseServerEnv({
+          ...validSource,
+          UPSTASH_REDIS_REST_URL: url,
+          UPSTASH_REDIS_REST_TOKEN: 'x',
+        })
+        expect.unreachable()
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toBeInstanceOf(EnvError)
+      const message = (error as EnvError).message
+      expect(message).toContain('UPSTASH_REDIS_REST_URL')
+      expect(message).not.toContain('UPSTASH_REDIS_REST_TOKEN')
+    },
+  )
+})
+
+describe('parseServerEnv — BOT_API_ENABLED / BOT_REF_SECRET (§2.5, §6.2, decisions 5 and 7)', () => {
+  const REF_SECRET = 'r'.repeat(32)
+
+  it('leaves the bot API off when BOT_API_ENABLED is unset (nothing turns on by merging)', () => {
+    const env = parseServerEnv(validSource)
+    expect(env.botApiEnabled).toBe(false)
+    expect(env.botRefSecret).toBeUndefined()
+  })
+
+  it.each(['', 'false'])('reads BOT_API_ENABLED=%j as off', (value) => {
+    expect(parseServerEnv({ ...validSource, BOT_API_ENABLED: value }).botApiEnabled).toBe(false)
+  })
+
+  it('turns the bot API on only for exactly "true", with a BOT_REF_SECRET of 32+ characters', () => {
+    const env = parseServerEnv({
+      ...validSource,
+      BOT_API_ENABLED: 'true',
+      BOT_REF_SECRET: REF_SECRET,
+    })
+    expect(env.botApiEnabled).toBe(true)
+    expect(env.botRefSecret).toBe(REF_SECRET)
+  })
+
+  it.each(['TRUE', '1', 'yes', 'on'])('rejects BOT_API_ENABLED=%j', (value) => {
+    expect(() =>
+      parseServerEnv({ ...validSource, BOT_API_ENABLED: value, BOT_REF_SECRET: REF_SECRET }),
+    ).toThrow(/BOT_API_ENABLED/)
+  })
+
+  it.each([
+    ['unset', {}],
+    ['empty', { BOT_REF_SECRET: '' }],
+  ])('rejects BOT_API_ENABLED=true with BOT_REF_SECRET %s', (_, extra) => {
+    expect(() => parseServerEnv({ ...validSource, BOT_API_ENABLED: 'true', ...extra })).toThrow(
+      EnvError,
+    )
+    expect(() => parseServerEnv({ ...validSource, BOT_API_ENABLED: 'true', ...extra })).toThrow(
+      /BOT_REF_SECRET/,
+    )
+  })
+
+  it('rejects a BOT_REF_SECRET under 32 characters without printing it', () => {
+    const short = SENTINEL.slice(0, 31)
+    let error: unknown
+    try {
+      parseServerEnv({ ...validSource, BOT_API_ENABLED: 'true', BOT_REF_SECRET: short })
+      expect.unreachable()
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(EnvError)
+    expect((error as EnvError).message).toContain('BOT_REF_SECRET')
+    expect((error as EnvError).message).not.toContain(short)
+  })
+
+  it('keeps a BOT_REF_SECRET while the API is off (ready for the switch)', () => {
+    const env = parseServerEnv({ ...validSource, BOT_REF_SECRET: REF_SECRET })
+    expect(env.botApiEnabled).toBe(false)
+    expect(env.botRefSecret).toBe(REF_SECRET)
   })
 })
 

@@ -22,6 +22,22 @@ export type ServerEnv = {
    * then answers 401 to everyone.
    */
   cronSecret: string | undefined
+  /**
+   * `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (§2.3, §2.5; task 6.1, decision 22):
+   * optional — both or neither. Without them every rate limiter runs in memory, per instance.
+   */
+  upstash: { readonly url: string; readonly token: string } | undefined
+  /**
+   * `BOT_API_ENABLED` (§2.5, §6.2; task 6.3, decision 7): the kill switch's hard lock — true only
+   * for exactly `true`. Unset (production until the owner flips it), every bot route answers
+   * `503 {"error":"disabled"}` whatever `bot_settings.enabled` says (ADR-0026).
+   */
+  botApiEnabled: boolean
+  /**
+   * `BOT_REF_SECRET` (§2.5, §6.3): the HMAC key of the per-run user refs, at least 32 characters.
+   * Required while `botApiEnabled`; otherwise optional.
+   */
+  botRefSecret: string | undefined
 }
 
 /** Message lists variable NAMES only, never values — never printed or logged with a value. */
@@ -40,6 +56,26 @@ const RawEnvSchema = z.object({
   VERCEL_BRANCH_URL: z.string().optional(),
   // Empty means unset: `.env.example` ships the line as `CRON_SECRET=`.
   CRON_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  // Empty means unset: `.env.example` ships both lines empty (decision 22). https only: `new
+  // Redis({ url })` (lib/rate-limit.ts) throws for any other protocol, so this must be caught
+  // here rather than at limiter construction (fix round 1, item 1).
+  UPSTASH_REDIS_REST_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url({ protocol: /^https$/ }).optional(),
+  ),
+  UPSTASH_REDIS_REST_TOKEN: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  // Empty means unset (`.env.example` ships both lines empty): the bot API stays off (decision 5).
+  BOT_API_ENABLED: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['true', 'false']).optional(),
+  ),
+  BOT_REF_SECRET: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.string().min(32).optional(),
   ),
@@ -86,6 +122,24 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     throw new EnvError('Invalid environment variables: CRON_SECRET')
   }
 
+  // Both or neither (decision 22): one alone is almost certainly a typo'd deploy, and a rate
+  // limiter half-configured with only a URL or only a token would throw on every request.
+  if ((raw.UPSTASH_REDIS_REST_URL === undefined) !== (raw.UPSTASH_REDIS_REST_TOKEN === undefined)) {
+    throw new EnvError(
+      'Invalid environment variables: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN',
+    )
+  }
+  const upstash =
+    raw.UPSTASH_REDIS_REST_URL !== undefined && raw.UPSTASH_REDIS_REST_TOKEN !== undefined
+      ? { url: raw.UPSTASH_REDIS_REST_URL, token: raw.UPSTASH_REDIS_REST_TOKEN }
+      : undefined
+
+  // The bot API cannot address anyone without its ref key (§6.3): on without it is a broken deploy.
+  const botApiEnabled = raw.BOT_API_ENABLED === 'true'
+  if (botApiEnabled && raw.BOT_REF_SECRET === undefined) {
+    throw new EnvError('Invalid environment variables: BOT_REF_SECRET')
+  }
+
   return {
     supabaseUrl: raw.NEXT_PUBLIC_SUPABASE_URL,
     supabasePublishableKey: raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -95,6 +149,9 @@ export function parseServerEnv(source: Record<string, string | undefined>): Serv
     authTestLogin,
     vercelEnv,
     cronSecret: raw.CRON_SECRET,
+    upstash,
+    botApiEnabled,
+    botRefSecret: raw.BOT_REF_SECRET,
   }
 }
 

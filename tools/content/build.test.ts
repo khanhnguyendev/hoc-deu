@@ -343,6 +343,29 @@ describe('buildContent — determinism', () => {
   })
 })
 
+describe('buildContent — the catalog version (decision 21)', () => {
+  const versionOf = (root: string) =>
+    /export const CATALOG_VERSION = '([0-9a-f]{16})'/.exec(
+      readFileSync(path.join(root, '.generated/catalog.ts'), 'utf8'),
+    )?.[1]
+
+  it('is stable across two builds of the same content and changes when an item is edited', async () => {
+    const root = fixtureRoot('ok')
+    await buildContent({ repoRoot: root, check: false })
+    const first = versionOf(root)
+    expect(first).toMatch(/^[0-9a-f]{16}$/)
+    await buildContent({ repoRoot: root, check: false })
+    expect(versionOf(root)).toBe(first)
+
+    const file = path.join(root, PROMPTS)
+    writeFileSync(file, readFileSync(file, 'utf8').replace('minutes: 45', 'minutes: 40'))
+    const edited = await buildContent({ repoRoot: root, check: false })
+    expect(edited.ok).toBe(true)
+    expect(versionOf(root)).toMatch(/^[0-9a-f]{16}$/)
+    expect(versionOf(root)).not.toBe(first)
+  })
+})
+
 describe('buildContent — a failing fixture', () => {
   it('returns sorted issues, a report of every issue, and writes nothing', async () => {
     const root = fixtureRoot('two-issues')

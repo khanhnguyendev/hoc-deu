@@ -79,6 +79,31 @@ describe('toPlanCatalog (real generated catalog)', () => {
     expect(Object.keys(PLAN_CATALOG.tracks.english?.roadmaps ?? {})).toEqual(['10w'])
   })
 
+  it('carries the manifest topics in manifest order with their requires (§5.12)', () => {
+    const dsa = GENERATED_CATALOG.tracks.find((track) => track.id === 'dsa')
+    expect(PLAN_CATALOG.tracks.dsa?.topics).toEqual(
+      dsa?.topics.map((topic) => ({ id: topic.id, requires: topic.requires })),
+    )
+    const trees = PLAN_CATALOG.tracks.dsa?.topics?.find((topic) => topic.id === 'trees')
+    expect(trees).toEqual({ id: 'trees', requires: ['linked-list', 'binary-search'] })
+    expect(PLAN_CATALOG.tracks.dsa?.topics?.[0]).toEqual({ id: 'arrays-hashing', requires: [] })
+    expect(PLAN_CATALOG.tracks.english?.topics?.map((topic) => topic.id)).toEqual([
+      'standup',
+      'tickets',
+      'code-review',
+      'pull-requests',
+      'meetings',
+      'estimates',
+      'incidents',
+      'documentation',
+      'interviews',
+      'demos',
+    ])
+    expect(PLAN_CATALOG.tracks.english?.topics?.every((topic) => topic.requires.length === 0)).toBe(
+      true,
+    )
+  })
+
   it("keeps english:deck-w01-standup's cardIds starting with the deck file's first card", () => {
     const deck = PLAN_CATALOG.decks['english:deck-w01-standup']
     const source = GENERATED_CATALOG.decks['english:deck-w01-standup']

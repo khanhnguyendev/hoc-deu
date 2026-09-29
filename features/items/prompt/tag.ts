@@ -1,8 +1,13 @@
+import { CUSTOM_PROMPT_TAG } from '@/lib/content/user-items'
 import { vi } from '@/lib/i18n/vi'
 import { own } from '../components/mdx/copy'
 
-/** The template tag's label (`vi.template.tags`, one source with the weekly template); else its ID. */
-export const promptTagLabel = (tag: string): string => own<string>(vi.template.tags, tag) ?? tag
+/**
+ * The template tag's label (`vi.template.tags`, one source with the weekly template); a custom
+ * prompt's tag (task 6.6a) is "Mục riêng" (`vi.customItems.promptTag`); else its ID.
+ */
+export const promptTagLabel = (tag: string): string =>
+  tag === CUSTOM_PROMPT_TAG ? vi.customItems.promptTag : (own<string>(vi.template.tags, tag) ?? tag)
 
 /**
  * The tag of the repeatable mock-interview prompt (§5.6): its page shows the problem

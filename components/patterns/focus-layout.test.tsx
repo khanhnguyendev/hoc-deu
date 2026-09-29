@@ -17,6 +17,17 @@ describe('FocusLayout', () => {
     expect(main.textContent).toContain('Nội dung')
   })
 
+  it('draws the LogoMark before the wordmark text, decorative (task 6.0b)', () => {
+    render(
+      <FocusLayout>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    const link = screen.getByRole('link', { name: 'Học Đều' })
+    expect(link.firstElementChild?.tagName.toLowerCase()).toBe('svg')
+    expect(link.firstElementChild?.getAttribute('aria-hidden')).toBe('true')
+  })
+
   it('renders header actions when given', () => {
     render(
       <FocusLayout headerActions={<button type="button">Trợ giúp</button>}>

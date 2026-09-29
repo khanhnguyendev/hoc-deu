@@ -49,6 +49,7 @@ function button(action: (input: CheckInInput) => Promise<CheckInResult>) {
       action={action}
       requestId={REQUEST_ID}
       planId={PLAN_ID}
+      planVersion={2}
       blockId={BLOCK_ID}
       blockLabel={LABEL}
     />,
@@ -76,6 +77,7 @@ function Block({
           action={action}
           requestId={REQUEST_ID}
           planId={PLAN_ID}
+          planVersion={2}
           blockId={BLOCK_ID}
           blockLabel={LABEL}
         />
@@ -98,7 +100,15 @@ describe('CheckInButton (DESIGN_SYSTEM §9: one-tap)', () => {
     button(action)
     fireEvent.click(screen.getByRole('button'))
     expect(action.mock.calls).toEqual([
-      [{ requestId: REQUEST_ID, planId: PLAN_ID, blockId: BLOCK_ID, status: 'done' }],
+      [
+        {
+          requestId: REQUEST_ID,
+          planId: PLAN_ID,
+          planVersion: 2,
+          blockId: BLOCK_ID,
+          status: 'done',
+        },
+      ],
     ])
     await act(async () => settle({ ok: true, message: 'Đã check-in: xong khối học.' }))
   })

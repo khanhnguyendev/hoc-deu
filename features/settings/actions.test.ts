@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { deriveEventId, digest } from '@/lib/events/ids'
 import { vi as copy } from '@/lib/i18n/vi'
+import { __resetMemoryWindows } from '@/lib/rate-limit'
 import type { SettingsAction } from './schema'
 
 const REQUEST_ID = '0f8d6a52-3b1c-4d7e-9a2f-6c5b4e3d2a10'
@@ -40,6 +41,12 @@ const fake = vi.hoisted(() => ({
   rebuildOutcome: 'rebuilt' as string,
   /** `rebuildTodayIfUntouched` rejects with this when set. */
   rebuildFails: null as Error | null,
+  /** `readOwnOverride`'s answer (task 6.6c); `revokeOverride`'s outcome or error. */
+  ownOverride: { kind: 'insert_block', status: 'active' } as {
+    kind: string
+    status: string
+  } | null,
+  revokeAnswer: 'applied' as 'applied' | 'unchanged' | Error,
   calls: [] as unknown[][],
 }))
 
@@ -102,6 +109,34 @@ vi.mock('./reads', () => ({
     return fake.pausedDays[trackId] ?? null
   },
 }))
+vi.mock('./overrides', () => ({
+  readOwnOverride: async (
+    client: { client: string },
+    userId: string,
+    trackId: string,
+    key: string,
+  ) => {
+    fake.calls.push(['readOwnOverride', client.client, userId, trackId, key])
+    return fake.ownOverride
+  },
+  revokeReordersOfTrack: async (
+    client: { client: string },
+    _admin: unknown,
+    userId: string,
+    trackId: string,
+    requestId: string,
+  ) => {
+    fake.calls.push(['revokeReordersOfTrack', client.client, userId, trackId, requestId])
+    return 1
+  },
+}))
+vi.mock('@/lib/events/overrides', () => ({
+  revokeOverride: async (_admin: unknown, userId: string, input: unknown) => {
+    fake.calls.push(['revokeOverride', userId, input])
+    if (fake.revokeAnswer instanceof Error) throw fake.revokeAnswer
+    return fake.revokeAnswer
+  },
+}))
 vi.mock('@/lib/plans/rebuild', () => ({
   rebuildTodayIfUntouched: async (userId: string) => {
     fake.calls.push(['rebuildTodayIfUntouched', userId])
@@ -126,8 +161,10 @@ const {
   deleteAccount,
   enrollTrack,
   resetTrack,
+  revokeAiOverride,
   setTrackStatus,
   updateCodeLanguage,
+  updateNotesSharing,
   updateSchedule,
   updateTrack,
 } = await import('./actions')
@@ -170,7 +207,12 @@ beforeEach(() => {
   fake.deleteAccountSignOutThrows = null
   fake.rebuildOutcome = 'rebuilt'
   fake.rebuildFails = null
+  fake.ownOverride = { kind: 'insert_block', status: 'active' }
+  fake.revokeAnswer = 'applied'
   fake.calls = []
+  // The accountDeletion in-memory window is module state, shared across every test in this file
+  // (fix round 1, item 4): start each test with a clean slate.
+  __resetMemoryWindows()
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -419,6 +461,78 @@ describe('updateCodeLanguage', () => {
   })
 })
 
+describe('updateNotesSharing — "Chia sẻ ghi chú với bot AI" (§4.6, task 6.7b)', () => {
+  const save = (shareNotesWithAi: string) =>
+    updateNotesSharing(null, form({ requestId: REQUEST_ID, shareNotesWithAi }))
+
+  it('guards first, then records settings.changed with the new value (on)', async () => {
+    const result = await save('true')
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(sent()).toEqual([
+      {
+        id: id(`settings.changed:${digest({ shareNotesWithAi: true })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi: true },
+      },
+    ])
+    expect(result).toEqual({ ok: true, message: 'Đã bật chia sẻ ghi chú với bot AI.' })
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('records settings.changed with the new value (off)', async () => {
+    const result = await save('false')
+    expect(sent()).toEqual([
+      {
+        id: id(`settings.changed:${digest({ shareNotesWithAi: false })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi: false },
+      },
+    ])
+    expect(result).toEqual({ ok: true, message: 'Đã tắt chia sẻ ghi chú với bot AI.' })
+  })
+
+  it('maps ai_personalization_off to its own Vietnamese sentence, without re-rendering', async () => {
+    fake.failOn = { type: 'settings.changed', error: new EventError('ai_personalization_off') }
+    await expect(save('true')).resolves.toEqual({
+      ok: false,
+      message: 'Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI.',
+    })
+    expect(revalidated()).toEqual([])
+  })
+
+  it('shows the EventError message for anything else the database refuses (quota)', async () => {
+    fake.failOn = { type: 'settings.changed', error: new EventError('quota_exceeded') }
+    await expect(save('true')).resolves.toEqual({
+      ok: false,
+      message: 'Bạn đã ghi nhận quá nhiều hoạt động hôm nay. Hãy thử lại vào ngày mai.',
+    })
+  })
+
+  it('rethrows anything that is not an EventError (the error boundary shows it)', async () => {
+    fake.failOn = { type: 'settings.changed', error: new Error('network down') }
+    await expect(save('true')).rejects.toThrow('network down')
+  })
+
+  it.each([
+    { requestId: 'nope', shareNotesWithAi: 'true' },
+    { requestId: REQUEST_ID, shareNotesWithAi: 'yes' },
+  ])('refuses an invalid input %j, sending nothing', async (bad) => {
+    expect(await updateNotesSharing(null, form(bad))).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(events()).toEqual([])
+  })
+
+  it('refuses a missing shareNotesWithAi, sending nothing', async () => {
+    expect(await updateNotesSharing(null, form({ requestId: REQUEST_ID }))).toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(events()).toEqual([])
+  })
+})
+
 describe('updateTrack — minutes and roadmap variant', () => {
   const save = (fields: Record<string, string>) =>
     updateTrack(null, form({ requestId: REQUEST_ID, trackId: 'dsa', ...fields }))
@@ -442,6 +556,23 @@ describe('updateTrack — minutes and roadmap variant', () => {
     await save({ budgetMinutes: '60', roadmapVariant: '10w' })
     expect(sent()).toMatchObject([{ payload: { roadmapVariant: '10w' } }])
     expect((sent()[0] as { payload: object }).payload).not.toHaveProperty('budgetMinutes')
+  })
+
+  it("a variant change revokes the track's AI reorders, before today's rebuild (task 6.6c)", async () => {
+    await save({ budgetMinutes: '60', roadmapVariant: '10w' })
+    const names = fake.calls.map(([name]) => name)
+    expect(fake.calls).toContainEqual(['revokeReordersOfTrack', 'user', USER_ID, 'dsa', REQUEST_ID])
+    expect(names.indexOf('revokeReordersOfTrack')).toBeGreaterThan(
+      names.indexOf('applyLearnerEvent'),
+    )
+    expect(names.indexOf('revokeReordersOfTrack')).toBeLessThan(
+      names.indexOf('rebuildTodayIfUntouched'),
+    )
+  })
+
+  it('a budget change alone leaves the reorders', async () => {
+    await save({ budgetMinutes: '90', roadmapVariant: '8w' })
+    expect(fake.calls.map(([name]) => name)).not.toContain('revokeReordersOfTrack')
   })
 
   it("sends a new id — with the new budget — on an edited resubmit after a partial failure, under the same requestId (M2 RF-2 'digest keys')", async () => {
@@ -895,5 +1026,77 @@ describe('deleteAccount — §4.6', () => {
       ['signOut', { scope: 'local' }],
       ['redirect', '/?account=deleted'],
     ])
+  })
+
+  it('rate-limits account deletion to 3 / day per user (§2.3, decision 22): the fourth call answers the message without deleting', async () => {
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    // The next two calls "delete" the same already-deleted account again — the mock does not
+    // model that; only the rate limiter's own count matters here.
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+    await expect(run(null, new FormData())).rejects.toThrow('REDIRECT:/?account=deleted')
+
+    fake.calls = []
+    const fourth = await run(null, new FormData())
+    expect(fourth).toEqual({ ok: false, message: copy.rateLimit.tooMany })
+    expect(fake.calls).toEqual([['requireUser']])
+  })
+})
+
+describe('revokeAiOverride — "Thu hồi" (§5.12, §5.9, task 6.6c)', () => {
+  const revoke = (change: Record<string, string> = {}) =>
+    revokeAiOverride({ requestId: REQUEST_ID, trackId: 'dsa', key: 'ah-extra', ...change })
+
+  it('guards first, then revokes as the learner with an id from the requestId', async () => {
+    await expect(revoke()).resolves.toEqual({
+      ok: true,
+      message: 'Đã thu hồi. Thay đổi có hiệu lực từ kế hoạch ngày mai.',
+    })
+    expect(fake.calls[0]).toEqual(['requireOnboarded'])
+    expect(fake.calls).toContainEqual(['readOwnOverride', 'user', USER_ID, 'dsa', 'ah-extra'])
+    expect(fake.calls).toContainEqual([
+      'revokeOverride',
+      USER_ID,
+      {
+        eventId: id('roadmap.override_revoked:dsa:ah-extra'),
+        trackId: 'dsa',
+        key: 'ah-extra',
+        kind: 'insert_block',
+        by: 'learner',
+      },
+    ])
+    // §5.9: from the next plan — today's plan is not rebuilt.
+    expect(fake.calls.map(([name]) => name)).not.toContain('rebuildTodayIfUntouched')
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('an override already revoked answers unchanged', async () => {
+    fake.revokeAnswer = 'unchanged'
+    await expect(revoke()).resolves.toEqual({
+      ok: true,
+      message: 'Điều chỉnh này đã được thu hồi.',
+    })
+  })
+
+  it('another learner’s or an unknown key re-renders the page, revoking nothing', async () => {
+    fake.ownOverride = null
+    await expect(revoke()).resolves.toEqual({
+      ok: false,
+      message: 'Không tìm thấy điều chỉnh này. Trang đã được làm mới.',
+    })
+    expect(fake.calls.map(([name]) => name)).not.toContain('revokeOverride')
+    expect(revalidated()).toEqual([['revalidatePath', '/settings']])
+  })
+
+  it('refuses a malformed input without reading', async () => {
+    await expect(revoke({ key: 'BAD KEY' })).resolves.toEqual({
+      ok: false,
+      message: copy.errors.saveFailed,
+    })
+    expect(fake.calls).toEqual([['requireOnboarded']])
+  })
+
+  it('a database refusal is its Vietnamese message', async () => {
+    fake.revokeAnswer = new EventError('invalid_event')
+    await expect(revoke()).resolves.toEqual({ ok: false, message: copy.errors.saveFailed })
   })
 })

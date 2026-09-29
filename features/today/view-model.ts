@@ -83,8 +83,17 @@ export type WeakTopicView = {
   readonly count: number
 }
 
+/** The mode badge (spec §2.4, decision 16): shown for a plan with `source 'ai'`. */
+export type AiPlanView = {
+  /** Plain text, cleaned on the server (§6.4.3 rule 6); null when the plan has none. */
+  readonly rationale: string | null
+}
+
 export type TodayPage = {
   readonly data: TodayData
+  /** The shown plan (today's, the resumed or the paused one) is an AI plan; else null — a
+   *  baseline plan shows no badge (v1.0 unchanged). */
+  readonly aiPlan: AiPlanView | null
   readonly blocks: readonly BlockView[]
   readonly tracks: readonly TrackProgressView[]
   readonly streak: number
@@ -136,9 +145,13 @@ function kindLabel(block: PlanBlock): string {
   }
 }
 
-/** `/t/<track>/items/<local id>?block=<blockId>&mode=<mode>` (`itemHrefFromId`, m-2). */
-function blockItemHref(itemId: string, blockId: string, mode: ItemMode): string {
-  return itemHrefFromId(itemId, { block: blockId, mode })
+/**
+ * `/t/<track>/items/<local id>?block=<blockId>&mode=<mode>` (`itemHrefFromId`, m-2); a custom item
+ * (`user:…`, in an AI plan or an extra block) has no track in its ID: its block's track gives its
+ * page, `/t/<track>/items/<encoded whole ID>` (decision 39).
+ */
+function blockItemHref(block: PlanBlock, itemId: string, mode: ItemMode): string {
+  return itemHrefFromId(itemId, { block: block.id, mode }, block.trackId)
 }
 
 /** `/today?block=<blockId>`: the block's check-in sheet (§2.4). */
@@ -173,7 +186,7 @@ function blockViews(
       items: block.items.map(({ itemId, mode }) => ({
         itemId,
         mode,
-        href: blockItemHref(itemId, block.id, mode),
+        href: blockItemHref(block, itemId, mode),
       })),
       editHref: editHref(block.id),
       defaultMinutes: oneTapMinutes(block, plan.planDate, items),
@@ -193,6 +206,22 @@ function stateBlocks(data: TodayData): BlockView[] {
     default:
       return []
   }
+}
+
+/** The dashboard's plan in every state that shows one — the paused plan included. */
+function dashboardPlan(data: TodayData): StoredPlan | null {
+  const { state } = data
+  return state.kind === 'plan' || state.kind === 'resumed' || state.kind === 'paused'
+    ? state.plan
+    : null
+}
+
+/** Decision 16: the badge and the rationale for an AI plan, nothing for a baseline one. */
+function aiPlanView(data: TodayData): AiPlanView | null {
+  const plan = dashboardPlan(data)
+  if (plan === null || plan.source !== 'ai') return null
+  const rationale = plan.rationale?.trim() ?? ''
+  return { rationale: rationale === '' ? null : rationale }
 }
 
 /** The plan whose snapshot says whether a track is throttled: never a paused (stale) one. */
@@ -313,6 +342,7 @@ export function buildTodayPage(
   const counted = countedTrackIds(data)
   return {
     data,
+    aiPlan: aiPlanView(data),
     blocks,
     tracks: trackViews(data, counted),
     streak: streakOf(data, dailyActivity),

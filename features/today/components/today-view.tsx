@@ -12,6 +12,7 @@ import { CardBlock } from './card-block'
 import { ExtraButton, type AddExtraAction } from './extra-button'
 import { MarkPlanSeen, type MarkPlanSeenAction } from './mark-plan-seen'
 import { PausedBanner } from './paused-banner'
+import { AiPlanNote } from './ai-plan-note'
 import { blockLabel, PlanBlockCard } from './plan-block-card'
 import type { ResumeAction } from './resume-button'
 import { ThrottleNotice } from './throttle-notice'
@@ -78,6 +79,8 @@ function Dashboard({
   record,
 }: Omit<TodayViewProps, 'markPlanSeen'> & { state: PlanState }) {
   const planId = state.plan.id
+  // Decision 36: every check-in and inline grade names the version this page shows.
+  const planVersion = state.plan.version
   const open = page.blocks.find((view) => view.block.id === page.openBlockId)
   return (
     <>
@@ -120,6 +123,7 @@ function Dashboard({
                               items={blockSlots.items}
                               requestId={page.requestId}
                               record={record}
+                              plan={{ id: planId, version: planVersion }}
                             />
                           )
                         }
@@ -130,6 +134,7 @@ function Dashboard({
                               action={checkIn}
                               requestId={page.requestId}
                               planId={planId}
+                              planVersion={planVersion}
                               blockId={view.block.id}
                               blockLabel={blockLabel(view)}
                             />
@@ -165,6 +170,7 @@ function Dashboard({
           action={checkIn}
           requestId={page.requestId}
           planId={planId}
+          planVersion={planVersion}
           block={{
             id: open.block.id,
             kindLabel: open.kindLabel,
@@ -183,7 +189,9 @@ function Dashboard({
  * `/today` (§2.4, §5.2, §5.4): the page header with today's date, then per state — the dashboard
  * (plan, resumed, paused), "Bắt đầu vào {date}", the no-track empty state, or the error state of
  * an unreadable plan (UnreadablePlan, with "Thử lại"). `<MarkPlanSeen>` marks today's plan once
- * the browser has rendered it (ADR-0039). No mode badge in v1.0 (decision 12). Server-compatible:
+ * the browser has rendered it (ADR-0039). An AI plan (today's, resumed or paused) gets AiPlanNote
+ * under the header — the "Cá nhân hoá bởi AI" badge and its rationale (task 6.5b, decision 16); a
+ * baseline plan gets no badge (v1.0 unchanged). Server-compatible:
  * its client leaves (MarkPlanSeen, ResumeButton, CheckInButton, CheckInSheet, ExtraButton,
  * CardBlock) take the actions as props.
  */
@@ -200,6 +208,7 @@ function TodayView({
   return (
     <>
       <PageHeader title={vi.nav.today} description={formatDayLong(page.data.today)} />
+      {page.aiPlan !== null && <AiPlanNote view={page.aiPlan} />}
       {state.kind === 'notStarted' && <TodayEmpty kind="notStarted" startDate={state.startDate} />}
       {state.kind === 'noTracks' && <TodayEmpty kind="noTracks" />}
       {state.kind === 'unreadable' && <UnreadablePlan />}

@@ -136,6 +136,19 @@ describe('buildTodayPage — blocks', () => {
     expect(labels).toEqual(['Mock interview', 'Nhiệm vụ cuối tuần', 'Luyện tập'])
   })
 
+  it('labels an AI override’s topic-practice and extra-week blocks (vi.overrides.blockTags)', () => {
+    const practice = (tag: string) =>
+      block(`${TODAY}:dsa:practice:${tag}`, { kind: 'practice', trackId: 'dsa', tag })
+    const labels = buildTodayPage(
+      todayData(
+        planState(storedPlan({ blocks: [practice('topic-practice'), practice('extra-week')] })),
+      ),
+      NO_ACTIVITY,
+      REQUEST_ID,
+    ).blocks.map((view) => view.kindLabel)
+    expect(labels).toEqual(['Luyện thêm chủ đề', 'Tuần luyện thêm'])
+  })
+
   it('links every item to its page with ?block= and ?mode= (derived card IDs encoded)', () => {
     const review = page.blocks[0]!
     expect(review.items.map((item) => [item.itemId, item.mode])).toEqual([
@@ -606,6 +619,67 @@ describe('buildTodayPage — ?block= (5.2b, §2.4)', () => {
         buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID, `${TODAY}:dsa:new:1`).openBlockId,
       ).toBeNull()
     }
+  })
+})
+
+describe('buildTodayPage — AI plans (task 6.5b, decision 16)', () => {
+  const RATIONALE = 'Ôn lại Two Sum trước, sau đó học tiếp Stack.'
+  const ai = storedPlan({ source: 'ai', rationale: RATIONALE, version: 2 })
+
+  it('an AI plan carries the badge with its rationale; a baseline plan carries nothing (v1.0)', () => {
+    expect(buildTodayPage(todayData(planState(ai)), NO_ACTIVITY, REQUEST_ID).aiPlan).toEqual({
+      rationale: RATIONALE,
+    })
+    expect(
+      buildTodayPage(todayData(planState(storedPlan())), NO_ACTIVITY, REQUEST_ID).aiPlan,
+    ).toBeNull()
+  })
+
+  it('an AI plan without a rationale still carries the badge', () => {
+    const plain = storedPlan({ source: 'ai', rationale: null })
+    expect(buildTodayPage(todayData(planState(plain)), NO_ACTIVITY, REQUEST_ID).aiPlan).toEqual({
+      rationale: null,
+    })
+  })
+
+  it('the paused and resumed views show it when their plan is an AI plan; the other states never', () => {
+    const shown: TodayState[] = [
+      { kind: 'resumed', plan: ai, blocks: {} },
+      { kind: 'paused', plan: ai, unfinished: [], blocks: {}, daysSince: 3, offerResume: true },
+    ]
+    for (const state of shown) {
+      expect(buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID).aiPlan).toEqual({
+        rationale: RATIONALE,
+      })
+    }
+    const none: TodayState[] = [
+      { kind: 'notStarted', startDate: '2026-10-03' },
+      { kind: 'noTracks' },
+      { kind: 'unreadable' },
+    ]
+    for (const state of none) {
+      expect(buildTodayPage(todayData(state), NO_ACTIVITY, REQUEST_ID).aiPlan).toBeNull()
+    }
+  })
+
+  it('links a custom item of an AI plan’s block to its own page (decision 39), with ?block= and ?mode=', () => {
+    const custom = 'user:0123456789abcdef:ah-card'
+    const plan = storedPlan({
+      source: 'ai',
+      blocks: [
+        block(`${TODAY}:dsa:practice:1`, {
+          kind: 'practice',
+          trackId: 'dsa',
+          items: [{ itemId: custom, mode: 'review', minutes: 2 }],
+        }),
+      ],
+    })
+    const page = buildTodayPage(todayData(planState(plan)), NO_ACTIVITY, REQUEST_ID)
+    expect(parsed(page.blocks[0]!.items[0]!.href)).toEqual({
+      path: `/t/dsa/items/${encodeURIComponent(custom)}`,
+      block: `${TODAY}:dsa:practice:1`,
+      mode: 'review',
+    })
   })
 })
 

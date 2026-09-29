@@ -11,6 +11,7 @@ const fake = vi.hoisted(() => ({
     startDate: string
   }[],
   items: {} as Record<string, ItemState>,
+  userItems: [] as unknown[],
   calls: [] as unknown[][],
 }))
 
@@ -120,12 +121,20 @@ vi.mock('@/lib/plans/reads', () => ({
     return fake.items
   },
   todayOf: () => '2026-10-10',
+  readUserItems: async () => {
+    fake.calls.push(['readUserItems'])
+    return fake.userItems
+  },
 }))
-vi.mock('@/lib/content/catalog', () => ({
-  getItem: (id: string) =>
-    id === 'english:e1' ? CARD_ITEM : id === 'dsa:p1' ? PROBLEM_ITEM : null,
-  getTrack: (id: string) => ({ title: { vi: id === 'dsa' ? 'DSA' : 'English', en: id } }),
-}))
+vi.mock('@/lib/content/catalog', async () => {
+  const { CATALOG: GENERATED } = await import('@/.generated/catalog')
+  return {
+    getCatalog: () => ({ tracks: GENERATED.tracks }),
+    getItem: (id: string) =>
+      id === 'english:e1' ? CARD_ITEM : id === 'dsa:p1' ? PROBLEM_ITEM : null,
+    getTrack: (id: string) => ({ title: { vi: id === 'dsa' ? 'DSA' : 'English', en: id } }),
+  }
+})
 
 const { getReview } = await import('./queries')
 
@@ -170,6 +179,7 @@ beforeEach(() => {
       reps: 1,
     },
   }
+  fake.userItems = []
   fake.calls = []
 })
 
@@ -235,5 +245,62 @@ describe('getReview (task 5.3)', () => {
     const a = await getReview(undefined)
     const b = await getReview(undefined)
     expect(a.requestId).not.toBe(b.requestId)
+  })
+})
+
+describe('getReview — custom items (task 6.6a, decision 17)', () => {
+  const CARD = 'user:0123456789abcdef:standup-card'
+  const dueCard = (itemId: string): ItemState => ({
+    itemId,
+    trackId: 'english',
+    topicId: 'standup',
+    itemType: 'flashcard',
+    level: 1,
+    weak: false,
+    topSuccesses: 0,
+    status: 'ok',
+    dueOn: '2026-10-09',
+    lastResult: 'know',
+    lastResultOn: '2026-10-08',
+    introducedOn: '2026-10-08',
+    lapses: 0,
+    reps: 1,
+  })
+  const row = (status = 'active') => ({
+    itemId: CARD,
+    itemType: 'flashcard',
+    trackId: 'english',
+    topicId: 'standup',
+    payload: { front: 'on hold', back: 'tạm dừng', tags: [] },
+    status,
+    createdOn: '2026-10-01',
+  })
+
+  it('a due custom card is in the queue and the card session, with its sides and its URL', async () => {
+    fake.items = { [CARD]: dueCard(CARD) }
+    fake.userItems = [row()]
+    const page = await getReview(undefined)
+    expect(fake.calls).toContainEqual(['readUserItems'])
+    expect(page.entries).toEqual([
+      expect.objectContaining({
+        itemId: CARD,
+        trackId: 'english',
+        href: '/t/english/items/user%3A0123456789abcdef%3Astandup-card?mode=review',
+      }),
+    ])
+    expect(page.cards).toEqual([
+      {
+        itemId: CARD,
+        sides: expect.objectContaining({ front: 'on hold', back: 'tạm dừng' }),
+      },
+    ])
+  })
+
+  it('a hidden custom card is out of the queue (it reads as retired); its state is kept', async () => {
+    fake.items = { [CARD]: dueCard(CARD) }
+    fake.userItems = [row('hidden')]
+    const page = await getReview(undefined)
+    expect(page.entries).toEqual([])
+    expect(page.cards).toEqual([])
   })
 })

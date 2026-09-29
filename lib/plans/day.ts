@@ -7,6 +7,8 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { getCatalog } from '@/lib/content/catalog'
+import { withUserItems, type UserItemRow } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'
 import { gateStatus, unfinishedBlocks } from '@/lib/domain/plan/gate'
 import { recapWeeksDone } from '@/lib/domain/plan/history'
@@ -26,9 +28,11 @@ import {
   readEnrollments,
   readItemStates,
   readLastSeenPlan,
+  readOverrides,
   readPlan,
   readRecapHistory,
   readScheduleVersions,
+  readUserItems,
   todayOf,
   type PlanRead,
 } from './reads'
@@ -40,7 +44,10 @@ type Client = SupabaseClient<Database>
 export type Day = {
   readonly clock: Date
   readonly today: LocalDay
+  /** The engine's catalog with the learner's custom items (`withUserItems`, task 6.6a). */
   readonly catalog: PlanCatalog
+  /** The learner's custom items (`readUserItems`): active, hidden and retired. */
+  readonly userItems: readonly UserItemRow[]
   readonly versions: readonly ScheduleVersion[]
   /** Every enrollment, removed ones too (`readEnrollments`). */
   readonly enrollments: readonly Enrollment[]
@@ -49,19 +56,30 @@ export type Day = {
   readonly activeTrackIds: ReadonlySet<string>
 }
 
-/** §5.4 step 1: the learner's day at `clock`. */
+/** The engine's catalog with `rows` (`withUserItems`; the catalog itself without a row). */
+export function catalogWith(rows: readonly UserItemRow[]): PlanCatalog {
+  return rows.length === 0 ? planCatalog() : withUserItems(planCatalog(), rows, getCatalog().tracks)
+}
+
+/**
+ * §5.4 step 1: the learner's day at `clock`. Task 6.6a: the catalog is the per-user overlay
+ * (decision 17) for every learner — one whose AI flag is off keeps their custom items readable
+ * and their reviews (§5.12).
+ */
 export async function loadDay(supabase: Client, userId: string, clock: Date): Promise<Day> {
-  const catalog = planCatalog()
-  const [versions, enrollments, items] = await Promise.all([
+  const [versions, enrollments, items, userItems] = await Promise.all([
     readScheduleVersions(supabase, userId),
-    readEnrollments(supabase, userId, catalog),
+    readEnrollments(supabase, userId, planCatalog()),
     readItemStates(supabase, userId),
+    readUserItems(supabase, userId),
   ])
+  const catalog = catalogWith(userItems)
   const active = enrollments.filter((enrollment) => enrollment.status === 'active')
   return {
     clock,
     today: todayOf(versions, clock),
     catalog,
+    userItems,
     versions,
     enrollments,
     items,
@@ -136,19 +154,28 @@ export async function resolveDay(supabase: Client, userId: string, day: Day): Pr
   return (await gateState(supabase, userId, day.today, day.activeTrackIds)) ?? { kind: 'open' }
 }
 
-/** What `buildPlan` / `buildResumePlan` read for `day` (§5.4): the recap weeks done included. */
+/**
+ * What `buildPlan` / `buildResumePlan` read for `day` (§5.4): the recap weeks done included, and
+ * the learner's roadmap overrides in force today (§5.12, `readOverrides` — none unless the AI flag
+ * is on; task 6.6c), so `ensureToday`, rebuilds, the bot context and the AI plan write all build
+ * with the effective roadmap and the day's override blocks.
+ */
 export async function planContext(
   supabase: Client,
   userId: string,
   day: Day,
 ): Promise<PlanContext> {
-  const history = await readRecapHistory(supabase, userId)
+  const [history, overrides] = await Promise.all([
+    readRecapHistory(supabase, userId),
+    readOverrides(supabase, userId, day.today),
+  ])
   return {
     planDate: day.today,
     catalog: day.catalog,
     enrollments: day.enrollments,
     items: day.items,
     recapDone: recapWeeksDone(history.plans, history.blocks, day.enrollments),
+    overrides,
   }
 }
 

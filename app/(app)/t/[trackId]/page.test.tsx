@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { lessonItem, problemItem, promptItem } from '@/features/items/fixtures'
+import { cardItem, lessonItem, problemItem, promptItem } from '@/features/items/fixtures'
 import type { TrackPageData } from '@/features/roadmap'
 import TrackPage, { generateMetadata } from './page'
 
@@ -76,6 +77,7 @@ const DATA: TrackPageData = {
   states: { 'dsa:lc-0001': { status: 'weak', level: 1, dueOn: '2026-10-05' } },
   progress: { week: 2, weeks: 8, introduced: 20, total: 64 },
   weakItems: [problemItem()],
+  customItems: null,
   requestId: 'c0ffee00-1234-4abc-8def-0123456789ab',
 }
 
@@ -175,5 +177,44 @@ describe('/t/[trackId]', () => {
     )
     // The overview still shows: the variants and the weekly template.
     expect(screen.getByRole('region', { name: 'Mẫu tuần' })).toBeTruthy()
+  })
+
+  describe('task 6.6a: the "Mục riêng" tab (§2.4)', () => {
+    const CUSTOM = cardItem({
+      id: 'user:0123456789abcdef:on-hold',
+      localId: 'user:0123456789abcdef:on-hold',
+      title: 'on hold',
+    })
+    const withCustom = (customItems: TrackPageData['customItems']) => ({ ...DATA, customItems })
+
+    it('no tabs without custom items: the roadmap as before', async () => {
+      render(await TrackPage(props('dsa')))
+      expect(screen.queryByRole('tablist')).toBeNull()
+      expect(screen.getByRole('region', { name: 'Tuần 1' })).toBeTruthy()
+    })
+
+    it('the roadmap and "Mục riêng" as tabs; the custom rows through renderItemRow with "Ẩn"', async () => {
+      state.data = withCustom({ state: 'ready', items: [{ item: CUSTOM, hidden: false }] })
+      const user = userEvent.setup()
+      render(await TrackPage(props('dsa')))
+      expect(screen.getByRole('tab', { name: 'Lộ trình', selected: true })).toBeTruthy()
+      expect(screen.getByRole('region', { name: 'Tuần 1' })).toBeTruthy()
+      await user.click(screen.getByRole('tab', { name: 'Mục riêng' }))
+      const list = screen.getByRole('list', { name: 'Mục riêng' })
+      expect(within(list).getByRole('link', { name: 'on hold' })).toBeTruthy()
+      expect(within(list).getByRole('button', { name: 'Ẩn on hold' })).toBeTruthy()
+      expect(state.calls).toContainEqual([
+        'renderItemRow',
+        CUSTOM.id,
+        { state: null, mode: undefined, showStatus: true },
+      ])
+    })
+
+    it('?tab=custom opens on the custom items; the error state stays inside the tab', async () => {
+      state.data = withCustom({ state: 'error' })
+      render(await TrackPage(props('dsa', { tab: 'custom' })))
+      expect(screen.getByRole('tab', { name: 'Mục riêng', selected: true })).toBeTruthy()
+      expect(screen.getByRole('alert').textContent).toContain('Không đọc được mục riêng')
+    })
   })
 })

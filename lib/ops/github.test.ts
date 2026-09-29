@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { lastSuccessfulRun } from './github'
+import { lastSuccessfulRun, pullRequestState } from './github'
 
 const RUNS_URL = (file: string) =>
   `https://api.github.com/repos/khanhnguyendev/hoc-deu/actions/workflows/${file}/runs?branch=main&status=success&per_page=50`
@@ -168,5 +168,46 @@ describe('lastSuccessfulRun (decision 26: the public GitHub API, once a day)', (
   it('lets a network error through (the caller counts the step as failed)', async () => {
     const fetchImpl = fakeFetch(() => Promise.reject(new TypeError('fetch failed')))
     await expect(lastSuccessfulRun('backup.yml', fetchImpl)).rejects.toThrow('fetch failed')
+  })
+})
+
+describe('pullRequestState (§2.3, §6.6: closed-PR clearing through the public API)', () => {
+  const PULL_URL = (n: number) => `https://api.github.com/repos/khanhnguyendev/hoc-deu/pulls/${n}`
+  const pull = (state: string, mergedAt: string | null) =>
+    Response.json({ number: 41, state, merged_at: mergedAt, title: 'x', body: 'y' })
+
+  it('reads GET /repos/<the repository>/pulls/<n> with no token', async () => {
+    const fetchImpl = fakeFetch(pull('open', null))
+    expect(await pullRequestState(41, fetchImpl)).toBe('open')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchImpl.mock.calls[0] ?? []
+    expect(url).toBe(PULL_URL(41))
+    const headers = new Headers(init?.headers)
+    expect(headers.get('authorization')).toBeNull()
+    expect(headers.get('accept')).toBe('application/vnd.github+json')
+  })
+
+  it('merged: closed with merged_at; closed: closed without it', async () => {
+    expect(await pullRequestState(41, fakeFetch(pull('closed', '2026-10-05T03:00:00Z')))).toBe(
+      'merged',
+    )
+    expect(await pullRequestState(41, fakeFetch(pull('closed', null)))).toBe('closed')
+  })
+
+  it('a non-200 answer or a body it cannot read → null', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(await pullRequestState(41, fakeFetch(Response.json({}, { status: 404 })))).toBeNull()
+    expect(await pullRequestState(41, fakeFetch(Response.json({}, { status: 403 })))).toBeNull()
+    expect(await pullRequestState(41, fakeFetch(Response.json({ state: 'weird' })))).toBeNull()
+    expect(await pullRequestState(41, fakeFetch(new Response('not json')))).toBeNull()
+    vi.restoreAllMocks()
+  })
+
+  it('never builds a URL from a number that is not a pull request number', async () => {
+    const fetchImpl = fakeFetch(pull('open', null))
+    for (const n of [0, -1, 1.5, Number.NaN, 1e9]) {
+      await expect(pullRequestState(n, fetchImpl)).rejects.toThrow('pull request number')
+    }
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })

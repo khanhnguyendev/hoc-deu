@@ -354,7 +354,9 @@ describe('OnboardingWizard — step 6, preview and submit', () => {
     const summary = screen.getByRole('alert')
     expect(within(summary).getByText('Múi giờ không hợp lệ.')).toBeTruthy()
     expect(screen.getByLabelText('Múi giờ').getAttribute('aria-invalid')).toBe('true')
-    expect(document.activeElement).toBe(summary)
+    // The summary is focused by a passive effect, which can run a task after the step's DOM is
+    // committed (the action's render is not a discrete one): wait for it (flake, review item 29).
+    await waitFor(() => expect(document.activeElement).toBe(summary))
   })
 
   it('shows a form-level error (quota) in the summary on the last step', async () => {
@@ -402,15 +404,16 @@ describe('OnboardingWizard — step 6, preview and submit', () => {
     await user.click(screen.getByRole('button', { name: 'Bắt đầu học' }))
     await waitFor(() => expect(currentHeading().textContent).toBe('Lịch học'))
     const summary = screen.getByRole('alert')
-    expect(document.activeElement).toBe(summary)
+    await waitFor(() => expect(document.activeElement).toBe(summary))
 
     screen.getByLabelText('Múi giờ').focus()
     expect(document.activeElement).not.toBe(summary)
     await next(user) // language
     await next(user) // preview
     await user.click(screen.getByRole('button', { name: 'Bắt đầu học' }))
-    await waitFor(() => expect(currentHeading().textContent).toBe('Lịch học'))
-    expect(document.activeElement).toBe(screen.getByRole('alert'))
+    // The focus effect may run a task after the heading is in the DOM: wait for it, not the heading.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('alert')))
+    expect(currentHeading().textContent).toBe('Lịch học')
   })
 
   it('renders an initial error state on the step of its first field (catalog)', () => {

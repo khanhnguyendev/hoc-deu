@@ -52,6 +52,9 @@ const NEW_BLOCK = `${TODAY}:dsa:new:1`
 const ENGLISH_BLOCK = `${TODAY}:english:review:1`
 const plan = storedPlan()
 
+const RATIONALE = 'Ôn lại Group Anagrams vì lần trước chưa làm được, sau đó học tiếp Stack.'
+const aiBadge = () => screen.queryByRole('group', { name: 'Kế hoạch do AI cá nhân hoá' })
+
 const blocks = [
   blockView({ block: block(NEW_BLOCK, { kind: 'new', trackId: 'dsa', estMinutes: 35 }) }),
   blockView({
@@ -243,8 +246,23 @@ describe('TodayView — check-in (5.2b)', () => {
     view({ kind: 'plan', plan, blocks: {} }, { blocks })
     fireEvent.click(screen.getByRole('button', { name: `Check-in: Bài mới · ${DSA_TITLE}` }))
     expect(checkIn.mock.calls).toEqual([
-      [{ requestId: REQUEST_ID, planId: PLAN_ID, blockId: NEW_BLOCK, status: 'done' }],
+      [
+        {
+          requestId: REQUEST_ID,
+          planId: PLAN_ID,
+          planVersion: plan.version,
+          blockId: NEW_BLOCK,
+          status: 'done',
+        },
+      ],
     ])
+  })
+
+  it('[decision 36] the check-in carries the version of the plan shown (an AI plan at version 2)', () => {
+    const ai = storedPlan({ source: 'ai', version: 2 })
+    view({ kind: 'plan', plan: ai, blocks: {} }, { blocks })
+    fireEvent.click(screen.getByRole('button', { name: `Check-in: Bài mới · ${DSA_TITLE}` }))
+    expect(checkIn.mock.calls[0]![0]).toMatchObject({ planId: PLAN_ID, planVersion: 2 })
   })
 
   it('the paused view checks in the paused plan; a skipped block says to tap "Sửa" (M-6 a)', () => {
@@ -379,6 +397,8 @@ describe('TodayView — check-in (5.2b)', () => {
         requestId: REQUEST_ID,
         itemId: card.id,
         blockId: ENGLISH_BLOCK,
+        planId: PLAN_ID,
+        planVersion: plan.version,
         outcome: { type: 'item.result', result: 'know' },
       })
       // The other block keeps its rows and its one-tap check-in.
@@ -386,5 +406,38 @@ describe('TodayView — check-in (5.2b)', () => {
       expect(within(dsa).getByRole('link', { name: 'Add Two Numbers' })).toBeTruthy()
       expect(within(english).getByRole('button', { name: /Check-in/ })).toBeTruthy()
     })
+  })
+})
+
+describe('TodayView — the AI mode badge (task 6.5b, decision 16)', () => {
+  it('an AI plan: the badge and its rationale under the page header, before the plan', () => {
+    view(
+      { kind: 'plan', plan: storedPlan({ source: 'ai', rationale: RATIONALE }), blocks: {} },
+      { blocks, aiPlan: { rationale: RATIONALE } },
+    )
+    const note = aiBadge()!
+    expect(within(note).getByText('Cá nhân hoá bởi AI')).toBeTruthy()
+    expect(within(note).getByText(RATIONALE)).toBeTruthy()
+    const heading = screen.getByRole('heading', { level: 1 })
+    const planHeading = screen.getByRole('heading', { name: 'Kế hoạch hôm nay' })
+    expect(heading.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      note.compareDocumentPosition(planHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('a baseline plan shows no badge (v1.0 unchanged)', () => {
+    view({ kind: 'plan', plan, blocks: {} }, { blocks })
+    expect(aiBadge()).toBeNull()
+    expect(screen.queryByText('Cá nhân hoá bởi AI')).toBeNull()
+  })
+
+  it('the paused view of an AI plan shows the badge too', () => {
+    const old = storedPlan({ id: OLD_PLAN_ID, planDate: YESTERDAY, source: 'ai' })
+    view(
+      { kind: 'paused', plan: old, unfinished: [], blocks: {}, daysSince: 1, offerResume: false },
+      { blocks, aiPlan: { rationale: null } },
+    )
+    expect(aiBadge()).toBeTruthy()
   })
 })

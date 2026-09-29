@@ -184,12 +184,13 @@ select throws_ok(
 select throws_ok(
   format(
     $$select public.apply_system_event(%L::uuid, jsonb_build_object(
-        'id', gen_random_uuid(), 'type', 'plan.ai_proposed',
-        'payload', '{"runId": "run-1", "outcome": "proposed"}'::jsonb))$$,
+        'id', gen_random_uuid(), 'type', 'plan.ai_applied',
+        'payload', '{"runId": "run_2001-01-01", "outcome": "applied"}'::jsonb))$$,
     :'sys_other'
   ),
   'P0001', 'not_implemented',
-  'a system type not implemented yet raises not_implemented (plan.ai_proposed: task 6.5)'
+  'a system type apply_system_event does not write raises not_implemented (plan.ai_applied: '
+  'only stored by plan.ai_proposed, task 6.2b)'
 );
 select throws_ok(
   format(

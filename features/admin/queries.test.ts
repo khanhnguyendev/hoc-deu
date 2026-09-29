@@ -9,6 +9,16 @@ const fake = vi.hoisted(() => ({
   rpcs: {} as Record<string, Response>,
   /** The latest ops_metrics row per key (`maybeSingle`), or an error. */
   metrics: {} as Record<string, Response>,
+  /** The `ratelimit.fail_open` rows of the last 7 days (`readFailOpen7d`), or an error. */
+  failOpenRows: { data: [], error: null } as Response,
+  vercelEnv: undefined as 'production' | 'preview' | 'development' | undefined,
+  rateLimitMode: 'upstash' as 'upstash' | 'memory',
+  botApiEnabled: false,
+  /** `content_publish_requests`: the pending rows, and the recent others. */
+  requests: {
+    pending: { data: [], error: null } as Response,
+    recent: { data: [], error: null } as Response,
+  },
   calls: [] as unknown[][],
 }))
 
@@ -18,6 +28,12 @@ vi.mock('@/lib/auth/dal', () => ({
     if (!fake.admin) throw new Error('NOT_FOUND')
     return { id: 'me' }
   },
+}))
+vi.mock('@/lib/env', () => ({
+  serverEnv: () => ({ vercelEnv: fake.vercelEnv, botApiEnabled: fake.botApiEnabled }),
+}))
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimitMode: () => fake.rateLimitMode,
 }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
@@ -39,10 +55,21 @@ vi.mock('@/lib/supabase/server', () => ({
           query.push(`order ${column} ${options.ascending ? 'asc' : 'desc'}`),
           chain
         ),
+        neq: (column: string, value: string) => (query.push(`${column}!=${value}`), chain),
         limit: (n: number) => (query.push(`limit ${n}`), chain),
+        // Awaiting the query itself (the publish requests): one of the two answers.
+        then: (resolve: (value: Response) => void) => {
+          fake.calls.push(['from', ...query])
+          resolve(query.includes('status=pending') ? fake.requests.pending : fake.requests.recent)
+        },
         maybeSingle: async () => {
           fake.calls.push(['from', ...query])
           return fake.metrics[key] ?? { data: null, error: null }
+        },
+        gte: async (column: string, value: string) => {
+          query.push(`${column}>=${value}`)
+          fake.calls.push(['from', ...query])
+          return fake.failOpenRows
         },
       }
       return chain
@@ -86,7 +113,7 @@ const CATALOG = vi.hoisted(() => ({
   },
 }))
 
-const { getAdminContent, getAdminOverview, listUsers } = await import('./queries')
+const { getAdminBot, getAdminContent, getAdminOverview, listUsers } = await import('./queries')
 
 const dbRow = (id: string, overrides: Record<string, unknown> = {}) => ({
   id,
@@ -98,6 +125,7 @@ const dbRow = (id: string, overrides: Record<string, unknown> = {}) => ({
   created_at: '2026-01-10T03:00:00+00:00',
   approved_at: '2026-01-11T03:00:00+00:00',
   onboarded_at: null,
+  ai_personalization: false,
   ...overrides,
 })
 
@@ -106,6 +134,14 @@ beforeEach(() => {
   fake.rpc = { data: [], error: null }
   fake.rpcs = {}
   fake.metrics = {}
+  fake.failOpenRows = { data: [], error: null }
+  fake.vercelEnv = undefined
+  fake.rateLimitMode = 'upstash'
+  fake.botApiEnabled = false
+  fake.requests = {
+    pending: { data: [], error: null },
+    recent: { data: [], error: null },
+  }
   fake.calls = []
 })
 
@@ -114,7 +150,7 @@ describe('listUsers', () => {
     fake.rpc = {
       data: [
         dbRow('p1', { status: 'pending', approved_at: null, display_name: null }),
-        dbRow('me', { role: 'admin' }),
+        dbRow('me', { role: 'admin', ai_personalization: true }),
       ],
       error: null,
     }
@@ -128,6 +164,7 @@ describe('listUsers', () => {
         createdAt: '2026-01-10T03:00:00+00:00',
         approvedAt: null,
         onboardedAt: null,
+        aiPersonalization: false,
         isSelf: false,
       },
       {
@@ -139,6 +176,7 @@ describe('listUsers', () => {
         createdAt: '2026-01-10T03:00:00+00:00',
         approvedAt: '2026-01-11T03:00:00+00:00',
         onboardedAt: null,
+        aiPersonalization: true,
         isSelf: true,
       },
     ])
@@ -186,6 +224,7 @@ describe('getAdminOverview', () => {
       expect.arrayContaining([
         ['rpc', 'admin_overview'],
         ['rpc', 'admin_track_positions'],
+        ['rpc', 'admin_bot_runs'],
         ...[
           'db.size_bytes',
           'backup.last_success_at',
@@ -199,9 +238,16 @@ describe('getAdminOverview', () => {
           'order recorded_at desc',
           'limit 1',
         ]),
+        [
+          'from',
+          'ops_metrics',
+          'select value',
+          'key=ratelimit.fail_open',
+          expect.stringMatching(/^recorded_at>=/),
+        ],
       ]),
     )
-    expect(fake.calls).toHaveLength(7)
+    expect(fake.calls).toHaveLength(9)
     expect(page.counts).toEqual({
       users: { pending: 2, active: 7, suspended: 1, rejected: 0 },
       learnersCompleted7d: 4,
@@ -215,7 +261,51 @@ describe('getAdminOverview', () => {
       'chưa có dữ liệu',
       'chưa có dữ liệu',
       'chưa có dữ liệu',
+      '0 lần',
+      'Chưa chạy',
     ])
+  })
+
+  it('sums the fail-open rows of the last 7 days into the system card', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.failOpenRows = { data: [{ value: 2 }, { value: 5 }], error: null }
+    const page = await getAdminOverview()
+    const card = page.system.find((card) => card.id === 'rate-limit-fail-open')
+    expect(card?.value).toBe('7 lần')
+  })
+
+  it('warns about the fail-open count only above 0', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.failOpenRows = { data: [{ value: 3 }], error: null }
+    const page = await getAdminOverview()
+    expect(page.warnings.map((warning) => warning.kind)).toContain('rate-limit-fail-open')
+  })
+
+  it('throws when the fail-open rows cannot be read', async () => {
+    fake.rpcs = { admin_overview: { data: OVERVIEW, error: null } }
+    fake.failOpenRows = { data: null, error: { message: 'boom' } }
+    await expect(getAdminOverview()).rejects.toThrow()
+  })
+
+  it('warns about the memory rate-limit mode in production only', async () => {
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_track_positions: { data: POSITIONS, error: null },
+    }
+    fake.rateLimitMode = 'memory'
+    fake.vercelEnv = 'preview'
+    expect((await getAdminOverview()).warnings.map((w) => w.kind)).not.toContain(
+      'rate-limit-memory',
+    )
+
+    fake.vercelEnv = 'production'
+    expect((await getAdminOverview()).warnings.map((w) => w.kind)).toContain('rate-limit-memory')
   })
 
   it('refuses a non-admin before touching the database', async () => {
@@ -233,6 +323,19 @@ describe('getAdminOverview', () => {
     await expect(getAdminOverview()).rejects.toThrow()
   })
 
+  it('degrades when admin_bot_runs fails: the Bot card says so, the page still renders', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs = {
+      admin_overview: { data: OVERVIEW, error: null },
+      admin_bot_runs: { data: null, error: { message: 'x' } },
+    }
+    const page = await getAdminOverview()
+    expect(page.system.find((card) => card.id === 'bot')).toMatchObject({
+      value: 'Không đọc được',
+    })
+    expect(page.warnings.map((warning) => warning.kind)).not.toContain('bot-deferred')
+  })
+
   it('throws when a metric cannot be read (never "chưa có dữ liệu" for a failure)', async () => {
     fake.rpcs = { admin_overview: { data: OVERVIEW, error: null } }
     fake.metrics = { 'backup.last_success_at': { data: null, error: { message: 'boom' } } }
@@ -244,7 +347,25 @@ describe('getAdminContent', () => {
   it('reads the track positions as the admin and builds the content page', async () => {
     fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
     const page = await getAdminContent()
-    expect(fake.calls).toEqual([['requireAdmin'], ['rpc', 'admin_track_positions']])
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_track_positions'],
+      [
+        'from',
+        'content_publish_requests',
+        'select id, target, status, pr_url, requested_at',
+        'status=pending',
+        'order requested_at desc',
+      ],
+      [
+        'from',
+        'content_publish_requests',
+        'select id, target, status, pr_url, requested_at',
+        'status!=pending',
+        'order updated_at desc',
+        'limit 20',
+      ],
+    ])
     const rows = page.tracks[0]!.roadmaps[0]!.rows
     expect(rows?.map((row) => [row.week, row.learners, row.state])).toEqual([
       [1, 0, 'covered'],
@@ -266,5 +387,138 @@ describe('getAdminContent', () => {
   it('throws on an RPC error', async () => {
     fake.rpcs = { admin_track_positions: { data: null, error: { message: 'forbidden' } } }
     await expect(getAdminContent()).rejects.toThrow()
+  })
+
+  it('reads the pending and recent publish requests as the admin (RLS: admins read)', async () => {
+    fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
+    fake.requests = {
+      pending: {
+        data: [
+          {
+            id: 2,
+            target: 'dsa:lc-0146',
+            status: 'pending',
+            pr_url: null,
+            requested_at: '2026-10-02T02:00:00+00:00',
+          },
+        ],
+        error: null,
+      },
+      recent: {
+        data: [
+          {
+            id: 1,
+            target: 'dsa:lc-0001#note',
+            status: 'merged',
+            pr_url: 'https://github.com/khanhnguyendev/hoc-deu/pull/41',
+            requested_at: '2026-10-01T02:00:00+00:00',
+          },
+        ],
+        error: null,
+      },
+    }
+    const page = await getAdminContent()
+    expect(page.publishRequests.state).toBe('ready')
+    const rows = page.publishRequests.state === 'ready' ? page.publishRequests.rows : []
+    expect(rows.map((row) => [row.id, row.status, row.pr?.label ?? null])).toEqual([
+      [2, 'pending', null],
+      [1, 'merged', 'PR #41'],
+    ])
+  })
+
+  it('a failed publish-request read degrades the section, never the page', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs = { admin_track_positions: { data: POSITIONS, error: null } }
+    fake.requests.recent = { data: null, error: { message: 'boom' } }
+    const page = await getAdminContent()
+    expect(page.publishRequests).toEqual({ state: 'error' })
+    expect(page.tracks.length).toBeGreaterThan(0)
+    vi.restoreAllMocks()
+  })
+})
+
+const BOT_SETTINGS = {
+  enabled: false,
+  dryRun: true,
+  contentProposals: false,
+  perRunUserCap: 10,
+  limits: {},
+  hasToken: false,
+  prevValidUntil: null,
+  rotatedAt: null,
+  updatedAt: '2026-09-28T00:00:00+00:00',
+}
+
+describe('getAdminBot (/admin/bot, §2.4)', () => {
+  it('reads admin_bot_settings as the admin, with the env lock read on the server', async () => {
+    fake.rpcs = { admin_bot_settings: { data: BOT_SETTINGS, error: null } }
+    fake.botApiEnabled = true
+    await expect(getAdminBot()).resolves.toEqual({
+      apiEnabled: true,
+      controls: {
+        enabled: false,
+        dryRun: true,
+        contentProposals: false,
+        perRunUserCap: 10,
+        capMax: 100,
+      },
+      token: { state: 'none' },
+      runLog: { state: 'empty' },
+      deferredWarning: null,
+    })
+    expect(fake.calls).toEqual([
+      ['requireAdmin'],
+      ['rpc', 'admin_bot_settings'],
+      ['rpc', 'admin_bot_runs'],
+    ])
+  })
+
+  it('reads the run log (counts only); a failed read shows its error state, the controls stay', async () => {
+    const run = {
+      runKey: 'run_2026-09-28',
+      kind: 'plan',
+      mode: 'dry_run',
+      status: 'running',
+      failureReason: null,
+      usersEligible: 3,
+      usersDeferred: 0,
+      outcomes: { pending: 3 },
+      contentPrUrl: null,
+      summary: null,
+      startedAt: '2026-09-27T22:30:00Z',
+      finishedAt: null,
+    }
+    fake.rpcs = {
+      admin_bot_settings: { data: BOT_SETTINGS, error: null },
+      admin_bot_runs: { data: [run], error: null },
+    }
+    const page = await getAdminBot()
+    expect(page.runLog.state).toBe('ready')
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake.rpcs.admin_bot_runs = { data: null, error: { message: 'forbidden' } }
+    const failed = await getAdminBot()
+    expect(failed.runLog).toEqual({ state: 'error' })
+    expect(failed.controls.perRunUserCap).toBe(10)
+    fake.rpcs.admin_bot_runs = { data: [{ ...run, outcomes: { pending: -1 } }], error: null }
+    expect((await getAdminBot()).runLog).toEqual({ state: 'error' })
+  })
+
+  it('says when BOT_API_ENABLED is off', async () => {
+    fake.rpcs = { admin_bot_settings: { data: BOT_SETTINGS, error: null } }
+    expect((await getAdminBot()).apiEnabled).toBe(false)
+  })
+
+  it('refuses a non-admin before touching the database', async () => {
+    fake.admin = false
+    await expect(getAdminBot()).rejects.toThrow('NOT_FOUND')
+    expect(fake.calls).toEqual([['requireAdmin']])
+  })
+
+  it('throws on an RPC error or a malformed answer (the error boundary shows "Thử lại")', async () => {
+    fake.rpcs = { admin_bot_settings: { data: null, error: { message: 'forbidden' } } }
+    await expect(getAdminBot()).rejects.toThrow()
+    fake.rpcs = { admin_bot_settings: { data: { enabled: 'yes' }, error: null } }
+    await expect(getAdminBot()).rejects.toThrow()
   })
 })

@@ -9,6 +9,7 @@ import { formatDay, formatNumber } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
 import type { AdminActionResult } from '../actions'
 import type { AdminUserRow } from '../queries'
+import { AiFlagToggle } from './ai-flag-toggle'
 import { UserRowActions } from './user-row-actions'
 import { userRowId } from './user-row-id'
 
@@ -19,6 +20,8 @@ type Actions = {
     expectedFrom: AccountStatus,
   ) => Promise<AdminActionResult>
   setUserRole: (userId: string, role: Role) => Promise<AdminActionResult>
+  /** The AI flag (task 6.3, decision 34). */
+  setAiFlag: (userId: string, on: boolean) => Promise<AdminActionResult>
 }
 
 /**
@@ -43,6 +46,12 @@ function sectionTitle(status: AccountStatus, count: number): string {
   }
   return vi.admin.users[status]
 }
+
+/**
+ * The AI flag toggle (decision 34): on every active row, the admin's own included; on another row
+ * only while its flag is still on (e.g. a suspended AI learner), shown disabled.
+ */
+const showsAiFlag = (user: AdminUserRow) => user.status === 'active' || user.aiPersonalization
 
 function UserRow({ user, actions }: { user: AdminUserRow; actions: Actions }) {
   // No display name: the e-mail is the name, shown once.
@@ -70,12 +79,27 @@ function UserRow({ user, actions }: { user: AdminUserRow; actions: Actions }) {
           {vi.admin.users.joined.replace('{date}', signUpDay(user.createdAt))}
         </span>
       </div>
-      {!user.isSelf && (
-        <UserRowActions
-          user={{ id: user.id, name, status: user.status, role: user.role }}
-          setUserStatus={actions.setUserStatus}
-          setUserRole={actions.setUserRole}
-        />
+      {(showsAiFlag(user) || !user.isSelf) && (
+        <div className="flex flex-col items-start gap-3 md:items-end">
+          {showsAiFlag(user) && (
+            <AiFlagToggle
+              user={{
+                id: user.id,
+                name,
+                status: user.status,
+                aiPersonalization: user.aiPersonalization,
+              }}
+              setAiFlag={actions.setAiFlag}
+            />
+          )}
+          {!user.isSelf && (
+            <UserRowActions
+              user={{ id: user.id, name, status: user.status, role: user.role }}
+              setUserStatus={actions.setUserStatus}
+              setUserRole={actions.setUserRole}
+            />
+          )}
+        </div>
       )}
     </div>
   )
@@ -84,15 +108,17 @@ function UserRow({ user, actions }: { user: AdminUserRow; actions: Actions }) {
 /**
  * The approval queue at `/admin/users` (§2.4): pending accounts first ("Chờ duyệt (n)", oldest
  * first), then active, suspended and rejected ones — each row with its name, e-mail, sign-up day,
- * an admin badge and its actions. The acting admin's own row shows "Bạn" and no actions
- * (decision 17). `users` keeps the order of `listUsers()`; the actions come in as props.
+ * an admin badge, the AI flag toggle (active rows, task 6.3) and its actions. The acting admin's
+ * own row shows "Bạn" and no actions but the AI flag (decisions 17, 34). `users` keeps the order
+ * of `listUsers()`; the actions come in as props.
  */
 function UserQueue({
   users,
   setUserStatus,
   setUserRole,
+  setAiFlag,
 }: { users: readonly AdminUserRow[] } & Actions) {
-  const actions = { setUserStatus, setUserRole }
+  const actions = { setUserStatus, setUserRole, setAiFlag }
   return (
     <>
       {SECTIONS.map(({ status, empty, icon }) => {

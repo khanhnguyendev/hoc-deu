@@ -258,6 +258,32 @@ describe('loadContent — the ok fixture', () => {
     expect(mdx.map((entry) => entry.key)).toContain('dsa:lc-0001#note')
   })
 
+  it('a bot-written note keeps its origin (ADR-0040); a human one has none', async () => {
+    const root = copyWith('ok', {})
+    const noteFile = path.join(root, 'content/tracks/dsa/problems/lc-0001-two-sum/note.mdx')
+    writeFileSync(
+      noteFile,
+      readFileSync(noteFile, 'utf8').replace(
+        'status: active',
+        'status: draft\norigin: bot\ncreatedByRun: run_2026-10-05',
+      ),
+    )
+    const { items, issues } = await loadContent({
+      repoRoot: root,
+      contentDir: path.join(root, 'content'),
+    })
+    expect(issues).toEqual([])
+    const twoSum = items.find((item) => item.id === 'dsa:lc-0001')
+    expect(twoSum?.type === 'problem' && twoSum.content.note).toMatchObject({
+      status: 'draft',
+      origin: 'bot',
+    })
+    const human = (await load('ok')).items.find((item) => item.id === 'dsa:lc-0001')
+    expect(human?.type === 'problem' && human.content.note && 'origin' in human.content.note).toBe(
+      false,
+    )
+  })
+
   it('a card inherits a draft or retired deck status', async () => {
     const root = copyWith('ok', {})
     const deckFile = path.join(root, 'content/tracks/english/decks/w01-standup.yaml')

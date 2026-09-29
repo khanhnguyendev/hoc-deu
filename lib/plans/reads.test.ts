@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { blockKey } from '@/lib/domain/state'
-import { createFakeSupabase } from '@/lib/testing/fake-supabase'
+import { HARD_LIMITS } from '@/lib/domain/bot-limits'
+import { createFakeSupabase, type RowOf } from '@/lib/testing/fake-supabase'
 import {
   blockStateRow,
   eventRow,
@@ -10,14 +11,18 @@ import {
   planBlock,
   planRow,
   scheduleRow,
+  SNAPSHOT,
   storedOf,
   TODAY,
   trackRow,
   USER_ID,
   YESTERDAY,
 } from './__tests__/fixtures'
+import { overrideRow, profileRow } from './__tests__/override-rows'
 import {
   readBlockStates,
+  readOverrideRows,
+  readOverrides,
   readDailyActivity,
   readEnrollments,
   readItemStates,
@@ -27,6 +32,7 @@ import {
   readPlanMode,
   readRecapHistory,
   readScheduleVersions,
+  readUserItems,
   todayOf,
 } from './reads'
 
@@ -373,5 +379,207 @@ describe('readPlanMode', () => {
       events: [eventRow({ type: 'plan.generated', plan_id: plan.id, payload: { mode: 'ai' } })],
     })
     expect(await readPlanMode(fake.client(), USER_ID, plan.id)).toBeNull()
+  })
+})
+
+describe('readUserItems (task 6.6a)', () => {
+  const userItem = (
+    slug: string,
+    change: Partial<RowOf<'user_items'>> = {},
+  ): RowOf<'user_items'> => ({
+    user_id: USER_ID,
+    item_id: `user:0123456789abcdef:${slug}`,
+    item_type: 'flashcard',
+    track_id: 'dsa',
+    topic_id: 'arrays-hashing',
+    payload: { front: 'f', back: 'b', tags: [] },
+    status: 'active',
+    created_by_run: 'run_2026-09-28',
+    created_on: '2026-09-28',
+    created_at: '2026-09-28T00:00:00.000Z',
+    ...change,
+  })
+
+  it("reads the user's active items, then the hidden and retired ones, by ID", async () => {
+    const fake = createFakeSupabase({
+      user_items: [
+        userItem('b-card'),
+        userItem('a-hidden', { status: 'hidden' }),
+        userItem('c-retired', { status: 'retired', item_type: 'prompt', payload: {} }),
+        userItem('a-card'),
+        userItem('other', { user_id: OTHER_USER_ID }),
+      ],
+    })
+    expect(await readUserItems(fake.client(), USER_ID)).toEqual([
+      {
+        itemId: 'user:0123456789abcdef:a-card',
+        itemType: 'flashcard',
+        trackId: 'dsa',
+        topicId: 'arrays-hashing',
+        payload: { front: 'f', back: 'b', tags: [] },
+        status: 'active',
+        createdOn: '2026-09-28',
+      },
+      expect.objectContaining({ itemId: 'user:0123456789abcdef:b-card', status: 'active' }),
+      expect.objectContaining({ itemId: 'user:0123456789abcdef:a-hidden', status: 'hidden' }),
+      expect.objectContaining({
+        itemId: 'user:0123456789abcdef:c-retired',
+        status: 'retired',
+        itemType: 'prompt',
+      }),
+    ])
+    const selects = fake.selects('user_items')
+    expect(selects).toHaveLength(2)
+    expect(selects[0]!.limit).toBe(200)
+    expect(selects.every((select) => select.filters.some((f) => f.column === 'user_id'))).toBe(true)
+  })
+
+  it('pages the hidden and retired rows past PostgREST’s 1000 (a retire target is never missed)', async () => {
+    const hidden = Array.from({ length: 1001 }, (_, index) =>
+      userItem(`h-${String(index).padStart(4, '0')}`, { status: 'hidden' }),
+    )
+    const fake = createFakeSupabase({ user_items: [userItem('active-one'), ...hidden] })
+    const rows = await readUserItems(fake.client(), USER_ID)
+    expect(rows).toHaveLength(1002)
+    expect(rows.at(-1)?.itemId).toBe('user:0123456789abcdef:h-1000')
+    // The active cap is the bot's hard maximum (decision 33), one read.
+    const [active, ...inactive] = fake.selects('user_items')
+    expect(active!.limit).toBe(HARD_LIMITS.customItemsActive)
+    expect(inactive.map((select) => select.range)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+  })
+
+  it('drops a row whose type or status the table would not allow', async () => {
+    const fake = createFakeSupabase({
+      user_items: [userItem('odd', { item_type: 'problem' }), userItem('ok')],
+    })
+    expect((await readUserItems(fake.client(), USER_ID)).map((row) => row.itemId)).toEqual([
+      'user:0123456789abcdef:ok',
+    ])
+  })
+
+  it('throws when the query fails', async () => {
+    const fake = createFakeSupabase()
+    fake.failSelect('user_items', 'boom')
+    await expect(readUserItems(fake.client(), USER_ID)).rejects.toThrow(/custom items/)
+  })
+})
+
+describe('readOverrides (§5.12; decision 18; task 6.6c)', () => {
+  const extraPlan = (date: string, key = 'extra-week', userId = USER_ID) =>
+    planRow({ date, tracks: { dsa: { ...SNAPSHOT, extraWeek: key } }, userId })
+
+  it('is empty while the AI flag is off, reading no override', async () => {
+    const fake = createFakeSupabase({
+      profiles: [profileRow({ ai_personalization: false })],
+      roadmap_overrides: [overrideRow('reorder_topics')],
+    })
+    expect(await readOverrides(fake.client(), USER_ID, TODAY)).toEqual([])
+    expect(fake.selects('roadmap_overrides')).toEqual([])
+  })
+
+  it('is empty without a profile row', async () => {
+    const fake = createFakeSupabase({ roadmap_overrides: [overrideRow('reorder_topics')] })
+    expect(await readOverrides(fake.client(), USER_ID, TODAY)).toEqual([])
+  })
+
+  it('reads the active ones as RoadmapOverride, the extra week with its used days', async () => {
+    const fake = createFakeSupabase({
+      profiles: [profileRow()],
+      roadmap_overrides: [
+        overrideRow('insert_block'),
+        overrideRow('extra_week', { start_local_day: '2026-09-25' }),
+        overrideRow('reorder_topics'),
+        overrideRow('reorder_topics', { key: 'gone', status: 'revoked', revoked_by: 'bot' }),
+        overrideRow('reorder_topics', { key: 'paused', status: 'suspended' }),
+        overrideRow('reorder_topics', { key: 'theirs', user_id: OTHER_USER_ID }),
+      ],
+      day_plans: [
+        extraPlan('2026-09-24'), // before the start: not counted
+        extraPlan('2026-09-25'),
+        extraPlan('2026-09-26'),
+        extraPlan('2026-09-27', 'another-key'),
+        extraPlan(TODAY), // today's own plan: not counted (a rebuild replaces it)
+        extraPlan('2026-09-26', 'extra-week', OTHER_USER_ID),
+      ],
+    })
+    const overrides = await readOverrides(fake.client(), USER_ID, TODAY)
+    expect(overrides).toEqual([
+      {
+        trackId: 'dsa',
+        key: 'extra-week',
+        kind: 'extra_week',
+        params: { topicId: 'arrays', studyDays: 5 },
+        startLocalDay: '2026-09-25',
+        usedDays: 2,
+      },
+      {
+        trackId: 'dsa',
+        key: 'insert-block',
+        kind: 'insert_block',
+        params: { topicId: 'arrays', weekdays: ['mon', 'wed'], minutes: 15, until: '2026-10-05' },
+        startLocalDay: TODAY,
+      },
+      {
+        trackId: 'dsa',
+        key: 'reorder-topics',
+        kind: 'reorder_topics',
+        params: { order: ['two-pointers'] },
+        startLocalDay: TODAY,
+      },
+    ])
+  })
+
+  it('leaves out an expired insert block and a used-up extra week (computed expiry)', async () => {
+    const fake = createFakeSupabase({
+      profiles: [profileRow()],
+      roadmap_overrides: [
+        overrideRow('insert_block', {
+          until_local_day: YESTERDAY,
+          params: { topicId: 'arrays', weekdays: ['mon'], minutes: 15, until: YESTERDAY },
+          start_local_day: '2026-09-20',
+        }),
+        overrideRow('extra_week', {
+          study_days: 2,
+          params: { topicId: 'arrays', studyDays: 2 },
+          start_local_day: '2026-09-25',
+        }),
+      ],
+      day_plans: [extraPlan('2026-09-25'), extraPlan('2026-09-26')],
+    })
+    expect(await readOverrides(fake.client(), USER_ID, TODAY)).toEqual([])
+  })
+
+  it('drops a row whose params no longer parse', async () => {
+    const fake = createFakeSupabase({
+      profiles: [profileRow()],
+      roadmap_overrides: [overrideRow('reorder_topics', { params: { order: [] } })],
+    })
+    expect(await readOverrides(fake.client(), USER_ID, TODAY)).toEqual([])
+  })
+})
+
+describe('readOverrideRows (task 6.6c)', () => {
+  it('reads every status, with the used days before today and SQL’s count (today included)', async () => {
+    const fake = createFakeSupabase({
+      roadmap_overrides: [
+        overrideRow('extra_week', { start_local_day: '2026-09-26', status: 'suspended' }),
+        overrideRow('reorder_topics', { status: 'revoked', revoked_by: 'learner' }),
+      ],
+      day_plans: [
+        planRow({ date: '2026-09-26', tracks: { dsa: { ...SNAPSHOT, extraWeek: 'extra-week' } } }),
+        planRow({ date: TODAY, tracks: { dsa: { ...SNAPSHOT, extraWeek: 'extra-week' } } }),
+      ],
+    })
+    const rows = await readOverrideRows(fake.client(), USER_ID, TODAY)
+    expect(
+      rows.map((row) => [row.key, row.status, row.revokedBy, row.usedDays, row.sqlUsedDays]),
+    ).toEqual([
+      ['extra-week', 'suspended', null, 1, 2],
+      ['reorder-topics', 'revoked', 'learner', 0, 0],
+    ])
+    expect(rows[0]?.override?.kind).toBe('extra_week')
   })
 })

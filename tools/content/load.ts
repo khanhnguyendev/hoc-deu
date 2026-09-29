@@ -517,6 +517,8 @@ async function loadNote(
     complexity: facts.complexity[0] ?? { time: '', space: '' },
     // content:build fills it from the deep-dive lessons (crossref.ts `deepDiveIndex`).
     deepDiveId: null,
+    // Only when set, so the catalog (and its version) of human-written notes is unchanged.
+    ...(frontmatter.origin === undefined ? {} : { origin: frontmatter.origin }),
   }
 }
 

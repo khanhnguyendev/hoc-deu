@@ -8,7 +8,7 @@ import {
   type FlashcardSides,
   type RecordOutcome,
 } from '@/features/items/outcome'
-import { REQUEST_ID } from '../__tests__/fixtures'
+import { PLAN_ID, REQUEST_ID } from '../__tests__/fixtures'
 import type { BlockItemSlot } from '../slots'
 import { CardBlock } from './card-block'
 
@@ -63,6 +63,30 @@ describe('CardBlock (decision 19)', () => {
       requestId: REQUEST_ID,
       itemId: BLOCKER.id,
       blockId: 'b-new',
+      outcome: { type: 'item.result', result: 'know' },
+    })
+  })
+
+  it('sends the rendered plan version with each grade (decision 36)', async () => {
+    const user = userEvent.setup()
+    const record = vi.fn<RecordOutcome>(async () => SAVED)
+    render(
+      <CardBlock
+        cards={[card(BLOCKER, 'b-new')]}
+        items={ROWS}
+        requestId={REQUEST_ID}
+        record={record}
+        plan={{ id: PLAN_ID, version: 3 }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Xem nghĩa' }))
+    await user.click(screen.getByRole('button', { name: /^Biết/ }))
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      requestId: REQUEST_ID,
+      itemId: BLOCKER.id,
+      blockId: 'b-new',
+      planId: PLAN_ID,
+      planVersion: 3,
       outcome: { type: 'item.result', result: 'know' },
     })
   })

@@ -30,6 +30,7 @@ const PAGE: ContentPage = {
     },
   ],
   drafts: { tracks: [], items: [], notes: [] },
+  publishRequests: { state: 'empty' },
   redWeeks: 0,
 }
 
@@ -43,16 +44,19 @@ describe('/admin/content', () => {
     expect(metadata.title).toBe('Nội dung — Học Đều')
   })
 
-  it('renders each track (stats, coverage) and the drafts', async () => {
+  it('renders each track (stats, coverage), the drafts and the publish requests', async () => {
     render(await AdminContentPage())
     expect(screen.getByRole('heading', { level: 1, name: 'Nội dung' })).toBeTruthy()
     expect(
       screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(['Cấu trúc dữ liệu & Giải thuật', 'Bản nháp'])
+    ).toEqual(['Cấu trúc dữ liệu & Giải thuật', 'Bản nháp', 'Yêu cầu xuất bản'])
     expect(screen.getByRole('heading', { level: 3, name: 'Số mục' })).toBeTruthy()
     expect(
       screen.getByRole('heading', { level: 3, name: 'Độ phủ theo tuần — 10 tuần' }),
     ).toBeTruthy()
     expect(screen.getByText('Không có bản nháp nào.')).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Chưa có yêu cầu xuất bản nào' }),
+    ).toBeTruthy()
   })
 })

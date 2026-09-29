@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { __resetMemoryWindows } from '@/lib/rate-limit'
 
 const fake = vi.hoisted(() => ({
   exchange: { data: { user: { id: 'u1' } as { id: string } | null }, error: null as null | Error },
@@ -31,13 +32,17 @@ vi.mock('@/lib/auth/sign-in', () => ({
 
 const { GET } = await import('./route')
 
-const request = (search: string) => new NextRequest(`https://hocdeu.example/auth/callback${search}`)
+const request = (search: string, headers?: Record<string, string>) =>
+  new NextRequest(`https://hocdeu.example/auth/callback${search}`, { headers })
 const location = (response: Response) => new URL(response.headers.get('location')!).pathname
 
 beforeEach(() => {
   fake.exchange = { data: { user: { id: 'u1' } }, error: null }
   fake.completeSignIn = null
   fake.calls = []
+  // The oauthCallback in-memory window is module state, shared across every test in this file
+  // (fix round 1, item 4): start each test with a clean slate rather than distinct IPs per test.
+  __resetMemoryWindows()
 })
 
 describe('GET /auth/callback', () => {
@@ -93,4 +98,30 @@ describe('GET /auth/callback', () => {
       ])
     },
   )
+
+  it(
+    'redirects the 21st request from one IP in 10 minutes to /sign-in?error=rate_limited, ' +
+      'before any Supabase call (§2.3, decision 22)',
+    async () => {
+      const headers = { 'x-forwarded-for': '203.0.113.9' }
+      for (let i = 0; i < 20; i++) {
+        const response = await GET(request('?code=abc123', headers))
+        expect(location(response)).toBe('/today')
+      }
+      const exchanges = fake.calls.filter((call) => call[0] === 'exchangeCodeForSession')
+      expect(exchanges).toHaveLength(20)
+
+      const response = await GET(request('?code=abc123&next=%2Ftoday', headers))
+      const url = new URL(response.headers.get('location')!)
+      expect(url.pathname).toBe('/sign-in')
+      expect(url.searchParams.get('error')).toBe('rate_limited')
+      expect(url.searchParams.get('next')).toBe('/today')
+      expect(fake.calls.filter((call) => call[0] === 'exchangeCodeForSession')).toHaveLength(20)
+    },
+  )
+
+  it('is unaffected by the same IP’s previous test (each test starts with a clean window)', async () => {
+    const response = await GET(request('?code=abc123', { 'x-forwarded-for': '203.0.113.9' }))
+    expect(location(response)).toBe('/today')
+  })
 })

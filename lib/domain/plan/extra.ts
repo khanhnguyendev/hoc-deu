@@ -11,6 +11,7 @@ import { own } from '../compare'
 import { blockKey, type BlockState, type ItemState } from '../state'
 import type { LocalDay } from '../time/localDay'
 import { itemHandled } from './checkin'
+import { activeOverrides, effectiveRoadmap, extraWeekOf } from './overrides'
 import { reviewMode } from './reviewMode'
 import { newQueue } from './roadmap'
 import { planBlockId } from './template'
@@ -74,21 +75,29 @@ export function extraTrackIds(
  * eligibility on `ctx.planDate`), or when the queue is empty. Bounded by one addition
  * (EXTRA_MAX_ITEMS) and by what the stored extra block may hold (MAX_BLOCK_MINUTES, 500 items): the
  * queue is read in order and stops at the first item that no longer fits. Items are added in mode
- * `new` with their new minutes.
+ * `new` with their new minutes. With roadmap overrides (§5.12, task 6.6c): the queue is the
+ * effective roadmap's (`ctx.overrides` active on `ctx.planDate`), and nothing is added while the
+ * track is in an extra week — the plan's snapshot names one, or one is active for the track — so
+ * "Học thêm" never moves the roadmap pointer an extra week pauses.
  */
 export function extraCandidates(
   ctx: PlanContext,
   plan: StoredPlan,
   trackId: string,
 ): PlanBlockItem[] {
-  if (own(plan.tracks, trackId)?.newPerDay === 0) return []
+  const snapshot = own(plan.tracks, trackId)
+  if (snapshot?.newPerDay === 0 || snapshot?.extraWeek !== undefined) return []
   const entry = eligibleTracks(ctx).find((candidate) => candidate.enrollment.trackId === trackId)
   if (entry === undefined) return []
   const { enrollment, track } = entry
+  const overrides = activeOverrides(ctx.overrides ?? [], trackId, ctx.planDate)
+  if (extraWeekOf(overrides) !== null) return []
+  const roadmap = own(track.roadmaps, enrollment.variant) ?? null
 
   const queue = newQueue({
     trackId,
-    roadmap: own(track.roadmaps, enrollment.variant) ?? null,
+    roadmap:
+      roadmap === null ? null : effectiveRoadmap(roadmap, track, overrides, ctx.catalog, ctx.items),
     catalog: ctx.catalog,
     items: ctx.items,
     includeBonus: enrollment.includeBonus,

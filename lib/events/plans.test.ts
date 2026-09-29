@@ -8,6 +8,7 @@ import { EventError, type EventErrorCode } from './apply'
 import {
   addExtraItems,
   EXTRA_ITEM_IDS,
+  storeAiPlan,
   storedPlanFromRow,
   storePlan,
   type DayPlanRow,
@@ -459,6 +460,126 @@ describe('addExtraItems (plan.extra_added through apply_system_event)', () => {
   )
 })
 
+describe('storeAiPlan (plan.ai_proposed through apply_system_event, decision 13)', () => {
+  const RUN_UUID = '3c2b1a09-8f7e-4d6c-9b5a-4e3f2d1c0b9a'
+  const RUN_KEY = `run_${DAY}`
+  const RATIONALE = 'Ôn lại Group Anagrams vì lần trước chưa làm được.'
+  const AI_BLOCKS = BLOCKS.slice(0, 2)
+  const INPUT = {
+    eventId: EVENT_ID,
+    runKey: RUN_KEY,
+    runUuid: RUN_UUID,
+    plan: { planDate: DAY, blocks: AI_BLOCKS, tracks: TRACKS },
+    rationale: RATIONALE,
+    localDay: DAY,
+  }
+  const KEY = `day_plans:${DAY}`
+
+  it('sends type plan.ai_proposed from the bot, payload exactly { runId }, local_day, and the day_plans row with rationale and bot_run_id', async () => {
+    const { client, calls } = fakeClient(
+      answer({ outcome: 'applied', plan_id: PLAN_ID, versions: { [KEY]: 2 } }),
+    )
+    await expect(storeAiPlan(client, USER_ID, INPUT)).resolves.toEqual({
+      outcome: 'applied',
+      planId: PLAN_ID,
+      version: 2,
+    })
+    expect(calls).toEqual([
+      {
+        fn: 'apply_system_event',
+        args: {
+          p_user_id: USER_ID,
+          p_event: {
+            id: EVENT_ID,
+            type: 'plan.ai_proposed',
+            local_day: DAY,
+            payload: { runId: RUN_KEY },
+            rules_version: RULES_VERSION,
+            source: 'bot',
+          },
+          p_changes: [
+            {
+              table: 'day_plans',
+              row: {
+                plan_date: DAY,
+                blocks: AI_BLOCKS,
+                roadmap_weeks: TRACKS,
+                rationale: RATIONALE,
+                bot_run_id: RUN_UUID,
+              },
+            },
+          ],
+          p_expected: {},
+        },
+      },
+    ])
+  })
+
+  it('maps plan_in_use with its plan and no version', async () => {
+    const { client } = fakeClient(
+      answer({ outcome: 'plan_in_use', plan_id: PLAN_ID, versions: {} }),
+    )
+    await expect(storeAiPlan(client, USER_ID, INPUT)).resolves.toEqual({
+      outcome: 'plan_in_use',
+      planId: PLAN_ID,
+      version: null,
+    })
+  })
+
+  it('maps duplicate (an event with this id is already recorded) with nothing else', async () => {
+    const { client } = fakeClient(answer({ outcome: 'duplicate', versions: {} }))
+    await expect(storeAiPlan(client, USER_ID, INPUT)).resolves.toEqual({
+      outcome: 'duplicate',
+      planId: null,
+      version: null,
+    })
+  })
+
+  it.each<[string, unknown]>([
+    ['an unknown outcome', { outcome: 'plan_exists', plan_id: PLAN_ID }],
+    ['applied without a version', { outcome: 'applied', plan_id: PLAN_ID, versions: {} }],
+    ['applied without a plan', { outcome: 'applied', versions: { [KEY]: 1 } }],
+    ['no object', null],
+  ])('an answer with %s is unknown', async (_, data) => {
+    const { client } = fakeClient(answer(data))
+    expect((await eventError(storeAiPlan(client, USER_ID, INPUT))).code).toBe('unknown')
+  })
+
+  it.each<EventErrorCode>(['day_changed', 'ai_off', 'invalid_event', 'inactive'])(
+    'raises the database refusal %s as an EventError',
+    async (code) => {
+      const { client } = fakeClient(failed(code))
+      expect((await eventError(storeAiPlan(client, USER_ID, INPUT))).code).toBe(code)
+    },
+  )
+
+  it.each<[string, Partial<typeof INPUT>]>([
+    [
+      'a block the stored schema refuses',
+      {
+        plan: {
+          planDate: DAY,
+          blocks: [{ ...BLOCKS[0]!, estMinutes: 601 }],
+          tracks: TRACKS,
+        },
+      },
+    ],
+    [
+      'a snapshot the stored schema refuses',
+      { plan: { planDate: DAY, blocks: AI_BLOCKS, tracks: { dsa: { ...DSA_SNAPSHOT, week: 0 } } } },
+    ],
+    ['a plan date that is not the local day', { localDay: '2026-09-29' }],
+    ['a rationale over 280 characters', { rationale: 'a'.repeat(281) }],
+    ['a rationale with a control character', { rationale: 'ôn\u0007 lại' }],
+    ['a run key that is not a plan run', { runKey: 'run_2026-09-28_publish-1' }],
+  ])('refuses %s before any call (invalid_event)', async (_, change) => {
+    const { client, calls } = fakeClient(answer({ outcome: 'applied', plan_id: PLAN_ID }))
+    const error = await eventError(storeAiPlan(client, USER_ID, { ...INPUT, ...change }))
+    expect(error.code).toBe('invalid_event')
+    expect(calls).toEqual([])
+  })
+})
+
 describe('storedPlanFromRow', () => {
   const ROW: DayPlanRow = {
     id: PLAN_ID,
@@ -470,6 +591,8 @@ describe('storedPlanFromRow', () => {
     roadmap_weeks: JSON.parse(JSON.stringify(TRACKS)) as DayPlanRow['roadmap_weeks'],
     rules_version: RULES_VERSION,
     seen_at: '2026-09-28T01:02:03.000Z',
+    rationale: null,
+    bot_run_id: null,
     created_at: '2026-09-27T21:00:00.000Z',
     updated_at: '2026-09-27T21:05:00.000Z',
   }
@@ -486,10 +609,13 @@ describe('storedPlanFromRow', () => {
     })
   })
 
-  it('keeps source ai and a null seen_at', () => {
-    expect(storedPlanFromRow({ ...ROW, source: 'ai', seen_at: null })).toMatchObject({
+  it('keeps source ai, its rationale and a null seen_at', () => {
+    expect(
+      storedPlanFromRow({ ...ROW, source: 'ai', seen_at: null, rationale: 'Ôn lại Stack.' }),
+    ).toMatchObject({
       source: 'ai',
       seenAt: null,
+      rationale: 'Ôn lại Stack.',
     })
   })
 

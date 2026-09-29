@@ -29,9 +29,10 @@ export type ReviewEntry = {
   readonly href: string
 }
 
-/** `/t/<track>/items/<local id>?mode=<mode>` — a plain item page, no plan block (off-plan). */
+/** `/t/<track>/items/<local id>?mode=<mode>` — a plain item page, no plan block (off-plan); a
+ *  custom item's page carries its whole ID under its track (decision 39). */
 function hrefOf(entry: DueEntry): string {
-  return itemHrefFromId(entry.itemId, { mode: entry.mode })
+  return itemHrefFromId(entry.itemId, { mode: entry.mode }, entry.item.trackId)
 }
 
 function toReviewEntry(entry: DueEntry): ReviewEntry {

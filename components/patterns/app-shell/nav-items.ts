@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Bot,
   ChartColumn,
   type LucideIcon,
   MapIcon,
@@ -33,6 +34,7 @@ const ADMIN_ITEMS: readonly NavItem[] = [
   { href: '/admin', label: vi.nav.admin, icon: ShieldCheck, match: 'exact' },
   { href: '/admin/users', label: vi.nav.adminUsers, icon: Users, match: ['/admin/users'] },
   { href: '/admin/content', label: vi.nav.adminContent, icon: BookOpen, match: ['/admin/content'] },
+  { href: '/admin/bot', label: vi.adminBot.nav, icon: Bot, match: ['/admin/bot'] },
 ]
 
 function isCurrent(item: NavItem, pathname: string): boolean {

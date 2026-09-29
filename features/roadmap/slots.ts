@@ -6,6 +6,8 @@
 import type * as React from 'react'
 import type { CatalogItem, DeckSummary } from '@/lib/content/catalog-types'
 import type { RecapMode } from '@/lib/content/schemas/roadmap'
+import type { CustomItemsTabData } from './components/custom-items-tab'
+import type { CustomItemsData } from './queries'
 import type { RoadmapView } from './view-model'
 
 /** Renders one item's row; `mode` is the recap mode of a recap entry, else null. */
@@ -57,5 +59,26 @@ export function roadmapSlots(view: RoadmapView, renderRow: RowRenderer): Roadmap
       prompts: rows(view.anytime.prompts),
       derivedDecks: view.anytime.derivedDecks,
     },
+  }
+}
+
+/**
+ * The "Mục riêng" tab's data as slots (task 6.6a): each custom item's row from `renderRow` (the
+ * page's registry call), its title (the "Ẩn" button's name) and whether it is hidden; the error
+ * state as it is.
+ */
+export function customItemSlots(
+  data: CustomItemsData,
+  renderRow: (item: CatalogItem) => React.ReactNode,
+): CustomItemsTabData {
+  if (data.state === 'error') return data
+  return {
+    state: 'ready',
+    items: data.items.map(({ item, hidden }) => ({
+      itemId: item.id,
+      title: item.title,
+      row: renderRow(item),
+      hidden,
+    })),
   }
 }

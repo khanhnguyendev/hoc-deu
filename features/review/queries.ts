@@ -10,10 +10,18 @@
 import 'server-only'
 import { cardSidesOf, type FlashcardSides } from '@/features/items/outcome'
 import { requireOnboarded } from '@/lib/auth/dal'
-import { getItem, getTrack } from '@/lib/content/catalog'
+import { getCatalog, getItem, getTrack } from '@/lib/content/catalog'
+import { userItemOf, withUserItems } from '@/lib/content/user-items'
+import type { PlanCatalog } from '@/lib/domain/catalog'
 import { compareIds } from '@/lib/domain/compare'
 import { planCatalog } from '@/lib/plans/catalog'
-import { readEnrollments, readItemStates, readScheduleVersions, todayOf } from '@/lib/plans/reads'
+import {
+  readEnrollments,
+  readItemStates,
+  readScheduleVersions,
+  readUserItems,
+  todayOf,
+} from '@/lib/plans/reads'
 import { createClient } from '@/lib/supabase/server'
 import { resolveReviewTrack, reviewQueue, reviewTrackIds, type ReviewEntry } from './view-model'
 
@@ -31,10 +39,11 @@ export type ReviewPage = {
   readonly requestId: string
 }
 
-/** The due flashcards among `entries`, in the same order, with their sides. */
-function cardsOf(entries: readonly ReviewEntry[]): ReviewCard[] {
+/** The due flashcards among `entries`, in the same order, with their sides — a custom card's
+ *  from the learner's overlay (`userItemOf`, task 6.6a). */
+function cardsOf(entries: readonly ReviewEntry[], catalog: PlanCatalog): ReviewCard[] {
   return entries.flatMap((entry) => {
-    const item = getItem(entry.itemId)
+    const item = getItem(entry.itemId) ?? userItemOf(catalog, entry.itemId)
     const sides = item === null ? null : cardSidesOf(item)
     return sides === null ? [] : [{ itemId: entry.itemId, sides }]
   })
@@ -55,8 +64,8 @@ function tracksOf(
 }
 
 /**
- * requireOnboarded; the schedule, enrollments and every item state, through the session client
- * (RLS), read in parallel. `reviewTrackIds`/`resolveReviewTrack` (shared with `reviewQueue`, so
+ * requireOnboarded; the schedule, enrollments, every item state and the learner's custom items
+ * (the catalog overlay, task 6.6a), through the session client (RLS), read in parallel. `reviewTrackIds`/`resolveReviewTrack` (shared with `reviewQueue`, so
  * "which filter is in force" is never derived two different ways, finding M10) settle `?track=`;
  * a second, unfiltered `reviewQueue` call (only when a filter is in force) feeds the tracks' due
  * counts — the filter chips always show the full breakdown, whichever one is open (§2.4).
@@ -64,13 +73,19 @@ function tracksOf(
 export async function getReview(track: string | undefined): Promise<ReviewPage> {
   const user = await requireOnboarded()
   const supabase = await createClient()
-  const catalog = planCatalog()
 
-  const [versions, enrollments, items] = await Promise.all([
+  const [versions, enrollments, items, userItems] = await Promise.all([
     readScheduleVersions(supabase, user.id),
-    readEnrollments(supabase, user.id, catalog),
+    readEnrollments(supabase, user.id, planCatalog()),
     readItemStates(supabase, user.id),
+    readUserItems(supabase, user.id),
   ])
+  // Task 6.6a (decision 17): the learner's custom cards are reviewed when due like any card — a
+  // hidden or retired one reads as retired and leaves the queue (its state is kept).
+  const catalog =
+    userItems.length === 0
+      ? planCatalog()
+      : withUserItems(planCatalog(), userItems, getCatalog().tracks)
   const today = todayOf(versions, new Date())
 
   const trackIds = reviewTrackIds({ catalog, enrollments, today })
@@ -82,7 +97,7 @@ export async function getReview(track: string | undefined): Promise<ReviewPage> 
 
   return {
     entries,
-    cards: cardsOf(entries),
+    cards: cardsOf(entries, catalog),
     tracks: tracksOf(trackIds, allEntries),
     track: validTrack,
     requestId: crypto.randomUUID(),

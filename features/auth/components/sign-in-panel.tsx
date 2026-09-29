@@ -82,6 +82,7 @@ function TestLoginForm({
 function SignInPanel({
   next,
   oauthError,
+  rateLimited,
   testLogin,
   signInWithProvider,
   signInWithTestLogin,
@@ -90,6 +91,12 @@ function SignInPanel({
   next: string | null
   /** The OAuth callback failed (`/sign-in?error=oauth`). */
   oauthError: boolean
+  /**
+   * Over the `oauthCallback` rate limit (`/sign-in?error=rate_limited`, §2.3, task 6.1): same
+   * presentation as `oauthError`, `vi.rateLimit.tooMany` instead. Mutually exclusive with
+   * `oauthError` — the callback route sends exactly one `error` code.
+   */
+  rateLimited: boolean
   /** Whether the test login is enabled (`serverEnv().authTestLogin`). */
   testLogin: boolean
   signInWithProvider: (formData: FormData) => Promise<void>
@@ -99,6 +106,7 @@ function SignInPanel({
     <div data-slot="sign-in-panel" className="flex w-full flex-col gap-6">
       <PageHeader title={vi.auth.signInTitle} description={vi.auth.signInDescription} />
       {oauthError && <Banner tone="danger">{vi.auth.signInFailed}</Banner>}
+      {rateLimited && <Banner tone="danger">{vi.rateLimit.tooMany}</Banner>}
       <div className="flex flex-col gap-3">
         {PROVIDERS.map(({ provider, label }) => (
           <form key={provider} action={signInWithProvider}>

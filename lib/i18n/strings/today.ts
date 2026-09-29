@@ -1,4 +1,5 @@
 import { checkIn } from './check-in'
+import { overrides } from './overrides'
 
 /**
  * `/today` (Part B-M5 decision 3): only 5.1a, 5.1b and 5.4 edit this file, in their waves.
@@ -38,12 +39,15 @@ export const today = {
     practice: 'Luyện tập',
     extra: 'Học thêm',
   },
-  /** Practice blocks by `tag` or `itemType`; an unlisted one reads `kind.practice`. */
+  /** Practice blocks by `tag` or `itemType`; an unlisted one reads `kind.practice`. Includes the
+   *  AI override tags (`topic-practice`, `extra-week`) from `vi.overrides.blockTags` — one label
+   *  each, not duplicated here. */
   practice: {
     exercise: 'Bài tập',
     shadowing: 'Shadowing',
     'mock-interview': 'Mock interview',
     'weekend-task': 'Nhiệm vụ cuối tuần',
+    ...overrides.blockTags,
   },
   block: {
     /** §5.4: a new item over the budget, or a practice block longer than the track budget. */

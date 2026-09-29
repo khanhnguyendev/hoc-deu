@@ -51,12 +51,14 @@ describe('package scripts', () => {
     expect(scripts['test:sim']).toBe('SIM_FULL=1 vitest run lib/domain/plan/__tests__/simulation')
   })
 
-  it('verify:full runs verify, test:sim, test:db and test:e2e', () => {
+  it('verify:full runs verify, test:sim, test:db, then the browser projects and bot-api apart (as CI)', () => {
+    // bot-api flips the global bot settings: it never runs alongside desktop and mobile.
     expect(scripts['verify:full']?.split(' && ')).toEqual([
       'pnpm verify',
       'pnpm test:sim',
       'pnpm test:db',
-      'pnpm test:e2e',
+      'pnpm test:e2e --project=desktop --project=mobile',
+      'pnpm test:e2e --project=bot-api',
     ])
   })
 })

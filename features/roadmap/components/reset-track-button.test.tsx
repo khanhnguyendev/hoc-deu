@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from '@/components/patterns/page-header'
@@ -42,7 +42,8 @@ describe('ResetTrackButton ("Bắt đầu lại", §5.9)', () => {
     await user.click(screen.getByRole('button', { name: 'Huỷ' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(action).not.toHaveBeenCalled()
-    expect(document.activeElement).toBe(button)
+    // Radix returns focus from a timer after the close: wait for it (flake, review item 29).
+    await waitFor(() => expect(document.activeElement).toBe(button))
   })
 
   it('confirming sends the render’s request id and the track, then announces the answer', async () => {
@@ -76,8 +77,14 @@ describe('ResetTrackButton ("Bắt đầu lại", §5.9)', () => {
     await user.click(
       [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Bắt đầu lại')!,
     )
+    // The rejection settles outside act: its render is scheduled, not flushed by the click —
+    // wait for it instead of assuming the click's own delay covered it (flake, review item 29).
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Không lưu được thay đổi. Bạn thử lại nhé.',
+      ),
+    )
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    expect(screen.getByRole('status').textContent).toBe('Không lưu được thay đổi. Bạn thử lại nhé.')
     expect(toasts).toEqual([])
   })
 

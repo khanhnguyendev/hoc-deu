@@ -85,3 +85,32 @@ describe('roadmapSlots', () => {
     expect(slots.anytime.derivedDecks).toBe(englishView.anytime.derivedDecks)
   })
 })
+
+describe('customItemSlots (task 6.6a)', () => {
+  it('renders each custom item’s row once, keeping its title and hidden flag; the error as it is', async () => {
+    const { customItemSlots } = await import('./slots')
+    const { toCatalogItem } = await import('@/lib/content/user-items')
+    const item = toCatalogItem({
+      itemId: 'user:0123456789abcdef:on-hold',
+      itemType: 'flashcard',
+      trackId: 'english',
+      topicId: 'standup',
+      payload: { front: 'on hold', back: 'tạm dừng', tags: [] },
+      status: 'hidden',
+      createdOn: '2026-10-01',
+    })
+    const render = vi.fn((rendered: CatalogItem) => `row:${rendered.id}`)
+    expect(customItemSlots({ state: 'ready', items: [{ item, hidden: true }] }, render)).toEqual({
+      state: 'ready',
+      items: [
+        {
+          itemId: 'user:0123456789abcdef:on-hold',
+          title: 'on hold',
+          row: 'row:user:0123456789abcdef:on-hold',
+          hidden: true,
+        },
+      ],
+    })
+    expect(customItemSlots({ state: 'error' }, render)).toEqual({ state: 'error' })
+  })
+})

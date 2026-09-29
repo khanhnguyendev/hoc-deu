@@ -21,6 +21,14 @@ import {
   spend,
   startBudget,
 } from './budget'
+import {
+  activeOverrides,
+  effectiveRoadmap,
+  type ExtraWeekOverride,
+  extraWeekOf,
+  type InsertBlockOverride,
+  insertBlocksOn,
+} from './overrides'
 import { type DueEntry, dueQueue } from './queues'
 import { newQueue, roadmapWeek } from './roadmap'
 import { dayTemplate, planBlockId } from './template'
@@ -43,6 +51,7 @@ export type TrackEntry = { readonly enrollment: Enrollment; readonly track: Plan
 export type TrackSetup = {
   readonly ctx: PlanContext
   readonly enrollment: Enrollment
+  /** The effective roadmap (§5.12: the variant's roadmap with the active reorders applied). */
   readonly roadmap: PlanRoadmap | null
   readonly week: number
   /** The day's template blocks (`dayTemplate`). */
@@ -54,6 +63,10 @@ export type TrackSetup = {
   /** The track's new-item queue (§5.3), built on first use and then reused: every new-item
    *  selection of the plan reads the same queue (4.6 minor). */
   readonly newQueue: () => readonly string[]
+  /** The active `insert_block` overrides for today's weekday (§5.12), in start order. */
+  readonly insertBlocks: readonly InsertBlockOverride[]
+  /** The active `extra_week` override (§5.12): its topic practice replaces new items today. */
+  readonly extraWeek: ExtraWeekOverride | null
 }
 
 /** The running state of a track's plan (step 9). */
@@ -111,11 +124,17 @@ export function eligibleTracks(
     })
 }
 
-/** Steps 1–2: the roadmap week, the day's template, weak topics, the due queue, review debt and
- *  the effective new-item cap; the new-item queue once a step asks for it. */
+/** Steps 1–2: the effective roadmap and the day's overrides (§5.12), the roadmap week, the day's
+ *  template, weak topics, the due queue, review debt and the effective new-item cap; the new-item
+ *  queue once a step asks for it. */
 export function trackSetup(ctx: PlanContext, { enrollment, track }: TrackEntry): TrackSetup {
   const { trackId } = enrollment
-  const roadmap = track.roadmaps[enrollment.variant] ?? null
+  const overrides = activeOverrides(ctx.overrides ?? [], trackId, ctx.planDate)
+  const variantRoadmap = track.roadmaps[enrollment.variant] ?? null
+  const roadmap =
+    variantRoadmap === null
+      ? null
+      : effectiveRoadmap(variantRoadmap, track, overrides, ctx.catalog, ctx.items)
   const week = roadmapWeek(roadmap, ctx.catalog, ctx.items)
   const weakTopicIds = new Set(
     weakTopics(ctx.items, ctx.catalog, new Set([trackId])).map((topic) => topic.topicId),
@@ -145,6 +164,8 @@ export function trackSetup(ctx: PlanContext, { enrollment, track }: TrackEntry):
         items: ctx.items,
         includeBonus: enrollment.includeBonus,
       })),
+    insertBlocks: insertBlocksOn(overrides, weekdayOf(ctx.planDate)),
+    extraWeek: extraWeekOf(overrides),
   }
 }
 

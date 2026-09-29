@@ -29,6 +29,8 @@ type CheckInButtonProps = {
   /** The page's per-render request ID (decision 16): the same tap twice is one event. */
   requestId: string
   planId: string
+  /** The rendered plan's version (decision 36): a replaced plan answers "stale". */
+  planVersion: number
   blockId: string
   /** "{kind} · {track}": completes the button's accessible name (several cards, one page). */
   blockLabel: string
@@ -38,18 +40,25 @@ type CheckInButtonProps = {
  * The one-tap check-in (§5.5, DESIGN_SYSTEM §9): the full-width 48 px primary "Check-in" at the
  * bottom of a PlanBlockCard. It sends `done` without minutes — the server records the block's
  * `oneTapMinutes`, its estimate less its skipped items (ruling M5-R39 #3) — with the page's
- * request ID and the block's plan and ID, through `useActionFeedback` (UI I-3): pending while the action and the re-render run (a second
+ * request ID and the block's plan (its id and rendered version, decision 36) and ID, through `useActionFeedback` (UI I-3): pending while the action and the re-render run (a second
  * tap sends nothing, RF-2); a failed request says so beside the button. The action revalidates
  * `/today`: a success collapses the button into CheckInStatus and a stale answer swaps the plan,
  * so the answer is a toast when the button is gone and its own polite region while it stays —
  * never both — and focus moves to the block's "Sửa" (or one-tap) on the new page, else to the
  * plan's heading (DESIGN_SYSTEM §10).
  */
-function CheckInButton({ action, requestId, planId, blockId, blockLabel }: CheckInButtonProps) {
+function CheckInButton({
+  action,
+  requestId,
+  planId,
+  planVersion,
+  blockId,
+  blockLabel,
+}: CheckInButtonProps) {
   const feedback = useActionFeedback({ focusTarget: () => checkInControlOf(blockId) })
 
   const onClick = () => {
-    feedback.run(() => action({ requestId, planId, blockId, status: 'done' }))
+    feedback.run(() => action({ requestId, planId, planVersion, blockId, status: 'done' }))
   }
 
   return (

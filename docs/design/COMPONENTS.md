@@ -299,7 +299,9 @@ from `lib/i18n/vi.ts`.
 - **Variants:** sidebar (≥ 1024 px, collapsible 240 → 64 px) · top bar + bottom nav (< 1024 px)
 - **States:** current route (`aria-current="page"`, `primary-soft`), collapsed, admin / learner
 - **Usage:** `<AppShell user={{ name }} isAdmin={isAdmin} onSignOut={signOut}>…</AppShell>`
-- **Accessibility:** skip link to `#main`; nav landmarks "Điều hướng chính"; the current page is
+- **Accessibility:** skip link to `#main`; the expanded sidebar shows `LogoMark` before the
+  "Học Đều" title (task 6.0b, decorative — collapsed sidebar shows the toggle only); nav landmarks
+  "Điều hướng chính"; the current page is
   marked by `aria-current`, a semibold label and an indicator bar (never colour alone); account
   menu with "Quản trị" for admins only; "Đăng xuất" is awaited from `DropdownMenuItem onSelect`
   (Radix passes a non-serializable Event, and `onSignOut` takes none) — a genuine rejection shows a
@@ -368,6 +370,27 @@ from `lib/i18n/vi.ts`.
   an empty line keeps its height with a zero-width space. Syntax colours reuse verified text
   tokens (DESIGN_SYSTEM §9, decision 13): keyword `text-primary`, string `text-success`, constant
   `text-warning`, comment `text-muted-foreground italic` — no new design tokens
+
+### ConfirmActionButton
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/confirm-action-button.tsx`
+- **Props:** `icon: LucideIcon` (decorative), `label: string` (the visible text), `dialog: { title,
+  description, confirm }` (the ConfirmDialog's copy), `send: () => Promise<ActionAnswer>` (the
+  bound server action), `ariaLabel?: string` (a unique name starting with `label` — label in
+  name — when several rows share it), `tone?: 'default' | 'destructive'` (the dialog's confirm
+  button), `align?: 'start' | 'end'` (default `end`: the end of a list row; `start`: a column)
+- **Variants:** `align` start · end (cva); `tone` default · destructive
+- **States:** default · asking (the ConfirmDialog open) · pending (the dialog busy, cannot close)
+  · answered, through ActionFeedback (UI I-3): the dialog closes and the answer is in the button's
+  polite region; when the answer's re-render removed the button, a toast and focus on the page's
+  focus fallback · failed request — "Không lưu được thay đổi. Bạn thử lại nhé." beside the button,
+  never the error boundary
+- **Usage:** `<ConfirmActionButton icon={RotateCcw} label="Bắt đầu lại" dialog={copy}
+  tone="destructive" align="start" send={() => resetTrack({ requestId, trackId })} />` — behind
+  ResetTrackButton, HideCustomItemButton and RevokeOverrideButton
+- **Accessibility:** an outline button (44 px) with its icon `aria-hidden`; the `alertdialog`
+  traps focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
 
 ### ConfirmDialog
 
@@ -483,7 +506,8 @@ from `lib/i18n/vi.ts`.
 - **States:** static
 - **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
   `/onboarding`)
-- **Accessibility:** skip link to `#main`; header wordmark links to `/`; `main#main` is the page's
+- **Accessibility:** skip link to `#main`; header wordmark links to `/`, `LogoMark` before the
+  text (task 6.0b) — the link's accessible name stays "Học Đều"; `main#main` is the page's
   landmark; toasts are announced in the Toaster's polite live region
 - **Layout:** `main` stacks its children with the section spacing (`gap-6 md:gap-8 lg:gap-10`,
   DESIGN_SYSTEM §5)
@@ -687,6 +711,26 @@ from `lib/i18n/vi.ts`.
 - **Usage:** `<StreakBadge days={12} />`
 - **Accessibility:** reads "12 ngày liên tiếp"; flame decorative
 
+### SwitchField
+
+- **Layer:** pattern (client)
+- **File:** `components/patterns/switch-field.tsx`
+- **Props:** `id: string`, `label: string` (the visible Label), `checked: boolean`,
+  `onCheckedChange: (next) => void`, `ariaLabel?: string` (a name that starts with `label`, e.g.
+  "… cho {name}" in a table row), `description?: ReactNode`, `error?: string | null`, `disabled?`,
+  `pending?` (`aria-busy`)
+- **Variants:** —
+- **States:** off · on · with description · saving (`aria-busy`) · disabled (with its reason as
+  the description) · failed (the error under it)
+- **Usage:** `<SwitchField id="bot-enabled" label="Bật bot" description={…} error={error}
+  checked={value} pending={pending} onCheckedChange={change} />` — the `/admin/bot` switches, the
+  AI flag (AiFlagToggle), NotesSharing. It only shows the position it is given: the caller saves,
+  and puts the switch back on the saved value when a save fails
+- **Accessibility:** a Switch named by its paired Label (or `ariaLabel`, label first); its
+  `aria-describedby` joins the description and the error; the error is the shared
+  `FormFieldError` line (icon + `text-danger`, never colour alone) in an always-mounted
+  `role="alert"` region
+
 ### ThemeToggle
 
 - **Layer:** pattern
@@ -696,6 +740,23 @@ from `lib/i18n/vi.ts`.
 - **States:** light, dark, system
 - **Usage:** `<ThemeToggle />` (settings, catalog)
 - **Accessibility:** radio group labelled "Giao diện"
+
+
+### Brand (`components/patterns/logo-mark.tsx`)
+
+Task 6.0b adds these entries below this line (Part B-M6 decision 3).
+
+### LogoMark
+
+- **Layer:** pattern
+- **File:** `components/patterns/logo-mark.tsx`
+- **Props:** `className?: string`
+- **Variants:** —
+- **States:** static — the fill classes swap heat ramps under `dark:` (no separate dark prop)
+- **Usage:** `<LogoMark />` before the "Học Đều" text in `FocusLayout`'s header link and the
+  sidebar title (`docs/design/brand-kit/README.md` "Wiring it into the app")
+- **Accessibility:** decorative (`aria-hidden="true"`); the wordmark text beside it carries the
+  accessible name "Học Đều", never this mark alone
 
 ## features
 
@@ -767,17 +828,20 @@ from `lib/i18n/vi.ts`.
 - **Props:** `users: readonly AdminUserRow[]` (from `listUsers()`, in its order),
   `setUserStatus: (userId, 'active' | 'rejected' | 'suspended', expectedFrom: AccountStatus) =>
   Promise<AdminActionResult>` (`expectedFrom`: the status the row was rendered with —
-  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>` — the
-  server actions come in as props (passed on to `UserRowActions`), so the catalog passes no-ops
+  `p_expected_from`, task 5.6), `setUserRole: (userId, Role) => Promise<AdminActionResult>`,
+  `setAiFlag: (userId, on: boolean) => Promise<AdminActionResult>` (task 6.3) — the server actions
+  come in as props (passed on to `UserRowActions` and `AiFlagToggle`), so the catalog passes no-ops
 - **Variants:** none
 - **States:** four Sections — "Chờ duyệt (n)" (pending, oldest first), "Đang hoạt động", "Tạm
   khoá", "Bị từ chối"; each empty section shows an EmptyState ("Không có tài khoản nào chờ
   duyệt." for the queue); a row shows the name (the e-mail when there is none), the e-mail, "Tham
   gia {day}" (the sign-up's calendar day in Asia/Ho_Chi_Minh, `formatDay`), a "Quản trị viên"
-  Badge for admins, and `UserRowActions` — the acting admin's own row shows a "Bạn" Badge and no
-  actions (decision 17)
+  Badge for admins, the `AiFlagToggle` ("Cá nhân hoá AI", task 6.3) on every active row — and,
+  disabled, on another row whose flag is still on — and `UserRowActions`; the acting admin's own
+  row shows a "Bạn" Badge, its AI flag toggle (decision 34) and no other actions (decision 17)
 - **Usage:** `<PageHeader title="Người dùng" /><UserQueue users={await listUsers()}
-  setUserStatus={setUserStatus} setUserRole={setUserRole} />` (`app/(admin)/admin/users/page.tsx`)
+  setUserStatus={setUserStatus} setUserRole={setUserRole} setAiFlag={setAiFlag} />`
+  (`app/(admin)/admin/users/page.tsx`)
 - **Accessibility:** each section is a region named by its h2; the empty-state titles are h3;
   rows are DataList items (≥ 44 px); the admin and "Bạn" badges are text, never colour alone;
   each row's content is a programmatic focus target (`id={userRowId(user.id)}`, `tabIndex={-1}`,
@@ -846,16 +910,19 @@ from `lib/i18n/vi.ts`.
 - **Layer:** feature (`features/auth`, client)
 - **File:** `features/auth/components/sign-in-panel.tsx`
 - **Props:** `next: string | null` (a path already checked with `safeNextPath`), `oauthError:
-  boolean` (`/sign-in?error=oauth`), `testLogin: boolean` (`serverEnv().authTestLogin`),
-  `signInWithProvider: (formData) => Promise<void>`, `signInWithTestLogin: (state, formData) =>
-  Promise<TestLoginState>` — the server actions come in as props, so the catalog passes no-ops
+  boolean` (`/sign-in?error=oauth`), `rateLimited: boolean` (`/sign-in?error=rate_limited`, §2.3,
+  task 6.1), `testLogin: boolean` (`serverEnv().authTestLogin`), `signInWithProvider: (formData)
+  => Promise<void>`, `signInWithTestLogin: (state, formData) => Promise<TestLoginState>` — the
+  server actions come in as props, so the catalog passes no-ops
 - **Variants:** providers only · with the test login (local and CI)
 - **States:** default; OAuth error (danger Banner "Đăng nhập không thành công. Bạn thử lại nhé.");
-  submitting (the pressed button shows its spinner); test-login error ("Email hoặc mật khẩu không
-  đúng.")
+  rate-limited (danger Banner "Bạn thao tác quá nhanh. Hãy thử lại sau ít phút.", mutually
+  exclusive with the OAuth error); submitting (the pressed button shows its spinner); test-login
+  error ("Email hoặc mật khẩu không đúng.")
 - **Usage:** `<FocusLayout><SignInPanel next={next} oauthError={error === 'oauth'}
-  testLogin={serverEnv().authTestLogin} signInWithProvider={signInWithProvider}
-  signInWithTestLogin={signInWithTestLogin} /></FocusLayout>` (`app/(public)/sign-in`)
+  rateLimited={error === 'rate_limited'} testLogin={serverEnv().authTestLogin}
+  signInWithProvider={signInWithProvider} signInWithTestLogin={signInWithTestLogin}
+  /></FocusLayout>` (`app/(public)/sign-in`)
 - **Accessibility:** one h1 (PageHeader "Đăng nhập"); "Tiếp tục với Google" / "Tiếp tục với
   GitHub" are submit buttons of their own forms (hidden `provider` and `next`); the test login is a
   region named by its h2 "Đăng nhập thử nghiệm" containing a form of its own, named "Biểu mẫu đăng
@@ -1133,14 +1200,20 @@ not under `components/`), described under ItemView below, the one place it rende
 
 - **Layer:** feature (`features/roadmap`, server-compatible)
 - **File:** `features/roadmap/components/item-view.tsx`
-- **Props:** `backHref: string`, `trackTitle: string`, `page: ReactNode` (`<ItemBody item viewer
+- **Props:** `backHref: string`, `trackTitle: string`, `custom?: boolean` (task 6.6a: the
+  learner's own custom item, `ItemPageModel.custom`), `hidden?: boolean` (a custom item the
+  learner hid), `page: ReactNode` (`<ItemBody item viewer
   resolveItem />`, task 5.1c). **No `notice` prop** (M3-R4): the page's ItemPageFrame owns the
   draft / retired notice, so ItemView never renders a second one
-- **Variants:** the back link: the track · the track list · `/today` (m-9)
+- **Variants:** the back link: the track · the track list · `/today` (m-9); a custom item: the
+  primary badge "Mục riêng của bạn" (a decorative `UserRound` and words) under the link; a hidden
+  one adds the neutral badge "Đã ẩn" (a decorative `EyeOff`) and one line why the page records
+  nothing ("Bạn đã ẩn mục này nên chỉ xem lại được, không ghi nhận kết quả.")
 - **States:** `page` pending — `<Suspense>` shows LoadingState `variant="page"` (task 5.1c: the
   route validates its params and calls `notFound()` before `page` is built, so only this part ever
   suspends — never the 404 check itself) · ready — `page`
-- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title} page={<ItemBody
+- **Usage:** `<ItemView backHref={model.backHref} trackTitle={model.track.title}
+  custom={model.custom} page={<ItemBody
   item={model.item} viewer={model.viewer} resolveItem={model.resolveItem} state={model.state}
   outcome={…} mockInterviewProblem={model.mockInterviewProblem} />} />`
   (`app/(app)/t/[trackId]/items/[itemId]/page.tsx`; task 5.2c: `outcome` is `{ ...model.outcome,
@@ -1687,8 +1760,10 @@ Copy: `vi.today`.
   `page.openBlockId` (`/today?block=<id>`, a block the dashboard shows) opens its CheckInSheet.
   Task 5.4: a card-only block grades its cards inline (CardBlock in PlanBlockCard's `cards`
   slot, decision 19), and in the plan and resumed states a Section "Học thêm" under the blocks
-  lists an ExtraButton per active, started track (`page.extra`). No mode badge in v1.0
-  (decision 12)
+  lists an ExtraButton per active, started track (`page.extra`). Task 6.5b: when the plan shown
+  (today's, resumed or paused) is an AI plan, `page.aiPlan` puts an AiPlanNote under the page
+  header; a baseline plan shows no badge (v1.0 unchanged). Every CheckInButton, CheckInSheet and
+  CardBlock gets the shown plan's id and `version` (decision 36)
 - **States:** loading (`loading.tsx`) · empty plan (TodayEmpty `noBlocks`, stats still shown) ·
   error (`unreadable`; `error.tsx`: ErrorState `h1` "Không tải được kế hoạch hôm nay" + "Thử lại")
   · ready — all in the catalog (m-3)
@@ -1880,7 +1955,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 - **Layer:** feature (`features/checkin`, **client**)
 - **File:** `features/checkin/components/check-in-button.tsx`
 - **Props:** `action: CheckInAction` (`checkInBlock`, unbound), `requestId: string`, `planId:
-  string`, `blockId: string`, `blockLabel: string` ("{kind} · {track}")
+  string`, `planVersion: number` (the rendered plan's version — a replaced plan answers "stale",
+  decision 36, task 6.5b), `blockId: string`, `blockLabel: string` ("{kind} · {track}")
 - **Variants:** —
 - **States:** through ActionFeedback (UI I-3): idle · pending (Button `loading`: spinner,
   `aria-busy`; a second tap sends nothing, RF-2) · answered — the action revalidates `/today`: a
@@ -1917,7 +1993,8 @@ Exported through `features/checkin/index.ts` (no `server-only` module). Copy: `v
 
 - **Layer:** feature (`features/checkin`, **client**)
 - **File:** `features/checkin/components/check-in-sheet.tsx`
-- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `block:
+- **Props:** `action: CheckInAction`, `requestId: string`, `planId: string`, `planVersion:
+  number` (decision 36, task 6.5b), `block:
   CheckInSheetBlock` (`{ id, kindLabel, trackTitle, estMinutes, defaultMinutes, checkIn: {
   status, minutes, note } | null }`), `onClose?: () => void` (default `router.replace('/today')`)
 - **Variants:** a bottom Sheet below `md`, a Dialog from `md` (`useMediaQuery(MEDIA.md)`) · new
@@ -2296,7 +2373,8 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
 - **File:** `features/today/components/card-block.tsx`
 - **Props:** `cards: CardSessionCard[]` (the block's cards not handled yet, `todaySlots`),
   `items: BlockItemSlot[]` (the block's rows), `requestId: string`, `record: RecordOutcome`
-  (`recordOutcome`, unbound)
+  (`recordOutcome`, unbound), `plan?: { id, version }` (the rendered plan, sent with each grade
+  — decision 36, task 6.5b; omitted in demos)
 - **Variants:** session (CardSession with `headingLevel={4}` — under the block's `h3`, parked #7 —
   and an outline "Xem nghĩa", the block's "Check-in" being the view's primary, m-12;
   FlashcardView + "Biết" / "Chưa chắc" / "Không biết") · rows (every card was handled before the
@@ -2358,8 +2436,9 @@ unbound, as props from the page (`addExtraAction`, `recordOutcome`, `resetTrack`
   button are gone: a toast, focus on the page's `h1`; re-review M2)
 - **Usage:** `<ResetTrackButton action={resetTrack} requestId={data.requestId}
   trackId={data.track.id} />` (TrackProgress's `actions`, only for an active or paused enrollment)
-- **Accessibility:** an outline button with a decorative `RotateCcw`; the `alertdialog` traps
-  focus and returns it to the button on close (ConfirmDialog); a polite `role="status"`
+- **Accessibility:** a ConfirmActionButton (`align="start"`, destructive): an outline button with
+  a decorative `RotateCcw`; the `alertdialog` traps focus and returns it to the button on close
+  (ConfirmDialog); a polite `role="status"`
 
 ### Admin overview components (`features/admin/components`)
 
@@ -2382,9 +2461,12 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Usage:** `<AdminOverview page={await getAdminOverview()} />` (`app/(admin)/admin/page.tsx`)
 - **Layout:** PageHeader "Quản trị"; AdminWarnings; "Tài khoản và hoạt động" (StatCards: accounts
   by status, learners who completed a day and plans created in the last 7 days); "Hệ thống"
-  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam);
-  "Trang quản trị" (a LinkList of LinkRows to `/admin/users` and `/admin/content` with one-line
-  summaries)
+  (StatCards: DB size, last backup, last restore test, last cron run — times in Vietnam; the
+  Upstash rate-limit fail-open count of the last 7 days, task 6.1; "Bot AI" — the latest bot run's
+  status with a failure's reason and "Lần chạy gần nhất: {day}", or "Chưa chạy" / "Bot chưa chạy
+  lần nào.", or "Không đọc được" when the run log could not be read — the page still renders,
+  task 6.4a); "Trang quản trị" (a LinkList of
+  LinkRows to `/admin/users` and `/admin/content` with one-line summaries)
 - **Accessibility:** one `h1`; each section a region named by its `h2`; counts only — no learner is
   named (§4.5)
 
@@ -2396,7 +2478,10 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 - **Variants:** Banner `danger` (danger-soft: the red content-coverage warning, DB ≥ 450 MB) ·
   Banner `warning` (warning-soft: DB ≥ 100 MB "chuyển sao lưu sang chuỗi gia tăng", ≥ 350 MB
   "bật nén sự kiện cũ (ADR-0031)", no backup confirmed in 36 h, no restore test in 8 days, and —
-  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào")
+  once the cron has run — "Chưa có lần sao lưu / kiểm tra khôi phục thành công nào"; task 6.1:
+  the in-memory rate-limit mode in production, and a fail-open count above 0 in the last 7 days;
+  task 6.4a: "N người dùng AI không được xử lý hôm nay — …" with "Mở Bot AI" while today's plan
+  run deferred users)
 - **States:** warnings · none ("Không có cảnh báo nào." with a check icon)
 - **Usage:** rendered by AdminOverview
 - **Accessibility:** a region "Cảnh báo"; each warning is icon + one sentence + one action (a link
@@ -2441,12 +2526,315 @@ coverage horizon of decision 25); the two tables share `features/admin/component
 
 - **Layer:** feature (`features/admin`)
 - **File:** `features/admin/components/drafts-list.tsx`
-- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`)
+- **Props:** `drafts: Drafts` (`tracks`, `items`, `notes`; an item or note entry carries its
+  publish `target`, `checklist`, `verification` and pending `request` — task 6.7a),
+  `requestPublish?`, `cancelPublish?` (the server actions; without them — the catalog — the
+  pending state shows, no button)
 - **Variants:** —
 - **States:** groups "Lộ trình nháp (n)", "Mục nháp (n)", "Ghi chú nháp (n)" (an empty group is left
-  out) · empty (EmptyState "Không có bản nháp nào."); always the line "v1.0: xuất bản bằng một thay
-  đổi `status` trong `content/**` (nút "Xuất bản" có từ v1.1)." — no publish button in v1.0 (§6.6)
-- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts} /></Section>`
+  out) · empty (EmptyState "Không có bản nháp nào."); always the line "Xuất bản bằng nút "Xuất bản"
+  (lần chạy bot mở PR) hoặc đổi `status` trong `content/**`."; v1.1 (§6.6): beside each draft
+  item and note a `PublishButton` ("Xuất bản", or "Đang chờ xuất bản" with its PR and "Huỷ"); a
+  draft note shows its verification badge — "Đã kiểm thử", "Chỉ biên dịch", or for a note the bot
+  wrote "Đã kiểm thử (test do bot viết)" (ADR-0040, `warning` tone with a bot icon)
+- **Usage:** `<Section title="Bản nháp"><DraftsList drafts={page.drafts}
+  requestPublish={requestPublish} cancelPublish={cancelPublish} /></Section>`
 - **Accessibility:** each group a LinkList, each entry a LinkRow (44 px) to its page — admins see
-  drafts; LeetCode
-  titles and English card fronts carry `lang="en"`; group titles are `h3`
+  drafts; the publish controls sit beside the link, never inside it; LeetCode titles and English
+  card fronts carry `lang="en"`; group titles are `h3`; a badge is an icon and words
+
+### Admin bot components (`features/admin/components`)
+
+Tasks 6.3 and 6.4a add these entries below this line (Part B-M6 decision 3).
+
+### BotControls
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/bot-controls.tsx`
+- **Props:** `controls: BotControlsView` (`enabled`, `dryRun`, `contentProposals`,
+  `perRunUserCap`, `capMax` — from `getAdminBot()`), `updateBotSettings: (input:
+  BotSettingsInput) => Promise<AdminActionResult>` (the server action, a prop so the catalog
+  passes a stub)
+- **Variants:** —
+- **States:** three Switches — "Bật bot" (`enabled`, the kill switch's row lock), "Chạy thử
+  (dry-run)" (`dry_run`), "Đề xuất nội dung" (`content_proposals`), each with its description and
+  saved on its own the moment it changes (`updateBotSettings({ [field]: value })`); saving (the
+  switch shows the new position, `aria-busy`); failed — back to the saved position, the message
+  beside the switch and a toast. The per-run cap: a number field (1–`capMax`, "Từ 1 đến 100 (giới
+  hạn cứng).") with its own "Lưu" form; an invalid value is refused in the form ("Nhập một số
+  nguyên từ 1 đến 100.", `aria-invalid`) without a request; a failed save shows a danger Banner
+  (FormActions) and a toast. The switches and the cap follow a re-render with new saved values
+- **Usage:** `<Section title="Điều khiển"><BotControls controls={page.controls}
+  updateBotSettings={updateBotSettings} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
+- **Accessibility:** each switch a SwitchField, labelled by its visible Label and described by its
+  description (and its error, in its `role="alert"` region); the cap field is a FormField (label, description, error by `aria-describedby`);
+  results are polite toasts, never the only feedback for a failure
+
+### BotToken
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/bot-token.tsx`
+- **Props:** `token: BotTokenView` (`{ state: 'none' }` or `{ state: 'set', createdAt,
+  previousValidUntil }`, times already formatted in Asia/Ho_Chi_Minh), `rotateBotToken: () =>
+  Promise<{ ok: true; token; message } | { ok: false; message }>`
+- **Variants:** —
+- **States:** no token ("Chưa có token"); a token ("Token hiện tại tạo lúc {time}", or "Đã có
+  token" without a time); the 24-hour overlap (also "Token cũ còn dùng được đến {time}");
+  confirming — "Tạo token mới" opens a ConfirmDialog ("Tạo token mới?", the old token works 24 more
+  hours; for the first token "Tạo token đầu tiên?", without the 24-hour sentence); rotating (pending); shown — the new token **once** in a read-only field with "Sao chép"
+  and a warning Banner "Token chỉ hiện một lần" (it lives only in this component's state: a reload
+  shows only the times, ADR-0026); failed — a danger Banner and a toast, no token
+- **Usage:** `<Section title="Token truy cập"><BotToken token={page.token}
+  rotateBotToken={rotateBotToken} /></Section>`
+- **Accessibility:** the dialog is an `alertdialog`; after a rotation focus moves to the new token
+  field (selecting it), otherwise it returns to "Tạo token mới"; the token
+  field is labelled "Token mới", `lang="en"`, selected on focus, described by the shown-once
+  warning; copy success or failure is a polite toast (a failure asks to copy by hand)
+
+### AiFlagToggle
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/ai-flag-toggle.tsx`
+- **Props:** `user: { id, name, status: AccountStatus, aiPersonalization: boolean }`, `setAiFlag:
+  (userId, on) => Promise<AdminActionResult>`
+- **Variants:** —
+- **States:** off, on — saved at once (`admin_set_ai_flag`), the row re-renders; saving
+  (`aria-busy`); failed — back to the saved value, the message in the row and a toast; not
+  `active` — disabled, with "Chỉ đổi được cho tài khoản đang hoạt động." (decision 34)
+- **Usage:** rendered by UserQueue in every active row (the admin's own included)
+- **Accessibility:** a SwitchField with the visible Label "Cá nhân hoá AI" and the accessible name
+  "Cá nhân hoá AI cho {name}" (`aria-label`, the visible label first — label in name), so each
+  row's switch is told apart; the reason and the error are linked by `aria-describedby`; the
+  state is the thumb's position, never colour alone
+
+### BotRunLog
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/bot-run-log.tsx`
+- **Props:** `log: BotRunLogView` (`{ state: 'ready', rows }` · `{ state: 'empty' }` · `{ state:
+  'error' }`, from `getAdminBot()`'s `admin_bot_runs(20)`), `deferredWarning?: string | null`
+- **Variants:** —
+- **States:** ready — a DataTable "Các lần chạy gần nhất của bot", newest first: the run's date
+  with "bắt đầu {time}" (Asia/Ho_Chi_Minh) as the row header, kind ("Kế hoạch" / "Xuất bản {n}"),
+  mode ("Chạy thật" / "Chạy thử"), status with its icon ("Đang chạy", "Hoàn tất", "Thất bại (quá
+  2 giờ)" / "(bot báo lỗi)"), the counts (đủ điều kiện, đang chờ, đã áp dụng, chạy thử, bỏ qua —
+  the three `skipped_*`, không hợp lệ, lỗi, hoãn), the content PR link ("PR #41", new tab) and
+  the bot's summary (counts only), "—" where there is none; with the deferred-users warning — a
+  `warning` Banner above the table ("N người dùng AI không được xử lý hôm nay — tăng giới hạn hoặc
+  giảm số người dùng AI."); empty — EmptyState "Chưa có lần chạy nào"; error — ErrorState "Không
+  đọc được nhật ký chạy" (the page's controls stay usable: the run log's read failing never takes
+  the kill switch down)
+- **Usage:** `<Section title="Nhật ký chạy" description={…}><BotRunLog log={page.runLog}
+  deferredWarning={page.deferredWarning} /></Section>` (`app/(admin)/admin/bot/page.tsx`)
+- **Accessibility:** the table is a focusable, labelled scroll region; each row's date is its row
+  header; status is an icon and words, never colour alone; the PR link says it opens a new tab;
+  counts only — no learner is named (§4.5)
+
+### AI plan components (`features/today/components`)
+
+Task 6.5b adds these entries below this line (Part B-M6 decision 3).
+
+### AiPlanNote
+
+- **Layer:** feature (`features/today`, server-compatible)
+- **File:** `features/today/components/ai-plan-note.tsx`
+- **Props:** `view: AiPlanView` (`{ rationale: string | null }` — `page.aiPlan` from
+  `buildTodayPage`, set only for a plan with `source 'ai'`)
+- **Variants:** with rationale · without (the badge alone)
+- **States:** ready (badge + rationale) · empty (an AI plan with no rationale: the badge alone) —
+  loading and error are `/today`'s own (`loading.tsx`, `error.tsx`); a baseline plan renders no
+  note at all (spec §2.4 mode badge, decision 16; v1.0 unchanged)
+- **Usage:** `{page.aiPlan !== null && <AiPlanNote view={page.aiPlan} />}` right under
+  TodayView's PageHeader
+- **Accessibility:** a `group` named "Kế hoạch do AI cá nhân hoá" (neutral: also the paused view); the `primary` Badge is
+  a decorative `Sparkles` icon and the words "Cá nhân hoá bởi AI" — never colour alone; the
+  rationale is plain text (cleaned on the server, escaped by React) in `text-muted-foreground`,
+  `max-w-prose`, `break-words` so a long word wraps at 320 px; theme tokens only (light and dark)
+
+### Custom item components (`features/roadmap/components`)
+
+Task 6.6a adds these entries below this line (Part B-M6 decision 3).
+
+### CustomItemsTab
+
+- **Layer:** feature (`features/roadmap`, server-compatible; its "Ẩn" is a client leaf)
+- **File:** `features/roadmap/components/custom-items-tab.tsx`
+- **Props:** `data: CustomItemsTabData` (`{ state: 'ready', items: CustomItemSlot[] }` ·
+  `{ state: 'error' }`; built by `customItemSlots(data.customItems, row)` from `getTrackPage`'s
+  `customItems` — each slot `{ itemId, title, row, hidden }`, `row` the page's registry row),
+  `hide: HideCustomItemAction` (`hideCustomItem`, unbound), `requestId: string` (the page's)
+- **Variants:** —
+- **States:** list — a Section "Mục riêng" with its description and a divided LinkList named
+  "Mục riêng": the active items first (each row, then "Ẩn"), then the hidden ones (each row, then
+  the neutral badge "Đã ẩn" with `EyeOff`); empty — renders nothing (the track page then shows no tab); error —
+  ErrorState "Không đọc được mục riêng" / "Lộ trình vẫn dùng được. Tải lại trang để thử lại." (the
+  roadmap tab and the rest of the page still work)
+- **Usage:** the "Mục riêng" panel of TrackTabs on `/t/[trackId]` (§2.4), whenever the learner
+  has custom items of the track — whatever the AI flag (§5.12)
+- **Accessibility:** each item is a list item with its row's link (the item page, where it is
+  studied) and its own button; "Đã ẩn" is words with an icon, never colour alone
+
+### HideCustomItemButton
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/hide-custom-item-button.tsx`
+- **Props:** `action: HideCustomItemAction`, `requestId: string`, `itemId: string`, `title: string`
+- **Variants:** —
+- **States:** default · asking (ConfirmDialog "Ẩn mục này?" / "Mục này sẽ không xuất hiện trong kế
+  hoạch từ ngày mai." / "Ẩn") · pending (the dialog busy) · answered through ActionFeedback: the
+  dialog closes; the re-rendered tab moves the item to the hidden ones, so the answer ("Đã ẩn mục
+  này.", or "Mục này đã được ẩn trước đó.") comes as a toast; a failure is said beside the button
+- **Usage:** rendered by CustomItemsTab for each active item
+- **Accessibility:** a ConfirmActionButton: an outline button with a decorative `EyeOff`, visible
+  text "Ẩn" and the name "Ẩn {title}" (label in name), so each row's button is told apart; the `alertdialog` returns focus
+  to the button; a polite `role="status"`; 44 px
+
+### TrackTabs
+
+- **Layer:** feature (`features/roadmap`, client)
+- **File:** `features/roadmap/components/track-tabs.tsx`
+- **Props:** `roadmap: ReactNode` (RoadmapView or its empty state), `custom: ReactNode`
+  (CustomItemsTab), `initial?: 'roadmap' | 'custom'` (`?tab=custom`; default `roadmap`)
+- **Variants:** —
+- **States:** the roadmap tab · the "Mục riêng" tab
+- **Usage:** `/t/[trackId]` wraps the roadmap in it only when `getTrackPage`'s `customItems` is
+  not null; otherwise the page is unchanged
+- **Accessibility:** Radix Tabs: a `tablist` named "Nội dung lộ trình", arrow keys move between
+  "Lộ trình" and "Mục riêng", each panel labelled by its tab; 44 px triggers, the global focus ring
+
+### Override components (`features/settings/components`)
+
+Task 6.6c adds these entries below this line (Part B-M6 decision 3).
+
+### AiOverrides
+
+- **Layer:** feature (`features/settings`, server-compatible; its "Thu hồi" is a client leaf)
+- **File:** `features/settings/components/ai-overrides.tsx`
+- **Props:** `overrides: AiOverrideView[] | null` (`{ trackId, key, trackTitle, text, suspended }`,
+  built by `readAiOverrides` in `features/settings/overrides.ts`: the overrides in force, active or
+  suspended, with the one-line description by kind; null when they could not be read),
+  `requestId: string` (the page's), `revokeAiOverride: RevokeAiOverrideAction` (unbound)
+- **Variants:** —
+- **States:** list — a Section "Điều chỉnh lộ trình bởi AI" with its description and a DataList
+  of the same name: per override its track, its line ("Thêm 15 phút luyện Arrays & Hashing vào
+  T2, T4, T6 đến 19/10", "Một tuần luyện thêm chủ đề …: còn 3 ngày học", "Đổi thứ tự các chủ đề
+  sắp tới"), the warning badge "Tạm dừng (đã tắt cá nhân hoá AI)" when suspended, and "Thu hồi";
+  empty — renders nothing (the section is hidden); error — ErrorState "Không tải được các điều
+  chỉnh lộ trình. Hãy tải lại trang." (the rest of `/settings` still works); loading — none of its
+  own: `/settings` renders on the server with the list read
+- **Usage:** `/settings`, after notes sharing (§2.4 v1.1), whenever the learner has an override
+  in force — whatever the AI flag (§5.12)
+- **Accessibility:** a labelled list; each row's button is told apart by its name; "Tạm dừng" is
+  words with an icon, never colour alone
+
+### RevokeOverrideButton
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/revoke-override-button.tsx`
+- **Props:** `action: RevokeAiOverrideAction`, `requestId: string`, `trackId: string`,
+  `overrideKey: string`, `title: string` (the override's line), `trackTitle: string`
+- **Variants:** —
+- **States:** default · asking (ConfirmDialog "Thu hồi điều chỉnh này?" / "Thay đổi có hiệu lực
+  từ kế hoạch ngày mai." / "Thu hồi") · pending (the dialog busy) · answered through
+  ActionFeedback: the dialog closes; the re-rendered list drops the row, so the answer ("Đã thu
+  hồi. …", or "Điều chỉnh này đã được thu hồi.") comes as a toast; a failure is said beside the
+  button
+- **Usage:** rendered by AiOverrides for each override
+- **Accessibility:** a ConfirmActionButton: an outline button with a decorative `Undo2`, visible
+  text "Thu hồi" and the name "Thu hồi: {line} ({track})" (label in name; unique even when two
+  tracks have the same line); the `alertdialog` returns focus to the button; a polite
+  `role="status"`; 44 px
+
+### Publish components (`features/admin/components`)
+
+Task 6.7a adds these entries below this line (Part B-M6 decision 3).
+
+### PublishButton
+
+- **Layer:** feature (`features/admin`, client)
+- **File:** `features/admin/components/publish-button.tsx`
+- **Props:** `target: string` (the item ID or `<itemId>#note`), `title: string`, `titleLang?`,
+  `checklist: 'problem' | 'item'`, `request: PendingPublish | null` (`{ requestId, pr }`),
+  `requestPublish?: (target) => Promise<AdminActionResult>`, `cancelPublish?: (requestId) =>
+  Promise<AdminActionResult>` (the server actions, props so the catalog passes stubs; without them
+  only the state shows)
+- **Variants:** —
+- **States:** draft — an outline "Xuất bản" button (accessible name "Xuất bản {title}") that opens
+  the publish checklist (§6.6): "Xuất bản {title}?", a fieldset "Danh sách kiểm tra trước khi xuất
+  bản" with three Checkboxes — for a problem or note: the `tests.yaml` examples match LeetCode, the
+  explanation and complexity are right, the bilingual line reads naturally; for any other item the
+  same checks in its terms — and "Xuất bản" disabled with "Đánh dấu đủ ba mục để xuất bản." until
+  all three are ticked (a reopened dialog starts unticked); loading while the request is saved;
+  pending — "Đang chờ xuất bản" with a clock icon, "PR #n" (new tab) once a publish run included
+  the request, and "Huỷ" (accessible name "Huỷ yêu cầu xuất bản {title}"); a success or a stale
+  answer (the page re-renders with the current state) is a toast; a failed request keeps the dialog
+  open, ticks kept, with the failure in its FormActions `role="alert"` region (cleared when the
+  dialog opens again); a failed "Huỷ" says why beside the button (the FormFieldError line in an
+  always-mounted `role="alert"` region, linked by `aria-describedby`)
+- **Usage:** rendered by `DraftsList` beside each draft item and note
+- **Accessibility:** the dialog is labelled by its title (the title in `lang="en"` for a LeetCode
+  title), each checkbox by its line (44 px hit area), the disabled confirm is described by the
+  hint; focus returns to "Xuất bản" on a close, and after a request or a cancel moves to the
+  control that replaces the one used (WCAG 2.4.3)
+
+### PublishRequests
+
+- **Layer:** feature (`features/admin`)
+- **File:** `features/admin/components/publish-requests.tsx`
+- **Props:** `requests: PublishRequestsView` (`{ state: 'ready', rows }` · `{ state: 'empty' }` ·
+  `{ state: 'error' }`, from `getAdminContent()`)
+- **Variants:** —
+- **States:** ready — a DataTable "Các yêu cầu xuất bản": pending first, then the 20 latest merged
+  or cancelled, newest first; per row the item (a link to its page, its kind and target in `code`;
+  a target the catalog no longer has is plain text), the status with its icon ("Đang chờ", "Đã
+  xuất bản", "Đã huỷ"), the publish run's PR ("PR #41", new tab, or "—") and "Yêu cầu lúc"
+  (`{time}, {day}`, Asia/Ho_Chi_Minh); loading — the page's `loading.tsx`; empty — EmptyState
+  "Chưa có yêu cầu xuất bản nào"; error — ErrorState "Không đọc được yêu cầu xuất bản" (the drafts
+  above stay usable)
+- **Usage:** `<Section title="Yêu cầu xuất bản" description={…}><PublishRequests
+  requests={page.publishRequests} /></Section>` (`app/(admin)/admin/content/page.tsx`)
+- **Accessibility:** the table is a focusable, labelled scroll region; each row's item is its row
+  header; status is an icon and words, never colour alone; the PR link says it opens a new tab
+
+### Notes sharing components (`features/settings/components`)
+
+Task 6.7b adds these entries below this line (Part B-M6 decision 3).
+
+### Switch
+
+- **Layer:** ui
+- **File:** `components/ui/switch.tsx`
+- **Props:** Radix `Switch.Root` props (`checked`, `onCheckedChange`, `disabled`, …)
+- **Variants:** none
+- **States:** unchecked (`bg-input`) · checked (`bg-primary`) · disabled (dimmed, no pointer) ·
+  focus-visible (the global ring)
+- **Usage:** `<Switch id="share" checked={value} onCheckedChange={setValue} />` paired with a
+  `<Label htmlFor="share">`
+- **Accessibility:** `role="switch"`, `aria-checked`; a 44×24 px control with the hit area
+  extended to 44 px tall (`before:-inset-y-2.5`, the same technique as Checkbox); toggles with
+  Space/Enter and the pointer; needs its own accessible name (a paired Label, or `aria-label`)
+
+### NotesSharing
+
+- **Layer:** feature (`features/settings`, client)
+- **File:** `features/settings/components/notes-sharing.tsx`
+- **Props:** `aiPersonalization: boolean` (`SettingsData.user.aiPersonalization`; hides the whole
+  section when off, §4.5), `shareNotesWithAi: boolean` (`SettingsData.user.shareNotesWithAi`),
+  `requestId: string` (per render, decision 9), `updateNotesSharing: SettingsAction`
+- **Variants:** hidden (`aiPersonalization` off — renders nothing, no Section heading either) ·
+  shown (a Section titled "Chia sẻ ghi chú với bot AI" with one SwitchField, the §4.6 sentence as
+  its description)
+- **States:** off (unchecked) · on (checked) · saving (`pending`, the switch disabled) · failed
+  (the error line in the SwitchField's always-mounted `role="alert"` region, and the switch goes
+  back to the saved value — a failed "off" shows on, because the notes are still shared; the
+  database's `ai_personalization_off` — a stale page whose AI flag turned off elsewhere — maps
+  to "Tính năng này chỉ dùng được khi tài khoản bật cá nhân hoá AI."). Turning the AI flag off
+  clears the stored value too (decision 34, `admin_set_ai_flag`)
+- **Usage:** `<NotesSharing aiPersonalization={data.user.aiPersonalization}
+  shareNotesWithAi={data.user.shareNotesWithAi} requestId={data.requestId}
+  updateNotesSharing={updateNotesSharing} />`
+- **Accessibility:** the switch is named "Chia sẻ ghi chú với bot AI" by a paired `<Label>`
+  (redundant with, but distinct from, the Section's own `h2` of the same text — the switch needs
+  its own accessible name) and described by the §4.6 sentence (`aria-describedby`); saves immediately on toggle (no separate "Lưu" button), the same
+  immediate-run pattern as TrackSettings' pause/resume; a toast confirms success, the failure
+  Banner is the only feedback for a failure (never a toast alone)

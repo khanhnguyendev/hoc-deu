@@ -15,6 +15,7 @@ const row = (overrides: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): Admin
   createdAt: '2026-01-10T03:00:00+00:00',
   approvedAt: null,
   onboardedAt: null,
+  aiPersonalization: false,
   isSelf: false,
   ...overrides,
 })
@@ -27,7 +28,7 @@ const USERS: AdminUserRow[] = [
   ME,
   row({ id: 'a1', displayName: 'Admin Khác', role: 'admin' }),
   row({ id: 'l1', displayName: 'Học Viên' }),
-  row({ id: 's1', displayName: 'Bị Khoá', status: 'suspended' }),
+  row({ id: 's1', displayName: 'Bị Khoá', status: 'suspended', aiPersonalization: true }),
   row({ id: 'r1', displayName: 'Bị Loại', status: 'rejected' }),
 ]
 
@@ -43,8 +44,16 @@ function setup(users: readonly AdminUserRow[] = USERS) {
   const setUserRole = mock.fn<(id: string, role: Role) => Promise<AdminActionResult>>(
     async () => ok,
   )
-  render(<UserQueue users={users} setUserStatus={setUserStatus} setUserRole={setUserRole} />)
-  return { setUserStatus, setUserRole, user: userEvent.setup() }
+  const setAiFlag = mock.fn<(id: string, on: boolean) => Promise<AdminActionResult>>(async () => ok)
+  render(
+    <UserQueue
+      users={users}
+      setUserStatus={setUserStatus}
+      setUserRole={setUserRole}
+      setAiFlag={setAiFlag}
+    />,
+  )
+  return { setUserStatus, setUserRole, setAiFlag, user: userEvent.setup() }
 }
 
 const region = (name: string | RegExp) => screen.getByRole('region', { name })
@@ -121,5 +130,37 @@ describe('UserQueue', () => {
     const { setUserStatus, user } = setup()
     await user.click(within(rowOf('Chờ Một')).getByRole('button', { name: 'Duyệt' }))
     await waitFor(() => expect(setUserStatus).toHaveBeenCalledWith('p1', 'active', 'pending'))
+  })
+
+  it('shows the AI flag toggle on every active row, the admin’s own included (decision 34)', () => {
+    setup()
+    // Each switch is named with its account (the visible label, then "cho …").
+    expect(
+      within(rowOf('Học Viên')).getByRole('switch', { name: 'Cá nhân hoá AI cho Học Viên' }),
+    ).toBeTruthy()
+    for (const name of ['Quản trị viên An', 'Admin Khác', 'Học Viên']) {
+      const toggle = within(rowOf(name)).getByRole('switch', { name: /^Cá nhân hoá AI cho / })
+      expect((toggle as HTMLButtonElement).disabled, name).toBe(false)
+    }
+    // The own row has the switch, still no buttons.
+    expect(within(rowOf('Quản trị viên An')).queryAllByRole('button')).toEqual([])
+  })
+
+  it('shows no toggle on a pending or rejected row, and a disabled one where the flag is still on', () => {
+    setup()
+    for (const name of ['Chờ Một', 'Bị Loại']) {
+      expect(within(rowOf(name)).queryByRole('switch'), name).toBeNull()
+    }
+    const suspended = within(rowOf('Bị Khoá')).getByRole('switch', { name: /^Cá nhân hoá AI cho / })
+    expect((suspended as HTMLButtonElement).disabled).toBe(true)
+    expect(suspended.getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('passes the row’s id and the new value to setAiFlag', async () => {
+    const { setAiFlag, user } = setup()
+    await user.click(
+      within(rowOf('Học Viên')).getByRole('switch', { name: /^Cá nhân hoá AI cho / }),
+    )
+    await waitFor(() => expect(setAiFlag).toHaveBeenCalledWith('l1', true))
   })
 })

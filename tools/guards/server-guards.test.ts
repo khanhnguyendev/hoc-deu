@@ -305,6 +305,44 @@ export const arrow = async (request: Request) => await requireCronSecret(request
     ])
   })
 
+  it('accepts requireBotToken only as `const denied = await requireBotToken(request)` + `if (denied) return denied` (task 6.3)', () => {
+    const source = `import { requireBotToken } from '@/lib/auth/bot'
+export async function POST(request: Request) {
+  const denied = await requireBotToken(request)
+  if (denied) return denied
+  return Response.json({ ok: true })
+}`
+    expect(guardViolations('app/api/bot/v1/runs/route.ts', source)).toEqual([])
+  })
+
+  it('flags requireBotToken whose denial is dropped, not returned at once, or not awaited', () => {
+    const source = `import { requireBotToken } from '@/lib/auth/bot'
+export async function POST(request: Request) {
+  await requireBotToken(request)
+  return Response.json({ ok: true })
+}
+export async function PUT(request: Request) {
+  const denied = await requireBotToken(request)
+  return Response.json({ ok: true, denied })
+}
+export async function PATCH(request: Request) {
+  const denied = requireBotToken(request)
+  if (denied) return denied
+  return Response.json({ ok: true })
+}
+export async function GET(request: Request) {
+  requireBotToken(request)
+  return Response.json({ ok: true })
+}
+export async function DELETE(request: Request) {
+  return await requireBotToken(request)
+}`
+    const flagged = guardViolations('app/api/bot/v1/runs/route.ts', source).map(
+      (v) => /`(\w+)`/.exec(v)?.[1],
+    )
+    expect(flagged).toEqual(['POST', 'PUT', 'PATCH', 'GET', 'DELETE'])
+  })
+
   it('checks every HTTP method and only those', () => {
     const source = `export const dynamic = 'force-dynamic'
 export function helper() {
@@ -568,8 +606,8 @@ describe('SYNC_GUARD_NAMES', () => {
 })
 
 describe('RESPONSE_GUARD_NAMES', () => {
-  it('lists the guards that return their denial: only requireCronSecret today (task 5.7a)', () => {
-    expect([...RESPONSE_GUARD_NAMES]).toEqual(['requireCronSecret'])
+  it('lists the guards that return their denial: requireCronSecret (5.7a) and requireBotToken (6.3)', () => {
+    expect([...RESPONSE_GUARD_NAMES]).toEqual(['requireCronSecret', 'requireBotToken'])
     for (const name of RESPONSE_GUARD_NAMES) {
       expect(GUARD_NAMES).toContain(name)
       expect(SYNC_GUARD_NAMES).not.toContain(name)

@@ -3,10 +3,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
-import { itemHref } from '@/features/items/href'
+import { itemPageHref } from '@/features/items/href'
 import { requireOnboarded } from '@/lib/auth/dal'
 import { own } from '@/lib/domain/compare'
-import type { PlanItem } from '@/lib/domain/catalog'
+import { isCustomItemId, type PlanCatalog, type PlanItem } from '@/lib/domain/catalog'
 import {
   autoCheckInMinutes,
   blocksToAutoCheckIn,
@@ -25,8 +25,9 @@ import { loadDerivedFor, loadItemStates, type DerivedLoad } from '@/lib/events/l
 import { vi } from '@/lib/i18n/vi'
 import { planCatalog } from '@/lib/plans/catalog'
 import { currentPlan, type CurrentPlan } from '@/lib/plans/current'
+import { catalogWith } from '@/lib/plans/day'
 import { attachOffPlan } from '@/lib/plans/extra'
-import { readEnrollments, readScheduleVersions, todayOf } from '@/lib/plans/reads'
+import { readEnrollments, readScheduleVersions, readUserItems, todayOf } from '@/lib/plans/reads'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
@@ -94,9 +95,16 @@ function domainEvent(
 
 type Loaded = Awaited<ReturnType<typeof loadDerivedFor>>
 
-/** `project` → `derivedWrite` on `loaded`: the rows `event` changes, with their versions. */
-function writeFor({ state, versions }: Loaded, event: DomainEvent) {
-  const { state: after, ignored } = projectEvent(state, event, planCatalog())
+/**
+ * `project` → `derivedWrite` on `loaded`: the rows `event` changes, with their versions. An item
+ * outcome projects on the catalog its item was found in (a custom item's: the overlay).
+ */
+function writeFor(
+  { state, versions }: Loaded,
+  event: DomainEvent,
+  catalog: PlanCatalog = planCatalog(),
+) {
+  const { state: after, ignored } = projectEvent(state, event, catalog)
   return { ignored, write: derivedWrite(state, after, versions) }
 }
 
@@ -119,7 +127,12 @@ async function checkInAttempt(
   request: CheckInInput,
 ): Promise<CheckInResult> {
   const { today, current } = await currentNow(supabase, userId)
-  const plan = current?.plan.id === request.planId ? current.plan : undefined
+  // Decision 36: the version the page rendered — an AI plan that replaced it keeps its id and
+  // repeats its block ids.
+  const plan =
+    current?.plan.id === request.planId && current.plan.version === request.planVersion
+      ? current.plan
+      : undefined
   const block = plan?.blocks.find((candidate) => candidate.id === request.blockId)
   // Decision 13: only the plan /today shows now — never yesterday's plan as if it were today's.
   if (plan === undefined || block === undefined) return { ok: false, message: copy.errors.stale }
@@ -201,6 +214,9 @@ function blockFor(plan: StoredPlan, itemId: string, blockId?: string): PlanBlock
  *  item never studied): nothing is written. */
 const NOT_APPLICABLE = Symbol('not applicable')
 
+/** The page showed another version of the plan (decision 36): nothing is written. */
+const STALE = Symbol('stale')
+
 type Placement = { readonly planId: string; readonly blockId: string }
 
 /**
@@ -245,9 +261,19 @@ async function outcomeAttempt(
   userId: string,
   request: OutcomeInput,
   item: PlanItem,
-): Promise<string | null | typeof NOT_APPLICABLE> {
+  catalog: PlanCatalog,
+): Promise<string | null | typeof NOT_APPLICABLE | typeof STALE> {
   const { today, current } = await currentNow(supabase, userId)
   const plan = current?.plan ?? null
+  // Decision 36: a result graded on a /today that showed another plan, or another version of it
+  // (a day-D page must not grade on a new day's plan that is also version 1; no current plan —
+  // a day start before the new day's plan exists — is stale too).
+  if (
+    request.planId !== undefined &&
+    (plan?.id !== request.planId || plan.version !== request.planVersion)
+  ) {
+    return STALE
+  }
   const block = plan === null ? undefined : blockFor(plan, request.itemId, request.blockId)
   const { type, payload } = outcomeEvent(request.outcome)
   const id = deriveEventId(request.requestId, outcomeKey(request))
@@ -262,7 +288,7 @@ async function outcomeAttempt(
     const keys = { itemId: request.itemId, trackId: item.trackId, ...placed }
     return {
       keys,
-      ...writeFor(loaded, domainEvent({ id, type, localDay: today, payload, ...keys })),
+      ...writeFor(loaded, domainEvent({ id, type, localDay: today, payload, ...keys }), catalog),
     }
   }
   const inPlan =
@@ -356,8 +382,9 @@ async function autoCheckIn(
  * projects and applies the event (`withRetry`). Then, when the result names a block, the auto
  * check-in of the blocks it completed (`autoCheckIn`), the extra block included. The event id
  * digests the payload (decision 16): the same grade twice is one event, another grade a second
- * one. Revalidates `/today` and the item's page — not `/review`, whose card session keeps its own
- * list (5.2c). An EventError becomes its Vietnamese message; anything else reaches the error
+ * one. Revalidates `/today` and the item's page (`itemPageHref`) — not `/review`, whose card
+ * session keeps its own list (5.2c). A custom item (`user:…`, task 6.6a) is looked up, projected
+ * and attached in the learner's catalog overlay (decision 17) and its page is decision 39's URL. An EventError becomes its Vietnamese message; anything else reaches the error
  * boundary.
  */
 export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult> {
@@ -365,19 +392,24 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
   const parsed = outcomeInputSchema.safeParse(input)
   if (!parsed.success) return { ok: false, message: copy.errors.invalid, autoCheckedIn: [] }
   const request = parsed.data
-  const item = own(planCatalog().items, request.itemId)
+  const supabase = await createClient()
+  // The catalog the outcome is looked up and projected in: a custom item (`user:…`, task 6.6a) is
+  // in the learner's overlay (`readUserItems`, the session client — RLS: another learner's item
+  // is unknown — then `catalogWith`, decision 17); a repository item reads nothing here.
+  const catalog = isCustomItemId(request.itemId)
+    ? catalogWith(await readUserItems(supabase, user.id))
+    : planCatalog()
+  const item = own(catalog.items, request.itemId)
   if (item === undefined) return { ok: false, message: copy.errors.unknownItem, autoCheckedIn: [] }
 
-  const supabase = await createClient()
   const revalidate = () => {
     revalidatePath(TODAY_PATH)
-    revalidatePath(
-      itemHref({ trackId: item.trackId, localId: item.id.slice(item.trackId.length + 1) }),
-    )
+    // Decision 39: the item page's own URL (a custom item's carries its whole ID).
+    revalidatePath(itemPageHref(item))
   }
-  let recorded: string | null | typeof NOT_APPLICABLE
+  let recorded: string | null | typeof NOT_APPLICABLE | typeof STALE
   try {
-    recorded = await withRetry(() => outcomeAttempt(supabase, user.id, request, item))
+    recorded = await withRetry(() => outcomeAttempt(supabase, user.id, request, item, catalog))
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     revalidate()
@@ -385,6 +417,10 @@ export async function recordOutcome(input: OutcomeInput): Promise<OutcomeResult>
   }
   if (recorded === NOT_APPLICABLE) {
     return { ok: false, message: copy.errors.invalid, autoCheckedIn: [] }
+  }
+  if (recorded === STALE) {
+    revalidate()
+    return { ok: false, message: copy.errors.stale, autoCheckedIn: [] }
   }
 
   const auto =

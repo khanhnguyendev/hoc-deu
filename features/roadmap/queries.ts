@@ -13,6 +13,13 @@ import type { ItemLink, ItemStateView, ItemViewer } from '@/features/items/types
 import { requireOnboarded, type SessionUser } from '@/lib/auth/dal'
 import { catalogAccess } from '@/lib/content/catalog'
 import type { CatalogItem } from '@/lib/content/catalog-types'
+import {
+  toCatalogItem,
+  withUserItems,
+  type UserCatalogItem,
+  type UserItemRow,
+} from '@/lib/content/user-items'
+import { isCustomItemId, type PlanCatalog } from '@/lib/domain/catalog'
 import { own } from '@/lib/domain/compare'
 import { blocksWithItem } from '@/lib/domain/plan/checkin'
 import { mockInterviewProblem } from '@/lib/domain/plan/practice'
@@ -25,6 +32,7 @@ import {
   readEnrollments as readPlanEnrollments,
   readItemStates,
   readScheduleVersions,
+  readUserItems,
   todayOf,
 } from '@/lib/plans/reads'
 import type { ItemStatus } from '@/lib/content/schemas/common'
@@ -76,6 +84,12 @@ export type TracksOverview = {
 
 export type VariantLink = { id: string; label: string; href: string; current: boolean }
 
+/** A custom item on the track page's "Mục riêng" tab (task 6.6a): hidden ones say "Đã ẩn". */
+export type CustomItemView = { item: UserCatalogItem; hidden: boolean }
+
+/** The "Mục riêng" tab's data: its items, or the read failed (the tab's error state). */
+export type CustomItemsData = { state: 'ready'; items: CustomItemView[] } | { state: 'error' }
+
 export type TrackPageData = {
   track: TrackSummary
   /** The learner's active or paused enrollment; null when not enrolled (or removed). */
@@ -93,12 +107,21 @@ export type TrackPageData = {
   progress: TrackProgressData | null
   /** The track's Weak items (§5.7) the viewer may see, for an enrolled learner; [] otherwise. */
   weakItems: CatalogItem[]
-  /** Per render (decision 16): "Bắt đầu lại" derives its event id from it. */
+  /**
+   * The "Mục riêng" tab (§2.4, task 6.6a): the learner's custom items of the track — active ones,
+   * then hidden ones — whatever the AI flag (§5.12); null when they have none (no tab).
+   */
+  customItems: CustomItemsData | null
+  /** Per render (decision 16): "Bắt đầu lại" and "Ẩn" derive their event ids from it. */
   requestId: string
 }
 
 export type ItemPageModel = {
   item: CatalogItem
+  /** The learner's own custom item (`user:…`, task 6.6a): the page says "Mục riêng của bạn". */
+  custom: boolean
+  /** A custom item the learner hid: the page says "Đã ẩn" and is read-only. */
+  hidden: boolean
   track: TrackSummary
   viewer: ItemViewer
   backHref: string
@@ -169,6 +192,40 @@ const stateView = (state: ItemState): ItemStateView => ({
 const followed = (enrollment: Enrollment | undefined): enrollment is Enrollment =>
   enrollment !== undefined && enrollment.status !== 'removed'
 
+/** Active first, then hidden (retired ones are not listed), each by ID. */
+function customItemsOf(rows: readonly UserItemRow[], trackId: string): CustomItemView[] {
+  const listed = (status: UserItemRow['status']) =>
+    rows.filter((row) => row.trackId === trackId && row.status === status)
+  return [...listed('active'), ...listed('hidden')].flatMap((row) => {
+    try {
+      return [{ item: toCatalogItem(row), hidden: row.status === 'hidden' }]
+    } catch {
+      // A stored payload that no longer parses has no page: not listed.
+      return []
+    }
+  })
+}
+
+/**
+ * The "Mục riêng" tab (task 6.6a): the learner's custom items of `trackId` through the session
+ * client (RLS: own rows), or the error state when the read fails — the rest of the page still
+ * renders. Null without any.
+ */
+async function readCustomItems(
+  supabase: SessionClient,
+  userId: string,
+  trackId: string,
+): Promise<CustomItemsData | null> {
+  let rows: UserItemRow[]
+  try {
+    rows = await readUserItems(supabase, userId)
+  } catch {
+    return { state: 'error' }
+  }
+  const items = customItemsOf(rows, trackId)
+  return items.length === 0 ? null : { state: 'ready', items }
+}
+
 /**
  * `/tracks` (§2.4): the learner's tracks (active and paused enrollments) and the other tracks they
  * could add — active ones, plus drafts for admins. Retired tracks show only to their learners.
@@ -197,7 +254,9 @@ export async function getTracksOverview(): Promise<TracksOverview> {
  * `readItemStates` — a derived card unlocks from another track's item), so the rows show their
  * state, a derived deck counts the cards this learner unlocked, and an enrolled learner gets the
  * progress on the enrolled variant and the track's Weak items; plus a per-render request id for
- * "Bắt đầu lại". Wrapped in `cache()`: `generateMetadata` and the page share one read.
+ * "Bắt đầu lại". Task 6.6a: the learner's custom items of the track for the "Mục riêng" tab
+ * (`readCustomItems`: null without any, the tab's error state when the read fails). Wrapped in
+ * `cache()`: `generateMetadata` and the page share one read.
  */
 export const getTrackPage = cache(
   async (trackId: string, variant: string | undefined): Promise<TrackPageData | null> => {
@@ -219,7 +278,10 @@ export const getTrackPage = cache(
         ? enrolled
         : defaultVariant(track.roadmaps, track.defaults.budgetMinutes)
     const roadmap = catalogAccess.getRoadmap(track.id, current)
-    const items = await readItemStates(supabase, user.id)
+    const [items, customItems] = await Promise.all([
+      readItemStates(supabase, user.id),
+      readCustomItems(supabase, user.id, track.id),
+    ])
     const trackItems = catalogAccess
       .getTrackItems(track.id)
       .filter((item) => isListed(item.status, user.isAdmin))
@@ -256,6 +318,7 @@ export const getTrackPage = cache(
           ? null
           : trackProgressOf(planCatalog(), track.id, enrollment.roadmapVariant, items),
       weakItems: enrollment === null ? [] : weakItemsOf(trackItems, items),
+      customItems,
       requestId: crypto.randomUUID(),
     }
   },
@@ -278,10 +341,18 @@ async function learnerContext(
   item: CatalogItem,
   trackActive: boolean,
   query: { readonly block: string | undefined; readonly mode: string | undefined },
+  catalog: PlanCatalog,
 ): Promise<Pick<ItemPageModel, 'state' | 'outcome' | 'mockInterviewProblem'>> {
-  const catalog = planCatalog()
   const planItem = own(catalog.items, item.id)
-  if (!trackActive || item.status !== 'active' || planItem === undefined) return READ_ONLY
+  // A hidden custom item is active on its page but retired to the engine: read-only too.
+  if (
+    !trackActive ||
+    item.status !== 'active' ||
+    planItem === undefined ||
+    planItem.status !== 'active'
+  ) {
+    return READ_ONLY
+  }
 
   const mockInterview = planItem.tag === MOCK_INTERVIEW_TAG
   const supabase = await createClient()
@@ -338,6 +409,27 @@ function mockInterviewLink(
 }
 
 /**
+ * A custom item's page (decision 39, task 6.6a): the learner's own item — read through the session
+ * client, so another learner's `user:` ID is never found (RLS) and the route answers 404 — with
+ * the catalog overlay its results context reads (decision 17). Null when it is not theirs.
+ */
+async function customItem(
+  user: SessionUser,
+  itemId: string,
+): Promise<{ item: UserCatalogItem; catalog: PlanCatalog; hidden: boolean } | null> {
+  const supabase = await createClient()
+  const rows = await readUserItems(supabase, user.id)
+  const row = rows.find((candidate) => candidate.itemId === itemId)
+  if (row === undefined) return null
+  const catalog = withUserItems(planCatalog(), [row], catalogAccess.catalog.tracks)
+  try {
+    return { item: toCatalogItem(row), catalog, hidden: row.status === 'hidden' }
+  } catch {
+    return null
+  }
+}
+
+/**
  * `/t/[trackId]/items/[itemId]` (§2.4, decision 24): the item for the route's parameters (the
  * local ID is decoded — derived IDs hold colons), its track, who is looking and the links it may
  * resolve. Null (→ 404) for an unknown item or track, and for a draft item or an item of a draft
@@ -348,7 +440,9 @@ function mockInterviewLink(
  * state, the result controls' context — `block` and `mode` are the route's `?block=` and `?mode=` —
  * and, for the mock-interview prompt, its problem. Wrapped in `cache()` like `getTrackPage`: the
  * route's `generateMetadata` and page pass the same primitive arguments and share one read (and
- * one request id).
+ * one request id). Task 6.6a (decision 39): a `user:` ID is the learner's own custom item
+ * (`customItem`, RLS: another learner's is null → 404), of the route's track, rendered through the
+ * registry like any item (`custom: true`), its results context on the catalog overlay.
  */
 export const getItemPage = cache(
   async (
@@ -360,7 +454,10 @@ export const getItemPage = cache(
     const user = await requireOnboarded()
     const track = catalogAccess.getTrack(trackId)
     if (track === null || (track.status === 'draft' && !user.isAdmin)) return null
-    const item = catalogAccess.getItem(itemIdFromRoute(trackId, itemParam))
+    const itemId = itemIdFromRoute(trackId, itemParam)
+    const custom = isCustomItemId(itemId)
+    const found = custom ? await customItem(user, itemId) : null
+    const item = custom ? (found?.item ?? null) : catalogAccess.getItem(itemId)
     if (item === null || item.trackId !== track.id) return null
     if (item.status === 'draft' && !user.isAdmin) return null
 
@@ -373,12 +470,20 @@ export const getItemPage = cache(
       if (!followed(row)) backHref = TRACKS_HREF
     }
 
-    const learner = await learnerContext(user, item, track.status === 'active', { block, mode })
+    const learner = await learnerContext(
+      user,
+      item,
+      track.status === 'active',
+      { block, mode },
+      found?.catalog ?? planCatalog(),
+    )
     // m-9: opened from a plan block (`?block=`) while the item is in the plan /today shows — the
     // way back is the dashboard, not the track.
     if (block !== undefined && learner.outcome?.plan) backHref = TODAY_HREF
     return {
       item,
+      custom,
+      hidden: found?.hidden ?? false,
       track: summaryOf(track),
       ...learner,
       viewer: {

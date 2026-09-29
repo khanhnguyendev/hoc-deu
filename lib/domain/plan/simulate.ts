@@ -10,8 +10,8 @@
  * copying the whole state per event. An event the engine ignores throws (4.8 minor): a simulation
  * that feeds the engine events it ignores measures nothing.
  */
-import { isActiveItem, type PlanCatalog, type PlanRoadmap } from '../catalog'
-import { own } from '../compare'
+import { isActiveItem, type PlanCatalog, type PlanRoadmap, type Weekday } from '../catalog'
+import { compareIds, own } from '../compare'
 import type { EventType } from '../events'
 import {
   applyChangesInPlace,
@@ -22,13 +22,22 @@ import {
 import { mulberry32 } from '../random'
 import { RULES_VERSION } from '../rules'
 import type { Outcome } from '../srs/outcomes'
-import { EMPTY_DERIVED_STATE } from '../state'
+import { EMPTY_DERIVED_STATE, type ItemState } from '../state'
 import { addDays, type LocalDay } from '../time/localDay'
 import { buildPlan, checkInMinutes, largestItemMinutes, plannedMinutes } from './buildPlan'
 import { gateStatus, unfinishedBlocks } from './gate'
 import { recapWeeksDone } from './history'
+import {
+  EXTRA_WEEK_TAG,
+  type ExtraWeekOverride,
+  type InsertBlockOverride,
+  OVERRIDE_LIMITS,
+  type RoadmapOverride,
+  TOPIC_PRACTICE_TAG,
+  validateOverride,
+} from './overrides'
 import { dueQueue } from './queues'
-import { coreItemsOfWeek } from './roadmap'
+import { coreItemsOfWeek, roadmapWeek } from './roadmap'
 import type { Enrollment, PlanBlock, StoredPlan } from './types'
 
 // ---------------------------------------------------------------------------------------------
@@ -63,6 +72,18 @@ export type SimOptions = {
   /** Items outside the track that gain a result over time (English derived-card sources):
    *  before day d's plan, the first min(⌊(d + 1) × perDay⌋, n) get a success. */
   readonly externalResults?: { readonly itemIds: readonly string[]; readonly perDay: number }
+  /** The learner's roadmap overrides for each day's plan (§5.12's scenario,
+   *  `personalizedOverrides`); absent = none, the baseline learner. */
+  readonly overrides?: (day: SimOverrideDay) => readonly RoadmapOverride[]
+}
+
+/** What an override policy sees before a day's plan is built. */
+export type SimOverrideDay = {
+  readonly index: number
+  readonly date: LocalDay
+  readonly items: Readonly<Record<string, ItemState>>
+  /** The plans created so far (not today's). */
+  readonly plans: readonly StoredPlan[]
 }
 
 export type SimDay = {
@@ -317,12 +338,14 @@ export function simulate(options: SimOptions): SimRun {
       gate = gateStatus(plans, derived.blocks, date)
     }
     if (gate.open && !gate.resumedToday) {
+      const overrides = options.overrides?.({ index, date, items: derived.items, plans })
       const built = buildPlan({
         planDate: date,
         catalog,
         enrollments: [enrollment],
         items: derived.items,
         recapDone: recapWeeksDone(plans, derived.blocks, [enrollment]),
+        ...(overrides !== undefined && { overrides }),
       })
       const plan: StoredPlan = {
         id: `plan-${date}`,
@@ -365,4 +388,153 @@ export function simulate(options: SimOptions): SimRun {
     coreIntroduced: coreItems.filter((id) => derived.items[id] !== undefined).length,
     coreTotal: coreItems.length,
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// §5.12's scenario: the realistic learner with overrides
+// ---------------------------------------------------------------------------------------------
+
+/** One `extra_week` per this many roadmap weeks (§5.12 simulation bullet). */
+const EXTRA_WEEK_EVERY = 4
+/** The two `insert_block`s, always active: their weekdays (Sunday has the mock interview). */
+const INSERT_WEEKDAYS: readonly (readonly Weekday[])[] = [
+  ['mon', 'wed', 'fri'],
+  ['tue', 'thu', 'sat'],
+]
+
+/** What a `personalizedOverrides` policy did (read after the run). */
+export type OverrideStats = {
+  readonly extraWeeks: number
+  readonly insertBlocks: number
+  /** Plans that named an extra week / held an insert block's practice, as last seen. */
+  readonly extraWeekPlans: number
+  readonly topicPracticeBlocks: number
+}
+
+/** The topic with the most Weak items of `trackId` (active catalog items), then topic ID; null
+ *  when no item is Weak. */
+function weakestTopic(
+  catalog: PlanCatalog,
+  items: Readonly<Record<string, ItemState>>,
+  trackId: string,
+): string | null {
+  const counts = new Map<string, number>()
+  for (const state of Object.values(items)) {
+    const item = own(catalog.items, state.itemId)
+    if (state.status !== 'weak' || item?.status !== 'active' || item.trackId !== trackId) continue
+    if (item.topicId === null) continue
+    counts.set(item.topicId, (counts.get(item.topicId) ?? 0) + 1)
+  }
+  const [best] = [...counts].toSorted((a, b) => b[1] - a[1] || compareIds(a[0], b[0]))
+  return best?.[0] ?? null
+}
+
+/**
+ * The §5.12 simulation scenario's learner: two `insert_block`s always active — one on the
+ * weakest topic (most Weak items, else the current week's), Monday / Wednesday / Friday; one on
+ * the current roadmap week's first topic, Tuesday / Thursday / Saturday — each of 25 % of the
+ * budget, set for 14 days and set again when it expires; and one `extra_week` of 5 study days per
+ * four roadmap weeks (from week 4, 8, …, on the weakest topic once one has a Weak item). Every
+ * override it sets passes `validateOverride` (it throws otherwise). Deterministic; one policy per
+ * run (it keeps state). `stats()` reports what it did.
+ */
+export function personalizedOverrides(
+  catalog: PlanCatalog,
+  enrollment: Enrollment,
+): ((day: SimOverrideDay) => readonly RoadmapOverride[]) & { stats: () => OverrideStats } {
+  const { trackId } = enrollment
+  const roadmap = catalog.tracks[trackId]?.roadmaps[enrollment.variant] ?? null
+  const minutes = Math.floor(OVERRIDE_LIMITS.insertBlockMaxBudgetShare * enrollment.budgetMinutes)
+  const inserts: (InsertBlockOverride | null)[] = INSERT_WEEKDAYS.map(() => null)
+  let extra: ExtraWeekOverride | null = null
+  let nextExtraWeek = EXTRA_WEEK_EVERY
+  let extraWeeks = 0
+  let insertBlocks = 0
+  let seen: readonly StoredPlan[] = []
+
+  const accept = <T extends RoadmapOverride>(
+    override: T,
+    day: SimOverrideDay,
+    active: readonly RoadmapOverride[],
+  ): T => {
+    const issues = validateOverride(override, {
+      catalog,
+      enrollment,
+      items: day.items,
+      today: day.date,
+      limits: OVERRIDE_LIMITS,
+      overrides: active,
+    })
+    if (issues.length > 0) {
+      throw new Error(`personalizedOverrides: ${override.key} refused (${JSON.stringify(issues)})`)
+    }
+    return override
+  }
+
+  const policy = (day: SimOverrideDay): readonly RoadmapOverride[] => {
+    seen = day.plans
+    const week = roadmapWeek(roadmap, catalog, day.items)
+    const currentTopic = roadmap?.weeks.find((candidate) => candidate.week === week)?.topics[0]
+    const weakest = weakestTopic(catalog, day.items, trackId)
+
+    if (extra !== null) {
+      const { key, startLocalDay } = extra
+      const usedDays = day.plans.filter(
+        (plan) => plan.planDate >= startLocalDay && plan.tracks[trackId]?.extraWeek === key,
+      ).length
+      extra = usedDays < extra.params.studyDays ? { ...extra, usedDays } : null
+    }
+
+    const active = (): RoadmapOverride[] => [
+      ...inserts.filter((insert) => insert !== null),
+      ...(extra === null ? [] : [extra]),
+    ]
+
+    INSERT_WEEKDAYS.forEach((weekdays, slot) => {
+      const current = inserts[slot] ?? null
+      if (current !== null && current.params.until >= day.date) return
+      const topicId = slot === 0 ? (weakest ?? currentTopic) : currentTopic
+      if (topicId === undefined) return
+      insertBlocks += 1
+      inserts[slot] = accept(
+        {
+          trackId,
+          key: `insert-${slot}-${insertBlocks}`,
+          kind: 'insert_block',
+          params: { topicId, weekdays, minutes, until: addDays(day.date, 14) },
+          startLocalDay: day.date,
+        },
+        day,
+        active().filter((other) => other !== current),
+      )
+    })
+
+    if (extra === null && week >= nextExtraWeek && weakest !== null) {
+      extraWeeks += 1
+      nextExtraWeek += EXTRA_WEEK_EVERY
+      extra = accept(
+        {
+          trackId,
+          key: `extra-${extraWeeks}`,
+          kind: 'extra_week',
+          params: { topicId: weakest, studyDays: OVERRIDE_LIMITS.extraWeekMaxStudyDays },
+          startLocalDay: day.date,
+          usedDays: 0,
+        },
+        day,
+        active(),
+      )
+    }
+    return active()
+  }
+
+  const stats = (): OverrideStats => ({
+    extraWeeks,
+    insertBlocks,
+    extraWeekPlans: seen.filter((plan) => plan.tracks[trackId]?.extraWeek !== undefined).length,
+    topicPracticeBlocks: seen
+      .flatMap((plan) => plan.blocks)
+      .filter((block) => block.tag === TOPIC_PRACTICE_TAG || block.tag === EXTRA_WEEK_TAG).length,
+  })
+  return Object.assign(policy, { stats })
 }

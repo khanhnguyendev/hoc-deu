@@ -3,7 +3,7 @@
  * prompts by `itemType` / `tag`, shadowing's example sentences, and the mock-interview problem
  * (a helper for M5's prompt page, Part B-M4 decision 24 — not a second item in the block).
  */
-import type { PlanCatalog, PlanItem } from '../catalog'
+import { isCustomItemId, type PlanCatalog, type PlanItem } from '../catalog'
 import { compareIds } from '../compare'
 import type { ItemState } from '../state'
 
@@ -28,9 +28,13 @@ function compareLastResultOn(a: ItemState, b: ItemState): number {
   return a.lastResultOn < b.lastResultOn ? -1 : 1
 }
 
+/**
+ * The track's active items the baseline may pick. Never a learner's custom item (`user:…`, §5.12,
+ * Part B-M6 decision 17): only override blocks, AI plans and the "Mục riêng" tab schedule those.
+ */
 function activeItemsOf(catalog: PlanCatalog, trackId: string): PlanItem[] {
   return Object.values(catalog.items).filter(
-    (item) => item.trackId === trackId && item.status === 'active',
+    (item) => item.trackId === trackId && item.status === 'active' && !isCustomItemId(item.id),
   )
 }
 
@@ -118,7 +122,9 @@ export function pickShadowing(input: {
 }): string[] {
   const { trackId, todaysNew, items, catalog, count = 3 } = input
 
+  // Never a learner's custom card (§5.12, decision 17), from today's new cards or the fallback.
   const fromNew = todaysNew.filter((itemId) => {
+    if (isCustomItemId(itemId)) return false
     const item = catalog.items[itemId]
     return (
       item !== undefined && item.trackId === trackId && item.status === 'active' && item.hasExample
@@ -129,6 +135,7 @@ export function pickShadowing(input: {
   return Object.entries(items)
     .filter(([itemId, state]) => {
       if (state.trackId !== trackId || state.status === 'skipped') return false
+      if (isCustomItemId(itemId)) return false
       const item = catalog.items[itemId]
       return item !== undefined && item.status === 'active' && item.hasExample
     })

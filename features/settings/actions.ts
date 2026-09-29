@@ -19,9 +19,12 @@ import { applyLearnerEvent, EventError } from '@/lib/events/apply'
 import { deriveEventId, digest } from '@/lib/events/ids'
 import { withTitle } from '@/lib/i18n/format'
 import { vi } from '@/lib/i18n/vi'
+import { revokeOverride } from '@/lib/events/overrides'
 import { rebuildTodayIfUntouched } from '@/lib/plans/rebuild'
+import { checkLimit } from '@/lib/rate-limit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { readOwnOverride, revokeReordersOfTrack } from './overrides'
 import { readEnrollments, readLastPausedDay, readScheduleVersions } from './reads'
 import { pendingNotice, sameSchedule, scheduleState } from './schedule'
 import {
@@ -37,6 +40,7 @@ import {
 } from './schema'
 
 const copy = vi.settings
+const notesCopy = vi.notesSharing
 const errors = vi.onboarding.errors
 const PATH = '/settings'
 
@@ -79,6 +83,10 @@ async function record(
   } catch (error) {
     if (!(error instanceof EventError)) throw error
     if (error.code === 'invalid_timezone') return fieldError('timezone', errors.timezone)
+    // §4.6: share_notes_with_ai is settable only while ai_personalization is on — the section
+    // would not even show without a stale page, but the profiles trigger is the source of truth.
+    if (error.code === 'ai_personalization_off')
+      return { ok: false, message: notesCopy.errors.aiOff }
     if (STALE.has(error.code)) return stale(staleMessage ?? error.userMessage)
     return { ok: false, message: error.userMessage }
   }
@@ -181,6 +189,43 @@ export async function updateCodeLanguage(
   )
 }
 
+/** `updateNotesSharing`'s own input (§4.6, task 6.7b): not in `./schema` (decision 3 scope). */
+const notesSharingInputSchema = z.object({
+  requestId: z.uuid(),
+  shareNotesWithAi: z.enum(['true', 'false']).transform((value) => value === 'true'),
+})
+
+/**
+ * "Chia sẻ ghi chú với bot AI" (§4.6, §6.3): a switch, not a form with a save button — it sends
+ * as soon as it is flipped. The database's `guard_share_notes` trigger is the source of truth
+ * for "only while ai_personalization is on" (§4.5): a stale page (the flag turned off in another
+ * tab) still gets `ai_personalization_off`, mapped to its own sentence in `record()`. Turning
+ * sharing off is always allowed, whatever the flag; turning the flag off clears
+ * `share_notes_with_ai` as well (decision 34, `admin_set_ai_flag`).
+ */
+export async function updateNotesSharing(
+  _previous: SettingsResult | null,
+  formData: FormData,
+): Promise<SettingsResult> {
+  await requireOnboarded()
+  const parsed = notesSharingInputSchema.safeParse(
+    formFields(formData, ['requestId', 'shareNotesWithAi']),
+  )
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, shareNotesWithAi } = parsed.data
+
+  const supabase = await createClient()
+  return record(
+    () =>
+      applyLearnerEvent(supabase, {
+        id: deriveEventId(requestId, `settings.changed:${digest({ shareNotesWithAi })}`),
+        type: 'settings.changed',
+        payload: { shareNotesWithAi },
+      }),
+    shareNotesWithAi ? notesCopy.on : notesCopy.off,
+  )
+}
+
 /**
  * Minutes per day and the roadmap variant of an enrolled (active or paused) track: `track.updated`
  * with only the keys that changed (§4.4); nothing when neither did.
@@ -214,13 +259,18 @@ export async function updateTrack(
   if (Object.keys(changes).length === 0) return { ok: true, message: copy.tracks.unchanged }
 
   return record(
-    () =>
-      applyLearnerEvent(supabase, {
+    async () => {
+      await applyLearnerEvent(supabase, {
         id: deriveEventId(requestId, `track.updated:${trackId}:${digest(changes)}`),
         type: 'track.updated',
         trackId,
         payload: changes,
-      }),
+      })
+      // Task 6.6c (carried item c): a reorder was checked against the other variant's roadmap.
+      if (changes.roadmapVariant !== undefined) {
+        await revokeReordersOfTrack(supabase, createAdminClient(), user.id, trackId, requestId)
+      }
+    },
     withTitle(copy.tracks.updated, track.title.vi),
     user.id,
   )
@@ -345,6 +395,54 @@ export async function setTrackStatus(
   )
 }
 
+const revokeInputSchema = z.strictObject({
+  requestId: z.uuid(),
+  /** The database's rules for track ids and override keys. */
+  trackId: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+  key: z.string().regex(/^[a-z0-9-]{3,48}$/),
+})
+
+/**
+ * "Thu hồi" in "Điều chỉnh lộ trình bởi AI" (§5.12 "Learner control", §5.9; task 6.6c): the
+ * learner's own override `(trackId, key)` — active or suspended, whatever the AI flag — becomes
+ * `revoked` by the learner (`roadmap.override_revoked`, source system, the learner the actor;
+ * final: the bot may never set that key again). It takes effect from the next plan: today's plan
+ * is kept as it is (no rebuild, §5.9). The event id derives from the page's `requestId`, so a
+ * double tap revokes once; an override already revoked answers "đã được thu hồi"; one that is not
+ * the learner's re-renders the page.
+ */
+export async function revokeAiOverride(input: {
+  requestId: string
+  trackId: string
+  key: string
+}): Promise<SettingsResult> {
+  const user = await requireOnboarded()
+  const parsed = revokeInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: vi.errors.saveFailed }
+  const { requestId, trackId, key } = parsed.data
+  const own = await readOwnOverride(await createClient(), user.id, trackId, key)
+  if (own === null) return stale(vi.overrides.revoke.notFound)
+
+  let outcome: 'applied' | 'unchanged'
+  try {
+    outcome = await revokeOverride(createAdminClient(), user.id, {
+      eventId: deriveEventId(requestId, `roadmap.override_revoked:${trackId}:${key}`),
+      trackId,
+      key,
+      kind: own.kind,
+      by: 'learner',
+    })
+  } catch (error) {
+    if (!(error instanceof EventError)) throw error
+    return { ok: false, message: error.userMessage }
+  }
+  revalidatePath(PATH)
+  return {
+    ok: true,
+    message: outcome === 'applied' ? vi.overrides.revoke.done : vi.overrides.revoke.already,
+  }
+}
+
 const resetInputSchema = z.strictObject({
   requestId: z.uuid(),
   /** The database's rule for track ids (`user_tracks.track_id`). */
@@ -400,10 +498,14 @@ export async function resetTrack(input: {
  * rejection — and never blocks the redirect (controller ruling, M2 minor): the account row is
  * already gone by then, so a thrown error here would be misleading (the learner would see a
  * failure for a delete that actually went through), and auth-js has already cleared the session
- * client-side for most error cases regardless.
+ * client-side for most error cases regardless. Rate-limited 3 / day per user (§2.3, decision 22):
+ * over the limit, answers the generic message without calling the admin API.
  */
 export async function deleteAccount(): Promise<SettingsResult> {
   const user = await requireUser()
+  const limit = await checkLimit('accountDeletion', user.id)
+  if (!limit.ok) return { ok: false, message: vi.rateLimit.tooMany }
+
   const { error } = await createAdminClient().auth.admin.deleteUser(user.id)
   if (error) return { ok: false, message: copy.deleteAccount.failed }
 

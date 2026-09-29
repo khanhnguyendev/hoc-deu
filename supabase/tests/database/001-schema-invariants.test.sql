@@ -23,7 +23,14 @@ create extension if not exists pgtap with schema extensions;
 -- health (SECURITY INVOKER, `select true`: /api/health's cheap query); the ops_* functions are
 -- service_role only (080). 5.6 adds admin_overview and admin_track_positions (aggregate readers,
 -- each checks is_admin() itself) and replaces admin_set_status(uuid, text) with
--- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051).
+-- admin_set_status(uuid, text, text) — still one overload, so it stays listed once (051). 6.2a
+-- adds none: ops_bump_metric is service_role only, and plan_block_state_check_in_day (now also
+-- the local_day_bound_insert trigger's function) keeps no grants (090). 6.2b adds the admin
+-- functions admin_bot_settings, admin_update_bot_settings, admin_rotate_bot_token,
+-- admin_set_ai_flag, admin_bot_runs, admin_request_publish and admin_cancel_publish (each checks
+-- is_admin() itself), and publish_request_targets (the pending targets only, §6.6); it replaces
+-- admin_list_users (one overload still); the bot_* and publish writers are service_role only
+-- (092).
 create temporary table _authenticated_allowlist (proname text) on commit drop;
 insert into _authenticated_allowlist (proname) values
   ('is_active'), ('is_admin'),
@@ -33,15 +40,26 @@ insert into _authenticated_allowlist (proname) values
   ('mark_plan_seen'), ('plan_lock_key'),
   ('apply_derived_changes'),
   ('health'),
-  ('admin_overview'), ('admin_track_positions');
+  ('admin_overview'), ('admin_track_positions'),
+  ('admin_bot_settings'), ('admin_update_bot_settings'), ('admin_rotate_bot_token'),
+  ('admin_set_ai_flag'), ('admin_bot_runs'), ('admin_request_publish'),
+  ('admin_cancel_publish'), ('publish_request_targets');
 
 -- Allowlist of `public` functions `anon` may EXECUTE (check 5), overload for overload like the
--- one above. Only 5.7a's health(): /api/health calls it with the publishable key and no session.
--- A SECURITY DEFINER function may never be listed here (check 4).
+-- one above. 5.7a's health(): /api/health calls it with the publishable key and no session. 6.2b's
+-- publish_request_targets(): the public GET /api/content/publish-requests (§6.6) lists the
+-- pending targets — nothing else — for the bot-content-policy check. A SECURITY DEFINER function
+-- may be listed here only if it is also in _anon_definer_allowlist (check 4).
 create temporary table _anon_allowlist (proname text) on commit drop;
-insert into _anon_allowlist (proname) values ('health');
+insert into _anon_allowlist (proname) values ('health'), ('publish_request_targets');
 
-select plan(11);
+-- The SECURITY DEFINER functions anon may EXECUTE (check 4's one exception): only
+-- publish_request_targets, which must read content_publish_requests, a table anon may never
+-- touch (check 3), and returns the targets of pending requests only.
+create temporary table _anon_definer_allowlist (proname text) on commit drop;
+insert into _anon_definer_allowlist (proname) values ('publish_request_targets');
+
+select plan(12);
 
 -- 1. Every table (relkind r, p) in public has row level security enabled.
 select is_empty(
@@ -101,7 +119,7 @@ select is_empty(
 );
 
 -- 4. Every SECURITY DEFINER function in public sets search_path, has an explicit ACL with no
---    PUBLIC entry, and grants no EXECUTE to anon.
+--    PUBLIC entry, and grants no EXECUTE to anon — except the _anon_definer_allowlist.
 select is_empty(
   $$
   select p.proname
@@ -115,11 +133,12 @@ select is_empty(
       )
       or p.proacl is null
       or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
-      or has_function_privilege('anon', p.oid, 'EXECUTE')
+      or (has_function_privilege('anon', p.oid, 'EXECUTE')
+        and not p.proname in (select proname from _anon_definer_allowlist))
     )
   $$,
   'every SECURITY DEFINER function in public sets search_path, has an explicit ACL with no '
-  'PUBLIC entry, and grants no EXECUTE to anon'
+  'PUBLIC entry, and grants no EXECUTE to anon (publish_request_targets excepted)'
 );
 
 -- 5. anon may EXECUTE exactly the allowlisted public functions (health() only, task 5.7a),
@@ -253,6 +272,45 @@ select is(
    group by n.nspowner),
   'postgres:2',
   'schema backup is owned by postgres and holds the two auth readers'
+);
+
+-- 12. Task 6.2a's tables (platform design §4.5): what authenticated may do on each and its
+--     policies. The bot tables have no grant and no policy (the server's secret key and 6.2b's
+--     functions only); user_items and roadmap_overrides are owner read-only;
+--     content_publish_requests is admin read-only. Checks 1, 3 and 7 cover RLS, anon and
+--     backup_reader for them like every table. The name columns are C-collated, so they are
+--     compared under the default collation.
+select results_eq(
+  $$
+  select c.relname::text collate "default",
+         array(
+           select p.privilege from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
+                                                'REFERENCES', 'TRIGGER']) as p (privilege)
+           where has_table_privilege('authenticated', c.oid, p.privilege)
+         )::text[],
+         has_any_column_privilege('authenticated', c.oid, 'INSERT,UPDATE,REFERENCES'),
+         array(
+           select format('%s:%s', pol.polname, pol.polcmd) from pg_policy pol
+           where pol.polrelid = c.oid order by pol.polname
+         )::text[] collate "default"
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname in ('bot_settings', 'bot_runs', 'bot_run_users', 'user_items',
+                      'roadmap_overrides', 'content_publish_requests')
+  order by c.relname
+  $$,
+  $$
+  values
+    ('bot_run_users'::text, '{}'::text[], false, '{}'::text[]),
+    ('bot_runs', '{}', false, '{}'),
+    ('bot_settings', '{}', false, '{}'),
+    ('content_publish_requests', '{SELECT}', false, '{content_publish_requests_select_admin:r}'),
+    ('roadmap_overrides', '{SELECT}', false, '{roadmap_overrides_select_own:r}'),
+    ('user_items', '{SELECT}', false, '{user_items_select_own:r}')
+  $$,
+  'task 6.2a''s tables: authenticated reads user_items, roadmap_overrides and '
+  'content_publish_requests (one select policy each) and nothing of the bot tables'
 );
 
 select * from finish();

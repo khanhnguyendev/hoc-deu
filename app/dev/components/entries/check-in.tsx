@@ -66,6 +66,7 @@ function SheetDemo({
           action={action}
           requestId="demo"
           planId={PLAN_ID}
+          planVersion={1}
           block={block}
           onClose={() => setOpen(false)}
         />
@@ -93,6 +94,7 @@ export const CHECK_IN_ENTRIES: Entry[] = [
               action={saved}
               requestId="demo"
               planId={PLAN_ID}
+              planVersion={1}
               blockId={BLOCK_ID}
               blockLabel={LABEL}
             />,
@@ -106,6 +108,7 @@ export const CHECK_IN_ENTRIES: Entry[] = [
               action={stale}
               requestId="demo"
               planId={PLAN_ID}
+              planVersion={1}
               blockId={BLOCK_ID}
               blockLabel={LABEL}
             />,

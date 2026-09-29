@@ -79,3 +79,53 @@ export async function lastSuccessfulRun(
   }
   return null
 }
+
+/** `content_publish_requests.pr_url`'s check allows `pull/[1-9][0-9]{0,6}`. */
+const MAX_PR_NUMBER = 9_999_999
+
+const PullSchema = z.object({
+  state: z.enum(['open', 'closed']),
+  merged_at: z.string().nullable(),
+})
+
+/**
+ * The state of pull request `prNumber` of the repository (a constant, never input) from the public
+ * GitHub API with no token (§2.3, §6.6; Part B-M6 decision 20): `merged` (closed with
+ * `merged_at`), `closed` (closed unmerged), `open`, or null — a non-200 answer (rate limit,
+ * outage, unknown PR) or a body it cannot read. A network error or the time limit rejects; a
+ * number that is not a pull request number throws before any request.
+ */
+export async function pullRequestState(
+  prNumber: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<'open' | 'merged' | 'closed' | null> {
+  if (!Number.isInteger(prNumber) || prNumber < 1 || prNumber > MAX_PR_NUMBER) {
+    throw new Error('pullRequestState: not a pull request number')
+  }
+  const response = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/pulls/${prNumber}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'hoc-deu-maintenance',
+    },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+  if (response.status !== 200) {
+    const remaining = response.headers.get('x-ratelimit-remaining') ?? 'unknown'
+    console.error(
+      `[maintenance] pull ${prNumber}: GitHub API responded ${response.status} (x-ratelimit-remaining=${remaining})`,
+    )
+    return null
+  }
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return null
+  }
+  const pull = PullSchema.safeParse(body)
+  if (!pull.success) return null
+  if (pull.data.state === 'open') return 'open'
+  return pull.data.merged_at === null ? 'closed' : 'merged'
+}

@@ -196,6 +196,13 @@ describe('applyLearnerEvent', () => {
     ['too_many_pending_schedules', copy.errors.tooManyPendingSchedules],
     ['version_conflict', copy.errors.saveFailed],
     ['day_changed', copy.errors.saveFailed],
+    // The M6 system events' refusals (task 6.2b): the bot path maps them to its own outcomes.
+    ['ai_off', copy.errors.saveFailed],
+    ['slug_taken', copy.errors.saveFailed],
+    ['revoked_key', copy.errors.saveFailed],
+    ['cooldown', copy.errors.saveFailed],
+    ['limit_reached', copy.errors.saveFailed],
+    ['not_enrolled', copy.errors.invalidTransition],
   ])('maps the RPC error %s to its code and message', async (code, userMessage) => {
     const { client } = fakeClient(failed(code))
     const error = await eventError(applyLearnerEvent(client, ENROLLED))

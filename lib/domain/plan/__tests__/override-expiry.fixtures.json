@@ -1,0 +1,130 @@
+{
+  "description": "Part B-M6 decision 18: whether a roadmap override applies on `today` — expiry is computed, never stored. overrideActive (lib/domain/plan/overrides.ts, task 6.6b) reads these rows; task 6.2b's pgTAP repeats the same rows by hand against the SQL rule (the ledger records the parity). insert_block: active while until >= today. extra_week: active while usedDays (stored plans dated on or after startLocalDay whose track snapshot names the key) < studyDays. reorder_topics: active until revoked or replaced (a stored row is active).",
+  "rows": [
+    {
+      "name": "insert_block: until is today",
+      "today": "2026-10-10",
+      "override": {
+        "trackId": "dsa",
+        "key": "ib",
+        "kind": "insert_block",
+        "params": { "topicId": "trees", "weekdays": ["mon"], "minutes": 15, "until": "2026-10-10" },
+        "startLocalDay": "2026-10-01"
+      },
+      "active": true
+    },
+    {
+      "name": "insert_block: until is yesterday",
+      "today": "2026-10-10",
+      "override": {
+        "trackId": "dsa",
+        "key": "ib",
+        "kind": "insert_block",
+        "params": { "topicId": "trees", "weekdays": ["mon"], "minutes": 15, "until": "2026-10-09" },
+        "startLocalDay": "2026-10-01"
+      },
+      "active": false
+    },
+    {
+      "name": "insert_block: until 14 days ahead, set today",
+      "today": "2026-10-10",
+      "override": {
+        "trackId": "dsa",
+        "key": "ib",
+        "kind": "insert_block",
+        "params": { "topicId": "trees", "weekdays": ["mon"], "minutes": 15, "until": "2026-10-24" },
+        "startLocalDay": "2026-10-10"
+      },
+      "active": true
+    },
+    {
+      "name": "insert_block: until across a month end",
+      "today": "2026-11-01",
+      "override": {
+        "trackId": "dsa",
+        "key": "ib",
+        "kind": "insert_block",
+        "params": { "topicId": "trees", "weekdays": ["sun"], "minutes": 15, "until": "2026-10-31" },
+        "startLocalDay": "2026-10-20"
+      },
+      "active": false
+    },
+    {
+      "name": "extra_week: no plan names it yet",
+      "today": "2026-10-10",
+      "override": {
+        "trackId": "dsa",
+        "key": "ew",
+        "kind": "extra_week",
+        "params": { "topicId": "trees", "studyDays": 5 },
+        "startLocalDay": "2026-10-10",
+        "usedDays": 0
+      },
+      "active": true
+    },
+    {
+      "name": "extra_week: one study day left",
+      "today": "2026-10-16",
+      "override": {
+        "trackId": "dsa",
+        "key": "ew",
+        "kind": "extra_week",
+        "params": { "topicId": "trees", "studyDays": 5 },
+        "startLocalDay": "2026-10-10",
+        "usedDays": 4
+      },
+      "active": true
+    },
+    {
+      "name": "extra_week: every study day used",
+      "today": "2026-10-17",
+      "override": {
+        "trackId": "dsa",
+        "key": "ew",
+        "kind": "extra_week",
+        "params": { "topicId": "trees", "studyDays": 5 },
+        "startLocalDay": "2026-10-10",
+        "usedDays": 5
+      },
+      "active": false
+    },
+    {
+      "name": "extra_week: one study day, used",
+      "today": "2026-10-11",
+      "override": {
+        "trackId": "dsa",
+        "key": "ew",
+        "kind": "extra_week",
+        "params": { "topicId": "trees", "studyDays": 1 },
+        "startLocalDay": "2026-10-10",
+        "usedDays": 1
+      },
+      "active": false
+    },
+    {
+      "name": "extra_week: calendar days do not expire it (skipped days are not study days)",
+      "today": "2026-12-31",
+      "override": {
+        "trackId": "dsa",
+        "key": "ew",
+        "kind": "extra_week",
+        "params": { "topicId": "trees", "studyDays": 3 },
+        "startLocalDay": "2026-10-10",
+        "usedDays": 2
+      },
+      "active": true
+    },
+    {
+      "name": "reorder_topics: active until revoked or replaced",
+      "today": "2027-06-30",
+      "override": {
+        "trackId": "dsa",
+        "key": "ro",
+        "kind": "reorder_topics",
+        "params": { "order": ["heap", "graphs"] },
+        "startLocalDay": "2026-10-10"
+      },
+      "active": true
+    }
+  ]
+}

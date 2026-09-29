@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { deleteOpsMetric, seedOpsMetric } from './support/admin'
+import { getAiFlag, setAiFlagOff } from './support/bot'
 import { expectNoAxeViolations, expectNoAxeViolationsInBothThemes } from './support/axe'
 import { signIn } from './support/auth'
 import { seedPlan, snapshot } from './support/plans'
+import { deletePublishRequest, seedPublishRequest, uniqueTarget } from './support/publish'
 import { expect, test } from './support/test'
 import {
   createTestUser,
@@ -172,6 +174,48 @@ test.describe('/admin/users', () => {
     await expect(own.getByText('Bạn', { exact: true })).toBeVisible()
     await expect(own.getByText('Quản trị viên', { exact: true })).toBeVisible()
     await expect(own.getByRole('button')).toHaveCount(0)
+    // Only the AI flag (decision 34: the owner is the first AI learner).
+    await expect(own.getByRole('switch')).toHaveCount(1)
+  })
+
+  test('an admin turns the AI flag on and off for a learner, and on their own row (task 6.3)', async ({
+    page,
+  }) => {
+    const learner = await user({ status: 'active', name: uniqueName('Cá nhân hoá') })
+    const pending = await user({ status: 'pending', name: uniqueName('Chưa duyệt AI') })
+    const admin = await openQueueAsAdmin(page)
+    // Each switch is named with its account ("Cá nhân hoá AI cho {name}").
+    const flag = (name: string) =>
+      row(page, ACTIVE, name).getByRole('switch', {
+        name: `Cá nhân hoá AI cho ${name}`,
+        exact: true,
+      })
+
+    // 6.8's run counts eligible (AI-flagged) users globally: every flag this test turns on is
+    // turned off again, whatever happens.
+    try {
+      await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'false')
+      // Active accounts only: none in the queue.
+      await expect(row(page, PENDING, pending.name).getByRole('switch')).toHaveCount(0)
+      await expectNoAxeViolationsInBothThemes(page)
+
+      await flag(learner.name).click()
+      await expect(page.getByText('Đã bật cá nhân hoá AI.').first()).toBeVisible()
+      await expect.poll(() => getAiFlag(learner.id)).toBe(true)
+      await page.reload()
+      await expect(flag(learner.name)).toHaveAttribute('aria-checked', 'true')
+
+      await flag(learner.name).click()
+      await expect(page.getByText('Đã tắt cá nhân hoá AI.').first()).toBeVisible()
+      await expect.poll(() => getAiFlag(learner.id)).toBe(false)
+
+      await flag(admin.name).click()
+      await expect.poll(() => getAiFlag(admin.id)).toBe(true)
+      await page.reload()
+      await expect(flag(admin.name)).toHaveAttribute('aria-checked', 'true')
+    } finally {
+      await Promise.all([learner.id, admin.id].map((id) => setAiFlagOff(id)))
+    }
   })
 
   test('a stale "Duyệt" does not re-activate an account another admin rejected (p_expected_from)', async ({
@@ -287,6 +331,57 @@ test.describe('/admin (task 5.6)', () => {
   })
 })
 
+test.describe('publish requests (task 6.7a, §6.6)', () => {
+  /** The public endpoint's targets (no session): `200 {"targets":[…]}`, cached for a minute. */
+  async function publicTargets(page: Page): Promise<string[]> {
+    const response = await page.request.get('/api/content/publish-requests')
+    expect(response.status()).toBe(200)
+    expect(response.headers()['cache-control']).toBe('public, max-age=60')
+    const body = (await response.json()) as { targets: string[] }
+    expect(Object.keys(body)).toEqual(['targets'])
+    return body.targets
+  }
+
+  test('the public endpoint lists a pending target only once its request exists', async ({
+    page,
+  }) => {
+    // Never an empty-list assertion: other specs create requests in parallel (decision 23).
+    const target = uniqueTarget()
+    expect(await publicTargets(page)).not.toContain(target)
+    const id = await seedPublishRequest(target)
+    try {
+      expect(await publicTargets(page)).toContain(target)
+    } finally {
+      await deletePublishRequest(id)
+    }
+    expect(await publicTargets(page)).not.toContain(target)
+  })
+
+  test('/admin/content: the drafts list and the "Yêu cầu xuất bản" section with a pending request', async ({
+    page,
+  }) => {
+    const target = uniqueTarget()
+    const id = await seedPublishRequest(target)
+    try {
+      await openAsAdmin(page, '/admin/content')
+      // The content has no draft today (M5-R7's waiver): the unit tests cover "Xuất bản".
+      const drafts = page.getByRole('region', { name: 'Bản nháp', exact: true })
+      await expect(drafts.getByText('Không có bản nháp nào.')).toBeVisible()
+      const requests = page.getByRole('region', { name: 'Yêu cầu xuất bản', exact: true })
+      await expect(requests).toBeVisible()
+      const table = requests.getByRole('region', { name: 'Các yêu cầu xuất bản' })
+      const row = table.getByRole('row').filter({ hasText: target })
+      // A target the catalog does not have: its ID as text, pending, no PR yet.
+      await expect(row).toContainText('Đang chờ')
+      await expect(row.locator('[data-status="pending"]')).toBeVisible()
+      await expect(row.getByRole('link')).toHaveCount(0)
+      await expectNoAxeViolationsInBothThemes(page)
+    } finally {
+      await deletePublishRequest(id)
+    }
+  })
+})
+
 test.describe('/admin DB-size warning (global ops_metrics row)', () => {
   // The seeded row is global state: this block runs serially and deletes its row in `finally`.
   test.describe.configure({ mode: 'serial' })
@@ -330,14 +425,14 @@ test.describe('/admin/users for a learner', () => {
   // The 404 page answers with status 404, which Chromium logs as a failed resource load.
   test.use({ allowedConsoleErrors: [/status of 404/] })
 
-  test('a learner gets the Vietnamese 404, on /admin and /admin/content as well', async ({
+  test('a learner gets the Vietnamese 404, on /admin, /admin/content and /admin/bot as well', async ({
     page,
   }) => {
     const learner = await user({ status: 'active', onboarded: true })
     await signIn(page, learner)
     await expectPath(page, '/today')
 
-    for (const path of ['/admin/users', '/admin', '/admin/content']) {
+    for (const path of ['/admin/users', '/admin', '/admin/content', '/admin/bot']) {
       const response = await page.goto(path)
       expect(response?.status()).toBe(404)
       await expect(

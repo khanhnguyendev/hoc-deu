@@ -14,6 +14,7 @@ import {
   type DayPlan,
   type PlanBlock,
   type StoredPlan,
+  type TrackSnapshot,
 } from '@/lib/domain/plan/types'
 import type { LocalDay } from '@/lib/domain/time/localDay'
 import type { Database, Json } from '@/lib/supabase/database.types'
@@ -193,6 +194,110 @@ export async function addExtraItems(
 const blocksSchema = z.array(planBlockSchema)
 const tracksSchema = z.record(z.string(), trackSnapshotSchema)
 
+/** `plan.ai_proposed`'s bounds as `apply_system_event` checks them (task 6.2b): a plan run's key,
+ *  and a rationale of at most 280 characters (code points) with no C0 / C1 control character. */
+const PLAN_RUN_KEY = /^run_\d{4}-\d{2}-\d{2}$/
+export const AI_RATIONALE_MAX_CHARS = 280
+const CONTROL = /[\u0001-\u001f\u007f-\u009f]/
+
+/**
+ * `plan.ai_applied`'s outcomes: `applied` (inserted, or an untouched non-resume plan replaced —
+ * `version` its new version), `plan_in_use` (the plan stays; the database stored
+ * `plan.ai_skipped`), `duplicate` (an event with this id is already recorded: the caller reads it).
+ */
+export type AiPlanWriteOutcome = 'applied' | 'plan_in_use' | 'duplicate'
+
+function aiPlanResult(
+  data: Json | null,
+  key: string,
+): { outcome: AiPlanWriteOutcome; planId: string | null; version: number | null } {
+  const result: { [key: string]: Json | undefined } =
+    data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}
+  const { outcome, plan_id: planId, versions } = result
+  if (outcome === 'duplicate') return { outcome, planId: null, version: null }
+  if (outcome === 'plan_in_use' && typeof planId === 'string') {
+    return { outcome, planId, version: null }
+  }
+  const version =
+    versions !== null && typeof versions === 'object' && !Array.isArray(versions)
+      ? versions[key]
+      : undefined
+  if (
+    outcome === 'applied' &&
+    typeof planId === 'string' &&
+    typeof version === 'number' &&
+    Number.isInteger(version)
+  ) {
+    return { outcome, planId, version }
+  }
+  throw new EventError('unknown')
+}
+
+/**
+ * The bot's plan through `apply_system_event('plan.ai_proposed')` (§2.3, §6.4.3; Part B-M6
+ * decisions 13, 15; ADR-0018), secret key, source `bot`: payload exactly `{ runId }`, `local_day` =
+ * the plan date, and the `day_plans` row with the rationale and the run's UUID. Under the
+ * `(user, plan_date)` lock the database inserts it, replaces an untouched non-resume plan (`seen_at`
+ * kept), or stores `plan.ai_skipped`. The blocks and snapshots are checked with the stored schemas
+ * first, and the SQL's own bounds (the run key, the rationale), so nothing it would refuse is sent
+ * (`invalid_event`). A refusal (`day_changed`, `ai_off`, `invalid_event`, …) is an EventError.
+ */
+export async function storeAiPlan(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  input: {
+    readonly eventId: string
+    readonly runKey: string
+    readonly runUuid: string
+    readonly plan: {
+      readonly planDate: LocalDay
+      readonly blocks: readonly PlanBlock[]
+      readonly tracks: Readonly<Record<string, TrackSnapshot>>
+    }
+    readonly rationale: string
+    readonly localDay: LocalDay
+  },
+): Promise<{ outcome: AiPlanWriteOutcome; planId: string | null; version: number | null }> {
+  const { eventId, runKey, runUuid, plan, rationale, localDay } = input
+  const blocks = blocksSchema.safeParse(plan.blocks)
+  const tracks = tracksSchema.safeParse(plan.tracks)
+  if (
+    !blocks.success ||
+    !tracks.success ||
+    plan.planDate !== localDay ||
+    !PLAN_RUN_KEY.test(runKey) ||
+    [...rationale].length > AI_RATIONALE_MAX_CHARS ||
+    CONTROL.test(rationale)
+  ) {
+    throw new EventError('invalid_event')
+  }
+  const p_event = systemEventBody({
+    id: eventId,
+    type: 'plan.ai_proposed',
+    payload: { runId: runKey },
+    localDay,
+    source: 'bot',
+  })
+  // Parsed blocks and snapshots are plain JSON (lib/domain/plan/types.ts), camelCase inside.
+  const row: { [column: string]: Json } = {
+    plan_date: plan.planDate,
+    blocks: blocks.data as Json,
+    roadmap_weeks: tracks.data as Json,
+    rationale,
+    bot_run_id: runUuid,
+  }
+  const { data, error } = await admin.rpc('apply_system_event', {
+    p_user_id: userId,
+    p_event,
+    p_changes: [{ table: 'day_plans', row }],
+    p_expected: {},
+  })
+  if (error) {
+    throw eventErrorOf(error)
+  }
+  return aiPlanResult(data, `day_plans:${plan.planDate}`)
+}
+
 /**
  * A day_plans row → StoredPlan; blocks and roadmap_weeks Zod-validated (planBlockSchema,
  * trackSnapshotSchema). A malformed row returns null, and M5 (task 5.1) decides what to show: the
@@ -213,6 +318,8 @@ export function storedPlanFromRow(row: DayPlanRow): StoredPlan | null {
     version: row.version,
     source: row.source,
     seenAt: row.seen_at,
+    // Only an AI plan has one: a baseline plan reads exactly as before (v1.0).
+    ...(row.rationale === null ? {} : { rationale: row.rationale }),
     blocks: blocks.data,
     tracks: tracks.data,
   }

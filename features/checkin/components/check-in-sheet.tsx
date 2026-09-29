@@ -58,6 +58,8 @@ type CheckInSheetProps = {
   /** The page's per-render request ID (decision 16). */
   requestId: string
   planId: string
+  /** The rendered plan's version (decision 36): a replaced plan answers "stale". */
+  planVersion: number
   block: CheckInSheetBlock
   /** Closing (Esc, "Đóng", "Huỷ", a saved check-in). Default: `router.replace('/today')`. */
   onClose?: () => void
@@ -96,7 +98,14 @@ const clamp = (value: number) => Math.min(SHEET_MINUTES.max, Math.max(SHEET_MINU
  * (DESIGN_SYSTEM §10). While closed but still mounted — `router.replace` not landed yet, which a
  * new navigation discards — a click on the block's "Sửa" opens it again.
  */
-function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInSheetProps) {
+function CheckInSheet({
+  action,
+  requestId,
+  planId,
+  planVersion,
+  block,
+  onClose,
+}: CheckInSheetProps) {
   const router = useRouter()
   const desktop = useMediaQuery(MEDIA.md)
   const uid = React.useId()
@@ -166,6 +175,7 @@ function CheckInSheet({ action, requestId, planId, block, onClose }: CheckInShee
     const input = {
       requestId,
       planId,
+      planVersion,
       blockId: block.id,
       status,
       minutes: parsedMinutes,

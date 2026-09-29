@@ -40,12 +40,20 @@ export function safeNextPath(next: string | null | undefined): string | null {
   return next
 }
 
+export type SignInErrorCode = 'oauth' | 'rate_limited'
+
 /**
- * Where a failed sign-in returns: `/sign-in?error=oauth` (the page shows "Đăng nhập không thành
- * công"), keeping a safe `next` so another try still ends up where the user was going.
+ * Where a failed sign-in returns: `/sign-in?error=oauth` by default (the page shows "Đăng nhập
+ * không thành công"), or `/sign-in?error=rate_limited` over the `oauthCallback` rate limit (§2.3,
+ * task 6.1; the page shows `vi.rateLimit.tooMany`) — keeping a safe `next` so another try still
+ * ends up where the user was going. The OAuth callback route uses this for both codes (fix round
+ * 1, item 3: it must not rebuild the query string itself).
  */
-export function signInErrorPath(next: string | null | undefined): string {
-  const params = new URLSearchParams({ error: 'oauth' })
+export function signInErrorPath(
+  next: string | null | undefined,
+  code: SignInErrorCode = 'oauth',
+): string {
+  const params = new URLSearchParams({ error: code })
   const safeNext = safeNextPath(next)
   if (safeNext) params.set('next', safeNext)
   return `/sign-in?${params}`

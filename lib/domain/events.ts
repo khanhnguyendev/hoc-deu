@@ -82,6 +82,9 @@ const hasAKey = (payload: Record<string, unknown>): boolean =>
 const AT_LEAST_ONE_KEY = 'at least one field is required'
 
 const emptyPayload = z.strictObject({})
+/** The bot's proposal names only its run (the SQL of task 6.2b takes exactly `{ runId }`); the
+ *  database stores plan.ai_applied / plan.ai_skipped with the outcome in its place. */
+const aiProposedPayload = z.strictObject({ runId: z.string() })
 const aiRunPayload = z.strictObject({
   runId: z.string(),
   outcome: z.string(),
@@ -156,7 +159,7 @@ export const EVENT_PAYLOADS = {
   }),
   'plan.extra_added': z.strictObject({ itemIds: z.array(z.string()).min(1) }),
   'onboarding.completed': emptyPayload,
-  'plan.ai_proposed': aiRunPayload,
+  'plan.ai_proposed': aiProposedPayload,
   'plan.ai_applied': aiRunPayload,
   'plan.ai_skipped': aiRunPayload,
   'user_item.created': userItemPayload,

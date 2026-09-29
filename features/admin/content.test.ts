@@ -6,6 +6,7 @@ import {
   coverageHorizon,
   coverageWarnings,
   HORIZON_WEEKS,
+  type PublishRequestRow,
   type TrackPosition,
 } from './content'
 
@@ -340,6 +341,10 @@ describe('buildContentPage — drafts', () => {
         titleLang: 'en',
         meta: ['Cấu trúc dữ liệu & Giải thuật', 'Problem'],
         href: '/t/dsa/items/lc-0146',
+        target: 'dsa:lc-0146',
+        checklist: 'problem',
+        verification: null,
+        request: null,
       },
       {
         id: 'dsa:lesson-linked-list',
@@ -347,6 +352,10 @@ describe('buildContentPage — drafts', () => {
         titleLang: undefined,
         meta: ['Cấu trúc dữ liệu & Giải thuật', 'Lesson'],
         href: '/t/dsa/items/lesson-linked-list',
+        target: 'dsa:lesson-linked-list',
+        checklist: 'item',
+        verification: null,
+        request: null,
       },
       {
         id: 'english:standup:c2',
@@ -354,6 +363,10 @@ describe('buildContentPage — drafts', () => {
         titleLang: 'en',
         meta: ['Tiếng Anh cho môi trường IT', 'Flashcard'],
         href: '/t/english/items/standup%3Ac2',
+        target: 'english:standup:c2',
+        checklist: 'item',
+        verification: null,
+        request: null,
       },
     ])
     expect(drafts.notes).toEqual([
@@ -363,6 +376,10 @@ describe('buildContentPage — drafts', () => {
         titleLang: 'en',
         meta: ['Cấu trúc dữ liệu & Giải thuật', 'Ghi chú'],
         href: '/t/dsa/items/lc-0206',
+        target: 'dsa:lc-0206#note',
+        checklist: 'problem',
+        verification: 'tested',
+        request: null,
       },
     ])
   })
@@ -374,6 +391,111 @@ describe('buildContentPage — drafts', () => {
       items: { 'dsa:lc-0001': CATALOG.items['dsa:lc-0001'] },
     } as Catalog
     expect(buildContentPage(active, []).drafts).toEqual({ tracks: [], items: [], notes: [] })
+  })
+})
+
+describe('buildContentPage — publish requests (§6.6, task 6.7a)', () => {
+  const PR = 'https://github.com/khanhnguyendev/hoc-deu/pull/41'
+  const request = (
+    id: number,
+    target: string,
+    status: PublishRequestRow['status'],
+    prUrl: string | null = null,
+  ): PublishRequestRow => ({
+    id,
+    target,
+    status,
+    prUrl,
+    // 02:00 UTC = 09:00 in Viet Nam.
+    requestedAt: `2026-10-0${id}T02:00:00Z`,
+  })
+
+  it('a draft with a pending request shows it, with its PR once a publish run set one', () => {
+    const { drafts } = buildContentPage(
+      CATALOG,
+      [],
+      [
+        request(1, 'dsa:lc-0146', 'pending'),
+        request(2, 'dsa:lc-0206#note', 'pending', PR),
+        request(3, 'dsa:lesson-linked-list', 'cancelled'),
+      ],
+    )
+    expect(drafts.items.find((d) => d.id === 'dsa:lc-0146')?.request).toEqual({
+      requestId: 1,
+      pr: null,
+    })
+    expect(drafts.notes[0]?.request).toEqual({
+      requestId: 2,
+      pr: { href: PR, label: 'PR #41' },
+    })
+    // A cancelled request is history: the draft can be requested again.
+    expect(drafts.items.find((d) => d.id === 'dsa:lesson-linked-list')?.request).toBeNull()
+  })
+
+  it('a bot-written draft note reads "tested (bot tests)" (ADR-0040); compile-only stays', () => {
+    const bot = (verification: 'tested' | 'compile-only') =>
+      ({
+        ...CATALOG,
+        items: {
+          ...CATALOG.items,
+          'dsa:lc-0206': item({
+            id: 'dsa:lc-0206',
+            type: 'problem',
+            trackId: 'dsa',
+            title: 'Reverse Linked List',
+            content: {
+              note: { ...note('draft', verification), mdxKey: 'dsa:lc-0206#note', origin: 'bot' },
+            } as never,
+          }),
+        },
+      }) as Catalog
+    expect(buildContentPage(bot('tested'), []).drafts.notes[0]?.verification).toBe('tested-by-bot')
+    expect(buildContentPage(bot('compile-only'), []).drafts.notes[0]?.verification).toBe(
+      'compile-only',
+    )
+  })
+
+  it('lists pending requests first, then the others, newest first, with titles and links', () => {
+    const page = buildContentPage(
+      CATALOG,
+      [],
+      [
+        request(1, 'dsa:lc-0001#note', 'merged', PR),
+        request(2, 'dsa:lc-0206#note', 'pending', PR),
+        request(3, 'dsa:lc-0146', 'cancelled'),
+        request(4, 'dsa:lc-0146', 'pending'),
+        request(5, 'dsa:lc-4242', 'cancelled'),
+      ],
+    )
+    expect(page.publishRequests.state).toBe('ready')
+    const rows = page.publishRequests.state === 'ready' ? page.publishRequests.rows : []
+    expect(rows.map((row) => [row.id, row.status])).toEqual([
+      [4, 'pending'],
+      [2, 'pending'],
+      [5, 'cancelled'],
+      [3, 'cancelled'],
+      [1, 'merged'],
+    ])
+    expect(rows[1]).toEqual({
+      id: 2,
+      target: 'dsa:lc-0206#note',
+      title: 'Reverse Linked List',
+      titleLang: 'en',
+      kind: 'Ghi chú',
+      href: '/t/dsa/items/lc-0206',
+      status: 'pending',
+      statusLabel: 'Đang chờ',
+      pr: { href: PR, label: 'PR #41' },
+      requestedAt: '09:00, 2 tháng 10, 2026',
+    })
+    // A target the deployed catalog no longer has: its ID, no link.
+    expect(rows[2]).toMatchObject({ title: 'dsa:lc-4242', href: null, titleLang: undefined })
+  })
+
+  it('no request yet: empty; the requests could not be read: error', () => {
+    expect(buildContentPage(CATALOG, [], []).publishRequests).toEqual({ state: 'empty' })
+    expect(buildContentPage(CATALOG, [], null).publishRequests).toEqual({ state: 'error' })
+    expect(buildContentPage(CATALOG, []).publishRequests).toEqual({ state: 'empty' })
   })
 })
 

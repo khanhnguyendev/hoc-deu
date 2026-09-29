@@ -4,12 +4,16 @@ import { notFound } from 'next/navigation'
 import { EmptyState } from '@/components/patterns/empty-state'
 import { renderItemRow, type CatalogItem, type Mode } from '@/features/items'
 import {
+  CustomItemsTab,
+  customItemSlots,
   getTrackPage,
+  hideCustomItem,
   ResetTrackButton,
   roadmapSlots,
   RoadmapView,
   TrackOverview,
   TrackProgress,
+  TrackTabs,
   WeakItems,
 } from '@/features/roadmap'
 import { resetTrack } from '@/features/settings'
@@ -24,6 +28,12 @@ async function load({ params, searchParams }: PageProps<'/t/[trackId]'>) {
   const data = await getTrackPage(trackId, typeof variant === 'string' ? variant : undefined)
   if (data === null) notFound()
   return data
+}
+
+/** `?tab=custom` opens the "Mục riêng" tab (task 6.6a). */
+async function initialTab({ searchParams }: PageProps<'/t/[trackId]'>) {
+  const { tab } = await searchParams
+  return tab === 'custom' ? 'custom' : 'roadmap'
 }
 
 export async function generateMetadata(props: PageProps<'/t/[trackId]'>): Promise<Metadata> {
@@ -44,6 +54,10 @@ export async function generateMetadata(props: PageProps<'/t/[trackId]'>): Promis
  * un-followed retired track answers a real HTTP 404 (`app/(app)/not-found.tsx`) instead of a
  * streamed 200. RoadmapView needs no `<Suspense>` split: its slots are already built by the time
  * this renders.
+ *
+ * Task 6.6a (§2.4): when the learner has custom items of the track — whatever the AI flag — the
+ * roadmap and the "Mục riêng" tab (CustomItemsTab: each item's registry row, "Ẩn" through
+ * `hideCustomItem`, passed unbound, with the page's request id) sit in TrackTabs.
  */
 export default async function TrackPage(props: PageProps<'/t/[trackId]'>) {
   const data = await load(props)
@@ -57,6 +71,25 @@ export default async function TrackPage(props: PageProps<'/t/[trackId]'>) {
     data.view === null
       ? null
       : roadmapSlots(data.view, (item, { mode }) => row(item, mode ?? undefined))
+  const custom =
+    data.customItems === null ? null : (
+      <CustomItemsTab
+        data={customItemSlots(data.customItems, (item) => row(item))}
+        hide={hideCustomItem}
+        requestId={data.requestId}
+      />
+    )
+  const roadmap =
+    slots === null ? (
+      <EmptyState
+        icon={MapIcon}
+        title={copy.title}
+        description={copy.description}
+        action={{ label: copy.action, href: '/tracks' }}
+      />
+    ) : (
+      <RoadmapView slots={slots} />
+    )
   const learner =
     data.progress === null ? undefined : (
       <>
@@ -83,15 +116,10 @@ export default async function TrackPage(props: PageProps<'/t/[trackId]'>) {
       throttle={data.throttle}
       learner={learner}
     >
-      {slots === null ? (
-        <EmptyState
-          icon={MapIcon}
-          title={copy.title}
-          description={copy.description}
-          action={{ label: copy.action, href: '/tracks' }}
-        />
+      {custom === null ? (
+        roadmap
       ) : (
-        <RoadmapView slots={slots} />
+        <TrackTabs roadmap={roadmap} custom={custom} initial={await initialTab(props)} />
       )}
     </TrackOverview>
   )

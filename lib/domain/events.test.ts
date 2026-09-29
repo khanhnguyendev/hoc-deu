@@ -26,6 +26,12 @@ const AI_RUN_SAMPLE = {
   valid: { runId: 'run-2026-09-24-1', outcome: 'applied', planVersion: 2 },
   invalid: { runId: 'run-2026-09-24-1', outcome: 'applied', planVersion: 0 },
 }
+/** plan.ai_proposed carries exactly the run key (the SQL branch of task 6.2b): the database stores
+ *  plan.ai_applied / plan.ai_skipped with the outcome, never the proposal itself. */
+const AI_PROPOSED_SAMPLE = {
+  valid: { runId: 'run_2026-09-24' },
+  invalid: { runId: 'run_2026-09-24', outcome: 'applied' },
+}
 const USER_ITEM_SAMPLE = {
   valid: { itemType: 'flashcard', slug: 'big-o-of-hash-maps' },
   invalid: { itemType: 'lesson' },
@@ -105,7 +111,7 @@ const SAMPLES: Record<EventType, { valid: Record<string, unknown>; invalid: unkn
   },
   'plan.extra_added': { valid: { itemIds: ['dsa:arrays:two-sum'] }, invalid: { itemIds: [] } },
   'onboarding.completed': EMPTY_SAMPLE,
-  'plan.ai_proposed': AI_RUN_SAMPLE,
+  'plan.ai_proposed': AI_PROPOSED_SAMPLE,
   'plan.ai_applied': AI_RUN_SAMPLE,
   'plan.ai_skipped': AI_RUN_SAMPLE,
   'user_item.created': USER_ITEM_SAMPLE,

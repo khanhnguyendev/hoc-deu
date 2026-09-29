@@ -8,17 +8,26 @@
  * through the item registry and renders only inside `ItemView`'s `<Suspense>` boundary.
  */
 export { ItemBody } from './item-body'
+export { hideCustomItem, type ActionResult } from './actions'
+export {
+  CustomItemsTab,
+  type CustomItemSlot,
+  type CustomItemsTabData,
+} from './components/custom-items-tab'
 export { ItemView } from './components/item-view'
 export { ResetTrackButton, type ResetTrackAction } from './components/reset-track-button'
 export { RoadmapView } from './components/roadmap-view'
 export { TrackList } from './components/track-list'
 export { TrackOverview } from './components/track-overview'
 export { TrackProgress } from './components/track-progress'
+export { TrackTabs, type TrackTab } from './components/track-tabs'
 export { WeakItems } from './components/weak-items'
 export {
   getItemPage,
   getTrackPage,
   getTracksOverview,
+  type CustomItemsData,
+  type CustomItemView,
   type Enrollment,
   type ItemPageModel,
   type TrackPageData,
@@ -26,5 +35,11 @@ export {
   type TrackSummary,
   type VariantLink,
 } from './queries'
-export { roadmapSlots, type RoadmapSlots, type RowRenderer, type WeekSlots } from './slots'
+export {
+  customItemSlots,
+  roadmapSlots,
+  type RoadmapSlots,
+  type RowRenderer,
+  type WeekSlots,
+} from './slots'
 export type { RoadmapView as RoadmapViewModel, TrackProgressData, WeekView } from './view-model'

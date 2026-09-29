@@ -16,6 +16,7 @@ import {
   type AdminWarning,
   type MetricReading,
   type OpsMetrics,
+  type RateLimitOverview,
 } from '@/features/admin/overview'
 import type { AdminUserRow } from '@/features/admin/queries'
 import { vi } from '@/lib/i18n/vi'
@@ -64,10 +65,17 @@ const DEMO_COVERAGE_WARNING = {
   weeks: [4, 5],
 }
 
+/** Upstash configured, no fail-open events (task 6.1): neither new warning fires. */
+const DEMO_RATE_LIMIT_OK: RateLimitOverview = { mode: 'upstash', failOpen7d: 0 }
+/** No Upstash configured, a few fail-open events in the last 7 days (task 6.1). */
+const DEMO_RATE_LIMIT_MEMORY: RateLimitOverview = { mode: 'memory', failOpen7d: 3 }
+
 const DEMO_OVERVIEW = buildAdminOverview({
   counts: DEMO_COUNTS,
   metrics: DEMO_METRICS,
   coverage: [DEMO_COVERAGE_WARNING],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 const DEMO_FIRST_RUN = buildAdminOverview({
@@ -78,6 +86,8 @@ const DEMO_FIRST_RUN = buildAdminOverview({
   },
   metrics: DEMO_NO_METRICS,
   coverage: [],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 /**
@@ -98,6 +108,8 @@ const DEMO_NO_RUNS = buildAdminOverview({
     },
   },
   coverage: [],
+  rateLimit: DEMO_RATE_LIMIT_OK,
+  vercelEnv: 'production',
   now: DEMO_NOW,
 })
 /** Every warning kind and tone: the red coverage warning, a critical DB size, the rest. */
@@ -111,6 +123,9 @@ const DEMO_ALL_WARNINGS: AdminWarning[] = [
       'cron.last_run_at': demoInstant(1),
     },
     coverage: [DEMO_COVERAGE_WARNING],
+    // The in-memory rate-limit warning and the fail-open count, task 6.1.
+    rateLimit: DEMO_RATE_LIMIT_MEMORY,
+    vercelEnv: 'production',
     now: DEMO_NOW,
   }).warnings,
   ...buildAdminOverview({
@@ -120,6 +135,8 @@ const DEMO_ALL_WARNINGS: AdminWarning[] = [
       'db.size_bytes': { value: 120 * MB, recordedAt: DEMO_NOW.toISOString() },
     },
     coverage: [],
+    rateLimit: DEMO_RATE_LIMIT_OK,
+    vercelEnv: 'production',
     now: DEMO_NOW,
   }).warnings,
   // "Chưa có lần … thành công nào": the cron has run, no success was ever read.
@@ -426,6 +443,10 @@ const demoSetUserRole = async (): Promise<AdminActionResult> => ({
   ok: true,
   message: vi.admin.results.promoted,
 })
+const demoSetAiFlag = async (): Promise<AdminActionResult> => ({
+  ok: true,
+  message: vi.adminBot.results.aiOn,
+})
 const demoFailure = async (): Promise<AdminActionResult> => ({
   ok: false,
   message: vi.admin.errors.changed,
@@ -439,6 +460,7 @@ const demoUser = (user: Partial<AdminUserRow> & Pick<AdminUserRow, 'id'>): Admin
   createdAt: '2026-01-12T02:00:00Z',
   approvedAt: null,
   onboardedAt: null,
+  aiPersonalization: false,
   isSelf: false,
   ...user,
 })
@@ -458,7 +480,7 @@ const DEMO_ADMIN_USERS: AdminUserRow[] = [
   demoUser({ id: 'cuong', status: 'pending', createdAt: '2026-02-03T20:00:00Z' }),
   demoUser({ id: 'an', displayName: DEMO_ADMIN_SELF, role: 'admin', isSelf: true }),
   demoUser({ id: 'dung', displayName: DEMO_OTHER_ADMIN, role: 'admin' }),
-  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang' }),
+  demoUser({ id: 'giang', displayName: 'Phạm Thu Giang', aiPersonalization: true }),
   demoUser({ id: 'hai', displayName: 'Hoàng Minh Hải', status: 'suspended' }),
 ]
 
@@ -501,13 +523,14 @@ export const ADMIN_ENTRIES: Entry[] = [
     file: 'features/admin/components/user-queue.tsx',
     demos: [
       {
-        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn không có thao tác',
+        title: 'Chờ duyệt trước, rồi các mục khác; hàng của bạn chỉ có công tắc cá nhân hoá AI',
         render: () => (
           <div className="flex w-full flex-col gap-6">
             <UserQueue
               users={DEMO_ADMIN_USERS}
               setUserStatus={demoSetUserStatus}
               setUserRole={demoSetUserRole}
+              setAiFlag={demoSetAiFlag}
             />
           </div>
         ),
@@ -524,6 +547,7 @@ export const ADMIN_ENTRIES: Entry[] = [
               }))}
               setUserStatus={demoSetUserStatus}
               setUserRole={demoSetUserRole}
+              setAiFlag={demoSetAiFlag}
             />
           </div>
         ),

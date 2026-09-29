@@ -4,7 +4,7 @@
  * MDX and code modules load lazily, one item page at a time.
  */
 import 'server-only'
-import { CATALOG } from '@/.generated/catalog'
+import { CATALOG, CATALOG_VERSION } from '@/.generated/catalog'
 import { CODE_LOADERS } from '@/.generated/code'
 import { MDX_LOADERS } from '@/.generated/mdx'
 import { createCatalogAccess, type CatalogAccess } from './catalog-access'
@@ -22,3 +22,11 @@ export function getCatalog(): Catalog {
 // Plain closures (catalog-access.ts), so each works on its own.
 export const { getTrack, getItem, getTrackItems, getRoadmap, getDeck, loadMdx, loadCode } =
   catalogAccess
+
+/**
+ * The deployed catalog's version (§6.4.1, Part B-M6 decision 21): `content:build` writes the first
+ * 16 hex digits of the SHA-256 of the canonical catalog JSON. The bot reports it with each run.
+ */
+export function catalogVersion(): string {
+  return CATALOG_VERSION
+}
