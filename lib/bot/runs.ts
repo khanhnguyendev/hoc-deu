@@ -375,7 +375,7 @@ export async function finishRun(
   if (run === null) return { outcome: 'not_found' }
   if (run.status !== 'running') return { outcome: 'not_running' }
 
-  must(
+  const finished = must(
     'finish the run',
     await admin
       .from('bot_runs')
@@ -387,8 +387,11 @@ export async function finishRun(
         ...(input.contentPrUrl === undefined ? {} : { content_pr_url: input.contentPrUrl }),
       })
       .eq('id', run.id)
-      .eq('status', 'running'),
+      .eq('status', 'running')
+      .select('id'),
   )
+  // The timeout sweep may have finished the run between the read and the update.
+  if (finished.length === 0) return { outcome: 'not_running' }
 
   const ids = [...new Set(input.publishRequestIds ?? [])]
   if (ids.length === 0) return { outcome: 'ok', ignored: [] }

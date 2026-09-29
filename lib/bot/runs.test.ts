@@ -534,6 +534,21 @@ describe('finishRun (§6.4.6)', () => {
     },
   )
 
+  it('a run finished by the timeout sweep between the read and the update is not_running', async () => {
+    const db = setup({ runs: runs(), requests: requests() })
+    const from = db.client.from.bind(db.client)
+    let reads = 0
+    db.client.from = ((table: string) => {
+      if (table === 'bot_runs' && reads++ === 1) runRow(db)!.status = 'timed_out'
+      return from(table)
+    }) as typeof db.client.from
+    await expect(
+      finishRun(RUN_KEY, { status: 'completed', contentPrUrl: PR, publishRequestIds: [17] }, NOW),
+    ).resolves.toEqual({ outcome: 'not_running' })
+    expect(runRow(db)).toMatchObject({ status: 'timed_out', finished_at: null })
+    expect(db.calls).not.toContain('rpc:publish_set_pr')
+  })
+
   it('stores the status, finished_at, the summary and the content PR URL', async () => {
     const db = setup({ runs: runs() })
     const result = await finishRun(
