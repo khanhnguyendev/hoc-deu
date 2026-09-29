@@ -163,7 +163,7 @@ function SwitchFieldDemo({ fails = false }: { fails?: boolean }) {
   }
   return (
     <SwitchField
-      id={fails ? 'demo-switch-fails' : 'demo-switch'}
+      id={fails ? 'switch-field-demo-fails' : 'switch-field-demo'}
       label={vi.notesSharing.title}
       description={vi.notesSharing.description}
       error={error}
@@ -359,28 +359,28 @@ export const PATTERN_ENTRIES: Entry[] = [
         render: () => (
           <div className="flex flex-col gap-4">
             <SwitchField
-              id="demo-switch-off"
+              id="switch-field-demo-off"
               label={vi.adminBot.controls.enabled.label}
               description={vi.adminBot.controls.enabled.description}
               checked={false}
               onCheckedChange={() => {}}
             />
             <SwitchField
-              id="demo-switch-on"
+              id="switch-field-demo-on"
               label={vi.adminBot.controls.dryRun.label}
               description={vi.adminBot.controls.dryRun.description}
               checked
               onCheckedChange={() => {}}
             />
             <SwitchField
-              id="demo-switch-pending"
+              id="switch-field-demo-pending"
               label={vi.adminBot.controls.contentProposals.label}
               checked
               pending
               onCheckedChange={() => {}}
             />
             <SwitchField
-              id="demo-switch-disabled"
+              id="switch-field-demo-disabled"
               label={vi.adminBot.aiFlag.label}
               description={vi.adminBot.aiFlag.inactive}
               checked={false}
@@ -394,7 +394,7 @@ export const PATTERN_ENTRIES: Entry[] = [
         title: 'Lưu thất bại: lỗi bên dưới, quay về vị trí đã lưu',
         render: () => (
           <SwitchField
-            id="demo-switch-error"
+            id="switch-field-demo-error"
             label={vi.notesSharing.title}
             description={vi.notesSharing.description}
             error={vi.errors.saveFailed}
