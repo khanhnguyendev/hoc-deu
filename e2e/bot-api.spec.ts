@@ -14,6 +14,7 @@ import {
   customItemsOf,
   deleteTodayRuns,
   localDayIn,
+  markPlanSeen,
   opsDay,
   overridesOf,
   planOn,
@@ -502,16 +503,25 @@ test('3. run start: key, mode, resume, timeout, cap and deferred users, the pre-
   const context = await contextOf(api, live.runId, ref)
   await setBotSettings({ dry_run: true })
   const eventsBefore = await countEvents(pending.id)
-  // The rationale's bound is 280 graphemes, not code points: 280 letters with three combining
-  // marks each (840 code points, even after NFC) are accepted.
-  const combining = 'e\u0301\u0302\u0303'.repeat(280)
+  // Combining marks: the rationale is bounded by 280 graphemes (the validation) and 280 code
+  // points (the database's char_length, §6.4.3; 6.5b) — 280 letters with three marks each (840
+  // code points after NFC) are an invalid answer, never a 500; 140 letters with two marks each
+  // (280 code points) are accepted.
+  const tooMany = 'e\u0301\u0302\u0303'.repeat(280)
+  const refused = await api.plan(live.runId, ref, validPlan(context, [], tooMany))
+  expect(refused.status, JSON.stringify(refused.body)).toBe(422)
+  expect(refused.body).toEqual({
+    outcome: 'invalid',
+    details: [{ path: 'rationale', code: 'rationale' }],
+  })
+  const combining = 'e\u0301\u0302'.repeat(140)
   const write = await api.plan(live.runId, ref, validPlan(context, [], combining))
   expect(write.status, JSON.stringify(write.body)).toBe(200)
   expect(write.body).toEqual({ outcome: 'dry_run' })
   const stored = ((await runUserOf(live.runId, pending.id))?.detail as Record<string, unknown>)
     .plan as { proposal: { rationale: string } }
   expect(stored.proposal.rationale).toBe(combining.normalize('NFC'))
-  expect([...stored.proposal.rationale].length).toBeGreaterThan(280)
+  expect([...stored.proposal.rationale].length).toBe(280)
   expect(await planOn(pending.id, pending.today)).toBeNull()
   expect(await countEvents(pending.id)).toBe(eventsBefore)
   expect((await runRow(live.runId))?.mode).toBe('dry_run')
@@ -928,7 +938,10 @@ test('7. overrides: a reorder breaking requires, a fourth active, extra_week the
   expect(stored.dsa?.extraWeek).toBe('ah-extra-1')
 
   // A new run: another extra week within 21 days of the last start → cooldown (and only the
-  // cooldown: the first one is no longer in force); then a revoke.
+  // cooldown: the first one is no longer in force); then a revoke. The learner opens the AI plan
+  // first: an unseen one would pre-filter them (skipped_unseen), and the run refuses writes for
+  // a user it settled at start.
+  await markPlanSeen(learner.id, learner.today)
   run = await restartRun(api)
   ref = await refOf(run.runId, learner)
   const cooldown = await api.overrides(run.runId, ref, { set: [extraWeek('ah-extra-2')] })

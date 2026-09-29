@@ -263,6 +263,16 @@ export async function setAiFlag(userId: string, shareNotes = false): Promise<voi
   if (error) throw new Error(`setAiFlag(${userId}) failed: ${error.message}`)
 }
 
+/** Marks the learner's plan of `planDate` seen now (the learner opened `/today`). */
+export async function markPlanSeen(userId: string, planDate: string): Promise<void> {
+  const { error } = await admin()
+    .from('day_plans')
+    .update({ seen_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('plan_date', planDate)
+  if (error) throw new Error(`markPlanSeen(${userId}) failed: ${error.message}`)
+}
+
 /** A block check-in with the learner's note (`plan_block_state.note`, §4.6). */
 export async function seedNote(
   userId: string,
