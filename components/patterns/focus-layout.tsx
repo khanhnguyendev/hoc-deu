@@ -39,12 +39,22 @@ function FocusLayout({
       >
         {vi.common.skipToContent}
       </a>
-      <header className="flex items-center justify-between px-4 py-4 md:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <LogoMark />
-          Học Đều
-        </Link>
-        {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+      <header>
+        <div
+          data-slot="focus-layout-header"
+          className={cn(
+            'flex items-center justify-between px-4 py-4 md:px-6 lg:px-8',
+            // The page width: the header shares main's frame, so the wordmark and the actions
+            // sit on the content edges.
+            width === 'page' && 'mx-auto w-full max-w-6xl',
+          )}
+        >
+          <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <LogoMark />
+            Học Đều
+          </Link>
+          {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+        </div>
       </header>
       <main
         id="main"

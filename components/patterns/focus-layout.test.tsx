@@ -69,6 +69,25 @@ describe('FocusLayout', () => {
     expect(screen.getByRole('main').className.split(' ')).toContain('justify-center')
   })
 
+  it('aligns the header with the content edges for the page width only', () => {
+    const { rerender } = render(
+      <FocusLayout width="page">
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    const header = () =>
+      document.querySelector('[data-slot="focus-layout-header"]')?.className ?? ''
+    for (const token of ['mx-auto', 'w-full', 'max-w-6xl', 'px-4', 'md:px-6', 'lg:px-8']) {
+      expect(header().split(' ')).toContain(token)
+    }
+    rerender(
+      <FocusLayout>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    expect(header().split(' ')).not.toContain('max-w-6xl')
+  })
+
   it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
     render(
       <FocusLayout>
