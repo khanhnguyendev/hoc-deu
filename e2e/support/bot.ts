@@ -116,7 +116,7 @@ export async function readRunUserCap(): Promise<number> {
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
 
 /** A token of the production form (`hdb_` + 43 base64url characters, ADR-0026). */
-export function newToken(): string {
+function newToken(): string {
   return `hdb_${randomBytes(32).toString('base64url')}`
 }
 
@@ -141,14 +141,19 @@ export async function writeBotToken(options: { keepPreviousUntil?: Date } = {}):
   return token
 }
 
-/** The ops day (Asia/Ho_Chi_Minh, §6.2): today's run key is `run_<opsDay()>`. */
-export function opsDay(now = new Date()): string {
+/** `YYYY-MM-DD` of `now` in `timeZone` (a schedule whose day starts at 00:00). */
+export function localDayIn(timeZone: string, now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(now)
+}
+
+/** The ops day (Asia/Ho_Chi_Minh, §6.2): today's run key is `run_<opsDay()>`. */
+export function opsDay(now = new Date()): string {
+  return localDayIn('Asia/Ho_Chi_Minh', now)
 }
 
 /** Deletes today's runs — the plan run and the publish runs — and their run users (cascade). */
@@ -256,13 +261,6 @@ export async function setAiFlag(userId: string, shareNotes = false): Promise<voi
     .update({ ai_personalization: true, share_notes_with_ai: shareNotes })
     .eq('id', userId)
   if (error) throw new Error(`setAiFlag(${userId}) failed: ${error.message}`)
-}
-
-/** The learner's opaque `bot_ref` (custom item IDs: `user:<bot_ref>:<slug>`). */
-export async function botRefOf(userId: string): Promise<string> {
-  const { data, error } = await admin().from('profiles').select('bot_ref').eq('id', userId).single()
-  if (error) throw new Error(`botRefOf(${userId}) failed: ${error.message}`)
-  return data.bot_ref
 }
 
 /** A block check-in with the learner's note (`plan_block_state.note`, §4.6). */

@@ -13,6 +13,7 @@ import {
   countTodayRuns,
   customItemsOf,
   deleteTodayRuns,
+  localDayIn,
   opsDay,
   overridesOf,
   planOn,
@@ -83,7 +84,27 @@ let control: BotControl
 const created: string[] = []
 const publishRequests: number[] = []
 
+/** How close to the ops day's change (17:00 UTC = 00:00 in Asia/Ho_Chi_Minh) the suite waits. */
+const DAY_CHANGE_MARGIN_MS = 2 * 60_000
+
+/**
+ * The milliseconds until the ops day changes when that is less than `DAY_CHANGE_MARGIN_MS` away,
+ * else 0: a case that starts a run on one ops day and writes on the next would see its run key
+ * change under it (§6.2).
+ */
+function msBeforeDayChange(now = new Date()): number {
+  const change = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 17)
+  const until = change - now.getTime()
+  return until > 0 && until <= DAY_CHANGE_MARGIN_MS ? until : 0
+}
+
 test.beforeAll(async () => {
+  const wait = msBeforeDayChange()
+  if (wait > 0) {
+    // Let the Asia/Ho_Chi_Minh day change pass (plus a little) before the first run starts.
+    test.setTimeout(wait + 60_000)
+    await new Promise((resolve) => setTimeout(resolve, wait + 5_000))
+  }
   control = await readBotControl()
   await deleteTodayRuns()
 })
@@ -104,16 +125,6 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------------------------------------
 
 type Learner = { id: string; email: string; name: string; today: string }
-
-/** `YYYY-MM-DD` of `now` in `timeZone` (a schedule whose day starts at 00:00). */
-function localDayIn(timeZone: string, now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now)
-}
 
 /**
  * An onboarded, AI-flagged learner of DSA 8w (60 minutes a day), started a week ago — by default
@@ -491,9 +502,16 @@ test('3. run start: key, mode, resume, timeout, cap and deferred users, the pre-
   const context = await contextOf(api, live.runId, ref)
   await setBotSettings({ dry_run: true })
   const eventsBefore = await countEvents(pending.id)
-  const write = await api.plan(live.runId, ref, validPlan(context))
+  // The rationale's bound is 280 graphemes, not code points: 280 letters with three combining
+  // marks each (840 code points, even after NFC) are accepted.
+  const combining = 'e\u0301\u0302\u0303'.repeat(280)
+  const write = await api.plan(live.runId, ref, validPlan(context, [], combining))
   expect(write.status, JSON.stringify(write.body)).toBe(200)
   expect(write.body).toEqual({ outcome: 'dry_run' })
+  const stored = ((await runUserOf(live.runId, pending.id))?.detail as Record<string, unknown>)
+    .plan as { proposal: { rationale: string } }
+  expect(stored.proposal.rationale).toBe(combining.normalize('NFC'))
+  expect([...stored.proposal.rationale].length).toBeGreaterThan(280)
   expect(await planOn(pending.id, pending.today)).toBeNull()
   expect(await countEvents(pending.id)).toBe(eventsBefore)
   expect((await runRow(live.runId))?.mode).toBe('dry_run')
@@ -1073,20 +1091,25 @@ test('11. malicious note: sanitised under untrusted.notes; every out-of-bounds b
   expect(JSON.stringify({ ...context, untrusted: null })).not.toContain('Bỏ qua')
 
   const eventsBefore = await countEvents(learner.id)
-  for (const body of maliciousPlans(context)) {
-    const answer = await api.plan(run.runId, ref, body)
+  // Each body is refused for the bound it pushes: its detail codes are among the expected ones.
+  const refusedFor = (answer: BotAnswer, expected: readonly string[]) => {
+    const got = codes(answer)
     expect(answer.status, JSON.stringify(answer.body).slice(0, 300)).toBe(422)
     expect(answer.body.outcome).toBe('invalid')
+    expect(got.length, JSON.stringify(answer.body).slice(0, 300)).toBeGreaterThan(0)
+    expect(
+      got.filter((code) => !expected.includes(code)),
+      JSON.stringify(got),
+    ).toEqual([])
   }
-  for (const body of maliciousCustomItems()) {
-    const answer = await api.customItems(run.runId, ref, body)
-    expect(answer.status, JSON.stringify(answer.body).slice(0, 300)).toBe(422)
-    expect(answer.body.outcome).toBe('invalid')
+  for (const { body, codes: expected } of maliciousPlans(context)) {
+    refusedFor(await api.plan(run.runId, ref, body), expected)
   }
-  for (const body of maliciousOverrides(context)) {
-    const answer = await api.overrides(run.runId, ref, body)
-    expect(answer.status, JSON.stringify(answer.body).slice(0, 300)).toBe(422)
-    expect(answer.body.outcome).toBe('invalid')
+  for (const { body, codes: expected } of maliciousCustomItems()) {
+    refusedFor(await api.customItems(run.runId, ref, body), expected)
+  }
+  for (const { body, codes: expected } of maliciousOverrides(context)) {
+    refusedFor(await api.overrides(run.runId, ref, body), expected)
   }
   expect(await planOn(learner.id, learner.today)).toBeNull()
   expect(await customItemsOf(learner.id)).toEqual({})
