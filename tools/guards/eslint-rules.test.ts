@@ -333,7 +333,7 @@ describe('token rules (platform design §7.3)', COLD_ESLINT, () => {
     expect(ids).toContain('better-tailwindcss/no-restricted-classes')
   })
 
-  it.each(['shadow-lg', 'text-5xl', 'rounded-3xl', 'font-serif', 'ease-in', 'drop-shadow-lg'])(
+  it.each(['shadow-lg', 'text-7xl', 'rounded-3xl', 'font-serif', 'ease-in', 'drop-shadow-lg'])(
     'treats Tailwind default theme value %s as unknown',
     async (cls) => {
       const ids = await ruleIds(

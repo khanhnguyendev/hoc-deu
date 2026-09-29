@@ -79,7 +79,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Landing } from '@/features/auth/components/landing'
+import { LandingFooter } from '@/features/landing/components/landing-footer'
+import { HeatCell } from '@/features/landing/components/heat-cell'
+import { Landing } from '@/features/landing/components/landing'
+import { MissedDayGrid } from '@/features/landing/components/missed-day-grid'
+import { SignInLink, StartLink } from '@/features/landing/components/sign-in-link'
+import { TodayPreview } from '@/features/landing/components/today-preview'
 import { PendingStatus, SignOutButton } from '@/features/auth/components/pending-status'
 import { SignInPanel } from '@/features/auth/components/sign-in-panel'
 import { StatusWatcher } from '@/features/auth/components/status-watcher'
@@ -1664,12 +1669,12 @@ export const CATALOG: Entry[] = [
   {
     name: 'Landing',
     layer: 'features',
-    file: 'features/auth/components/landing.tsx',
+    file: 'features/landing/components/landing.tsx',
     demos: [
       {
-        title: 'Wordmark, positioning line, "Đăng nhập"',
+        title: 'The whole signed-out page (width="page" frame)',
         render: () => (
-          <div className="w-full max-w-md">
+          <div className="w-full">
             <Landing />
           </div>
         ),
@@ -1677,8 +1682,89 @@ export const CATALOG: Entry[] = [
       {
         title: 'Với thông báo đã xoá tài khoản (?account=deleted)',
         render: () => (
-          <div className="w-full max-w-md">
+          <div className="w-full">
             <Landing deleted />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'TodayPreview',
+    layer: 'features',
+    file: 'features/landing/components/today-preview.tsx',
+    demos: [
+      {
+        title: 'Example day: three blocks, one checked in, 7-day strip (non-interactive)',
+        render: () => (
+          <div className="w-full max-w-2xl">
+            <TodayPreview />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'MissedDayGrid',
+    layer: 'features',
+    file: 'features/landing/components/missed-day-grid.tsx',
+    demos: [
+      {
+        title: 'Six example weeks, two blank days (decorative)',
+        render: () => (
+          <div className="w-full max-w-xl">
+            <MissedDayGrid />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'HeatCell',
+    layer: 'features',
+    file: 'features/landing/components/heat-cell.tsx',
+    demos: [
+      {
+        title: 'Strip cells at levels 0–4, then today (outlined, filling to level 2)',
+        render: () => (
+          <div className="grid w-full max-w-md grid-cols-6 gap-1.5">
+            <HeatCell level={0} />
+            <HeatCell level={1} />
+            <HeatCell level={2} />
+            <HeatCell level={3} />
+            <HeatCell level={4} />
+            <HeatCell level={0} deepenTo={2} today />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'LandingFooter',
+    layer: 'features',
+    file: 'features/landing/components/landing-footer.tsx',
+    demos: [
+      {
+        title: 'Hairline, wordmark, repository link, licences',
+        render: () => (
+          <div className="w-full">
+            <LandingFooter />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'SignInLink',
+    layer: 'features',
+    file: 'features/landing/components/sign-in-link.tsx',
+    demos: [
+      {
+        title: 'Header "Đăng nhập" (outline) and the primary "Bắt đầu học"',
+        render: () => (
+          <div className="flex flex-wrap items-center gap-3">
+            <SignInLink />
+            <StartLink />
           </div>
         ),
       },

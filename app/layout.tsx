@@ -4,8 +4,8 @@ import { mono, sans } from './fonts/fonts'
 import { vi } from '@/lib/i18n/vi'
 import './globals.css'
 
-/** The one site description: the page's `description` and its Open Graph card (the landing line). */
-const DESCRIPTION = vi.landing.positioning
+/** The one site description: the page's `description` and its Open Graph card (the landing page's description). */
+const DESCRIPTION = vi.landing.description
 
 export const metadata: Metadata = {
   title: 'Học Đều',

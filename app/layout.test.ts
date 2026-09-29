@@ -24,7 +24,8 @@ describe('app/layout.tsx metadata', () => {
       locale: 'vi_VN',
       siteName: 'Học Đều',
       title: 'Học Đều',
-      description: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
+      description:
+        'Học Đều chia lộ trình DSA và tiếng Anh cho IT thành kế hoạch cho hôm nay, vừa với số phút bạn có.',
     })
     expect(metadata.openGraph).not.toHaveProperty('images')
   })

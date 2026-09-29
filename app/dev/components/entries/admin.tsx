@@ -1,4 +1,5 @@
 import { FocusLayout } from '@/components/patterns/focus-layout'
+import { LandingFooter } from '@/features/landing'
 import { LoadingState } from '@/components/patterns/loading-state'
 import { Button } from '@/components/ui/button'
 import type { AdminActionResult } from '@/features/admin/actions'
@@ -497,6 +498,16 @@ export const ADMIN_ENTRIES: Entry[] = [
           <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
             <FocusLayout toaster={false}>
               <p className="text-center text-sm text-muted-foreground">Nội dung trang.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+      {
+        title: 'Page width (landing): wide, sections start at the top, footer slot after main',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout width="page" toaster={false} footer={<LandingFooter />}>
+              <p className="text-sm text-muted-foreground">Nội dung ở đầu trang.</p>
             </FocusLayout>
           </div>
         ),

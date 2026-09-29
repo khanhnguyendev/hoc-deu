@@ -5,11 +5,16 @@ import { vi } from '@/lib/i18n/vi'
 import { cn } from '@/lib/utils'
 import { LogoMark } from './logo-mark'
 
-const WIDTH = { narrow: 'max-w-md', wide: 'max-w-2xl' } as const
+/** `page`: the landing's wide frame (DESIGN_SYSTEM §15) — sections start at the top, not centred. */
+const WIDTH = {
+  narrow: 'max-w-md justify-center',
+  wide: 'max-w-2xl justify-center',
+  page: 'max-w-6xl',
+} as const
 
 /**
  * The frame for pages outside the AppShell (`/`, `/sign-in`, `/pending`, `/onboarding`): a skip
- * link, a header with the wordmark and optional actions, and a centred `main#main` that stacks the
+ * link, a header with the wordmark and optional actions, and a `main#main` (centred; `width="page"` starts at the top) that stacks the
  * page's sections with the section spacing (DESIGN_SYSTEM §5 page gutters and section spacing).
  * It mounts the Toaster of these pages, as the AppShell does for the signed-in ones (task 5.6):
  * layouts and pages may not import `components/ui`. `toaster={false}` leaves it out where the
@@ -19,11 +24,14 @@ function FocusLayout({
   children,
   width = 'narrow',
   headerActions,
+  footer,
   toaster = true,
 }: {
   children: React.ReactNode
   width?: keyof typeof WIDTH
   headerActions?: React.ReactNode
+  /** Rendered after `main`, in the same frame (a `footer` element gives the page its `contentinfo`). */
+  footer?: React.ReactNode
   toaster?: boolean
 }) {
   return (
@@ -34,23 +42,44 @@ function FocusLayout({
       >
         {vi.common.skipToContent}
       </a>
-      <header className="flex items-center justify-between px-4 py-4 md:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <LogoMark />
-          Học Đều
-        </Link>
-        {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+      <header>
+        <div
+          data-slot="focus-layout-header"
+          className={cn(
+            'flex items-center justify-between px-4 py-4 md:px-6 lg:px-8',
+            // The page width: the header shares main's frame, so the wordmark and the actions
+            // sit on the content edges.
+            width === 'page' && 'mx-auto w-full max-w-6xl',
+          )}
+        >
+          <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <LogoMark />
+            Học Đều
+          </Link>
+          {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+        </div>
       </header>
       <main
         id="main"
         tabIndex={-1}
         className={cn(
-          'mx-auto flex w-full flex-1 flex-col justify-center gap-6 px-4 py-8 md:gap-8 md:px-6 lg:gap-10 lg:px-8',
+          'mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-8 md:gap-8 md:px-6 lg:gap-10 lg:px-8',
           WIDTH[width],
         )}
       >
         {children}
       </main>
+      {footer && (
+        <div
+          data-slot="focus-layout-footer"
+          className={cn(
+            'w-full px-4 pb-8 md:px-6 lg:px-8',
+            width === 'page' && 'mx-auto max-w-6xl',
+          )}
+        >
+          {footer}
+        </div>
+      )}
       {toaster && <Toaster />}
     </div>
   )

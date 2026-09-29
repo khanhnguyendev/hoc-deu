@@ -106,3 +106,6 @@ Desktop.ini
 tmp/
 *.tmp
 
+
+# Impeccable design-skill workspace (local)
+.impeccable/
