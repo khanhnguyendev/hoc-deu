@@ -109,7 +109,7 @@ css = f'''/*
 {accent_rules}
 
 /* Tailwind's default theme is cleared for every namespace these tokens own, so only token
-   utilities exist: a raw `bg-red-500`, `shadow-lg`, `text-5xl` or `font-serif` is an unknown class. */
+   utilities exist: a raw `bg-red-500`, `shadow-lg`, `text-7xl` or `font-serif` is an unknown class. */
 @theme {{
   --color-*: initial;
   --font-*: initial;
@@ -136,6 +136,8 @@ css = f'''/*
   --text-2xl: 1.5rem;   --text-2xl--line-height: 1.35;
   --text-3xl: 1.875rem; --text-3xl--line-height: 1.3;
   --text-4xl: 2.25rem;  --text-4xl--line-height: 1.25;
+  --text-5xl: 3rem;     --text-5xl--line-height: 1.25;  /* landing h1 only (DESIGN_SYSTEM §15) */
+  --text-6xl: 3.75rem;  --text-6xl--line-height: 1.25;  /* landing h1 only (DESIGN_SYSTEM §15) */
 
   /* Radius */
   --radius-sm: calc(var(--radius) - 0.125rem);  /* 6px  — chips, inputs inner */
