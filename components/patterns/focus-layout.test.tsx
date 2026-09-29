@@ -52,6 +52,23 @@ describe('FocusLayout', () => {
     expect(screen.getByRole('main').className).toContain('max-w-2xl')
   })
 
+  it('the page width is wide and starts at the top; the others stay centred (DESIGN_SYSTEM §15)', () => {
+    const { rerender } = render(
+      <FocusLayout width="page">
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    const page = screen.getByRole('main').className.split(' ')
+    expect(page).toContain('max-w-6xl')
+    expect(page).not.toContain('justify-center')
+    rerender(
+      <FocusLayout>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    expect(screen.getByRole('main').className.split(' ')).toContain('justify-center')
+  })
+
   it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
     render(
       <FocusLayout>

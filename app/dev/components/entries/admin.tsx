@@ -502,6 +502,16 @@ export const ADMIN_ENTRIES: Entry[] = [
         ),
       },
       {
+        title: 'Page width (landing): wide, sections start at the top, not centred',
+        render: () => (
+          <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+            <FocusLayout width="page" toaster={false}>
+              <p className="text-sm text-muted-foreground">Nội dung ở đầu trang.</p>
+            </FocusLayout>
+          </div>
+        ),
+      },
+      {
         title: 'Wide, with header actions',
         render: () => (
           <div className="h-64 w-full overflow-hidden rounded-lg border border-border">

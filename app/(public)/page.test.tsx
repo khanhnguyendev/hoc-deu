@@ -26,8 +26,15 @@ beforeEach(() => {
 describe('/', () => {
   it('renders the landing page when signed out', async () => {
     render(await HomePage(props()))
-    expect(screen.getByRole('heading', { level: 1, name: 'Học Đều' })).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Mỗi ngày một chút. Đều là đủ.' }),
+    ).toBeTruthy()
+    // The header action, then the hero and close calls to action.
     expect(screen.getByRole('link', { name: 'Đăng nhập' }).getAttribute('href')).toBe('/sign-in')
+    for (const cta of screen.getAllByRole('link', { name: 'Bắt đầu học' })) {
+      expect(cta.getAttribute('href')).toBe('/sign-in')
+    }
+    expect(screen.getByRole('main').className).toContain('max-w-6xl')
     expect(redirectMock).not.toHaveBeenCalled()
     expect(screen.queryByText('Tài khoản của bạn đã được xoá.')).toBeNull()
   })

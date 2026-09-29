@@ -498,14 +498,16 @@ from `lib/i18n/vi.ts`.
 
 - **Layer:** pattern
 - **File:** `components/patterns/focus-layout.tsx`
-- **Props:** `children`, `width?: 'narrow' | 'wide'` (`max-w-md` / `max-w-2xl`, default `narrow`),
+- **Props:** `children`, `width?: 'narrow' | 'wide' | 'page'` (`max-w-md` / `max-w-2xl` / `max-w-6xl`,
+  default `narrow`; `page` is the landing's frame, DESIGN_SYSTEM §15: `main` starts at the top
+  instead of being vertically centred),
   `headerActions?: ReactNode`, `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
   the AppShell does for signed-in pages — task 5.6; `false` where the page has its own, the
   catalog, so no toast shows twice)
-- **Variants:** narrow · wide
+- **Variants:** narrow · wide · page
 - **States:** static
-- **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/`, `/sign-in`, `/pending`,
-  `/onboarding`)
+- **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/sign-in`, `/pending`,
+  `/onboarding`); `/` uses `<FocusLayout width="page" headerActions={<SignInLink />}>`
 - **Accessibility:** skip link to `#main`; header wordmark links to `/`, `LogoMark` before the
   text (task 6.0b) — the link's accessible name stays "Học Đều"; `main#main` is the page's
   landmark; toasts are announced in the Toaster's polite live region
@@ -879,17 +881,70 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 
 ### Landing
 
-- **Layer:** feature (`features/auth`)
-- **File:** `features/auth/components/landing.tsx`
+- **Layer:** feature (`features/landing`, public API `index.ts`: `Landing`, `SignInLink`, `StartLink`)
+- **File:** `features/landing/components/landing.tsx`
 - **Props:** `deleted?: boolean` (default `false`; `?account=deleted`, §4.6)
-- **Variants:** default · deleted (an info Banner "Tài khoản của bạn đã được xoá." above the
-  wordmark)
+- **Variants:** default · deleted (an info Banner "Tài khoản của bạn đã được xoá." above the hero)
 - **States:** static
-- **Usage:** `<FocusLayout><Landing deleted={params.account === 'deleted'} /></FocusLayout>`
-  (`app/(public)/page.tsx`, signed-out only — a signed-in visitor is redirected to
-  `homePathFor(user)` before this renders)
-- **Accessibility:** one h1 ("Học Đều"); "Đăng nhập" is a link styled as a button (`buttonVariants`)
-  to `/sign-in`
+- **Usage:** `<FocusLayout width="page" headerActions={<SignInLink />}><Landing
+  deleted={params.account === 'deleted'} /></FocusLayout>` (`app/(public)/page.tsx`, signed-out only
+  — a signed-in visitor is redirected to `homePathFor(user)` before this renders). Sections: split
+  hero (headline, lead, `StartLink`, approval note, `TodayPreview`), "Một ngày học" (three steps
+  joined by a hairline, not cards), two track sheets (DSA `track-1`, English `track-2`), the
+  "missed a day" band with `MissedDayGrid`, and the close (second `StartLink`, GitHub link, "AI cá
+  nhân hoá kế hoạch: sắp có"). Copy: `lib/i18n/strings/landing.ts`
+- **Accessibility:** one h1 (the headline, the only `text-4xl md:text-5xl lg:text-6xl` use, §15);
+  every section is named by an h2; the decorative heat cells are `aria-hidden` and their meaning
+  is in text; both "Bắt đầu học" links and the GitHub link are 44 px targets
+
+### TodayPreview
+
+- **Layer:** feature (`features/landing`)
+- **File:** `features/landing/components/today-preview.tsx`
+- **Props:** none (fixed example data, labelled "Ví dụ: một ngày 45 phút" in its `figcaption`)
+- **Variants:** —
+- **States:** static; the only motion is CSS: the checked block's status pill settles in
+  (`landing-settle`) and today's heat cell deepens one level (`landing-deepen`), both from a
+  fully visible end state, so reduced motion shows the final frame
+- **Usage:** `<TodayPreview />` in the landing hero. Blocks use the `PlanBlockCard` grammar (border,
+  `bg-surface`, 4 px track stripe, track `Badge`, minutes), item rows are plain text
+- **Accessibility:** a `figure` named by its caption; nothing inside is a link, button or
+  focusable; English terms carry `lang="en"`; the strip is `aria-hidden` with a screen-reader
+  summary
+
+### MissedDayGrid
+
+- **Layer:** feature (`features/landing`)
+- **File:** `features/landing/components/missed-day-grid.tsx`
+- **Props:** none (six example weeks, two blank days)
+- **Variants:** —
+- **States:** static
+- **Usage:** `<MissedDayGrid />` in the landing's "Bỏ lỡ một ngày" band
+- **Accessibility:** the grid is `aria-hidden`; a screen-reader summary and a visible caption carry
+  the meaning
+
+### HeatCell
+
+- **Layer:** feature (`features/landing`)
+- **File:** `features/landing/components/heat-cell.tsx`
+- **Props:** `level: 0–4`, `size?: 'strip' | 'grid'` (cva), `today?: boolean` (outline),
+  `deepenTo?: 0–4` (a darker level fades in over the cell on first paint)
+- **Variants:** strip · grid; today
+- **States:** static (the deepen fade is CSS-only)
+- **Usage:** `<HeatCell level={2} deepenTo={3} today />`; levels come from `CELL` of the calendar
+  heatmap
+- **Accessibility:** always `aria-hidden`; never the only carrier of meaning
+
+### SignInLink
+
+- **Layer:** feature (`features/landing`)
+- **File:** `features/landing/components/sign-in-link.tsx`
+- **Props:** none. `SignInLink`: outline "Đăng nhập" for `FocusLayout`'s `headerActions`.
+  `StartLink`: the primary, `lg` "Bắt đầu học". Both link to `/sign-in`
+- **Variants:** —
+- **States:** static (link states from `buttonVariants`)
+- **Usage:** `<SignInLink />` (header), `<StartLink />` (hero and close)
+- **Accessibility:** real links styled as buttons (`buttonVariants`), 44 px and 48 px targets
 
 ### PendingStatus
 

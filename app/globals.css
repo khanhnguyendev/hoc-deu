@@ -338,3 +338,28 @@
   :focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
 }
 /* tokens:end */
+
+/* The landing's one signature motion (DESIGN_SYSTEM §15): the checked block's status pill settles
+   in and today's heat cell deepens one level. Both animate FROM a hidden state TO the natural,
+   fully visible one, so a render without animation (reduced motion zeroes every duration) shows
+   the final state. The delay is a duration token, so it is 0 under reduced motion too. */
+@keyframes landing-settle {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+@keyframes landing-deepen {
+  from {
+    opacity: 0;
+  }
+}
+
+@utility landing-settle {
+  animation: landing-settle var(--duration-slow) var(--ease-enter) var(--duration-base) backwards;
+}
+
+@utility landing-deepen {
+  animation: landing-deepen var(--duration-slow) var(--ease-enter) var(--duration-slow) backwards;
+}

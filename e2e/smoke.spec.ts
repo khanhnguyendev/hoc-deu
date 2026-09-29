@@ -10,8 +10,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
     test('renders in Vietnamese with the design tokens applied', async ({ page }) => {
       await page.goto('/')
       await expect(page.locator('html')).toHaveAttribute('lang', 'vi')
-      await expect(page.getByRole('heading', { level: 1, name: 'Học Đều' })).toBeVisible()
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Mỗi ngày một chút. Đều là đủ.' }),
+      ).toBeVisible()
       await expect(page.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute(
+        'href',
+        '/sign-in',
+      )
+      await expect(page.getByRole('link', { name: 'Bắt đầu học' }).first()).toHaveAttribute(
         'href',
         '/sign-in',
       )

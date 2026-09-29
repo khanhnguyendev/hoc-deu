@@ -4,6 +4,7 @@
  */
 import { adminOverview } from './strings/admin-overview'
 import { brand } from './strings/brand'
+import { landing } from './strings/landing'
 import { rateLimit } from './strings/rate-limit'
 import { adminBot } from './strings/admin-bot'
 import { aiPlan } from './strings/ai-plan'
@@ -144,13 +145,8 @@ export const vi = {
     wrongCredentials: 'Email hoặc mật khẩu không đúng.',
     testLoginDisabled: 'Đăng nhập thử nghiệm không được bật.',
   },
-  /** `/` (§2.4): the signed-out landing page (the h1 reuses the "Học Đều" wordmark). */
-  landing: {
-    positioning: 'Nền tảng học tập dẫn dắt bởi AI — mỗi ngày một chút, AI giúp bạn tiến đều.',
-    signIn: 'Đăng nhập',
-    /** `?account=deleted` (§4.6): shown after a successful account deletion. */
-    deletedBanner: 'Tài khoản của bạn đã được xoá.',
-  },
+  /** `/` (§2.4): the signed-out landing page, in its own area file. */
+  landing,
   /** /pending, one entry per status that is not `active` (§2.4). */
   account: {
     pending: {
