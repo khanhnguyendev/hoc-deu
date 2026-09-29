@@ -243,6 +243,51 @@ public class Probe {
     expect(deep.stdout).toBe('5000')
   }, 60_000)
 
+  it('runner.py: a returned list with a cycle and a shared tree node fail, never loop', () => {
+    const pyDir = mkdtempSync(join(dir, 'py-structures-'))
+    copyFileSync(join(RUNNERS, 'python', 'runner.py'), join(pyDir, 'runner.py'))
+    writeFileSync(
+      join(pyDir, 'solution.py'),
+      `from __future__ import annotations  # one file, two kinds: each request injects its own class
+
+
+class Solution:
+    def loop(self, head: ListNode) -> ListNode:
+        head.next = head
+        return head
+
+    def share(self, root: TreeNode) -> TreeNode:
+        root.left = root.right = TreeNode(1)
+        return root
+`,
+    )
+    const request = (method: string, codec: string, args: unknown[]) =>
+      JSON.stringify({
+        file: 'solution.py',
+        method,
+        args,
+        output: null,
+        codecs: { params: [codec], returns: codec, copyOf: null },
+      })
+    const cycle = run(
+      tools.python,
+      ['-I', '-B', 'runner.py'],
+      pyDir,
+      request('loop', 'list', [[1]]),
+    )
+    expect(cycle.code).toBe(1)
+    expect(cycle.stderr.split('\n')[0]).toBe('ContentVerifyError: the returned list has a cycle')
+    const shared = run(
+      tools.python,
+      ['-I', '-B', 'runner.py'],
+      pyDir,
+      request('share', 'tree', [[0]]),
+    )
+    expect(shared.stderr.split('\n')[0]).toBe(
+      'ContentVerifyError: the returned tree has a cycle or a shared node',
+    )
+  }, 60_000)
+
   it('check.py: a syntax error and a missing method fail with a reason on stderr', () => {
     const pyDir = mkdtempSync(join(dir, 'check-'))
     copyFileSync(join(RUNNERS, 'python', 'check.py'), join(pyDir, 'check.py'))
@@ -341,7 +386,117 @@ describe.runIf(ENABLED)('content-verify on the fixtures (real toolchains)', () =
     expect(java.detail).toMatch(/Solution\.java:\d+: error: ';' expected/)
   })
 
-  it('runs an unsupported kind compile-only, the signature check passing', () => {
-    expect(byId('demo:lc-9004')).toMatchObject({ verification: 'compile-only', ok: true })
+  it('passes a string[] to the Java solution as the List<String> it declares (M3 follow-up)', () => {
+    expect(language('demo:lc-9008', 'java')).toMatchObject({ status: 'tested' })
   })
+
+  it('runs design classes as operation sequences in all three languages (M3c)', () => {
+    for (const id of ['demo:lc-9004', 'demo:lc-9009', 'demo:lc-9020']) {
+      expect(byId(id)).toMatchObject({ kind: 'design-class', verification: 'tested', ok: true })
+      expect(byId(id).languages.map((result) => result.status)).toEqual([
+        'tested',
+        'tested',
+        'tested',
+      ])
+    }
+  })
+
+  it.each([
+    ['python', 'crashed: op 2 (boom): ZeroDivisionError: integer division or modulo by zero'],
+    ['java', 'crashed: op 2 (boom): java.lang.ArithmeticException: / by zero'],
+    ['go', 'crashed: op 2 (boom): panic: runtime error: integer divide by zero'],
+  ])(
+    '%s: an exception inside a method names the operation; a stuck method times out',
+    (lang, first) => {
+      const faults = language('demo:lc-9021', lang)
+      const crash = faults.cases.find((c) => c.name === 'crash')
+      expect(crash?.status).toBe('error')
+      expect(crash?.detail?.split('\n')[0]).toBe(first)
+      const spin = faults.cases.find((c) => c.name === 'spin')
+      expect(spin).toMatchObject({ status: 'timeout', detail: 'timed out after 1000 ms' })
+      // items() returned the object's own list: each result is recorded when its op returns
+      expect(faults.cases.find((c) => c.name === 'snapshots')?.status).toBe('pass')
+    },
+  )
+
+  it('fails a Go design class whose Constructor does not return the class', async () => {
+    const problem = discoverProblems(FIXTURES, { ids: ['demo:lc-9009'] }).problems[0]
+    if (problem === undefined || workRoot === undefined) throw new Error('fixture lc-9009 missing')
+    const dir = mkdtempSync(join(workRoot, 'pointer-'))
+    writeFileSync(
+      join(dir, 'solution.go'),
+      readFileSync(join(problem.dir, 'solution.go'), 'utf8')
+        .replace('func Constructor(start int) Counter {', 'func Constructor(start int) *Counter {')
+        .replace('return Counter{', 'return &Counter{'),
+    )
+    const unitRoot = mkdtempSync(join(workRoot, 'units-'))
+    const [result] = await verifyProblems([{ ...problem, dir, languages: ['go'] }], {
+      jobs: 1,
+      workRoot: unitRoot,
+      sandbox,
+      tools: resolveToolchains(['go'], sandbox).tools,
+    })
+    expect(result?.languages[0]).toMatchObject({ lang: 'go', status: 'failed' })
+    expect(result?.languages[0]?.detail).toMatch(
+      /cannot use Constructor\(10\) \(value of type \*Counter\) as Counter value/,
+    )
+  }, 180_000)
+
+  it('runs lists, trees, graph nodes and random lists in all three languages (M3b)', () => {
+    for (let number = 9010; number <= 9018; number++) {
+      expect(byId(`demo:lc-${number}`).languages.map((result) => result.status)).toEqual([
+        'tested',
+        'tested',
+        'tested',
+      ])
+    }
+  })
+
+  it.each([
+    [
+      'python',
+      'crashed: ContentVerifyError: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'java',
+      'crashed: Exception in thread "main" java.lang.IllegalStateException: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'go',
+      'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+  ])(
+    '%s: fails a graph "clone" that returns the input node; the empty graph still passes',
+    (lang, first) => {
+      const result = language('demo:lc-9019', lang)
+      expect(result.cases.find((c) => c.name === 'example-3')?.status).toBe('pass')
+      const reused = result.cases.find((c) => c.name === 'example-1')
+      expect(reused?.status).toBe('error')
+      expect(reused?.detail?.split('\n')[0]).toBe(first)
+    },
+  )
+
+  it.each([
+    [
+      'python',
+      'crashed: ContentVerifyError: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'java',
+      'crashed: Exception in thread "main" java.lang.IllegalStateException: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+    [
+      'go',
+      'crashed: panic: content-verify: the result reuses an input node (expected a deep copy)',
+    ],
+  ])(
+    '%s: fails a random list "copy" that returns the input node; the empty list still passes',
+    (lang, first) => {
+      const result = language('demo:lc-9022', lang)
+      expect(result.cases.find((c) => c.name === 'empty')?.status).toBe('pass')
+      const reused = result.cases.find((c) => c.name === 'example-1')
+      expect(reused?.status).toBe('error')
+      expect(reused?.detail?.split('\n')[0]).toBe(first)
+    },
+  )
 })

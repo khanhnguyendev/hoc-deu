@@ -1,0 +1,16 @@
+# a list with a cycle is written { values, pos }: the tail links to index pos (-1 = no cycle)
+signature: { kind: linked-list, name: hasCycle, params: { head: ListNode }, returns: bool }
+cases:
+  - { name: example-1, input: { head: { values: [3, 2, 0, -4], pos: 1 } }, expected: true }
+  - { name: example-2, input: { head: { values: [1, 2], pos: 0 } }, expected: true }
+  - { name: example-3, input: { head: { values: [1], pos: -1 } }, expected: false }
+  - { name: empty, input: { head: { values: [], pos: -1 } }, expected: false }
+  - { name: self-loop, input: { head: { values: [1], pos: 0 } }, expected: true }
+  - { name: no-cycle, input: { head: { values: [1, 2, 3, 4, 5], pos: -1 } }, expected: false }
+  # equal values in distinct nodes: the check must compare nodes, not values
+  - {
+      name: equal-values-no-cycle,
+      input: { head: { values: [7, 7, 7], pos: -1 } },
+      expected: false,
+    }
+  - { name: cycle-at-tail, input: { head: { values: [1, 2, 3, 4], pos: 3 } }, expected: true }

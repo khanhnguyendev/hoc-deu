@@ -1,0 +1,7 @@
+# content-verify fixture: a linked list in and out (LeetCode's array encoding, [] = null).
+signature: { kind: linked-list, name: reverseList, params: { head: ListNode }, returns: ListNode }
+cases:
+  - { name: example-1, input: { head: [1, 2, 3, 4, 5] }, expected: [5, 4, 3, 2, 1] }
+  - { name: example-2, input: { head: [1, 2] }, expected: [2, 1] }
+  - { name: empty, input: { head: [] }, expected: [] }
+  - { name: single-node, input: { head: [7] }, expected: [7] }

@@ -1,0 +1,20 @@
+signature:
+  kind: function
+  name: searchMatrix
+  params: { matrix: 'int[][]', target: int }
+  returns: bool
+cases:
+  - name: example-1
+    input: { matrix: [[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], target: 3 }
+    expected: true
+  - name: example-2
+    input: { matrix: [[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], target: 13 }
+    expected: false
+  - { name: single-cell-found, input: { matrix: [[5]], target: 5 }, expected: true }
+  - { name: single-cell-missing, input: { matrix: [[5]], target: -5 }, expected: false }
+  - { name: single-column, input: { matrix: [[1], [3], [5]], target: 3 }, expected: true }
+  - { name: single-row, input: { matrix: [[-10000, -5, 0, 10000]], target: 10000 }, expected: true }
+  - { name: below-all, input: { matrix: [[1, 3], [5, 7]], target: 0 }, expected: false }
+  - { name: above-all, input: { matrix: [[1, 3], [5, 7]], target: 8 }, expected: false }
+  # a value between the last of one row and the first of the next
+  - { name: between-rows, input: { matrix: [[1, 3], [5, 7]], target: 4 }, expected: false }

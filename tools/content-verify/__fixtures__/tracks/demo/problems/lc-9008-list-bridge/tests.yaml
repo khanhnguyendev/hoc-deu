@@ -1,0 +1,12 @@
+# content-verify fixture: string[] in tests.yaml, List<String> in the Java solution (the M3
+# follow-up bridge) — a mutable list argument, returned as a List<String>.
+signature:
+  kind: function
+  name: keepLonger
+  params: { words: 'string[]', minLength: int }
+  returns: 'string[]'
+cases:
+  - { name: example-1, input: { words: [a, abc, ab], minLength: 2 }, expected: [abc, ab] }
+  - { name: example-2, input: { words: [leet, code], minLength: 5 }, expected: [] }
+  - { name: empty, input: { words: [], minLength: 0 }, expected: [] }
+  - { name: empty-word, input: { words: ['', x], minLength: 0 }, expected: ['', x] }

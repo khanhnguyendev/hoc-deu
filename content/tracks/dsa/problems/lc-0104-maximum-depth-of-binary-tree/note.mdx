@@ -1,0 +1,50 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Độ sâu của một cây là số node trên đường dài nhất từ gốc xuống một <Term vi="lá">leaf</Term>. Câu hỏi này tự chia nhỏ được: độ sâu của cây bằng 1 (chính node gốc) cộng với độ sâu của cây con sâu hơn. Vì vậy một hàm <Term vi="đệ quy">recursive</Term> ngắn là đủ, theo kiểu <Term vi="tìm kiếm theo chiều sâu">DFS</Term>: hỏi hai cây con trước, rồi ghép câu trả lời của chúng lại ở node hiện tại. Cây rỗng là <Term vi="trường hợp cơ sở">base case</Term>, có độ sâu 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Trường hợp cơ sở">Nếu `root` là `null`, trả về 0: cây rỗng không có node nào.</Step>
+
+<Step title="Hỏi hai cây con">Gọi đệ quy để lấy độ sâu cây con trái và cây con phải.</Step>
+
+<Step title="Ghép lại">Trả về `1 + max(trái, phải)`: node hiện tại cộng thêm một tầng vào nhánh sâu hơn.</Step>
+
+</Steps>
+
+Chạy thử với `root = [8, 3, 10, null, 6, null, 14, 4]`. Hàm trả về theo thứ tự <Term vi="hậu thứ tự">post-order</Term>: các cây con xong trước, node cha sau.
+
+<VarTable caption="root = [8, 3, 10, null, 6, null, 14, 4]">
+
+| Node | Độ sâu trái | Độ sâu phải | Trả về |
+| --- | --- | --- | --- |
+| 4 | 0 | 0 | 1 |
+| 6 | 1 | 0 | 2 |
+| 3 | 0 | 2 | 3 |
+| 14 | 0 | 0 | 1 |
+| 10 | 0 | 1 | 2 |
+| 8 | 3 | 2 | 4 |
+
+</VarTable>
+
+Đường dài nhất là 8 → 3 → 6 → 4, gồm 4 node.
+
+<Callout tone="tip" title="Đếm node hay đếm cạnh">
+
+Bài này đếm **node**, nên cây một node có độ sâu 1 và cây rỗng có độ sâu 0. Có bài khác đếm **cạnh** (như Diameter of Binary Tree); đọc kỹ đơn vị trước khi viết base case.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được thăm đúng một lần. Bộ nhớ là độ sâu của <Term vi="ngăn xếp lời gọi">call stack</Term>, bằng chiều cao `h` của cây: `O(log n)` khi cây cân bằng, `O(n)` khi cây lệch thành một chuỗi.
+
+<Solution />
+
+<Bilingual vi="Độ sâu của cây bằng 1 cộng độ sâu của cây con sâu hơn; cây rỗng có độ sâu 0. Một hàm đệ quy post-order tính đúng điều đó." en="The depth of a tree is 1 plus the larger depth of its two subtrees, and an empty tree has depth 0. A post-order recursion computes this in O(n) time, using O(h) stack space for a tree of height h." />

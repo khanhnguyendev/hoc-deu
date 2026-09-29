@@ -1,0 +1,26 @@
+# content-verify fixture: a design class whose constructor takes a parameter and must run — the Go
+# class is created through Constructor(...) (LeetCode's Go convention), never a struct literal.
+signature:
+  kind: design-class
+  className: Counter
+  constructor: { start: int }
+  methods:
+    add: { params: { n: int }, returns: int }
+    seen: { params: { n: int }, returns: bool }
+cases:
+  - name: example-1
+    ops: [Counter, add, add, seen]
+    args: [[10], [1], [2], [2]]
+    expected: [null, 11, 13, true]
+  - name: example-2
+    ops: [Counter, seen]
+    args: [[0], [5]]
+    expected: [null, false]
+  - name: negative-start
+    ops: [Counter, add]
+    args: [[-3], [3]]
+    expected: [null, 0]
+  - name: repeated
+    ops: [Counter, add, add, seen]
+    args: [[0], [4], [4], [4]]
+    expected: [null, 4, 8, true]

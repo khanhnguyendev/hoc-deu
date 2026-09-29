@@ -3,63 +3,396 @@
     "verification": "tested",
     "ok": true,
     "languages": {
-      "python": { "status": "tested", "failing": [] },
-      "java": { "status": "tested", "failing": [] },
-      "go": { "status": "tested", "failing": [] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
     }
   },
   "demo:lc-9002": {
     "verification": "tested",
     "ok": false,
     "languages": {
-      "python": { "status": "tested", "failing": [] },
-      "java": { "status": "tested", "failing": [] },
-      "go": { "status": "failed", "failing": ["with-empty-word"] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "failed",
+        "failing": ["with-empty-word"]
+      }
     }
   },
   "demo:lc-9003": {
     "verification": "tested",
     "ok": false,
     "languages": {
-      "python": { "status": "failed", "failing": ["empty-row"] },
-      "java": { "status": "tested", "failing": [] },
-      "go": { "status": "tested", "failing": [] }
+      "python": {
+        "status": "failed",
+        "failing": ["empty-row"]
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
     }
   },
   "demo:lc-9004": {
-    "verification": "compile-only",
+    "verification": "tested",
     "ok": true,
     "languages": {
-      "python": { "status": "compile-only", "failing": [] },
-      "java": { "status": "compile-only", "failing": [] },
-      "go": { "status": "compile-only", "failing": [] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
     }
   },
   "demo:lc-9005": {
     "verification": "tested",
     "ok": false,
     "languages": {
-      "python": { "status": "tested", "failing": [] },
-      "java": { "status": "failed", "failing": [] },
-      "go": { "status": "tested", "failing": [] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "failed",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
     }
   },
   "demo:lc-9006": {
     "verification": "tested",
     "ok": true,
     "languages": {
-      "python": { "status": "tested", "failing": [] },
-      "java": { "status": "tested", "failing": [] },
-      "go": { "status": "tested", "failing": [] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
     }
   },
   "demo:lc-9007": {
     "verification": "tested",
     "ok": true,
     "languages": {
-      "python": { "status": "tested", "failing": [] },
-      "java": { "status": "tested", "failing": [] },
-      "go": { "status": "tested", "failing": [] }
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9008": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9009": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9010": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9011": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9012": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9013": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9014": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9015": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9016": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9017": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9018": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9019": {
+    "verification": "tested",
+    "ok": false,
+    "languages": {
+      "python": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "two-nodes", "triangle"]
+      },
+      "java": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "two-nodes", "triangle"]
+      },
+      "go": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "two-nodes", "triangle"]
+      }
+    }
+  },
+  "demo:lc-9020": {
+    "verification": "tested",
+    "ok": true,
+    "languages": {
+      "python": {
+        "status": "tested",
+        "failing": []
+      },
+      "java": {
+        "status": "tested",
+        "failing": []
+      },
+      "go": {
+        "status": "tested",
+        "failing": []
+      }
+    }
+  },
+  "demo:lc-9021": {
+    "verification": "tested",
+    "ok": false,
+    "languages": {
+      "python": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
+      },
+      "java": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
+      },
+      "go": {
+        "status": "failed",
+        "failing": ["crash", "spin"]
+      }
+    }
+  },
+  "demo:lc-9022": {
+    "verification": "tested",
+    "ok": false,
+    "languages": {
+      "python": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "random-to-itself"]
+      },
+      "java": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "random-to-itself"]
+      },
+      "go": {
+        "status": "failed",
+        "failing": ["example-1", "example-2", "random-to-itself"]
+      }
     }
   }
 }

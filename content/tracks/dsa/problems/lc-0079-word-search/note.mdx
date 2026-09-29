@@ -1,0 +1,50 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Cần biết từ `word` có thể đọc được trên bảng bằng một đường đi qua các ô kề nhau theo cạnh, mỗi ô dùng nhiều nhất một lần hay không. Thử bắt đầu từ mọi ô, và từ mỗi ô dùng <Term>DFS</Term> theo kiểu <Term vi="quay lui">backtracking</Term>: khớp ký tự `word[i]` ở ô hiện tại, đánh dấu ô đang nằm trên đường đi, thử bốn ô kề cho `word[i + 1]`, rồi **khôi phục** ô trước khi quay về. Đánh dấu ngay trên bảng (ghi `#`) thay cho một tập `visited` riêng.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Mọi điểm xuất phát">Gọi `dfs(r, c, 0)` cho từng ô; chỉ cần một lần trả về `true` là xong.</Step>
+
+<Step title="Điều kiện dừng">Nếu `i == len(word)`, đã khớp đủ: trả về `true`. Nếu ô nằm ngoài bảng hoặc ký tự khác `word[i]` (kể cả ô đang mang dấu `#`): trả về `false`.</Step>
+
+<Step title="Đánh dấu và đi tiếp">Lưu ký tự của ô, ghi `#` vào ô, rồi thử `dfs` ở bốn ô kề với `i + 1`.</Step>
+
+<Step title="Khôi phục">Trả ký tự cũ về ô, dù tìm thấy hay không, để các đường đi khác vẫn dùng được ô này.</Step>
+
+</Steps>
+
+<VarTable caption="board = [[A, B], [C, D]], word = ABA">
+
+| Bước | Ô | Cần | Kết quả |
+| --- | --- | --- | --- |
+| 1 | `(0, 0)` = A | A | khớp, đánh dấu `#` |
+| 2 | `(1, 0)` = C | B | không khớp |
+| 3 | `(0, 1)` = B | B | khớp, đánh dấu `#` |
+| 4 | `(1, 1)` = D | A | không khớp |
+| 5 | `(0, 0)` = `#` | A | không khớp: ô đã nằm trên đường đi |
+| 6 | — | — | khôi phục B rồi A; các ô xuất phát khác cũng thất bại: `false` |
+
+</VarTable>
+
+Với `word = ABDC`, đường `(0, 0) → (0, 1) → (1, 1) → (1, 0)` khớp đủ nên kết quả là `true`.
+
+<Callout tone="warning" title="Quên khôi phục ô">
+
+Nếu không trả ký tự cũ về, một nhánh thất bại sẽ để lại dấu `#` trên bảng, và một đường đi đúng xuất phát từ ô khác có thể bị chặn oan.
+
+</Callout>
+
+<Complexity time="O(m · n · 3^L)" space="O(L)" />
+
+Với bảng `m × n` và `L = len(word)`: có `m · n` điểm xuất phát; sau bước đầu, mỗi bước có nhiều nhất 3 hướng mới vì ô vừa đi qua đã được đánh dấu. Bộ nhớ thêm là độ sâu đệ quy, nhiều nhất `L`.
+
+<Solution />
+
+<Bilingual vi="Thử DFS từ mọi ô: khớp ký tự hiện tại, đánh dấu ô bằng #, thử bốn ô kề cho ký tự tiếp theo, rồi trả ký tự cũ về ô trước khi quay lui." en="Run a backtracking DFS from every cell. Match the current letter, mark the cell as visited by overwriting it, try the four neighbours for the next letter, then restore the cell before returning. This takes O(m · n · 3^L) time and O(L) recursion depth for a word of length L." />

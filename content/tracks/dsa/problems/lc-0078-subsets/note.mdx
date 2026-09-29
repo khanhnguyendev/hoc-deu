@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Mỗi tập con ứng với một chuỗi quyết định: với từng phần tử, **lấy** hoặc **bỏ qua**. `n` phần tử cho `2^n` chuỗi quyết định, và đó cũng là số tập con. <Term vi="quay lui">Backtracking</Term> đi hết cây quyết định này bằng đệ quy: đi xuống một nhánh, ghi nhận tập con ở lá, rồi hoàn tác lựa chọn để thử nhánh còn lại. Các phần tử khác nhau đôi một, nên không có tập con nào bị sinh ra hai lần.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Trạng thái">Một danh sách `current` là các phần tử đã lấy, và chỉ số `i` của phần tử đang xét.</Step>
+
+<Step title="Lá">Khi `i == n`, mọi phần tử đã được quyết định: thêm một **bản sao** của `current` vào kết quả.</Step>
+
+<Step title="Nhánh lấy">Thêm `nums[i]` vào `current`, gọi đệ quy với `i + 1`, rồi bỏ `nums[i]` ra để trả `current` về như cũ.</Step>
+
+<Step title="Nhánh bỏ qua">Gọi đệ quy với `i + 1` mà không thêm gì.</Step>
+
+</Steps>
+
+<VarTable caption="nums = [4, 6]">
+
+| Bước | Việc làm | `current` | Ghi nhận |
+| --- | --- | --- | --- |
+| 1 | `i = 0`: lấy 4 | `[4]` | — |
+| 2 | `i = 1`: lấy 6 | `[4, 6]` | — |
+| 3 | `i = 2`: lá | `[4, 6]` | `[4, 6]` |
+| 4 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[4]` | `[4]` |
+| 5 | hoàn tác 4; `i = 0`: bỏ qua 4; `i = 1`: lấy 6, tới lá | `[6]` | `[6]` |
+| 6 | hoàn tác 6; `i = 1`: bỏ qua 6, tới lá | `[]` | `[]` |
+
+</VarTable>
+
+<Callout tone="warning" title="Nhớ sao chép">
+
+`current` được dùng lại suốt quá trình. Thêm chính `current` (không sao chép) vào kết quả thì mọi phần tử của kết quả sẽ cùng trỏ tới một danh sách, và cuối cùng đều rỗng.
+
+</Callout>
+
+<Complexity time="O(n · 2^n)" space="O(n)" />
+
+Có `2^n` lá, và mỗi lá sao chép một danh sách dài tới `n`. Bộ nhớ thêm là độ sâu đệ quy cộng `current`, đều `O(n)`; kết quả không tính.
+
+<Solution />
+
+<Bilingual vi="Với từng phần tử, thử lấy nó rồi thử bỏ qua nó bằng đệ quy; khi đã quyết định hết mọi phần tử, sao chép tập đang xây vào kết quả, rồi hoàn tác lựa chọn trước khi thử nhánh kia." en="Backtrack over a take-or-skip decision for each element. When every element has been decided, append a copy of the current subset; undo the take before trying the skip branch. There are 2^n subsets, each copied in O(n), so O(n · 2^n) time and O(n) extra space." />

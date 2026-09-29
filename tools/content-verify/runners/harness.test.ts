@@ -1,19 +1,12 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testsFileSchema } from '@/lib/content/schemas/tests'
 import { discoverProblems, type ProblemUnderTest } from '../discover'
-import { generateGoHarness, goHarness } from './go'
-import { generateJavaMain, javaHarness } from './java'
+import { generateGoHarness, goConstructorCall, goHarness } from './go'
+import { generateJavaMain, javaHarness, javaParameterTypes } from './java'
+import { designOperations, functionCall } from './harness'
 import { pythonHarness } from './python'
 
 const TWO_SUM = testsFileSchema.parse({
@@ -204,14 +197,6 @@ describe('prepare', () => {
     })
   })
 
-  it('python: checks a design class for every method (compile-only)', () => {
-    const prepared = pythonHarness.prepare(fixture('demo:lc-9004'), workDir)
-    expect(prepared.compileOnly[0]?.args.at(-1)).toBe(
-      '{"className":"MinStack","methods":["push","pop","top","getMin"]}',
-    )
-    expect(prepared.signatureIssues).toEqual([])
-  })
-
   it('java: compiles once with -proc:none (fix 6) and runs HarnessMain <index>', () => {
     const prepared = javaHarness.prepare(fixture('demo:lc-9001'), workDir)
     for (const file of ['Solution.java', 'HarnessJson.java', 'HarnessMain.java']) {
@@ -242,35 +227,6 @@ describe('prepare', () => {
       cwd: workDir,
       timeoutMs: 2000,
     })
-  })
-
-  it('java: compile-only compiles the solution alone and checks the class and methods', () => {
-    const prepared = javaHarness.prepare(fixture('demo:lc-9004'), workDir)
-    expect(prepared.compileOnly).toEqual([
-      {
-        cmd: 'javac',
-        args: ['--release', '21', '-proc:none', '-encoding', 'UTF-8', '-d', 'out', 'Solution.java'],
-        cwd: workDir,
-        timeoutMs: 60_000,
-      },
-    ])
-    expect(prepared.signatureIssues).toEqual([])
-    expect(existsSync(join(workDir, 'HarnessMain.java'))).toBe(false)
-  })
-
-  it('java: a missing method declaration is a signature issue (a call does not count)', () => {
-    const problem = fixture('demo:lc-9004')
-    const dir = join(root, 'problem')
-    mkdirSync(dir)
-    writeFileSync(
-      join(dir, 'Solution.java'),
-      readFileSync(join(problem.dir, 'Solution.java'), 'utf8').replace(
-        'public int getMin() {\n        return minimums.peek();\n    }',
-        '',
-      ) + '\nclass Other { void use(MinStack s) { s.getMin(); } }\n',
-    )
-    const prepared = javaHarness.prepare({ ...problem, dir }, workDir)
-    expect(prepared.signatureIssues).toEqual(['Solution.java: no method getMin(…) { … }'])
   })
 
   it('go: builds with CGO_ENABLED=0 (fix 6), no proxy, local toolchain, caches under the work root', () => {
@@ -305,19 +261,6 @@ describe('prepare', () => {
     })
   })
 
-  it('go: compile-only adds a main stub, vets, and checks the type, Constructor and methods', () => {
-    const prepared = goHarness.prepare(fixture('demo:lc-9004'), workDir)
-    expect(readFileSync(join(workDir, 'main_stub.go'), 'utf8')).toBe(
-      'package main\n\nfunc main() {}\n',
-    )
-    expect(existsSync(join(workDir, 'main_harness.go'))).toBe(false)
-    expect(prepared.compileOnly.map((command) => [command.cmd, ...command.args])).toEqual([
-      ['go', 'vet', '.'],
-    ])
-    expect(prepared.compileOnly[0]?.env?.CGO_ENABLED).toBe('0')
-    expect(prepared.signatureIssues).toEqual([])
-  })
-
   it.each([
     ['python', pythonHarness, 'solution.py'],
     ['java', javaHarness, 'Solution.java'],
@@ -334,21 +277,427 @@ describe('prepare', () => {
       )
     },
   )
+})
 
-  it('go: reports a missing Constructor or method', () => {
-    const problem = fixture('demo:lc-9004')
-    const dir = join(root, 'problem')
-    mkdirSync(dir)
-    writeFileSync(
-      join(dir, 'solution.go'),
-      readFileSync(join(problem.dir, 'solution.go'), 'utf8')
-        .replace('func Constructor()', 'func NewMinStack()')
-        .replace('func (this *MinStack) GetMin()', 'func (this *MinStack) Minimum()'),
-    )
-    const prepared = goHarness.prepare({ ...problem, dir }, workDir)
-    expect(prepared.signatureIssues).toEqual([
-      'solution.go: no func Constructor(',
-      'solution.go: no method (*MinStack) GetMin(',
+describe('the Java List<String> bridge (M3 follow-up: 139, 127, 271)', () => {
+  it('reads the declared parameter types of a method, generics and modifiers included', () => {
+    const source = `import java.util.*;
+class Solution {
+    // wordBreak(String s) is only a comment
+    public boolean wordBreak(final String s, List<String> wordDict) {
+        return helper(s, wordDict);
+    }
+    private int ladderLength(String beginWord, String endWord, java.util.List<String> wordList) throws Exception {
+        return 0;
+    }
+    int pairs(Map<String, List<Integer>> index, @Deprecated int[][] grid) { return 0; }
+}`
+    expect(javaParameterTypes(source, 'wordBreak')).toEqual(['String', 'List<String>'])
+    expect(javaParameterTypes(source, 'ladderLength')).toEqual([
+      'String',
+      'String',
+      'java.util.List<String>',
     ])
+    expect(javaParameterTypes(source, 'pairs')).toEqual(['Map<String, List<Integer>>', 'int[][]'])
+    expect(javaParameterTypes(source, 'missing')).toBeNull()
+  })
+
+  it('passes a string[] as a mutable List<String> when the solution asks for one', () => {
+    const problem = fixture('demo:lc-9008')
+    const source = readFileSync(join(problem.dir, 'Solution.java'), 'utf8')
+    expect(generateJavaMain(problem.tests, source)).toContain(`    // example-1
+    private static Object case0() {
+        java.util.List<String> arg0 = new java.util.ArrayList<String>(java.util.Arrays.<String>asList("a","abc","ab"));
+        int arg1 = 2;
+        return new Solution().keepLonger(arg0, arg1);
+    }`)
+  })
+
+  it('keeps arrays without a source (or when the solution declares an array)', () => {
+    const problem = fixture('demo:lc-9008')
+    expect(generateJavaMain(problem.tests)).toContain(
+      'String[] arg0 = new String[]{"a","abc","ab"};',
+    )
+  })
+})
+
+describe('Go design classes are created through Constructor() (M3 follow-up)', () => {
+  it('renders the Constructor call, never a struct literal', () => {
+    expect(goConstructorCall([])).toBe('Constructor()')
+    expect(goConstructorCall(['10', '"x"'])).toBe('Constructor(10, "x")')
+  })
+})
+
+describe('structured kinds (M3b): the generated harnesses decode, call and encode', () => {
+  it('java: lists in and out, a cycle, ListNode[], in-place, trees, deep copies', () => {
+    expect(generateJavaMain(fixture('demo:lc-9010').tests)).toContain(`    // example-1
+    private static Object case0() {
+        ListNode arg0 = HarnessLists.decode(new int[]{1,2,3,4,5});
+        return HarnessLists.encode(new Solution().reverseList(arg0));
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9012').tests)).toContain(`    // example-1
+    private static Object case0() {
+        ListNode arg0 = HarnessLists.decode(new int[]{3,2,0,-4}, 1);
+        return new Solution().hasCycle(arg0);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9014').tests)).toContain(
+      '        ListNode[] arg0 = HarnessLists.decodeAll(new int[][]{{1,4,5},{1,3,4},{2,6}});',
+    )
+    expect(generateJavaMain(fixture('demo:lc-9015').tests)).toContain(`
+        ListNode arg0 = HarnessLists.decode(new int[]{1,2,3,4});
+        new Solution().reorderList(arg0);
+        return HarnessLists.encode(arg0);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9016').tests)).toContain(`    // null-gaps
+    private static Object case3() {
+        TreeNode arg0 = HarnessTrees.decode(new Integer[]{1,2,null,3});
+        return HarnessTrees.encode(new Solution().invertTree(arg0));
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9017').tests)).toContain(`    // example-2
+    private static Object case1() {
+        Node arg0 = HarnessRandomLists.decode(new Integer[][]{{1,1},{2,1}});
+        java.util.Set<Node> inputs = HarnessRandomLists.nodes(arg0);
+        return HarnessRandomLists.encodeCopy(new Solution().copyRandomList(arg0), inputs);
+    }`)
+    expect(generateJavaMain(fixture('demo:lc-9018').tests)).toContain(`    // two-nodes
+    private static Object case3() {
+        Node arg0 = HarnessGraphs.decode(new int[][]{{2},{1}});
+        java.util.Set<Node> inputs = HarnessGraphs.nodes(arg0);
+        return HarnessGraphs.encodeCopy(new Solution().cloneGraph(arg0), inputs);
+    }`)
+  })
+
+  it('go: the same, with pointer structs', () => {
+    expect(generateGoHarness(fixture('demo:lc-9010').tests)).toContain(`	case 0: // example-1
+		arg0 := harnessDecodeList([]int{1,2,3,4,5}, -1)
+		caseResult = harnessEncodeList(reverseList(arg0))
+`)
+    expect(generateGoHarness(fixture('demo:lc-9012').tests)).toContain(`	case 0: // example-1
+		arg0 := harnessDecodeList([]int{3,2,0,-4}, 1)
+		caseResult = hasCycle(arg0)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9014').tests)).toContain(
+      '\t\targ0 := harnessDecodeLists([][]int{{1,4,5},{1,3,4},{2,6}})\n',
+    )
+    expect(generateGoHarness(fixture('demo:lc-9015').tests)).toContain(`	case 3: // two-nodes
+		arg0 := harnessDecodeList([]int{1,2}, -1)
+		reorderList(arg0)
+		caseResult = harnessEncodeList(arg0)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9016').tests)).toContain(`	case 3: // null-gaps
+		arg0 := harnessDecodeTree([]any{1,2,nil,3})
+		caseResult = harnessEncodeTree(invertTree(arg0))
+`)
+    expect(generateGoHarness(fixture('demo:lc-9017').tests)).toContain(`	case 1: // example-2
+		arg0 := harnessDecodeRandomList([][]any{{1,1},{2,1}})
+		harnessInputs := harnessRandomListNodes(arg0)
+		caseResult = harnessEncodeRandomListCopy(copyRandomList(arg0), harnessInputs)
+`)
+    expect(generateGoHarness(fixture('demo:lc-9018').tests)).toContain(`	case 3: // two-nodes
+		arg0 := harnessDecodeGraph([][]int{{2},{1}})
+		harnessInputs := harnessGraphNodes(arg0)
+		caseResult = harnessEncodeGraphCopy(cloneGraph(arg0), harnessInputs)
+`)
+  })
+
+  describe('prepare', () => {
+    let root: string
+    let workDir: string
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), 'cv-harness-'))
+      workDir = join(root, 'unit')
+      mkdirSync(workDir)
+    })
+
+    afterEach(() => {
+      rmSync(root, { recursive: true, force: true })
+    })
+
+    it('python: the request names each argument codec, the result codec and the deep-copy check', () => {
+      expect(pythonHarness.prepare(fixture('demo:lc-9010'), workDir).runCase(0).stdin).toBe(
+        '{"file":"solution.py","method":"reverseList","args":[[1,2,3,4,5]],"output":null,' +
+          '"codecs":{"params":["list"],"returns":"list","copyOf":null}}',
+      )
+    })
+
+    it('python: an in-place list reports its argument; a graph clone must be a copy', () => {
+      const reorder = pythonHarness.prepare(fixture('demo:lc-9015'), join(workDir))
+      expect(JSON.parse(reorder.runCase(0).stdin ?? '')).toMatchObject({
+        output: 0,
+        codecs: { params: ['list'], returns: null, copyOf: null },
+      })
+      const clone = join(root, 'clone')
+      mkdirSync(clone)
+      expect(
+        JSON.parse(pythonHarness.prepare(fixture('demo:lc-9018'), clone).runCase(0).stdin ?? ''),
+      ).toMatchObject({ codecs: { params: ['graph'], returns: 'graph', copyOf: 0 } })
+    })
+
+    it('java: copies the structure classes of the kind and compiles them with the harness', () => {
+      const prepared = javaHarness.prepare(fixture('demo:lc-9016'), workDir)
+      for (const file of ['TreeNode.java', 'HarnessTrees.java']) {
+        expect(existsSync(join(workDir, file))).toBe(true)
+      }
+      expect(existsSync(join(workDir, 'ListNode.java'))).toBe(false)
+      expect(prepared.compile[0]?.args.slice(7)).toEqual([
+        'Solution.java',
+        'HarnessJson.java',
+        'TreeNode.java',
+        'HarnessTrees.java',
+        'HarnessMain.java',
+      ])
+    })
+
+    it('java: graph and random lists each bring their own Node', () => {
+      javaHarness.prepare(fixture('demo:lc-9018'), workDir)
+      expect(readFileSync(join(workDir, 'Node.java'), 'utf8')).toContain('List<Node> neighbors')
+      const other = join(root, 'random')
+      mkdirSync(other)
+      javaHarness.prepare(fixture('demo:lc-9017'), other)
+      expect(readFileSync(join(other, 'Node.java'), 'utf8')).toContain('Node random;')
+    })
+
+    it('go: copies the structure file of the kind', () => {
+      goHarness.prepare(fixture('demo:lc-9014'), workDir)
+      expect(existsSync(join(workDir, 'harness_list.go'))).toBe(true)
+      expect(existsSync(join(workDir, 'harness_tree.go'))).toBe(false)
+    })
+  })
+})
+
+describe('design classes (M3c): operation sequences', () => {
+  it('designOperations: the constructor, then each method with its arguments and { $result } references', () => {
+    const operations = designOperations(fixture('demo:lc-9020').tests, 3)
+    expect(operations).toEqual([
+      { name: 'Codec', method: null, args: [], returns: null },
+      {
+        name: 'encode',
+        method: 'encode',
+        args: [{ kind: 'value', value: ['a#1'], type: { base: 'string', dims: 1 } }],
+        returns: { base: 'string', dims: 0 },
+      },
+      {
+        name: 'encode',
+        method: 'encode',
+        args: [{ kind: 'value', value: ['', '#'], type: { base: 'string', dims: 1 } }],
+        returns: { base: 'string', dims: 0 },
+      },
+      {
+        name: 'decode',
+        method: 'decode',
+        args: [{ kind: 'result', op: 2 }],
+        returns: { base: 'string', dims: 1 },
+      },
+      {
+        name: 'decode',
+        method: 'decode',
+        args: [{ kind: 'result', op: 1 }],
+        returns: { base: 'string', dims: 1 },
+      },
+    ])
+    expect(() => functionCall(fixture('demo:lc-9020').tests)).toThrow()
+  })
+
+  it('java: constructs the class with its arguments, calls the ops in order and records each result as JSON', () => {
+    const source = generateJavaMain(fixture('demo:lc-9009').tests)
+    expect(source).toContain(`public class HarnessMain {
+    private static int harnessOp = -1;
+    private static String harnessOpName = "";
+
+    public static void main(String[] args) {
+        java.io.PrintStream stdout = System.out;
+        System.setOut(System.err); // the solution's own prints must not corrupt the JSON result
+        String result;
+        try {
+            result = switch (Integer.parseInt(args[0])) {
+                case 0 -> case0();
+                case 1 -> case1();
+                case 2 -> case2();
+                case 3 -> case3();
+                default -> throw new IllegalArgumentException("no case " + args[0]);
+            };
+        } catch (Throwable error) {
+            System.err.println("op " + harnessOp + " (" + harnessOpName + "): " + error);
+            error.printStackTrace();
+            System.exit(1);
+            return;
+        }
+        stdout.print(result);
+        stdout.flush();
+    }
+
+    private static void op(int index, String name) {
+        harnessOp = index;
+        harnessOpName = name;
+    }
+
+    // example-1
+    private static String case0() {
+        String[] results = new String[4];
+        op(0, "Counter");
+        Counter harnessObject = new Counter(10);
+        results[0] = "null";
+        op(1, "add");
+        var result1 = harnessObject.add(1);
+        results[1] = HarnessJson.write(result1);
+        op(2, "add");
+        var result2 = harnessObject.add(2);
+        results[2] = HarnessJson.write(result2);
+        op(3, "seen");
+        var result3 = harnessObject.seen(2);
+        results[3] = HarnessJson.write(result3);
+        return "[" + String.join(",", results) + "]";
+    }
+`)
+  })
+
+  it('java: a void method records null', () => {
+    expect(generateJavaMain(fixture('demo:lc-9004').tests)).toContain(`        op(1, "push");
+        harnessObject.push(4);
+        results[1] = "null";
+`)
+  })
+
+  it('java: { $result: n } passes the earlier result; a List<String> parameter gets a mutable list', () => {
+    const problem = fixture('demo:lc-9020')
+    const source = readFileSync(join(problem.dir, 'Solution.java'), 'utf8')
+    expect(generateJavaMain(problem.tests, source)).toContain(`        op(1, "encode");
+        var result1 = harnessObject.encode(new java.util.ArrayList<String>(java.util.Arrays.<String>asList("Hello","World")));
+        results[1] = HarnessJson.write(result1);
+        op(2, "decode");
+        var result2 = harnessObject.decode(result1);
+        results[2] = HarnessJson.write(result2);
+`)
+  })
+
+  it('go: Constructor(…) typed as the class, exported method names, a snapshot per result, the op named on a panic', () => {
+    const source = generateGoHarness(fixture('demo:lc-9009').tests)
+    expect(source).toContain(`import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"runtime/debug"
+	"strconv"
+)
+
+var harnessOp = -1
+var harnessOpName = ""
+
+func main() {
+	realStdout := os.Stdout
+	os.Stdout = os.Stderr // the solution's own prints must not corrupt the JSON result
+	caseIndex, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			fmt.Fprintf(os.Stderr, "op %d (%s): panic: %v\\n%s", harnessOp, harnessOpName, recovered, debug.Stack())
+			os.Exit(1)
+		}
+	}()
+	var results []json.RawMessage
+	switch caseIndex {
+	case 0: // example-1
+		results = make([]json.RawMessage, 4)
+		harnessOp, harnessOpName = 0, "Counter"
+		var harnessObject Counter = Constructor(10)
+		results[0] = harnessNull
+		harnessOp, harnessOpName = 1, "add"
+		result1 := harnessObject.Add(1)
+		results[1] = harnessSnapshot(result1)
+		harnessOp, harnessOpName = 2, "add"
+		result2 := harnessObject.Add(2)
+		results[2] = harnessSnapshot(result2)
+		harnessOp, harnessOpName = 3, "seen"
+		result3 := harnessObject.Seen(2)
+		results[3] = harnessSnapshot(result3)
+		_ = harnessObject
+`)
+    expect(source).toContain(`	default:
+		fmt.Fprintln(os.Stderr, "no case", caseIndex)
+		os.Exit(2)
+	}
+	encoded, err := json.Marshal(results)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	realStdout.Write(encoded)
+}
+`)
+  })
+
+  it('go: void methods record null; { $result: n } passes the earlier result', () => {
+    expect(generateGoHarness(fixture('demo:lc-9004').tests))
+      .toContain(`		harnessOp, harnessOpName = 1, "push"
+		harnessObject.Push(4)
+		results[1] = harnessNull
+`)
+    expect(generateGoHarness(fixture('demo:lc-9020').tests))
+      .toContain(`		harnessOp, harnessOpName = 1, "encode"
+		result1 := harnessObject.Encode([]string{"Hello","World"})
+		results[1] = harnessSnapshot(result1)
+		harnessOp, harnessOpName = 2, "decode"
+		result2 := harnessObject.Decode(result1)
+		results[2] = harnessSnapshot(result2)
+`)
+  })
+
+  describe('prepare', () => {
+    let root: string
+    let workDir: string
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), 'cv-harness-'))
+      workDir = join(root, 'unit')
+      mkdirSync(workDir)
+    })
+
+    afterEach(() => {
+      rmSync(root, { recursive: true, force: true })
+    })
+
+    it('python: checks the class and methods first, then sends the operations with { $result } as is', () => {
+      const prepared = pythonHarness.prepare(fixture('demo:lc-9020'), workDir)
+      expect(prepared.compile[0]?.args.at(-1)).toBe(
+        '{"className":"Codec","methods":["encode","decode"]}',
+      )
+      expect(prepared.runCase(0).stdin).toBe(
+        '{"file":"solution.py","design":{"className":"Codec","ops":[' +
+          '{"name":"Codec","args":[],"void":true},' +
+          '{"name":"encode","args":[["Hello","World"]],"void":false},' +
+          '{"name":"decode","args":[{"$result":1}],"void":false}]}}',
+      )
+      expect(prepared.compileOnly).toEqual([])
+    })
+
+    it('java: compiles the solution, HarnessJson and HarnessMain (no structure classes)', () => {
+      const prepared = javaHarness.prepare(fixture('demo:lc-9004'), workDir)
+      expect(prepared.compile[0]?.args.slice(7)).toEqual([
+        'Solution.java',
+        'HarnessJson.java',
+        'HarnessMain.java',
+      ])
+      expect(prepared.runCase(1).args).toEqual([
+        '-Xss64m',
+        '-Xmx512m',
+        '-cp',
+        'out',
+        'HarnessMain',
+        '1',
+      ])
+    })
+
+    it('go: copies normalize.go and harness_design.go and builds', () => {
+      const prepared = goHarness.prepare(fixture('demo:lc-9004'), workDir)
+      for (const file of ['normalize.go', 'harness_design.go', 'main_harness.go']) {
+        expect(existsSync(join(workDir, file))).toBe(true)
+      }
+      expect(existsSync(join(workDir, 'main_stub.go'))).toBe(false)
+      expect(prepared.compile.map((command) => command.args)).toEqual([['build', '-o', 'bin', '.']])
+    })
   })
 })

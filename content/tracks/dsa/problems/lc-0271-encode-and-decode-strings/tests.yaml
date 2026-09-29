@@ -1,5 +1,5 @@
-# Design class (§3.7): compile-only until M3c. Each case round-trips one list: decode receives
-# encode's result ({ $result: 1 }) and must return the original list; the encoded form is free.
+# Design class (§3.7): each case round-trips one list: decode receives encode's result
+# ({ $result: 1 }) and must return the original list; the encoded form is free.
 signature:
   kind: design-class
   className: Codec
