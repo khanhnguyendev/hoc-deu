@@ -37,7 +37,7 @@ A quiet, Swiss-minimal workspace that stays out of the way of studying.
 | --- | --- | --- |
 | Baloo 2 / Comic Neue, Varela Round / Nunito Sans | Be Vietnam Pro + JetBrains Mono (§4) | The suggestions target children's products; the audience is adult IT learners reading Vietnamese |
 | "Avoid dark modes" | Light **and** dark | Required by the brief |
-| Landing-page patterns (hero, feature grid) | App-shell patterns (§6) | The product is an authenticated dashboard |
+| Landing-page patterns (hero, feature grid) | App-shell patterns (§6) | The product is an authenticated dashboard. Superseded for `/` only by §15 (owner, 2026-09-29): no feature grid even there |
 | Teal `#0D9488` primary with black text; indigo + orange | Teal family kept, deepened to `#0F766E` for white-text buttons | `#0D9488` with white text is 3.7:1 (fails AA) |
 
 ---
@@ -184,6 +184,8 @@ Every accent passes 4.5:1 as text on every surface, as text on its own soft tint
 
 | Utility | Size / line height | Weight | Use |
 | --- | --- | --- | --- |
+| `text-6xl` | 60 / 75 px (1.25) | 700 | Landing h1 on desktop only (§15) |
+| `text-5xl` | 48 / 60 px (1.25) | 700 | Landing h1 on tablet only (§15) |
 | `text-4xl` | 36 / 45 px (1.25) | 700 | Streak number, big stat on desktop only |
 | `text-3xl` | 30 / 39 (1.3) | 600 | Page title on desktop |
 | `text-2xl` | 24 / 32 (1.35) | 600 | Page title on mobile; section heading on desktop |
@@ -388,6 +390,25 @@ data-driven components render loading / empty / error through the `LoadingState`
 - **Filter chips:** 32 px visual, hit area of at least 44 px, ≥ 8 px apart (§5, FilterChip).
 - **Heatmap:** year view only from 1024 px with a fine pointer; month view below that and on touch
   screens (§3.4).
+
+## 15. Landing page amendment (owner, 2026-09-29)
+
+- **Scope:** only `/` (signed out). Inside this system, `/` may use landing patterns: a split hero
+  (headline and lead on 5 of 12 columns, a product preview on 7), a product preview, and two track
+  columns. It still has no icon-card feature grid, no testimonials, no counts.
+- **Frame:** `FocusLayout width="page"` (`max-w-6xl`, sections start at the top, not centred).
+- **Type:** the two new steps `text-5xl` (48 / 60 px) and `text-6xl` (60 / 75 px), both line height
+  1.25 and tracking 0, are for the landing h1 only (`text-4xl md:text-5xl lg:text-6xl`, weight 700).
+  Everything else on the page uses the existing scale.
+- **Preview:** the example day is fixed, non-interactive sample data (no links, no buttons, nothing
+  focusable), always labelled "Ví dụ", and drawn in the grammar of `PlanBlockCard`. Heat cells are
+  decorative (`aria-hidden`); their meaning is in text.
+- **Motion:** one signature moment, CSS only and from a fully visible end state: on first paint the
+  checked block's status pill settles in and today's heat cell deepens one level, using
+  `--duration-*` and `--ease-enter`. Under `prefers-reduced-motion` the durations are zero and the
+  final frame shows at once.
+- **Colour:** teal (`primary`) only on "Bắt đầu học"; the track accents are the tracks' own
+  (`track-1` DSA, `track-2` English); heat cells are the only data motif.
 
 ---
 
