@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { levelFor } from '@/components/patterns/calendar-heatmap/levels'
 import { TodayPreview } from './today-preview'
 
 describe('TodayPreview', () => {
@@ -17,7 +18,7 @@ describe('TodayPreview', () => {
       'track-1',
       'track-2',
     ])
-    for (const term of ['Two Pointers', 'Valid Palindrome', 'Two Sum', 'Explaining code']) {
+    for (const term of ['Two Pointers', 'Valid Palindrome', 'Two Sum', 'Tickets and bug reports']) {
       expect(screen.getByText(term).getAttribute('lang')).toBe('en')
     }
     for (const kind of ['Bài mới', 'Ôn tập', 'Thẻ mới']) expect(screen.getByText(kind)).toBeTruthy()
@@ -49,9 +50,10 @@ describe('TodayPreview', () => {
     for (const cell of cells) expect(cell.closest('[aria-hidden="true"]')).not.toBeNull()
     const today = cells[2] as HTMLElement
     expect(today.className).toContain('outline-2')
-    expect(today.getAttribute('data-level')).toBe('3')
+    // Today fills to the level of the minutes checked in on the first block (20).
+    expect(today.getAttribute('data-level')).toBe(String(levelFor(20)))
     expect(today.querySelector('.landing-deepen')).not.toBeNull()
-    expect(screen.getByText(/hôm nay đã xong 45 phút/).className).toContain('sr-only')
+    expect(screen.getByText(/hôm nay mới xong 20 phút/).className).toContain('sr-only')
   })
 
   it('plays the pill motion from a visible end state (CSS animation, no script)', () => {

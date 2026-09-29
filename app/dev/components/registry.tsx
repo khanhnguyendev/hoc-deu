@@ -79,6 +79,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toaster'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { LandingFooter } from '@/features/landing/components/landing-footer'
 import { HeatCell } from '@/features/landing/components/heat-cell'
 import { Landing } from '@/features/landing/components/landing'
 import { MissedDayGrid } from '@/features/landing/components/missed-day-grid'
@@ -1724,7 +1725,7 @@ export const CATALOG: Entry[] = [
     file: 'features/landing/components/heat-cell.tsx',
     demos: [
       {
-        title: 'Strip cells at levels 0–4, then today (outlined, deepening 2 → 3)',
+        title: 'Strip cells at levels 0–4, then today (outlined, filling to level 2)',
         render: () => (
           <div className="grid w-full max-w-md grid-cols-6 gap-1.5">
             <HeatCell level={0} />
@@ -1732,7 +1733,22 @@ export const CATALOG: Entry[] = [
             <HeatCell level={2} />
             <HeatCell level={3} />
             <HeatCell level={4} />
-            <HeatCell level={2} deepenTo={3} today />
+            <HeatCell level={0} deepenTo={2} today />
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    name: 'LandingFooter',
+    layer: 'features',
+    file: 'features/landing/components/landing-footer.tsx',
+    demos: [
+      {
+        title: 'Hairline, wordmark, repository link, licences',
+        render: () => (
+          <div className="w-full">
+            <LandingFooter />
           </div>
         ),
       },

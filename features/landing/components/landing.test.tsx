@@ -50,11 +50,13 @@ describe('Landing', () => {
     expect(accents).toEqual(['track-1', 'track-2'])
   })
 
-  it('links the open-source repository and says AI planning is coming', () => {
+  it('has a quiet footer with the repository link and the licences, and says AI planning is coming', () => {
     render(<Landing />)
-    expect(screen.getByRole('link', { name: 'Mã nguồn mở trên GitHub' }).getAttribute('href')).toBe(
-      'https://github.com/khanhnguyendev/hoc-deu',
-    )
+    const footer = screen.getByRole('contentinfo')
+    const link = within(footer).getByRole('link', { name: 'Mã nguồn mở trên GitHub' })
+    expect(link.getAttribute('href')).toBe('https://github.com/khanhnguyendev/hoc-deu')
+    expect(link.className).not.toContain('text-primary')
+    expect(within(footer).getByText('Mã nguồn MIT · Nội dung CC BY-NC-SA 4.0')).toBeTruthy()
     expect(screen.getByText('AI cá nhân hoá kế hoạch: sắp có')).toBeTruthy()
   })
 
@@ -66,7 +68,12 @@ describe('Landing', () => {
     for (const cell of grid?.querySelectorAll('[data-slot="heat-cell"]') ?? []) {
       expect(cell.closest('[aria-hidden="true"]')).not.toBeNull()
     }
-    expect(screen.getByText('Ví dụ')).toBeTruthy()
-    expect(within(grid as HTMLElement).getByText(/Ví dụ sáu tuần học/)).toBeTruthy()
+    expect(screen.queryByText('Ví dụ')).toBeNull()
+    expect(
+      within(grid as HTMLElement).getByText('Ví dụ: sáu tuần học, có hai ngày trống'),
+    ).toBeTruthy()
+    for (const cell of grid?.querySelectorAll('[data-level="0"]') ?? []) {
+      expect(cell.className).toContain('border-dashed')
+    }
   })
 })

@@ -5,24 +5,32 @@ import { HeatCell } from './heat-cell'
 const copy = vi.landing.missed
 
 /** Six example weeks, Monday first, one string per week (digits are heat levels). Two blank days. */
-const WEEKS = ['2332321', '3233232', '2320333', '1323323', '3233230', '2332323'] as const
+const WEEKS = ['1212212', '2121321', '1220121', '2312112', '1211210', '2121312'] as const
 const CELLS = WEEKS.flatMap((week, w) =>
   [...week].map((digit, d) => ({ key: `${w}-${d}`, level: Number(digit) as HeatLevel })),
 )
 
 /**
  * The band's static grid: six weeks × seven days of example data (DESIGN_SYSTEM §15), decorative
- * (`aria-hidden`); `summary` is what screen readers get instead.
+ * (`aria-hidden`); the visible caption carries the meaning.
  */
 function MissedDayGrid() {
   return (
-    <figure data-slot="missed-day-grid" className="flex flex-col gap-2">
-      <div aria-hidden="true" className="grid grid-cols-7 gap-1.5 md:gap-2">
-        {CELLS.map(({ key, level }) => (
-          <HeatCell key={key} size="grid" level={level} />
-        ))}
+    <figure data-slot="missed-day-grid" className="flex w-full max-w-sm flex-col gap-2 lg:max-w-md">
+      <div aria-hidden="true" className="flex flex-col gap-1.5 md:gap-2">
+        <div className="grid grid-cols-7 gap-1.5 text-xs text-muted-foreground md:gap-2">
+          {vi.heatmap.weekdays.map((day) => (
+            <span key={day} className="text-center">
+              {day}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1.5 md:gap-2">
+          {CELLS.map(({ key, level }) => (
+            <HeatCell key={key} size="grid" level={level} />
+          ))}
+        </div>
       </div>
-      <p className="sr-only">{copy.summary}</p>
       <figcaption className="text-sm text-muted-foreground">{copy.caption}</figcaption>
     </figure>
   )

@@ -29,11 +29,11 @@ export const landing = {
       cards: { kind: 'Thẻ mới', minutes: 15 },
     },
     cardsCount: '8 thẻ',
-    cardsDeck: 'Explaining code',
+    cardsDeck: 'Tickets and bug reports',
     heatLabel: '7 ngày gần nhất',
     /** Read by screen readers in place of the decorative cells. */
     heatSummary:
-      'Bảy ngày gần nhất: thứ Hai và thứ Ba đã học, hôm nay đã xong 45 phút, các ngày sau chưa tới.',
+      'Bảy ngày gần nhất: thứ Hai và thứ Ba đã học, hôm nay mới xong 20 phút, các ngày sau chưa tới.',
   },
   day: {
     title: 'Một ngày học',
@@ -76,16 +76,17 @@ export const landing = {
     },
   },
   missed: {
-    label: 'Ví dụ',
     title: 'Bỏ lỡ một ngày chỉ mất một ngày',
     body: 'Kế hoạch được tính lại từ những gì bạn thực sự đã làm. Ngày trống vẫn là ngày trống, không phải nợ: lộ trình chờ bạn và đi tiếp vào ngày học kế tiếp.',
-    caption: 'Sáu tuần học, có hai ngày trống',
-    summary: 'Ví dụ sáu tuần học: phần lớn các ngày có học, hai ngày trống.',
+    caption: 'Ví dụ: sáu tuần học, có hai ngày trống',
   },
   close: {
     title: 'Bắt đầu với kế hoạch của hôm nay',
+    ai: 'AI cá nhân hoá kế hoạch: sắp có',
+  },
+  footer: {
     openSource: 'Mã nguồn mở trên GitHub',
     githubHref: 'https://github.com/khanhnguyendev/hoc-deu',
-    ai: 'AI cá nhân hoá kế hoạch: sắp có',
+    licences: 'Mã nguồn MIT · Nội dung CC BY-NC-SA 4.0',
   },
 } as const

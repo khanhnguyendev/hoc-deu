@@ -91,7 +91,7 @@ const USED = [
   'landing.description',
   'landing.preview.caption',
   'landing.missed.title',
-  'landing.close.openSource',
+  'landing.footer.openSource',
   'account.pending.title',
   'account.pending.description',
   'account.rejected.title',

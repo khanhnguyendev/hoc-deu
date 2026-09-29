@@ -404,7 +404,7 @@ data-driven components render loading / empty / error through the `LoadingState`
   focusable), always labelled "Ví dụ", and drawn in the grammar of `PlanBlockCard`. Heat cells are
   decorative (`aria-hidden`); their meaning is in text.
 - **Motion:** one signature moment, CSS only and from a fully visible end state: on first paint the
-  checked block's status pill settles in and today's heat cell deepens one level, using
+  checked block's status pill settles in and today's heat cell fills to its level, using
   `--duration-*` and `--ease-enter`. Under `prefers-reduced-motion` the durations are zero and the
   final frame shows at once.
 - **Colour:** teal (`primary`) only on "Bắt đầu học"; the track accents are the tracks' own

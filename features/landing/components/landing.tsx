@@ -1,8 +1,8 @@
 import type * as React from 'react'
 import { Banner } from '@/components/patterns/banner'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
 import { vi } from '@/lib/i18n/vi'
+import { LandingFooter } from './landing-footer'
 import { MissedDayGrid } from './missed-day-grid'
 import { StartLink } from './sign-in-link'
 import { TodayPreview } from './today-preview'
@@ -68,7 +68,7 @@ function Landing({ deleted = false }: { deleted?: boolean }) {
       {deleted && <Banner tone="info">{copy.deletedBanner}</Banner>}
       <section className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
         <div className="flex flex-col gap-6 lg:col-span-5">
-          <h1 className="text-4xl font-bold md:text-5xl lg:text-6xl">
+          <h1 className="text-4xl font-bold text-balance md:text-5xl lg:text-6xl">
             <span className="block">{copy.headline.first}</span>{' '}
             <span className="block">{copy.headline.second}</span>
           </h1>
@@ -88,7 +88,7 @@ function Landing({ deleted = false }: { deleted?: boolean }) {
           {copy.day.steps.map((step) => (
             <li
               key={step.title}
-              className="flex flex-col gap-2 border-l border-border-strong pb-8 pl-5 last:pb-0 md:border-t md:border-l-0 md:pt-5 md:pr-8 md:pb-0 md:pl-0"
+              className="flex flex-col gap-2 border-l border-muted-foreground pb-8 pl-5 last:pb-0 md:border-t md:border-l-0 md:pt-5 md:pr-8 md:pb-0 md:pl-0"
             >
               <h3 className="text-xl font-semibold">{step.title}</h3>
               <p className="text-base text-muted-foreground">{step.body}</p>
@@ -109,7 +109,6 @@ function Landing({ deleted = false }: { deleted?: boolean }) {
         className="grid items-center gap-8 rounded-xl border border-border bg-surface-sunken p-5 md:p-8 lg:grid-cols-12 lg:gap-12"
       >
         <div className="flex flex-col gap-4 lg:col-span-5">
-          <Badge tone="outline">{copy.missed.label}</Badge>
           <h2 id="landing-missed" className="text-3xl font-semibold">
             {copy.missed.title}
           </h2>
@@ -128,13 +127,9 @@ function Landing({ deleted = false }: { deleted?: boolean }) {
           {copy.close.title}
         </h2>
         <StartLink />
-        <div className="flex flex-col items-start gap-1 text-sm text-muted-foreground">
-          <a href={copy.close.githubHref} className={buttonVariants({ variant: 'link' })}>
-            {copy.close.openSource}
-          </a>
-          <p>{copy.close.ai}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{copy.close.ai}</p>
       </section>
+      <LandingFooter />
     </div>
   )
 }

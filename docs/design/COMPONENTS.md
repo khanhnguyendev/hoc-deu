@@ -500,7 +500,8 @@ from `lib/i18n/vi.ts`.
 - **File:** `components/patterns/focus-layout.tsx`
 - **Props:** `children`, `width?: 'narrow' | 'wide' | 'page'` (`max-w-md` / `max-w-2xl` / `max-w-6xl`,
   default `narrow`; `page` is the landing's frame, DESIGN_SYSTEM §15: `main` starts at the top
-  instead of being vertically centred),
+  instead of being vertically centred, and the header shares its `max-w-6xl` frame so the
+  wordmark and actions sit on the content edges),
   `headerActions?: ReactNode`, `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
   the AppShell does for signed-in pages — task 5.6; `false` where the page has its own, the
   catalog, so no toast shows twice)
@@ -891,11 +892,23 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
   — a signed-in visitor is redirected to `homePathFor(user)` before this renders). Sections: split
   hero (headline, lead, `StartLink`, approval note, `TodayPreview`), "Một ngày học" (three steps
   joined by a hairline, not cards), two track sheets (DSA `track-1`, English `track-2`), the
-  "missed a day" band with `MissedDayGrid`, and the close (second `StartLink`, GitHub link, "AI cá
-  nhân hoá kế hoạch: sắp có"). Copy: `lib/i18n/strings/landing.ts`
+  "missed a day" band with `MissedDayGrid`, and the close (second `StartLink`, "AI cá
+  nhân hoá kế hoạch: sắp có") and `LandingFooter`. Copy: `lib/i18n/strings/landing.ts`
 - **Accessibility:** one h1 (the headline, the only `text-4xl md:text-5xl lg:text-6xl` use, §15);
   every section is named by an h2; the decorative heat cells are `aria-hidden` and their meaning
-  is in text; both "Bắt đầu học" links and the GitHub link are 44 px targets
+  is in text; both "Bắt đầu học" links are 44 px targets
+
+### LandingFooter
+
+- **Layer:** feature (`features/landing`)
+- **File:** `features/landing/components/landing-footer.tsx`
+- **Props:** none
+- **Variants:** —
+- **States:** static
+- **Usage:** `<LandingFooter />` last in `Landing`: a hairline, `LogoMark` and "Học Đều" on the left,
+  the repository link (`buttonVariants` link, no teal, underlined, 44 px tall) and "Mã nguồn MIT ·
+  Nội dung CC BY-NC-SA 4.0" on the right
+- **Accessibility:** a `footer` (`contentinfo`) landmark; the links are real links
 
 ### TodayPreview
 
@@ -904,7 +917,7 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 - **Props:** none (fixed example data, labelled "Ví dụ: một ngày 45 phút" in its `figcaption`)
 - **Variants:** —
 - **States:** static; the only motion is CSS: the checked block's status pill settles in
-  (`landing-settle`) and today's heat cell deepens one level (`landing-deepen`), both from a
+  (`landing-settle`) and today's heat cell fills to its level (`landing-deepen`), both from a
   fully visible end state, so reduced motion shows the final frame
 - **Usage:** `<TodayPreview />` in the landing hero. Blocks use the `PlanBlockCard` grammar (border,
   `bg-surface`, 4 px track stripe, track `Badge`, minutes), item rows are plain text
@@ -928,10 +941,10 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 - **Layer:** feature (`features/landing`)
 - **File:** `features/landing/components/heat-cell.tsx`
 - **Props:** `level: 0–4`, `size?: 'strip' | 'grid'` (cva), `today?: boolean` (outline),
-  `deepenTo?: 0–4` (a darker level fades in over the cell on first paint)
+  `deepenTo?: 0–4` (this level fades in over the cell on first paint, so the cell fills to it)
 - **Variants:** strip · grid; today
-- **States:** static (the deepen fade is CSS-only)
-- **Usage:** `<HeatCell level={2} deepenTo={3} today />`; levels come from `CELL` of the calendar
+- **States:** static (the fill fade is CSS-only)
+- **Usage:** `<HeatCell level={0} deepenTo={2} today />`; levels come from `CELL` of the calendar
   heatmap
 - **Accessibility:** always `aria-hidden`; never the only carrier of meaning
 

@@ -3,14 +3,14 @@ import { useId } from 'react'
 import type * as React from 'react'
 import { StatusPill } from '@/components/patterns/status-pill'
 import { Badge } from '@/components/ui/badge'
-import type { HeatLevel } from '@/components/patterns/calendar-heatmap/levels'
+import { type HeatLevel, levelFor } from '@/components/patterns/calendar-heatmap/levels'
 import { vi } from '@/lib/i18n/vi'
 import { HeatCell } from './heat-cell'
 
 const copy = vi.landing.preview
 
 /** Mon–Sun of the example week: two studied days, today (T4), then days not yet come. */
-const STRIP: readonly HeatLevel[] = [2, 3, 3, 0, 0, 0, 0]
+const STRIP: readonly HeatLevel[] = [2, 3, 0, 0, 0, 0, 0]
 const TODAY = 2
 
 function Minutes({ value }: { value: number }) {
@@ -74,7 +74,7 @@ function PreviewBlock({
  * The example day beside the landing headline (DESIGN_SYSTEM §15): a non-interactive figure —
  * plain text rows, no links, no buttons. One block is checked in; a 7-day strip closes it. The
  * decorative cells are `aria-hidden`, the meaning is in the visible caption and a screen-reader
- * summary. Motion: the pill settles in and today's cell deepens one level (CSS only).
+ * summary. Motion: the pill settles in and today's cell fills to its level (CSS only).
  */
 function TodayPreview() {
   const blocks = copy.blocks
@@ -138,8 +138,8 @@ function TodayPreview() {
               <HeatCell
                 key={vi.heatmap.weekdays[day]}
                 size="strip"
-                level={day === TODAY ? 2 : level}
-                deepenTo={day === TODAY ? 3 : undefined}
+                level={level}
+                deepenTo={day === TODAY ? levelFor(blocks.newLesson.minutes) : undefined}
                 today={day === TODAY}
               />
             ))}
