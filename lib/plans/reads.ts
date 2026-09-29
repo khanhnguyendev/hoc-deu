@@ -9,7 +9,7 @@
  */
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { HARD_LIMITS } from '@/lib/bot/limits'
+import { HARD_LIMITS } from '@/lib/domain/bot-limits'
 import { toEnrollment } from '@/lib/content/plan-catalog'
 import type { UserItemRow } from '@/lib/content/user-items'
 import type { PlanCatalog } from '@/lib/domain/catalog'

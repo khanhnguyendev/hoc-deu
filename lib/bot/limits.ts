@@ -1,20 +1,13 @@
 /**
- * The bot's hard maxima (Part B-M6 decision 33; spec §4.2 `bot_settings.limits`): custom items 10
- * new per user per local day and 200 active; overrides 3 active per track, an `insert_block` at
- * most 25 % of the budget and 14 days, an `extra_week` at most 5 study days with a 21-day
- * cooldown. They live in code; `bot_settings.limits` may only lower them — a stored higher value is
- * clamped here (`/admin/bot` has no limits form in M6). SQL enforces the counts (6.2b) under a
- * per-user lock, TypeScript the bounds that need the catalog. Plain constants, no server-only.
+ * The bot's hard maxima (Part B-M6 decision 33; `lib/domain/bot-limits.ts`, re-exported here for
+ * the bot's callers). They live in code; `bot_settings.limits` may only lower them — a stored
+ * higher value is clamped here (`/admin/bot` has no limits form in M6). SQL enforces the counts
+ * (6.2b) under a per-user lock, TypeScript the bounds that need the catalog. Plain constants, no
+ * server-only.
  */
-export const HARD_LIMITS = {
-  customItemsPerDay: 10,
-  customItemsActive: 200,
-  overridesPerTrack: 3,
-  insertBlockShare: 0.25,
-  insertBlockDays: 14,
-  extraWeekDays: 5,
-  extraWeekCooldownDays: 21,
-} as const
+import { HARD_LIMITS } from '@/lib/domain/bot-limits'
+
+export { HARD_LIMITS }
 
 export type BotLimits = { -readonly [K in keyof typeof HARD_LIMITS]: number }
 

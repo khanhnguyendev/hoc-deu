@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CATALOG, itemState } from '@/lib/domain/plan/__tests__/fixtures'
 import { blockKey } from '@/lib/domain/state'
-import { HARD_LIMITS } from '@/lib/bot/limits'
+import { HARD_LIMITS } from '@/lib/domain/bot-limits'
 import { createFakeSupabase, type RowOf } from '@/lib/testing/fake-supabase'
 import {
   blockStateRow,

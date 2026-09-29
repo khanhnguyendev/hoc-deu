@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { HARD_LIMITS as DOMAIN_LIMITS } from '@/lib/domain/bot-limits'
 import { effectiveLimits, HARD_LIMITS } from './limits'
 
 describe('HARD_LIMITS (decision 33)', () => {
+  it("is lib/domain's constant, re-exported (lib/plans reads it without lib/bot)", () => {
+    expect(HARD_LIMITS).toBe(DOMAIN_LIMITS)
+  })
+
   it('are the spec’s hard maxima', () => {
     expect(HARD_LIMITS).toEqual({
       customItemsPerDay: 10,
