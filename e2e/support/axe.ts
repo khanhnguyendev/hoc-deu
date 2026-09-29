@@ -22,6 +22,9 @@ async function settleToasts(page: Page): Promise<void> {
     .toBe(true)
 }
 
+/** Longer than any finite animation in the app (the slowest token duration is well under it). */
+const ANIMATION_SETTLE_CAP_MS = 2000
+
 /**
  * Waits until every running finite animation and transition has finished: switching the theme
  * animates `transition-colors` elements (a dialog's primary button), and axe once measured one
@@ -30,13 +33,19 @@ async function settleToasts(page: Page): Promise<void> {
  * finish and are left alone.
  */
 async function settleAnimations(page: Page): Promise<void> {
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
-        .map((animation) => animation.finished.catch(() => {})),
-    ),
+  // Capped: a paused finite animation never finishes, and the scan must not wait for it.
+  await page.evaluate(
+    (capMs) =>
+      Promise.race([
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+            .map((animation) => animation.finished.catch(() => {})),
+        ),
+        new Promise((resolve) => setTimeout(resolve, capMs)),
+      ]),
+    ANIMATION_SETTLE_CAP_MS,
   )
 }
 
