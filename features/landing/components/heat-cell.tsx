@@ -23,17 +23,18 @@ function HeatCell({
   level,
   size,
   today,
+  blank = false,
   deepenTo,
 }: { level: HeatLevel; deepenTo?: HeatLevel } & Pick<
   VariantProps<typeof heatCellVariants>,
-  'size' | 'today'
+  'size' | 'today' | 'blank'
 >) {
   return (
     <span
       aria-hidden="true"
       data-slot="heat-cell"
       data-level={deepenTo ?? level}
-      className={cn(heatCellVariants({ size, today, blank: level === 0 }), CELL[level])}
+      className={cn(heatCellVariants({ size, today, blank }), CELL[level])}
     >
       {deepenTo !== undefined && (
         <span className={cn('absolute -inset-px landing-deepen rounded-sm', CELL[deepenTo])} />

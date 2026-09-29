@@ -502,13 +502,14 @@ from `lib/i18n/vi.ts`.
   default `narrow`; `page` is the landing's frame, DESIGN_SYSTEM §15: `main` starts at the top
   instead of being vertically centred, and the header shares its `max-w-6xl` frame so the
   wordmark and actions sit on the content edges),
-  `headerActions?: ReactNode`, `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
+  `headerActions?: ReactNode`, `footer?: ReactNode` (after `main`, in the same frame and padding;
+  the page gives a `footer` element so it has a `contentinfo` landmark), `toaster?: boolean` (default `true`: mounts the pages' `Toaster`, as
   the AppShell does for signed-in pages — task 5.6; `false` where the page has its own, the
   catalog, so no toast shows twice)
 - **Variants:** narrow · wide · page
 - **States:** static
 - **Usage:** `<FocusLayout><SignInPanel … /></FocusLayout>` (`/sign-in`, `/pending`,
-  `/onboarding`); `/` uses `<FocusLayout width="page" headerActions={<SignInLink />}>`
+  `/onboarding`); `/` uses `<FocusLayout width="page" headerActions={<SignInLink />} footer={<LandingFooter />}>`
 - **Accessibility:** skip link to `#main`; header wordmark links to `/`, `LogoMark` before the
   text (task 6.0b) — the link's accessible name stays "Học Đều"; `main#main` is the page's
   landmark; toasts are announced in the Toaster's polite live region
@@ -882,7 +883,7 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 
 ### Landing
 
-- **Layer:** feature (`features/landing`, public API `index.ts`: `Landing`, `SignInLink`, `StartLink`)
+- **Layer:** feature (`features/landing`, public API `index.ts`: `Landing`, `LandingFooter`, `SignInLink`, `StartLink`)
 - **File:** `features/landing/components/landing.tsx`
 - **Props:** `deleted?: boolean` (default `false`; `?account=deleted`, §4.6)
 - **Variants:** default · deleted (an info Banner "Tài khoản của bạn đã được xoá." above the hero)
@@ -893,7 +894,7 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
   hero (headline, lead, `StartLink`, approval note, `TodayPreview`), "Một ngày học" (three steps
   joined by a hairline, not cards), two track sheets (DSA `track-1`, English `track-2`), the
   "missed a day" band with `MissedDayGrid`, and the close (second `StartLink`, "AI cá
-  nhân hoá kế hoạch: sắp có") and `LandingFooter`. Copy: `lib/i18n/strings/landing.ts`
+  nhân hoá kế hoạch: sắp có") (the footer is `LandingFooter`, passed to `FocusLayout`). Copy: `lib/i18n/strings/landing.ts`
 - **Accessibility:** one h1 (the headline, the only `text-4xl md:text-5xl lg:text-6xl` use, §15);
   every section is named by an h2; the decorative heat cells are `aria-hidden` and their meaning
   is in text; both "Bắt đầu học" links are 44 px targets
@@ -905,7 +906,7 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 - **Props:** none
 - **Variants:** —
 - **States:** static
-- **Usage:** `<LandingFooter />` last in `Landing`: a hairline, `LogoMark` and "Học Đều" on the left,
+- **Usage:** `<FocusLayout footer={<LandingFooter />}>` (not inside `Landing`, so it sits outside `main`): a hairline, `LogoMark` and "Học Đều" on the left,
   the repository link (`buttonVariants` link, no teal, underlined, 44 px tall) and "Mã nguồn MIT ·
   Nội dung CC BY-NC-SA 4.0" on the right
 - **Accessibility:** a `footer` (`contentinfo`) landmark; the links are real links
@@ -940,7 +941,8 @@ Task 6.0b adds these entries below this line (Part B-M6 decision 3).
 
 - **Layer:** feature (`features/landing`)
 - **File:** `features/landing/components/heat-cell.tsx`
-- **Props:** `level: 0–4`, `size?: 'strip' | 'grid'` (cva), `today?: boolean` (outline),
+- **Props:** `blank?: boolean` (a missed day: dashed edge; explicit, so the strip's future days stay
+  solid), `level: 0–4`, `size?: 'strip' | 'grid'` (cva), `today?: boolean` (outline),
   `deepenTo?: 0–4` (this level fades in over the cell on first paint, so the cell fills to it)
 - **Variants:** strip · grid; today
 - **States:** static (the fill fade is CSS-only)

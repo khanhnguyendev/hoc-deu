@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { FocusLayout } from '@/components/patterns/focus-layout'
-import { Landing, SignInLink } from '@/features/landing'
+import { Landing, LandingFooter, SignInLink } from '@/features/landing'
 import { getSessionUser } from '@/lib/auth/dal'
 import { homePathFor } from '@/lib/auth/paths'
 
@@ -15,7 +15,7 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
   if (user) redirect(homePathFor(user))
   const params = await searchParams
   return (
-    <FocusLayout width="page" headerActions={<SignInLink />}>
+    <FocusLayout width="page" headerActions={<SignInLink />} footer={<LandingFooter />}>
       <Landing deleted={first(params.account) === 'deleted'} />
     </FocusLayout>
   )

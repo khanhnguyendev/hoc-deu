@@ -50,14 +50,10 @@ describe('Landing', () => {
     expect(accents).toEqual(['track-1', 'track-2'])
   })
 
-  it('has a quiet footer with the repository link and the licences, and says AI planning is coming', () => {
+  it('says AI planning is coming, and leaves the footer to the page frame', () => {
     render(<Landing />)
-    const footer = screen.getByRole('contentinfo')
-    const link = within(footer).getByRole('link', { name: 'Mã nguồn mở trên GitHub' })
-    expect(link.getAttribute('href')).toBe('https://github.com/khanhnguyendev/hoc-deu')
-    expect(link.className).not.toContain('text-primary')
-    expect(within(footer).getByText('Mã nguồn MIT · Nội dung CC BY-NC-SA 4.0')).toBeTruthy()
     expect(screen.getByText('AI cá nhân hoá kế hoạch: sắp có')).toBeTruthy()
+    expect(screen.queryByRole('contentinfo')).toBeNull()
   })
 
   it('keeps the missed-day grid decorative, labelled "Ví dụ", with the meaning in text', () => {

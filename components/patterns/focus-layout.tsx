@@ -24,11 +24,14 @@ function FocusLayout({
   children,
   width = 'narrow',
   headerActions,
+  footer,
   toaster = true,
 }: {
   children: React.ReactNode
   width?: keyof typeof WIDTH
   headerActions?: React.ReactNode
+  /** Rendered after `main`, in the same frame (a `footer` element gives the page its `contentinfo`). */
+  footer?: React.ReactNode
   toaster?: boolean
 }) {
   return (
@@ -66,6 +69,17 @@ function FocusLayout({
       >
         {children}
       </main>
+      {footer && (
+        <div
+          data-slot="focus-layout-footer"
+          className={cn(
+            'w-full px-4 pb-8 md:px-6 lg:px-8',
+            width === 'page' && 'mx-auto max-w-6xl',
+          )}
+        >
+          {footer}
+        </div>
+      )}
       {toaster && <Toaster />}
     </div>
   )

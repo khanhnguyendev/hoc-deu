@@ -88,6 +88,31 @@ describe('FocusLayout', () => {
     expect(header().split(' ')).not.toContain('max-w-6xl')
   })
 
+  it('renders a footer slot after main, in the page frame for the page width', () => {
+    render(
+      <FocusLayout width="page" footer={<footer>Chân trang</footer>}>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    const main = screen.getByRole('main')
+    const footer = screen.getByRole('contentinfo')
+    expect(main.contains(footer)).toBe(false)
+    expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const slot = document.querySelector('[data-slot="focus-layout-footer"]')?.className.split(' ')
+    for (const token of ['mx-auto', 'max-w-6xl', 'px-4', 'md:px-6', 'lg:px-8']) {
+      expect(slot).toContain(token)
+    }
+  })
+
+  it('has no footer slot without a footer', () => {
+    render(
+      <FocusLayout>
+        <p>Nội dung</p>
+      </FocusLayout>,
+    )
+    expect(document.querySelector('[data-slot="focus-layout-footer"]')).toBeNull()
+  })
+
   it('stacks the page sections with the section spacing (DESIGN_SYSTEM §5)', () => {
     render(
       <FocusLayout>

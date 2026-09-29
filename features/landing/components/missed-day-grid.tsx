@@ -27,7 +27,7 @@ function MissedDayGrid() {
         </div>
         <div className="grid grid-cols-7 gap-1.5 md:gap-2">
           {CELLS.map(({ key, level }) => (
-            <HeatCell key={key} size="grid" level={level} />
+            <HeatCell key={key} size="grid" level={level} blank={level === 0} />
           ))}
         </div>
       </div>

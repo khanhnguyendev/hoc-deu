@@ -2,7 +2,6 @@ import type * as React from 'react'
 import { Banner } from '@/components/patterns/banner'
 import { Badge } from '@/components/ui/badge'
 import { vi } from '@/lib/i18n/vi'
-import { LandingFooter } from './landing-footer'
 import { MissedDayGrid } from './missed-day-grid'
 import { StartLink } from './sign-in-link'
 import { TodayPreview } from './today-preview'
@@ -129,7 +128,6 @@ function Landing({ deleted = false }: { deleted?: boolean }) {
         <StartLink />
         <p className="text-sm text-muted-foreground">{copy.close.ai}</p>
       </section>
-      <LandingFooter />
     </div>
   )
 }

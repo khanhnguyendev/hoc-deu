@@ -35,6 +35,9 @@ describe('/', () => {
       expect(cta.getAttribute('href')).toBe('/sign-in')
     }
     expect(screen.getByRole('main').className).toContain('max-w-6xl')
+    // The footer is the page's contentinfo landmark, outside `main`.
+    const footer = screen.getByRole('contentinfo')
+    expect(screen.getByRole('main').contains(footer)).toBe(false)
     expect(redirectMock).not.toHaveBeenCalled()
     expect(screen.queryByText('Tài khoản của bạn đã được xoá.')).toBeNull()
   })
