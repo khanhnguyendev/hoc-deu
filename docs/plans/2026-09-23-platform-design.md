@@ -1544,7 +1544,10 @@ roadmap.
   `extra_week` after its study days; `reorder_topics` ends when revoked or once every reordered
   topic has started. **As built in M6** (Part B-M6 decision 18): expiry is computed, never stored —
   `study_days_left` is built as `study_days` and the used days are counted from the stored plans;
-  `roadmap_overrides.status` does not allow `expired`.
+  `roadmap_overrides.status` does not allow `expired`. The two counts differ by today: TypeScript's
+  `usedDays` excludes today's plan, SQL's count includes it — so on the last study day SQL already
+  frees the per-track quota slot while today's plan still names the extra week; the 21-day cooldown
+  still blocks a new one (M6-R28).
 - **Invariants (property-tested, §6.10):** every core item stays in the effective queue exactly
   once; the planned-minutes invariant (§5.4) holds with any accepted override set.
 - **Custom items** (`user:<bot_ref>:<slug>`, types flashcard / exercise / prompt):
