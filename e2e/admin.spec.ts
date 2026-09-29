@@ -293,11 +293,12 @@ test.describe('/admin (task 5.6)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Người dùng' })).toBeVisible()
   })
 
-  test('/admin/content shows the coverage table with red rows for a learner at DSA week 3', async ({
+  test('/admin/content shows the coverage table with red rows for a learner at DSA week 4', async ({
     page,
   }) => {
-    // W4–W5 of DSA 10w have no pattern lesson and no notes yet: within week 3 + 2, so red.
-    await learnerInDsaWeek(3)
+    // Week 6 (heap) of DSA 10w has notes for only 3 of its 7 placed problems: within week 4 + 2,
+    // so red. Weeks 4–5 (linked-list, trees) are fully covered now.
+    await learnerInDsaWeek(4)
     await openAsAdmin(page, '/admin/content')
     await expect(page.getByRole('heading', { level: 1, name: 'Nội dung' })).toBeVisible()
     const table = page.getByRole('region', {
@@ -307,11 +308,11 @@ test.describe('/admin (task 5.6)', () => {
       table
         .getByRole('row')
         .filter({ has: page.getByRole('rowheader', { name: String(n), exact: true }) })
-    for (const n of [4, 5]) {
-      await expect(week(n)).toHaveAttribute('data-state', 'red')
-      await expect(week(n)).toContainText('Cần bổ sung')
-    }
+    await expect(week(6)).toHaveAttribute('data-state', 'red')
+    await expect(week(6)).toContainText('Cần bổ sung')
     await expect(week(1)).toHaveAttribute('data-state', 'covered')
+    await expect(week(4)).toHaveAttribute('data-state', 'covered')
+    await expect(week(5)).toHaveAttribute('data-state', 'covered')
     await expect(page.getByRole('region', { name: 'Bản nháp', exact: true })).toBeVisible()
     await expectNoAxeViolationsInBothThemes(page)
 
@@ -321,7 +322,7 @@ test.describe('/admin (task 5.6)', () => {
       .getByRole('region', { name: 'Cảnh báo', exact: true })
       .getByRole('listitem')
       .filter({ hasText: 'Cấu trúc dữ liệu & Giải thuật (10 tuần)' })
-    await expect(warning).toContainText('tuần 4, 5')
+    await expect(warning).toContainText('tuần 6')
     await expect(warning.locator('[data-slot="banner"]')).toHaveAttribute('data-tone', 'danger')
     await expect(warning.getByRole('link', { name: 'Xem độ phủ nội dung' })).toHaveAttribute(
       'href',

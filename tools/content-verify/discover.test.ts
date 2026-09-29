@@ -7,7 +7,7 @@ import { discoverProblems } from './discover'
 const FIXTURES = join(import.meta.dirname, '__fixtures__', 'tracks')
 
 describe('discoverProblems — fixtures', () => {
-  it('finds the seven demo problems, sorted by ID, with every solution language present', () => {
+  it('finds the demo problems, sorted by ID, with every solution language present', () => {
     const { problems, issues } = discoverProblems(FIXTURES)
     expect(issues).toEqual([])
     expect(problems.map((problem) => problem.id)).toEqual([
@@ -18,6 +18,21 @@ describe('discoverProblems — fixtures', () => {
       'demo:lc-9005',
       'demo:lc-9006',
       'demo:lc-9007',
+      'demo:lc-9008',
+      'demo:lc-9009',
+      'demo:lc-9010',
+      'demo:lc-9011',
+      'demo:lc-9012',
+      'demo:lc-9013',
+      'demo:lc-9014',
+      'demo:lc-9015',
+      'demo:lc-9016',
+      'demo:lc-9017',
+      'demo:lc-9018',
+      'demo:lc-9019',
+      'demo:lc-9020',
+      'demo:lc-9021',
+      'demo:lc-9022',
     ])
     for (const problem of problems) {
       expect(problem.languages).toEqual(['python', 'java', 'go'])
@@ -97,6 +112,43 @@ cases:
     expect(issues[1]).toMatch(/lc-0002-add-two-numbers: tests\.yaml without a solution file/)
     expect(issues[2]).toMatch(/lc-0003-yaml\/tests\.yaml:2:1: /)
     expect(issues[3]).toMatch(/two-sum: not a problem folder/)
+  })
+
+  it('refuses Java-style overloads: a design class declares each method name once (M3c)', () => {
+    const design = (methods: string) => `
+signature:
+  kind: design-class
+  className: Box
+  methods:
+${methods}
+cases:
+  - { name: example-1, ops: [Box, put], args: [[], [1]], expected: [null, null] }
+  - { name: edge-a, ops: [Box, put], args: [[], [2]], expected: [null, null] }
+  - { name: edge-b, ops: [Box, put], args: [[], [3]], expected: [null, null] }
+  - { name: edge-c, ops: [Box, put], args: [[], [4]], expected: [null, null] }
+`
+    writeProblem('lc-0031-next-permutation', {
+      'tests.yaml': design(
+        '    put: { params: { n: int }, returns: void }\n    put: { params: { s: string }, returns: void }',
+      ),
+      'solution.py': '',
+    })
+    writeProblem('lc-0032-longest-valid-parentheses', {
+      'tests.yaml': design(
+        '    put: { params: { n: int }, returns: void }\n    Put: { params: { s: string }, returns: void }',
+      ),
+      'solution.py': '',
+    })
+    const { problems, issues } = discoverProblems(root!)
+    expect(problems).toEqual([])
+    expect(issues).toEqual([
+      expect.stringMatching(
+        /lc-0031-next-permutation\/tests\.yaml:\d+:\d+: .*[Mm]ap keys must be unique/,
+      ),
+      expect.stringMatching(
+        /lc-0032-longest-valid-parentheses\/tests\.yaml: signature\.methods\.Put: "Put" and "put" are one method in Go \(Put\)/,
+      ),
+    ])
   })
 
   it('parses tests.yaml like content:build: YAML 1.2 core, no directives, anchors or custom tags (M4)', () => {

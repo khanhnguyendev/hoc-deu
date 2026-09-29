@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Cách đơn giản là đếm độ dài list trước, rồi đi lần thứ hai tới node đứng trước node cần xóa. Làm trong **một lượt** bằng hai con trỏ cách nhau `n` node: cho `fast` đi trước `n` bước, rồi cho `fast` và `slow` cùng đi; khi `fast` rơi khỏi cuối list, `slow` đứng ngay trước node thứ `n` tính từ cuối. Một <Term vi="nút giả">dummy node</Term> trước `head` giúp xóa chính `head` giống như xóa mọi node khác.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Dummy">Tạo `dummy` với `dummy.next = head`; `slow = dummy`.</Step>
+
+<Step title="Mở khoảng cách">Cho `fast = head` đi `n` bước. Đề bảo đảm `n` không vượt quá độ dài list.</Step>
+
+<Step title="Cùng đi">Chừng nào `fast` khác `None`, tiến cả `fast` và `slow` một bước.</Step>
+
+<Step title="Xóa">Lúc này `slow.next` là node cần xóa: đặt `slow.next = slow.next.next`. Trả về `dummy.next`.</Step>
+
+</Steps>
+
+<VarTable caption="head = 10 → 20 → 30 → 40, n = 2">
+
+| Lúc | `slow` | `fast` |
+| --- | --- | --- |
+| Sau khi mở khoảng cách | dummy | 30 |
+| Cùng đi 1 bước | 10 | 40 |
+| Cùng đi 2 bước | 20 | `None`: dừng |
+
+</VarTable>
+
+`slow` là 20, nên node bị xóa là 30 và kết quả là `10 → 20 → 40`.
+
+<Callout tone="warning" title="Khi n bằng độ dài list">
+
+Lúc đó node cần xóa là `head`, và sau khi mở khoảng cách thì `fast` đã là `None`. Nhờ `slow` bắt đầu ở `dummy`, bước xóa bỏ đúng `head`, và `dummy.next` là head mới. Nếu trả về `head` cũ thay vì `dummy.next`, kết quả sai.
+
+</Callout>
+
+<Complexity time="O(L)" space="O(1)" />
+
+`L` là độ dài list: `fast` đi hết list đúng một lần. Chỉ thêm một node `dummy` và hai con trỏ.
+
+<Solution />
+
+<Bilingual vi="Đặt một dummy node trước head, cho con trỏ nhanh đi trước n bước rồi cho hai con trỏ cùng đi; khi con trỏ nhanh hết list, con trỏ chậm đứng ngay trước node cần xóa." en="Put a dummy node before head. Move a fast pointer n nodes ahead, then move fast and a slow pointer (starting at dummy) together until fast falls off the end. Slow now sits just before the node to remove: skip it and return dummy.next. One pass, O(1) space." />

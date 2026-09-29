@@ -1,0 +1,36 @@
+signature:
+  { kind: function, name: exist, params: { board: 'char[][]', word: string }, returns: bool }
+compare: exact
+cases:
+  - name: example-1
+    input:
+      board: [[A, B, C, E], [S, F, C, S], [A, D, E, E]]
+      word: ABCCED
+    expected: true
+  - name: example-2
+    input:
+      board: [[A, B, C, E], [S, F, C, S], [A, D, E, E]]
+      word: SEE
+    expected: true
+  - name: example-3
+    input:
+      board: [[A, B, C, E], [S, F, C, S], [A, D, E, E]]
+      word: ABCB
+    expected: false
+  - name: single-cell
+    input: { board: [[a]], word: a }
+    expected: true
+  # a cell may not be used twice in one path
+  - name: cell-reuse-not-allowed
+    input: { board: [[A]], word: AA }
+    expected: false
+  # upper and lower case letters are different characters
+  - name: case-sensitive
+    input: { board: [[a, B], [c, d]], word: ab }
+    expected: false
+  # the path turns back through a column after a dead end on the first branch
+  - name: backtrack-after-dead-end
+    input:
+      board: [[C, A, A], [A, A, A], [B, C, D]]
+      word: AAB
+    expected: true

@@ -1,0 +1,11 @@
+# content-verify fixture: all three solutions return the input list instead of a copy — the
+# harness fails a result that reuses an input node in every language (the empty list still
+# passes, since there is no node to reuse).
+signature: { kind: random-list, name: copyRandomList, params: { head: Node }, returns: Node }
+cases:
+  - name: example-1
+    input: { head: [[7, null], [13, 0], [11, 4], [10, 2], [1, 0]] }
+    expected: [[7, null], [13, 0], [11, 4], [10, 2], [1, 0]]
+  - { name: example-2, input: { head: [[1, 1], [2, 1]] }, expected: [[1, 1], [2, 1]] }
+  - { name: empty, input: { head: [] }, expected: [] }
+  - { name: random-to-itself, input: { head: [[1, 0]] }, expected: [[1, 0]] }

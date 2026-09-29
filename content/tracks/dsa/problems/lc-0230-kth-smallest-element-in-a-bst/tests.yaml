@@ -1,0 +1,8 @@
+signature: { kind: tree, name: kthSmallest, params: { root: TreeNode, k: int }, returns: int }
+cases:
+  - { name: example-1, input: { root: [3, 1, 4, null, 2], k: 1 }, expected: 1 }
+  - { name: example-2, input: { root: [5, 3, 6, 2, 4, null, null, 1], k: 3 }, expected: 3 }
+  - { name: single-node, input: { root: [1], k: 1 }, expected: 1 }
+  - { name: k-equals-n, input: { root: [3, 1, 4, null, 2], k: 4 }, expected: 4 }
+  - { name: left-chain, input: { root: [3, 2, null, 1], k: 2 }, expected: 2 }
+  - { name: zero-value, input: { root: [2, 0, 3, null, 1], k: 1 }, expected: 0 }

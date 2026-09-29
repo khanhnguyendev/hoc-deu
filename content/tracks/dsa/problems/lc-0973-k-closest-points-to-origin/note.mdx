@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Cần `k` điểm gần gốc tọa độ nhất, theo thứ tự nào cũng được. Đây là bài "`k` phần tử nhỏ nhất" theo khoảng cách, nên giữ `k` điểm gần nhất đã thấy trong một <Term vi="đống lớn nhất">max-heap</Term>: đỉnh là điểm **xa nhất** trong nhóm, tức điểm đầu tiên phải rời nhóm khi có điểm gần hơn. Mẹo thứ hai: so sánh bằng bình phương khoảng cách `x*x + y*y`, không cần lấy căn, vì căn bậc hai giữ nguyên thứ tự và phép tính số nguyên không có sai số.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Tính khóa">Với mỗi điểm `(x, y)`, khóa là `x*x + y*y`.</Step>
+
+<Step title="Thêm vào heap">Đẩy điểm vào max-heap theo khóa. Python chỉ có min-heap (`heapq`), nên đẩy `-khóa`; Java dùng `PriorityQueue` với comparator ngược, Go dùng `container/heap` với `Less` ngược.</Step>
+
+<Step title="Cắt bớt">Nếu heap có hơn `k` điểm, lấy ra điểm ở đỉnh: nó xa hơn ít nhất `k` điểm khác nên không thuộc đáp án.</Step>
+
+<Step title="Trả kết quả">Hết mảng, heap chứa đúng `k` điểm gần nhất; trả về chúng theo thứ tự bất kỳ.</Step>
+
+</Steps>
+
+<VarTable caption="points = [[1, 1], [3, 0], [-1, 2], [0, -1]], k = 2">
+
+| Điểm | Khóa | Pop (điểm xa nhất) | Heap sau bước |
+| --- | --- | --- | --- |
+| `[1, 1]` | 2 | — | `[1, 1]` |
+| `[3, 0]` | 9 | — | `[3, 0] [1, 1]` |
+| `[-1, 2]` | 5 | `[3, 0]` (9) | `[-1, 2] [1, 1]` |
+| `[0, -1]` | 1 | `[-1, 2]` (5) | `[1, 1] [0, -1]` |
+
+</VarTable>
+
+Kết quả là `[[1, 1], [0, -1]]`.
+
+<Callout tone="tip" title="Cách khác">
+
+Sắp xếp mọi điểm theo khóa rồi lấy `k` điểm đầu cũng đúng, tốn `O(n log n)`. Heap cỡ `k` nhanh hơn khi `k` nhỏ hơn nhiều so với `n`, và chỉ cần giữ `k` điểm trong bộ nhớ.
+
+</Callout>
+
+<Complexity time="O(n log k)" space="O(k)" />
+
+Mỗi điểm được push một lần và pop nhiều nhất một lần trên một heap không quá `k + 1` phần tử.
+
+<Solution />
+
+<Bilingual vi="Giữ k điểm gần nhất trong một max-heap theo bình phương khoảng cách; mỗi điểm mới được đẩy vào, và khi heap có hơn k điểm thì lấy điểm xa nhất ra." en="Keep the k closest points in a max-heap keyed by squared distance, so no square root is needed. Push each point; when the heap holds more than k points, pop the farthest one. What remains are the k closest points, found in O(n log k) time and O(k) space." />

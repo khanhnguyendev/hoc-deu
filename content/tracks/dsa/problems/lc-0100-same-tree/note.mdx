@@ -1,0 +1,47 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Hai cây giống nhau khi chúng có cùng hình dạng và cùng giá trị ở mọi vị trí. Điều kiện này tự chia nhỏ: hai gốc bằng nhau, **và** hai cây con trái giống nhau, **và** hai cây con phải giống nhau. Vì thế ta duyệt hai cây song song bằng <Term vi="đệ quy">recursion</Term>, từng cặp node ở cùng vị trí. Mấu chốt nằm ở <Term vi="trường hợp cơ sở">base case</Term>: nếu có ít nhất một bên là `null`, hai bên chỉ giống nhau khi **cả hai** đều `null`.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Có bên rỗng">Nếu `p` hoặc `q` là `null`, trả về `true` khi cả hai đều `null`, ngược lại `false`.</Step>
+
+<Step title="So gốc">Nếu `p.val != q.val`, trả về `false`.</Step>
+
+<Step title="So hai cặp cây con">Trả về `isSameTree(p.left, q.left) && isSameTree(p.right, q.right)`. Toán tử `&&` <Term vi="đoản mạch">short-circuit</Term> nên gặp chỗ khác đầu tiên là dừng.</Step>
+
+</Steps>
+
+Chạy thử với `p = [1, 2, 3]` và `q = [1, 2, null, 3]`: cùng giá trị nhưng khác hình dạng.
+
+<VarTable caption="p = [1, 2, 3], q = [1, 2, null, 3]">
+
+| Cặp đang so | Node của p | Node của q | Kết quả |
+| --- | --- | --- | --- |
+| gốc | 1 | 1 | bằng nhau, so tiếp |
+| trái của gốc | 2 | 2 | bằng nhau, so tiếp |
+| trái của 2 | null | 3 | một bên rỗng: `false` |
+
+</VarTable>
+
+Cặp thứ ba đã khác nên cả hàm trả về `false`, không cần so nhánh phải của gốc.
+
+<Callout tone="warning" title="So giá trị chưa đủ">
+
+Duyệt từng cây thành một danh sách giá trị rồi so hai danh sách sẽ sai nếu bỏ qua các vị trí `null`: `[1, 2]` và `[1, null, 2]` cho cùng dãy giá trị `1, 2`. Hình dạng là một phần của câu trả lời.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(h)" />
+
+`n` là số node của cây nhỏ hơn (dừng ngay khi một bên hết node), `h` là chiều cao của nó, cũng là độ sâu <Term vi="ngăn xếp lời gọi">call stack</Term>.
+
+<Solution />
+
+<Bilingual vi="Duyệt song song hai cây: hai node rỗng thì giống nhau, một bên rỗng thì khác; nếu không, gốc phải bằng nhau và hai cặp cây con cũng phải giống nhau." en="Walk both trees in lockstep. Two null nodes are equal and exactly one null means different. Otherwise the values must match and both pairs of subtrees must be equal, checked recursively. O(n) time and O(h) stack space." />

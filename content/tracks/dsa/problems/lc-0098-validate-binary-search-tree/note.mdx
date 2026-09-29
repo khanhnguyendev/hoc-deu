@@ -1,0 +1,54 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Trong một <Term vi="cây nhị phân tìm kiếm">binary search tree</Term> (BST), **mọi** node của cây con trái nhỏ hơn node gốc và **mọi** node của cây con phải lớn hơn nó, không chỉ con trực tiếp. Vì thế mỗi node phải nằm trong một **khoảng mở** `(low, high)` do tất cả tổ tiên của nó quy định. Đi xuống bên trái thì giá trị của node hiện tại trở thành cận trên mới; đi xuống bên phải thì nó trở thành cận dưới mới. Một node nằm ngoài khoảng của nó là đủ để kết luận cây không hợp lệ.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khoảng ban đầu">Gốc được phép nhận mọi giá trị: `valid(root, -∞, +∞)`.</Step>
+
+<Step title="Node rỗng">Trả về `true`: cây rỗng là một BST.</Step>
+
+<Step title="Kiểm tra node">Nếu không có `low < node.val < high` (bất đẳng thức **chặt**), trả về `false`.</Step>
+
+<Step title="Thu hẹp khoảng">Trả về `valid(node.left, low, node.val) && valid(node.right, node.val, high)`.</Step>
+
+</Steps>
+
+Chạy thử với `root = [10, 5, 15, null, null, 6, 20]`: mọi node đều đúng so với cha của nó, nhưng cây vẫn sai.
+
+<VarTable caption="root = [10, 5, 15, null, null, 6, 20]">
+
+| Node | Khoảng được phép | Trong khoảng? |
+| --- | --- | --- |
+| 10 | (-∞, +∞) | có |
+| 5 | (-∞, 10) | có |
+| 15 | (10, +∞) | có |
+| 6 | (10, 15) | **không**: trả về `false` |
+
+</VarTable>
+
+Node 6 nhỏ hơn cha 15 nên đúng chỗ so với cha, nhưng nó nằm trong cây con phải của 10 nên phải lớn hơn 10.
+
+<Callout tone="warning" title="Ba cái bẫy">
+
+- Chỉ so node với con trực tiếp: bỏ sót ví dụ ở trên.
+- Dùng `<=`: định nghĩa BST ở đây là chặt, nên giá trị bằng nhau làm cây sai: `[2, null, 2]` trả về `false`.
+- Dùng `Integer.MIN_VALUE` / `MAX_VALUE` làm cận: một node có đúng giá trị đó sẽ bị loại nhầm. Bản Java dùng `long`, bản Go dùng `math.MinInt64` / `math.MaxInt64`, còn Python dùng `float("inf")`.
+
+</Callout>
+
+Một cách khác: duyệt <Term vi="trung thứ tự">in-order</Term> một BST cho dãy tăng dần, nên chỉ cần kiểm tra mỗi giá trị lớn hơn hẳn giá trị ngay trước nó.
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được kiểm tra một lần; <Term vi="ngăn xếp lời gọi">call stack</Term> sâu bằng chiều cao `h` của cây.
+
+<Solution />
+
+<Bilingual vi="Truyền xuống mỗi node một khoảng mở (low, high) từ các tổ tiên: sang trái thì giá trị node thành cận trên, sang phải thì thành cận dưới; node nào nằm ngoài khoảng thì cây sai." en="Pass each node an open interval (low, high) set by its ancestors. Going left, the node's value becomes the new upper bound; going right, the new lower bound. Any node outside its interval makes the tree invalid. O(n) time, O(h) stack space." />

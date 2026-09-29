@@ -1,0 +1,48 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Trong một <Term vi="danh sách liên kết">linked list</Term> đơn, mỗi <Term vi="nút">node</Term> chỉ biết node đứng sau nó qua con trỏ `next`. Đảo list không cần tạo node mới: chỉ cần quay con trỏ `next` của từng node để nó trỏ về node **đứng trước**. Mẹo then chốt là trước khi quay con trỏ, phải lưu lại node kế tiếp; nếu không, phần còn lại của list bị mất.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Hai con trỏ">`previous = None` là phần đã đảo (lúc đầu rỗng), `head` là node đang xét.</Step>
+
+<Step title="Lưu node kế tiếp">Đặt `following = head.next` trước khi đụng vào `head.next`.</Step>
+
+<Step title="Quay con trỏ">Đặt `head.next = previous`: node hiện tại giờ nằm ở đầu phần đã đảo.</Step>
+
+<Step title="Tiến lên">`previous = head`, rồi `head = following`. Lặp lại tới khi `head` là `None`.</Step>
+
+<Step title="Trả về">`previous` là node cuối cũ, tức head mới của list đã đảo.</Step>
+
+</Steps>
+
+<VarTable caption="head = 1 → 2 → 3">
+
+| Vòng | Node đang xét | `following` | Phần đã đảo (`previous` → …) | Phần chưa xét |
+| --- | --- | --- | --- | --- |
+| 1 | 1 | 2 | `1` | `2 → 3` |
+| 2 | 2 | 3 | `2 → 1` | `3` |
+| 3 | 3 | `None` | `3 → 2 → 1` | rỗng |
+
+</VarTable>
+
+<Callout tone="warning" title="Lỗi hay gặp">
+
+- Gán `head.next = previous` trước khi lưu `head.next`: mất đường tới phần còn lại của list.
+- Trả về `head` thay vì `previous`: sau vòng lặp, `head` đã là `None`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi node được thăm đúng một lần và chỉ đổi một con trỏ; ngoài ba biến con trỏ không cần thêm bộ nhớ. Cách đệ quy cũng đúng nhưng tốn `O(n)` bộ nhớ cho <Term vi="ngăn xếp lời gọi">call stack</Term>.
+
+<Solution />
+
+<Bilingual vi="Duyệt list một lượt, lưu node kế tiếp rồi quay con trỏ next của node hiện tại về node đứng trước; khi hết list, node đứng trước chính là head mới." en="Walk the list once with two pointers: previous (the reversed part) and the current node. Save current.next, point current.next back to previous, then advance both. When the current node is null, previous is the new head. O(n) time, O(1) space." />

@@ -1,0 +1,14 @@
+# content-verify fixture: all three solutions return the input graph instead of a copy — the
+# harness fails a result that reuses an input node in every language (the empty graph still
+# passes, since there is no node to reuse).
+signature: { kind: graph-node, name: cloneGraph, params: { node: Node }, returns: Node }
+cases:
+  - name: example-1
+    input: { node: [[2, 4], [1, 3], [2, 4], [1, 3]] }
+    expected: [[2, 4], [1, 3], [2, 4], [1, 3]]
+  - { name: example-2, input: { node: [[]] }, expected: [[]] }
+  - { name: example-3, input: { node: [] }, expected: [] }
+  - { name: two-nodes, input: { node: [[2], [1]] }, expected: [[2], [1]] }
+  - name: triangle
+    input: { node: [[2, 3], [1, 3], [1, 2]] }
+    expected: [[2, 3], [1, 3], [1, 2]]

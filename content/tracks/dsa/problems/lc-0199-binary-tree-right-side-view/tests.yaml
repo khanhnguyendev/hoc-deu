@@ -1,0 +1,9 @@
+signature: { kind: tree, name: rightSideView, params: { root: TreeNode }, returns: 'int[]' }
+cases:
+  - { name: example-1, input: { root: [1, 2, 3, null, 5, null, 4] }, expected: [1, 3, 4] }
+  - { name: example-2, input: { root: [1, 2, 3, 4, null, null, null, 5] }, expected: [1, 3, 4, 5] }
+  - { name: example-3, input: { root: [1, null, 3] }, expected: [1, 3] }
+  - { name: example-4, input: { root: [] }, expected: [] }
+  - { name: single-node, input: { root: [7] }, expected: [7] }
+  - { name: left-only, input: { root: [1, 2, null, 3] }, expected: [1, 2, 3] }
+  - { name: negatives, input: { root: [-1, -2, -3, -4] }, expected: [-1, -3, -4] }

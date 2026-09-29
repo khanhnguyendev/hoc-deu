@@ -1,0 +1,178 @@
+---
+id: dsa:lesson-trees
+format: pattern
+topic: trees
+title: 'Trees: hỏi cây con, ghép câu trả lời'
+anchor: dsa:lc-0104
+practice: dsa:lc-0543
+---
+
+<Section kind="signals">
+
+Nghĩ tới lối giải <Term vi="đệ quy">recursive</Term> trên <Term vi="cây nhị phân">binary tree</Term> khi gặp một trong các dấu hiệu sau:
+
+- Đáp án của một node **suy ra được** từ đáp án của hai cây con: độ sâu, chiều cao, tổng, "hai cây có giống nhau không".
+- Đề bài đưa `root` và hỏi một tính chất của **cả cây**: mỗi cây con là một bài toán nhỏ hơn cùng dạng.
+- Cần một đại lượng về **đường đi** trong cây: mọi đường đi đều gập tại một node cao nhất, nên có thể tính ở từng node.
+- Cần duyệt **theo từng tầng** hoặc nhìn cây theo tầng: đó là <Term vi="tìm kiếm theo chiều rộng">BFS</Term> với một <Term vi="hàng đợi">queue</Term>, biến thể thứ hai của tuần.
+- Cây là một <Term vi="cây nhị phân tìm kiếm">binary search tree</Term>: duyệt <Term vi="trung thứ tự">in-order</Term> cho dãy tăng dần, và mỗi node nằm trong một khoảng do tổ tiên quy định.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Nếu hai cây con đã trả lời xong câu hỏi của chúng, node hiện tại cần thêm gì để trả lời câu hỏi của mình? Trả lời được câu này là viết được hàm đệ quy.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Ban giám đốc muốn biết công ty có bao nhiêu cấp quản lý. Giám đốc không tự đi đếm từng phòng; bà hỏi hai phó giám đốc: "Tính cả anh, nhánh của anh có bao nhiêu cấp?". Mỗi phó giám đốc lại hỏi các trưởng phòng dưới mình, cứ thế cho tới nhân viên không quản lý ai, người trả lời "1 cấp, chỉ tôi". Mỗi người nhận câu trả lời của cấp dưới, lấy số lớn hơn, cộng thêm 1 cho chính mình rồi báo lên trên.
+
+Không ai cần biết cả sơ đồ công ty: mỗi người chỉ tin câu trả lời của cấp dưới trực tiếp và ghép lại. Đó là cách một hàm đệ quy trên cây làm việc.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Maximum Depth of Binary Tree: tìm số node trên đường dài nhất từ gốc xuống một <Term vi="lá">leaf</Term>. Cây ví dụ là `[8, 3, 10, null, 6, null, 14, 4]`. Mỗi hàng là lúc một lời gọi trả về; các lời gọi trả về theo thứ tự <Term vi="hậu thứ tự">post-order</Term>, cây con trước, node cha sau.
+
+<VarTable caption="root = [8, 3, 10, null, 6, null, 14, 4]">
+
+| Node | Cây con trái trả về | Cây con phải trả về | Node này trả về |
+| --- | --- | --- | --- |
+| 4 | 0 | 0 | 1 |
+| 6 | 1 | 0 | 2 |
+| 3 | 0 | 2 | 3 |
+| 14 | 0 | 0 | 1 |
+| 10 | 0 | 1 | 2 |
+| 8 | 3 | 2 | 4 |
+
+</VarTable>
+
+Node 8 chỉ cần hai con số 3 và 2 từ hai cây con, không cần nhìn lại node 4 hay 6.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Định nghĩa hàm bằng lời">Viết rõ hàm trả về gì cho **một cây con bất kỳ**, ví dụ "số node trên đường dài nhất đi xuống từ `node`". Mọi bước sau dựa vào câu này.</Step>
+
+<Step title="Trường hợp cơ sở">Chọn giá trị cho cây rỗng (`null`) sao cho công thức ở node lá vẫn đúng: độ sâu 0, tổng 0, "rỗng và rỗng thì giống nhau".</Step>
+
+<Step title="Tin vào lời gọi đệ quy">Gọi hàm trên cây con trái và cây con phải, và coi kết quả là đúng; đừng lần theo từng lời gọi trong đầu.</Step>
+
+<Step title="Ghép ở node hiện tại">Kết hợp hai kết quả với giá trị của node: `1 + max(trái, phải)`, `node.val + …`, hay `trái && phải`.</Step>
+
+<Step title="Khi đáp án khác giá trị trả về">Nếu thứ cần tìm (như đường dài nhất **gập** tại một node) khác thứ node cha cần (đường **đi xuống** dài nhất), hàm trả về thứ cha cần và cập nhật một biến `best` chung cho đáp án.</Step>
+
+</Steps>
+
+### Vì sao đúng
+
+Chứng minh bằng <Term vi="quy nạp">induction</Term> theo chiều cao: hàm đúng với cây rỗng (trường hợp cơ sở), và nếu nó đúng với hai cây con thì bước ghép cho đáp án đúng ở node hiện tại. Cây nào cũng được xây từ cây rỗng qua các bước như vậy.
+
+### Các biến thể trong tuần
+
+- **Invert Binary Tree** và **Same Tree:** cùng khuôn "hỏi hai cây con, ghép lại"; Same Tree duyệt hai cây song song.
+- **Binary Tree Level Order Traversal** và **Binary Tree Right Side View:** BFS với queue; đầu mỗi vòng, queue chứa đúng một tầng.
+- **Validate Binary Search Tree:** truyền **xuống** một khoảng `(low, high)` thay vì chỉ nhận kết quả **lên**.
+- **Kth Smallest Element in a BST:** in-order bằng <Term vi="ngăn xếp">stack</Term>, dừng ở node thứ `k`.
+- **Diameter of Binary Tree** và **Binary Tree Maximum Path Sum** dùng bước cuối cùng ở trên: đó là phần để bạn tự khám phá.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải Python của Maximum Depth of Binary Tree. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import Optional
+
+# Definition for a binary tree node (LeetCode provides it; the verifier injects it).
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right
+
+
+class Solution:
+    def maxDepth(self, root: Optional[TreeNode]) -> int:
+        # Depth of a tree = 1 + the deeper of its two subtrees; an empty tree has depth 0.
+        if root is None:
+            return 0
+        return 1 + max(self.maxDepth(root.left), self.maxDepth(root.right))
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được gọi đúng một lần và làm việc `O(1)`. Bộ nhớ là <Term vi="ngăn xếp lời gọi">call stack</Term>, sâu bằng chiều cao `h` của cây: `O(log n)` khi cây cân bằng, `O(n)` khi cây lệch thành một chuỗi.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Trên cây nhị phân, định nghĩa hàm cho một cây con bất kỳ, chọn giá trị cho cây rỗng, gọi đệ quy trên hai cây con rồi ghép hai kết quả với node hiện tại." en="For a binary tree problem, define what the function returns for any subtree, pick the value for an empty tree, recurse on both children and combine their answers at the current node. Each node is visited once: O(n) time and O(h) stack space." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0543" />
+
+Thử Diameter of Binary Tree: đường dài nhất có thể không đi qua gốc, vậy hàm chiều cao cần làm thêm gì ở mỗi node, ngoài việc trả về chiều cao cho node cha?
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Với Maximum Depth of Binary Tree (đếm node), cây rỗng nên trả về bao nhiêu?" answer="a">
+
+<Choice id="a">0, để một node lá trả về 1 + max(0, 0) = 1</Choice>
+
+<Choice id="b">1, vì cây nào cũng có gốc</Choice>
+
+<Choice id="c">-1, để đánh dấu không có node</Choice>
+
+</Question>
+
+<Question prompt="Hàm đệ quy trên cây chạy O(n) thời gian. Bộ nhớ phụ của nó phụ thuộc vào gì?" answer="b">
+
+<Choice id="a">Số lá của cây</Choice>
+
+<Choice id="b">Chiều cao của cây, vì call stack sâu bằng chiều cao</Choice>
+
+<Choice id="c">Luôn là O(1), vì không tạo mảng nào</Choice>
+
+</Question>
+
+<Question prompt="Trong Level Order Traversal, vì sao lưu kích thước queue vào một biến trước khi xử lý một tầng?" answer="c">
+
+<Choice id="a">Để queue chạy nhanh hơn</Choice>
+
+<Choice id="b">Để bỏ qua các node rỗng</Choice>
+
+<Choice id="c">Vì các con được thêm vào trong lúc xử lý thuộc tầng sau và không được trộn vào tầng hiện tại</Choice>
+
+</Question>
+
+<Question prompt="Validate BST: kiểm tra mỗi node lớn hơn con trái và nhỏ hơn con phải của nó có đủ không?" answer="b">
+
+<Choice id="a">Đủ, vì tính chất đó lan truyền xuống cả cây</Choice>
+
+<Choice id="b">Không: một node sâu hơn vẫn có thể vi phạm giới hạn của một tổ tiên xa hơn, như trong cây [10, 5, 15, null, null, 6, 20]: 6 nhỏ hơn cha 15 nhưng nằm trong cây con phải của 10</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

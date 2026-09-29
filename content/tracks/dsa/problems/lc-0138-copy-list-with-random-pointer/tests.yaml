@@ -1,0 +1,18 @@
+# each node is [val, randomIndex | null]; the harness also checks the copy shares no node with the input
+signature: { kind: random-list, name: copyRandomList, params: { head: Node }, returns: Node }
+cases:
+  - name: example-1
+    input: { head: [[7, null], [13, 0], [11, 4], [10, 2], [1, 0]] }
+    expected: [[7, null], [13, 0], [11, 4], [10, 2], [1, 0]]
+  - { name: example-2, input: { head: [[1, 1], [2, 1]] }, expected: [[1, 1], [2, 1]] }
+  - name: example-3
+    input: { head: [[3, null], [3, 0], [3, null]] }
+    expected: [[3, null], [3, 0], [3, null]]
+  - { name: empty, input: { head: [] }, expected: [] }
+  - { name: random-to-itself, input: { head: [[-10000, 0]] }, expected: [[-10000, 0]] }
+  - name: all-random-null
+    input: { head: [[1, null], [2, null], [3, null]] }
+    expected: [[1, null], [2, null], [3, null]]
+  - name: random-backwards
+    input: { head: [[1, 2], [2, 0], [3, 1]] }
+    expected: [[1, 2], [2, 0], [3, 1]]

@@ -94,11 +94,11 @@ describe('verifyProblems — scheduling', () => {
     track.events.forEach((event, index) => {
       if (event !== 'kill') expect(track.events[index + 1]).toBe('kill')
     })
-    // lc-9001 and lc-9006: 3 languages × 4 cases, 3 builds and a Go warm-up each; lc-9004: 3
-    // compile-only checks
-    expect(track.events.filter((event) => event === 'case')).toHaveLength(24)
-    expect(track.events.filter((event) => event === 'warm-up')).toHaveLength(2)
-    expect(track.events.filter((event) => event === 'kill')).toHaveLength(35)
+    // lc-9001, lc-9004 (a design class, M3c) and lc-9006: 3 languages × 4 cases, 3 builds and a
+    // Go warm-up each
+    expect(track.events.filter((event) => event === 'case')).toHaveLength(36)
+    expect(track.events.filter((event) => event === 'warm-up')).toHaveLength(3)
+    expect(track.events.filter((event) => event === 'kill')).toHaveLength(48)
     // every unit directory is handed over recursively (the runner just wrote it); the shared Go
     // caches only once, empty, before any sandboxed code could plant a symlink in them (fix 6)
     expect(granted.filter((dir) => dir.startsWith('-R ') && dir.endsWith('-python'))).toHaveLength(
@@ -203,6 +203,95 @@ describe('verifyProblems — results', () => {
     expect(result?.languages[0]?.status).toBe('tested')
   })
 
+  it('runs a structured kind (M3b) as tested: the encoded tree is compared with expected', async () => {
+    const outputs = ['[4,7,2,9,6,3,1]', '[2,3,1]', '[]', '[1,null,2,null,3]', '[1,2,3]']
+    const [result] = await run(load(['demo:lc-9016'], 'java'), async (spawn) => {
+      const inner = innerCommand(spawn)
+      if (inner[0] === '/t/javac') return ok()
+      return ok(outputs[Number(inner.at(-1))])
+    })
+    expect(result).toMatchObject({ kind: 'tree', verification: 'tested', ok: false })
+    expect(result?.languages[0]?.cases.map((testCase) => testCase.status)).toEqual([
+      'pass',
+      'pass',
+      'pass',
+      'pass',
+      'fail',
+    ])
+    expect(result?.languages[0]?.cases[4]?.detail).toBe('expected [1,2,null,3] got [1,2,3]')
+  })
+
+  it('runs a design class (M3c): one result per operation, compared element by element', async () => {
+    // lc-9004 MinStack: example-1, single-element, equal-minimums, increasing
+    const outputs: Record<string, ExecResult> = {
+      '0': ok('[null,null,null,1,null,4]'),
+      '1': ok('[null,null,7,8]'),
+      '2': ok('[null,null,null,null]'),
+      '3': {
+        exitCode: 1,
+        stdout: '',
+        stderr: 'op 2 (push): MemoryError: \nTraceback',
+        ms: 7,
+        timedOut: false,
+      },
+    }
+    let next = 0
+    const [result] = await run(load(['demo:lc-9004'], 'python'), async (spawn) =>
+      spawn.args.includes('runner.py') ? outputs[String(next++)]! : ok(),
+    )
+    expect(result).toMatchObject({ kind: 'design-class', verification: 'tested', ok: false })
+    expect(result?.languages[0]?.cases).toEqual([
+      { name: 'example-1', status: 'pass', ms: 10 },
+      { name: 'single-element', status: 'fail', ms: 10, detail: 'op 3 (getMin): expected 7 got 8' },
+      {
+        name: 'equal-minimums',
+        status: 'fail',
+        ms: 10,
+        detail: 'expected 5 results (one per operation) got [null,null,null,null]',
+      },
+      {
+        name: 'increasing',
+        status: 'error',
+        ms: 7,
+        detail: 'crashed: op 2 (push): MemoryError:\nTraceback',
+      },
+    ])
+  })
+
+  it('a design class skips { $any: true } and compares the rest with the problem comparator', async () => {
+    // lc-9020 Codec: example-1, empty-string, no-strings, two-round-trips
+    const outputs = [
+      '[null,"5#Hello5#World",["Hello","World"]]',
+      '[null,"anything",[""]]',
+      '[null,"x",[]]',
+      '[null,"a","b",["#",""],["a#1"]]',
+    ]
+    let next = 0
+    const exec: Exec = async (spawn) =>
+      spawn.args.includes('runner.py') ? ok(outputs[next++ % outputs.length]) : ok()
+    const [exact] = await run(load(['demo:lc-9020'], 'python'), exec)
+    expect(
+      exact?.languages[0]?.cases.map((testCase) => [testCase.status, testCase.detail]),
+    ).toEqual([
+      ['pass', undefined],
+      ['pass', undefined],
+      ['fail', 'op 1 (encode): expected "" got "x"'],
+      ['fail', 'op 3 (decode): expected ["","#"] got ["#",""]'],
+    ])
+    const [problem] = load(['demo:lc-9020'], 'python')
+    const unordered = {
+      ...problem!,
+      tests: { ...problem!.tests, compare: { kind: 'unordered' as const } },
+    }
+    const [result] = await run([unordered], exec)
+    expect(result?.languages[0]?.cases.map((testCase) => testCase.status)).toEqual([
+      'pass',
+      'pass',
+      'fail',
+      'pass',
+    ])
+  })
+
   it('a compile failure fails the language with the first 20 lines of stderr and runs no case', async () => {
     const stderr = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join('\n')
     const calls: string[][] = []
@@ -218,48 +307,6 @@ describe('verifyProblems — results', () => {
       detail: stderr.split('\n').slice(0, 20).join('\n'),
     })
     expect(result?.ok).toBe(false)
-  })
-
-  it('an unsupported kind runs the compile-only checks', async () => {
-    const calls: string[][] = []
-    const results = await run(load(['demo:lc-9004']), async (spawn) => {
-      calls.push(innerCommand(spawn))
-      return ok()
-    })
-    expect(results).toEqual([
-      {
-        id: 'demo:lc-9004',
-        kind: 'design-class',
-        verification: 'compile-only',
-        ok: true,
-        languages: [
-          { lang: 'python', status: 'compile-only', cases: [] },
-          { lang: 'java', status: 'compile-only', cases: [] },
-          { lang: 'go', status: 'compile-only', cases: [] },
-        ],
-      },
-    ])
-    expect(calls.map((call) => call.slice(0, 2))).toEqual([
-      ['/t/python3', '-I'],
-      ['/t/javac', '--release'],
-      ['/t/go', 'vet'],
-    ])
-  })
-
-  it('a failing compile-only check fails the language', async () => {
-    const [result] = await run(load(['demo:lc-9004'], 'python'), async () => ({
-      exitCode: 1,
-      stdout: '{"ok": false}',
-      stderr: 'class MinStack has no method getMin',
-      ms: 40,
-      timedOut: false,
-    }))
-    expect(result?.languages[0]).toEqual({
-      lang: 'python',
-      status: 'failed',
-      cases: [],
-      detail: 'class MinStack has no method getMin',
-    })
   })
 })
 

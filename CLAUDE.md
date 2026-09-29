@@ -113,6 +113,9 @@ CSS custom properties (`style={{ '--progress': value }}`). ESLint and the token 
   (platform design §3.6).
 - Never copy LeetCode problem statements: a link, our own notes and the examples in `tests.yaml`
   only.
+- **Nothing calls leetcode.com** — no tool, script, agent or CI job (pages, GraphQL or any other
+  endpoint): its terms forbid automated access. Examples in `tests.yaml` are checked by a person
+  in a browser or in review (`docs/ops/content-authoring.md`).
 - IDs are append-only: `content/ids.lock` lists every published ID; an ID leaves `content/**`
   only after it is moved to `[retired]` by hand (ADR-0010).
 - MDX may use only the components in `tools/content/allowlist.ts`.

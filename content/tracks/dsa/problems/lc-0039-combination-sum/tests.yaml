@@ -1,0 +1,30 @@
+signature:
+  {
+    kind: function,
+    name: combinationSum,
+    params: { candidates: 'int[]', target: int },
+    returns: 'int[][]',
+  }
+compare: unordered-nested
+cases:
+  - { name: example-1, input: { candidates: [2, 3, 6, 7], target: 7 }, expected: [[2, 2, 3], [7]] }
+  - {
+      name: example-2,
+      input: { candidates: [2, 3, 5], target: 8 },
+      expected: [[2, 2, 2, 2], [2, 3, 3], [3, 5]],
+    }
+  - { name: example-3, input: { candidates: [2], target: 1 }, expected: [] }
+  # one candidate reused many times
+  - {
+      name: single-candidate-reused,
+      input: { candidates: [3], target: 12 },
+      expected: [[3, 3, 3, 3]],
+    }
+  # unsorted candidates (sorting enables the early break) and a candidate larger than the target
+  - {
+      name: unsorted-with-large-candidate,
+      input: { candidates: [40, 5, 2, 4], target: 8 },
+      expected: [[2, 2, 2, 2], [2, 2, 4], [4, 4]],
+    }
+  # smallest target
+  - { name: target-one, input: { candidates: [2, 3], target: 1 }, expected: [] }

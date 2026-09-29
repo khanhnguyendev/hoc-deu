@@ -1,0 +1,23 @@
+signature:
+  { kind: function, name: kClosest, params: { points: 'int[][]', k: int }, returns: 'int[][]' }
+compare: unordered
+cases:
+  - { name: example-1, input: { points: [[1, 3], [-2, 2]], k: 1 }, expected: [[-2, 2]] }
+  - {
+      name: example-2,
+      input: { points: [[3, 3], [5, -1], [-2, 4]], k: 2 },
+      expected: [[3, 3], [-2, 4]],
+    }
+  - { name: single-point, input: { points: [[0, 0]], k: 1 }, expected: [[0, 0]] }
+  # k equals the number of points: every point is returned
+  - {
+      name: k-equals-n,
+      input: { points: [[1, 1], [-1, -1], [2, -2]], k: 3 },
+      expected: [[2, -2], [1, 1], [-1, -1]],
+    }
+  # coordinates at the constraint bounds (squared distance up to 2e8) and negatives
+  - {
+      name: bounds-and-negatives,
+      input: { points: [[10000, 10000], [-10000, -9999], [-3, 4], [0, -6]], k: 2 },
+      expected: [[-3, 4], [0, -6]],
+    }

@@ -1,0 +1,178 @@
+---
+id: dsa:lesson-linked-list
+format: pattern
+topic: linked-list
+title: 'Linked List: đổi con trỏ thay vì dời phần tử'
+anchor: dsa:lc-0206
+practice: dsa:lc-0143
+---
+
+<Section kind="signals">
+
+Nghĩ tới các kỹ thuật của <Term vi="danh sách liên kết">linked list</Term> khi gặp một trong các dấu hiệu sau:
+
+- Đề cho một `head` và yêu cầu **đảo, gộp, cắt hoặc sắp xếp lại** các <Term vi="nút">node</Term>: chỉ cần đổi con trỏ `next`, không cần tạo node mới hay dời giá trị.
+- Cần node ở giữa, node thứ `n` tính từ cuối, hay kiểm tra list có vòng: dùng hai con trỏ đi với tốc độ hoặc khoảng cách khác nhau, tức <Term vi="con trỏ nhanh và chậm">fast & slow pointers</Term>.
+- Thao tác có thể chạm tới chính `head`, như xóa node đầu hay chọn head cho list kết quả: thêm một <Term vi="nút giả">dummy node</Term> đứng trước.
+- Đề đòi bộ nhớ `O(1)` trên một list: không chép list sang mảng, mà sửa con trỏ <Term vi="tại chỗ">in-place</Term>.
+
+<Callout tone="tip" title="Câu hỏi then chốt">
+
+Trước khi đổi một con trỏ, còn đường nào tới phần list phía sau không? Nếu chưa lưu lại, đổi con trỏ sẽ làm mất phần đó.
+
+</Callout>
+
+</Section>
+
+<Section kind="analogy">
+
+Hãy nghĩ tới một đoàn tàu: mỗi toa chỉ móc vào toa ngay sau nó, và muốn tới toa thứ năm thì phải đi qua bốn toa đầu. Muốn đổi thứ tự các toa, không ai khiêng hàng hóa từ toa này sang toa khác; người ta chỉ tháo móc và móc lại.
+
+Đảo chiều đoàn tàu cũng vậy: nhân viên đi dọc đoàn, ở mỗi toa tháo móc phía sau ra rồi móc toa đó vào toa vừa đi qua. Điều duy nhất phải nhớ là trước khi tháo móc, ghi lại toa kế tiếp là toa nào, không thì phần đoàn tàu phía sau bị bỏ lại trên đường ray.
+
+</Section>
+
+<Section kind="visual">
+
+Bài mẫu là Reverse Linked List: đảo chiều một list đơn và trả về head mới. Mỗi hàng là một vòng lặp; `previous` là phần đã đảo, `head` là node đang xét.
+
+<VarTable caption="head = 4 → 7 → 9 → 2">
+
+| Vòng | `head` | Lưu `following` | Đổi con trỏ | Phần đã đảo | Phần chưa xét |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 4 | 7 | `4.next = None` | `4` | `7 → 9 → 2` |
+| 2 | 7 | 9 | `7.next = 4` | `7 → 4` | `9 → 2` |
+| 3 | 9 | 2 | `9.next = 7` | `9 → 7 → 4` | `2` |
+| 4 | 2 | `None` | `2.next = 9` | `2 → 9 → 7 → 4` | rỗng |
+
+</VarTable>
+
+Không có node nào được tạo mới hay đổi giá trị: chỉ bốn con trỏ `next` quay chiều.
+
+</Section>
+
+<Section kind="approach">
+
+<Steps>
+
+<Step title="Vẽ con trỏ trước khi viết code">Vẽ vài node và mũi tên `next`, rồi đánh dấu những mũi tên sẽ đổi. Với mỗi mũi tên sắp đổi, hỏi: node phía sau nó còn được biến nào giữ không?</Step>
+
+<Step title="Lưu rồi mới đổi">Giữ node kế tiếp trong một biến tạm (như `following`) trước khi ghi đè `next`. Thứ tự gán trong vòng lặp quyết định lời giải đúng hay sai.</Step>
+
+<Step title="Dummy node khi head có thể đổi">Nếu head của kết quả chưa biết trước, hoặc có thể bị xóa, tạo `dummy` trỏ tới head và trả về `dummy.next`.</Step>
+
+<Step title="Hai con trỏ khi cần vị trí">Điểm giữa: `slow` đi một bước, `fast` đi hai bước. Node thứ `n` tính từ cuối: cho `fast` đi trước `n` bước. Có vòng hay không: `fast` có đuổi kịp `slow` không.</Step>
+
+<Step title="Kiểm tra biên">Thử với list rỗng, một node và hai node. Mọi truy cập `x.next` phải chắc chắn `x` khác `None`.</Step>
+
+</Steps>
+
+### Vì sao đúng
+
+Sau mỗi vòng của Reverse Linked List, có một <Term vi="bất biến">invariant</Term>: `previous` là head của phần đã đảo, gồm đúng các node đã xét theo thứ tự ngược, và `head` là node đầu của phần chưa xét, còn nguyên. Mỗi vòng chuyển đúng một node từ phần chưa xét sang đầu phần đã đảo. Khi phần chưa xét rỗng, `previous` là cả list đã đảo.
+
+### Các biến thể trong tuần
+
+- **Merge Two Sorted Lists** và **Add Two Numbers:** dummy node và con trỏ `tail` để nối dần kết quả.
+- **Linked List Cycle** và **Remove Nth Node From End of List:** hai con trỏ khác tốc độ hoặc cách nhau một khoảng cố định.
+- **LRU Cache** và **Copy List with Random Pointer:** ghép list với một <Term vi="bảng băm">hash map</Term>.
+- **Reorder List** ghép ba kỹ thuật trên: đó là bài để bạn tự luyện.
+
+</Section>
+
+<Section kind="code">
+
+Lời giải Python của Reverse Linked List. Bản Java và Go nằm trong ghi chú của bài.
+
+```python
+from typing import Optional
+
+# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next
+
+
+class Solution:
+    def reverseList(self, head: Optional[ListNode]) -> Optional[ListNode]:
+        previous = None  # head of the part already reversed
+        while head is not None:
+            following = head.next  # save the rest before touching head.next
+            head.next = previous  # turn this node's pointer around
+            previous = head
+            head = following
+        return previous  # the old tail is the new head
+```
+
+</Section>
+
+<Section kind="complexity">
+
+<Complexity time="O(n)" space="O(1)" />
+
+Mỗi node được thăm đúng một lần và chỉ đổi một con trỏ. Chỉ cần ba biến con trỏ, không phụ thuộc độ dài list; cách đệ quy cũng đúng nhưng tốn `O(n)` bộ nhớ cho <Term vi="ngăn xếp lời gọi">call stack</Term>.
+
+</Section>
+
+<Section kind="bilingual">
+
+<Bilingual vi="Với linked list, sắp xếp lại node bằng cách đổi con trỏ next; luôn lưu node kế tiếp trước khi đổi, thêm dummy node khi head có thể thay đổi, và dùng hai con trỏ để tìm vị trí." en="Rearrange linked-list nodes by rewiring next pointers instead of moving values. Save the next node before overwriting a pointer, add a dummy node when the head may change, and use fast and slow pointers to find the middle, a cycle or the nth node from the end." />
+
+</Section>
+
+<Section kind="practice">
+
+<Practice problem="dsa:lc-0143" />
+
+Thử Reorder List: list đơn không đi ngược được, vậy làm sao lấy được các node từ cuối list mà không chép chúng sang mảng? Gợi ý: bạn đã biết đảo một list.
+
+</Section>
+
+<Section kind="quiz">
+
+<Quiz>
+
+<Question prompt="Trong vòng lặp đảo list, nếu gán head.next = previous trước khi lưu head.next thì sao?" answer="b">
+
+<Choice id="a">Không sao, kết quả vẫn đúng</Choice>
+
+<Choice id="b">Mất đường tới phần list còn lại chưa xét</Choice>
+
+<Choice id="c">List bị đảo hai lần</Choice>
+
+</Question>
+
+<Question prompt="Đảo xong list, vòng lặp dừng khi head là None. Hàm nên trả về gì?" answer="c">
+
+<Choice id="a">`head`</Choice>
+
+<Choice id="b">`following`</Choice>
+
+<Choice id="c">`previous`</Choice>
+
+</Question>
+
+<Question prompt="Vì sao Remove Nth Node From End of List dùng một dummy node trước head?" answer="a">
+
+<Choice id="a">Để xóa chính head giống như xóa mọi node khác</Choice>
+
+<Choice id="b">Để list chạy nhanh hơn</Choice>
+
+<Choice id="c">Để tránh tạo cycle</Choice>
+
+</Question>
+
+<Question prompt="Trong Linked List Cycle, vì sao phải so node chứ không so giá trị của slow và fast?" answer="b">
+
+<Choice id="a">So giá trị chậm hơn</Choice>
+
+<Choice id="b">Hai node khác nhau có thể cùng giá trị, như 7 → 7 → 7 không có cycle</Choice>
+
+<Choice id="c">Node không có giá trị</Choice>
+
+</Question>
+
+</Quiz>
+
+</Section>

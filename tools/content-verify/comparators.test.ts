@@ -101,3 +101,26 @@ describe('validator', () => {
     expect(result).toEqual({ ok: false, reason: expect.stringContaining('unknown validator') })
   })
 })
+
+describe('compare — encoded lists and trees (M3b)', () => {
+  it('a returned list or tree is compared as its encoded array', () => {
+    expect(compare({ kind: 'exact' }, [5, 4, 3], [5, 4, 3], {})).toEqual({ ok: true })
+    expect(compare({ kind: 'exact' }, [1, null, 2], [1, null, 2], {})).toEqual({ ok: true })
+    // the same values in another shape are another tree
+    expect(compare({ kind: 'exact' }, [1, 2], [1, null, 2], {}).ok).toBe(false)
+    expect(
+      compare(
+        { kind: 'exact' },
+        [
+          [7, null],
+          [13, 0],
+        ],
+        [
+          [7, null],
+          [13, 1],
+        ],
+        {},
+      ).ok,
+    ).toBe(false)
+  })
+})

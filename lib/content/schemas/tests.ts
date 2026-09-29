@@ -64,8 +64,8 @@ const valueTypeTextSchema = z
 const returnsSchema = z.union([valueTypeTextSchema, z.literal('void')])
 const paramsSchema = z.record(identifierSchema, valueTypeTextSchema)
 
-/** `signature.kind` values (platform design §3.5, §3.7). M3a supports `function`; the rest parse
- * (so `tests.yaml` for later phases is shaped now) but only run `compile-only` until M3b/M3c. */
+/** `signature.kind` values (platform design §3.5, §3.7). M3a runs `function`, M3b the structured
+ * kinds, M3c `design-class` (operation sequences). */
 export const SIGNATURE_KINDS = [
   'function',
   'linked-list',
@@ -75,6 +75,152 @@ export const SIGNATURE_KINDS = [
   'design-class',
 ] as const
 export type SignatureKind = (typeof SIGNATURE_KINDS)[number]
+
+/** The structure a `ListNode` / `TreeNode` / `Node` type names, per structured kind (spec §3.5,
+ * decision 25) — LeetCode's own encodings, so `tests.yaml` copies the page:
+ * - `list`: an array of values (`[]` = null); as an input, `{ values, pos }` adds a cycle (141);
+ * - `lists`: `ListNode[]`, an array of lists (23);
+ * - `tree`: the level-order array with `null` gaps (`[3,9,20,null,null,15,7]`);
+ * - `graph`: the adjacency list, node `i + 1` at index `i` (133);
+ * - `random-list`: `[[val, randomIndex | null], …]` (138). */
+export type Structure = 'list' | 'lists' | 'tree' | 'graph' | 'random-list'
+
+const STRUCTURE_TYPES: Readonly<
+  Partial<Record<SignatureKind, Readonly<Record<string, Structure>>>>
+> = {
+  'linked-list': { ListNode: 'list', 'ListNode[]': 'lists' },
+  tree: { TreeNode: 'tree' },
+  'graph-node': { Node: 'graph' },
+  'random-list': { Node: 'random-list' },
+}
+
+/** A parameter or return type: a value type, or (structured kinds) a structure. */
+export type ParamType =
+  { kind: 'value'; type: ValueType } | { kind: 'structure'; structure: Structure }
+
+/** Parses a parameter / return type under a signature kind: value types for `function` and the
+ * structured kinds, plus the structure types of that kind; anything else → `null`. */
+export function parseParamType(kind: SignatureKind, text: string): ParamType | null {
+  if (kind === 'design-class') return null
+  const structure = STRUCTURE_TYPES[kind]?.[text]
+  if (structure !== undefined) return { kind: 'structure', structure }
+  const type = parseValueType(text)
+  return type === null ? null : { kind: 'value', type }
+}
+
+const isInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value)
+const isIntegerArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every(isInteger)
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+function listIssue(value: unknown, role: 'input' | 'expected'): string | null {
+  if (isIntegerArray(value)) return null
+  if (role === 'expected') return 'a returned linked list is an array of integers'
+  const shape = 'a linked list is an array of integers, or { values, pos } for a cycle'
+  if (!isPlainObject(value)) return shape
+  const keys = Object.keys(value).sort()
+  if (keys.length !== 2 || keys[0] !== 'pos' || keys[1] !== 'values') return shape
+  const { values, pos } = value
+  if (!isIntegerArray(values) || !isInteger(pos)) return shape
+  if (values.length === 0) return pos === -1 ? null : 'pos must be -1 (no cycle) for an empty list'
+  if (pos < -1 || pos >= values.length) {
+    return `pos must be -1 (no cycle) or the index of a node (0–${values.length - 1})`
+  }
+  return null
+}
+
+function treeIssue(value: unknown): string | null {
+  if (!Array.isArray(value) || !value.every((item) => item === null || isInteger(item))) {
+    return 'a tree is a level-order array of integers and nulls'
+  }
+  if (value.length === 0) return null
+  if (value[0] === null) return 'the root of a non-empty tree cannot be null ([] is the empty tree)'
+  if (value.at(-1) === null) return "drop the trailing nulls (LeetCode's level-order form)"
+  // Each non-null value opens two child places, filled in order; a value beyond them has no parent.
+  let places = 1
+  for (let index = 0; index < value.length; index++) {
+    if (index >= places) return `value ${index} has no parent: every null ends its branch`
+    if (value[index] !== null) places += 2
+  }
+  return null
+}
+
+function graphIssue(value: unknown): string | null {
+  if (!Array.isArray(value) || !value.every(isIntegerArray)) {
+    return 'a graph is an adjacency list: node i + 1 at index i, an array of neighbour numbers'
+  }
+  const count = value.length
+  for (const [index, neighbours] of value.entries()) {
+    const node = index + 1
+    const seen = new Set<number>()
+    for (const neighbour of neighbours) {
+      if (neighbour < 1 || neighbour > count) {
+        return `node ${node} lists neighbour ${neighbour}: neighbours are node numbers 1–${count}`
+      }
+      if (neighbour === node) return `node ${node} lists itself as a neighbour`
+      if (seen.has(neighbour)) return `node ${node} lists neighbour ${neighbour} twice`
+      seen.add(neighbour)
+    }
+  }
+  if (count === 0) return null
+  // The runner encodes what it reaches from the returned node, so every node must be reachable.
+  const reached = new Set<number>([1])
+  const stack = [1]
+  while (stack.length > 0) {
+    const node = stack.pop() as number
+    for (const neighbour of value[node - 1] as number[]) {
+      if (!reached.has(neighbour)) {
+        reached.add(neighbour)
+        stack.push(neighbour)
+      }
+    }
+  }
+  for (let node = 1; node <= count; node++) {
+    if (!reached.has(node)) return `node ${node} cannot be reached from node 1`
+  }
+  return null
+}
+
+function randomListIssue(value: unknown): string | null {
+  const shape = 'a random-pointer list is [[val, randomIndex | null], …]'
+  if (!Array.isArray(value)) return shape
+  for (const entry of value) {
+    if (!Array.isArray(entry) || entry.length !== 2 || !isInteger(entry[0])) return shape
+    if (entry[1] !== null && !isInteger(entry[1])) return shape
+  }
+  for (const [index, entry] of (value as [number, number | null][]).entries()) {
+    const random = entry[1]
+    if (random !== null && (random < 0 || random >= value.length)) {
+      return `node ${index} has random index ${random}: random is null or a node index (0–${value.length - 1})`
+    }
+  }
+  return null
+}
+
+/** Why `value` is not a valid encoding of `structure` (`null` when it is). A cycle
+ * (`{ values, pos }`) is an input form only: a returned list is a plain array. */
+export function structureIssue(
+  structure: Structure,
+  value: unknown,
+  role: 'input' | 'expected',
+): string | null {
+  switch (structure) {
+    case 'list':
+      return listIssue(value, role)
+    case 'lists':
+      return Array.isArray(value) && value.every(isIntegerArray)
+        ? null
+        : 'ListNode[] is an array of linked lists (arrays of integers)'
+    case 'tree':
+      return treeIssue(value)
+    case 'graph':
+      return graphIssue(value)
+    case 'random-list':
+      return randomListIssue(value)
+  }
+}
 
 const functionSignatureSchema = z.strictObject({
   kind: z.literal('function'),
@@ -164,7 +310,7 @@ const isDesignClassCase = (value: StructuredCase | DesignClassCase): value is De
 
 /** `{ $result: n }` — a design-class case argument that refers to an earlier operation's result
  * (decision 20; used for codec round-trips such as 271). */
-function isResultRef(value: unknown): value is { $result: number } {
+export function isResultRef(value: unknown): value is { $result: number } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -175,7 +321,7 @@ function isResultRef(value: unknown): value is { $result: number } {
 }
 
 /** `{ $any: true }` — a design-class expected value the runner skips comparing (decision 20). */
-function isAnyMarker(value: unknown): value is { $any: true } {
+export function isAnyMarker(value: unknown): value is { $any: true } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -215,19 +361,51 @@ export function testsMinimumIssues(cases: readonly { name: string }[]): string[]
   return issues
 }
 
-function checkFunctionCases(
-  signature: z.infer<typeof functionSignatureSchema>,
+/** Why `value` does not fit `type` (`null` when it does); `label` names the value in the message. */
+function valueIssue(
+  value: unknown,
+  type: ParamType,
+  text: string,
+  role: 'input' | 'expected',
+  label: string,
+): string | null {
+  if (type.kind === 'value') {
+    if (valueMatches(value, type.type)) return null
+    return role === 'input'
+      ? `${label} does not match its declared type`
+      : 'expected does not match the return type'
+  }
+  const issue = structureIssue(type.structure, value, role)
+  return issue === null ? null : `${label} is not a valid ${text}: ${issue}`
+}
+
+/** The case checks of a `function` or structured signature: inputs by parameter name, each value
+ * against its type (a structure against its encoding), `expected` against the return type — or,
+ * for an in-place compare, against the argument's type. Unknown types are signature issues. */
+function checkCallCases(
+  signature: z.infer<typeof functionSignatureSchema> | z.infer<typeof structuredSignatureSchema>,
   compare: z.infer<typeof compareSpecSchema>,
   cases: readonly StructuredCase[],
   ctx: z.core.$RefinementCtx,
   caseIndexOf: (testCase: StructuredCase) => number,
 ): void {
+  const typeNames =
+    signature.kind === 'function'
+      ? ''
+      : ` (${Object.keys(STRUCTURE_TYPES[signature.kind] ?? {}).join(', ')} or a value type such as int[])`
+  const unknownType = `not a ${signature.kind} type${typeNames}`
   const paramNames = Object.keys(signature.params)
-  const paramTypes = new Map(
-    Object.entries(signature.params).map(([name, text]) => [name, parseValueType(text)]),
-  )
+  const paramTypes = new Map<string, { type: ParamType; text: string } | null>()
+  for (const [name, text] of Object.entries(signature.params)) {
+    const type = parseParamType(signature.kind, text)
+    // `function` parameters are already checked by paramsSchema.
+    if (type === null && signature.kind !== 'function') {
+      ctx.addIssue({ code: 'custom', path: ['signature', 'params', name], message: unknownType })
+    }
+    paramTypes.set(name, type === null ? null : { type, text })
+  }
 
-  let inPlaceArgType: ValueType | null = null
+  let inPlaceArg: { type: ParamType; text: string } | null = null
   if (compare.kind === 'in-place') {
     const argType = paramTypes.get(compare.arg)
     if (argType === undefined) {
@@ -237,11 +415,18 @@ function checkFunctionCases(
         message: `"${compare.arg}" is not a parameter of "${signature.name}"`,
       })
     } else {
-      inPlaceArgType = argType
+      inPlaceArg = argType
     }
   }
-  const returnsType = signature.returns === 'void' ? null : parseValueType(signature.returns)
-  const expectedType = returnsType ?? inPlaceArgType
+  let returns: { type: ParamType; text: string } | null = null
+  if (signature.returns !== 'void') {
+    const type = parseParamType(signature.kind, signature.returns)
+    if (type === null && signature.kind !== 'function') {
+      ctx.addIssue({ code: 'custom', path: ['signature', 'returns'], message: unknownType })
+    }
+    returns = type === null ? null : { type, text: signature.returns }
+  }
+  const expectedType = returns ?? inPlaceArg
 
   for (const testCase of cases) {
     const index = caseIndexOf(testCase)
@@ -266,30 +451,93 @@ function checkFunctionCases(
         continue
       }
       const type = paramTypes.get(name)
-      if (type !== undefined && type !== null && !valueMatches(testCase.input[name], type)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [...path, 'input', name],
-          message: `input "${name}" does not match its declared type`,
-        })
+      if (type === undefined || type === null) continue
+      const issue = valueIssue(
+        testCase.input[name],
+        type.type,
+        type.text,
+        'input',
+        `input "${name}"`,
+      )
+      if (issue !== null) {
+        ctx.addIssue({ code: 'custom', path: [...path, 'input', name], message: issue })
       }
     }
-    if (expectedType !== null && !valueMatches(testCase.expected, expectedType)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: [...path, 'expected'],
-        message: 'expected does not match the return type',
-      })
+    if (expectedType !== null) {
+      const issue = valueIssue(
+        testCase.expected,
+        expectedType.type,
+        expectedType.text,
+        'expected',
+        'expected',
+      )
+      if (issue !== null) {
+        ctx.addIssue({ code: 'custom', path: [...path, 'expected'], message: issue })
+      }
     }
   }
 }
 
+/** Go exports a method under its capitalised name (`push` → `Push`, M3c). */
+export const goMethodName = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1)
+
+const DESIGN_COMPARE_KINDS: ReadonlySet<string> = new Set([...SIMPLE_COMPARE_KINDS, 'float'])
+
+const sameValueType = (a: ValueType, b: ValueType): boolean =>
+  a.base === b.base && a.dims === b.dims
+
+/** The design-class checks (M3c): `ops[0]` is the class, every later op a declared method; each
+ * argument matches its parameter type or is a whole `{ $result: n }` whose operation returns that
+ * type; each expected value matches the return type (`null` for the constructor and `void`) or is
+ * a whole `{ $any: true }`. One signature per method name — also in Go, which exports `push` as
+ * `Push` — and a comparator that compares one result with one expected value. */
 function checkDesignClassCases(
   signature: z.infer<typeof designClassSignatureSchema>,
+  compare: z.infer<typeof compareSpecSchema>,
   cases: readonly DesignClassCase[],
   ctx: z.core.$RefinementCtx,
   caseIndexOf: (testCase: DesignClassCase) => number,
 ): void {
+  if (!DESIGN_COMPARE_KINDS.has(compare.kind)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['compare'],
+      message: 'a design class compares each result: exact, unordered, unordered-nested or float',
+    })
+  }
+  const goNames = new Map<string, string>()
+  for (const name of Object.keys(signature.methods)) {
+    const exported = goMethodName(name)
+    const other = goNames.get(exported)
+    if (other !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['signature', 'methods', name],
+        message: `"${name}" and "${other}" are one method in Go (${exported}): one name, one signature`,
+      })
+    }
+    goNames.set(exported, name)
+  }
+
+  type Operation = { params: [string, ValueType | null][]; returns: ValueType | null; text: string }
+  const params = (record: Record<string, string>): [string, ValueType | null][] =>
+    Object.entries(record).map(([name, text]) => [name, parseValueType(text)])
+  const constructorOp: Operation = {
+    params: params(signature.constructor),
+    returns: null,
+    text: 'void',
+  }
+  const operationOf = (opIndex: number, name: string | undefined): Operation | undefined => {
+    if (opIndex === 0) return constructorOp
+    const method = signature.methods[name ?? '']
+    if (method === undefined) return undefined
+    return {
+      params: params(method.params),
+      returns: method.returns === 'void' ? null : parseValueType(method.returns),
+      text: method.returns,
+    }
+  }
+
   for (const testCase of cases) {
     const index = caseIndexOf(testCase)
     const path = ['cases', index] as const
@@ -314,50 +562,124 @@ function checkDesignClassCases(
     for (let opIndex = 0; opIndex < length; opIndex++) {
       const opName = ops[opIndex]
       const argList = args[opIndex] ?? []
-      const paramCount =
-        opIndex === 0
-          ? Object.keys(signature.constructor).length
-          : (() => {
-              const method = signature.methods[opName ?? '']
-              if (method === undefined) return undefined
-              return Object.keys(method.params).length
-            })()
+      const operation = operationOf(opIndex, opName)
 
-      if (opIndex > 0 && (opName === undefined || signature.methods[opName] === undefined)) {
+      if (operation === undefined) {
         ctx.addIssue({
           code: 'custom',
           path: [...path, 'ops', opIndex],
           message: `"${opName}" is not a method of "${signature.className}"`,
         })
-      } else if (paramCount !== undefined && argList.length !== paramCount) {
+      } else if (argList.length !== operation.params.length) {
         ctx.addIssue({
           code: 'custom',
           path: [...path, 'args', opIndex],
-          message: `expected ${paramCount} argument(s)`,
+          message: `expected ${operation.params.length} argument(s)`,
         })
       }
 
-      if (containsAnyMarker(argList)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [...path, 'args', opIndex],
-          message: '{ $any: true } is only allowed in expected',
-        })
-      }
-      for (const ref of collectResultRefs(argList)) {
-        if (!(Number.isInteger(ref) && ref >= 0 && ref < opIndex)) {
+      argList.forEach((arg, argIndex) => {
+        const argPath = [...path, 'args', opIndex, argIndex]
+        const param = operation?.params[argIndex]
+        if (containsAnyMarker(arg)) {
           ctx.addIssue({
             code: 'custom',
             path: [...path, 'args', opIndex],
-            message: `{ $result: ${ref} } must refer to an earlier operation`,
+            message: '{ $any: true } is only allowed in expected',
+          })
+          return
+        }
+        if (isResultRef(arg)) {
+          const ref = arg.$result
+          if (!(Number.isInteger(ref) && ref >= 0 && ref < opIndex)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } must refer to an earlier operation`,
+            })
+            return
+          }
+          const source = operationOf(ref, ops[ref])
+          if (ref === 0) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: 0 } refers to the constructor, which returns nothing`,
+            })
+          } else if (source?.text === 'void') {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } refers to "${ops[ref]}", which returns void`,
+            })
+          } else if (
+            source?.returns != null &&
+            param?.[1] != null &&
+            !sameValueType(source.returns, param[1])
+          ) {
+            ctx.addIssue({
+              code: 'custom',
+              path: argPath,
+              message: `{ $result: ${ref} } is a ${source.text} ("${ops[ref]}"), but "${param[0]}" is a ${signature.methods[opName ?? '']?.params[param[0]] ?? '?'}`,
+            })
+          }
+          return
+        }
+        if (collectResultRefs(arg).length > 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: argPath,
+            message: '{ $result: n } must be a whole argument',
+          })
+          return
+        }
+        if (param?.[1] != null && !valueMatches(arg, param[1])) {
+          ctx.addIssue({
+            code: 'custom',
+            path: argPath,
+            message: `argument "${param[0]}" does not match its declared type`,
           })
         }
-      }
-      if (collectResultRefs(expected[opIndex]).length > 0) {
+      })
+
+      const value = expected[opIndex]
+      const expectedPath = [...path, 'expected', opIndex]
+      if (isAnyMarker(value)) continue
+      if (collectResultRefs(value).length > 0) {
         ctx.addIssue({
           code: 'custom',
-          path: [...path, 'expected', opIndex],
+          path: expectedPath,
           message: '{ $result } is only allowed in args',
+        })
+      } else if (containsAnyMarker(value)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: expectedPath,
+          message: '{ $any: true } must be a whole expected value',
+        })
+      } else if (operation === undefined) {
+        continue
+      } else if (opIndex === 0) {
+        if (value !== null) {
+          ctx.addIssue({
+            code: 'custom',
+            path: expectedPath,
+            message: 'the constructor returns nothing: expected null',
+          })
+        }
+      } else if (operation.text === 'void') {
+        if (value !== null) {
+          ctx.addIssue({
+            code: 'custom',
+            path: expectedPath,
+            message: `"${opName}" returns void: expected null`,
+          })
+        }
+      } else if (operation.returns !== null && !valueMatches(value, operation.returns)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: expectedPath,
+          message: `expected does not match the return type of "${opName}"`,
         })
       }
     }
@@ -416,12 +738,14 @@ export const testsFileSchema = z
       }
     })
 
-    if (signature.kind === 'function') {
-      checkFunctionCases(signature, compare, structuredCases, ctx, (testCase) =>
+    if (signature.kind === 'design-class') {
+      checkDesignClassCases(signature, compare, designCases, ctx, (testCase) =>
         cases.indexOf(testCase),
       )
-    } else if (signature.kind === 'design-class') {
-      checkDesignClassCases(signature, designCases, ctx, (testCase) => cases.indexOf(testCase))
+    } else {
+      checkCallCases(signature, compare, structuredCases, ctx, (testCase) =>
+        cases.indexOf(testCase),
+      )
     }
   })
 

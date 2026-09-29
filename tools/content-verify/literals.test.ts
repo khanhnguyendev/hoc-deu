@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ValueType } from '@/lib/content/schemas/tests'
-import { goLiteral, goType, javaLiteral, javaType } from './literals'
+import { goLiteral, goType, javaArgument, javaLiteral, javaType } from './literals'
 
 const int2: ValueType = { base: 'int', dims: 2 }
 const int1: ValueType = { base: 'int', dims: 1 }
@@ -76,5 +76,67 @@ describe('javaLiteral / goLiteral — scalars', () => {
   it('bool', () => {
     expect(javaLiteral(true, bool0)).toBe('true')
     expect(goLiteral(false, bool0)).toBe('false')
+  })
+})
+
+describe('javaArgument — the List<String> bridge (M3 follow-up)', () => {
+  const string1: ValueType = { base: 'string', dims: 1 }
+  const string2: ValueType = { base: 'string', dims: 2 }
+
+  it('keeps the array literal when the solution declares an array (or nothing is known)', () => {
+    expect(javaArgument(['a'], string1, 'String[]')).toEqual({
+      type: 'String[]',
+      expression: 'new String[]{"a"}',
+    })
+    expect(javaArgument([1, 2], int1, null)).toEqual({
+      type: 'int[]',
+      expression: 'new int[]{1,2}',
+    })
+  })
+
+  it('builds a mutable java.util.List when the solution declares List<String>', () => {
+    expect(javaArgument(['cat', 'dog'], string1, 'List<String>')).toEqual({
+      type: 'java.util.List<String>',
+      expression: 'new java.util.ArrayList<String>(java.util.Arrays.<String>asList("cat","dog"))',
+    })
+    expect(javaArgument([], string1, 'java.util.List<String>').expression).toBe(
+      'new java.util.ArrayList<String>(java.util.Arrays.<String>asList())',
+    )
+  })
+
+  it('boxes scalar elements and nests lists (List<List<String>>, List<Integer>, List<int[]>)', () => {
+    expect(javaArgument([['a'], []], string2, 'List<List<String>>')).toEqual({
+      type: 'java.util.List<java.util.List<String>>',
+      expression:
+        'new java.util.ArrayList<java.util.List<String>>(java.util.Arrays.<java.util.List<String>>asList(' +
+        'new java.util.ArrayList<String>(java.util.Arrays.<String>asList("a")),' +
+        'new java.util.ArrayList<String>(java.util.Arrays.<String>asList())))',
+    })
+    expect(javaArgument([3], int1, 'List<Integer>').type).toBe('java.util.List<Integer>')
+    expect(javaArgument([[1]], int2, 'List<int[]>')).toEqual({
+      type: 'java.util.List<int[]>',
+      expression: 'new java.util.ArrayList<int[]>(java.util.Arrays.<int[]>asList(new int[]{1}))',
+    })
+  })
+
+  it('keeps the declared container (ArrayList, LinkedList, Collection, Iterable), never a scalar', () => {
+    expect(javaArgument(['x'], string1, 'ArrayList<String>')).toEqual({
+      type: 'java.util.ArrayList<String>',
+      expression: 'new java.util.ArrayList<String>(java.util.Arrays.<String>asList("x"))',
+    })
+    expect(javaArgument(['x'], string1, 'LinkedList<String>').expression).toBe(
+      'new java.util.LinkedList<String>(java.util.Arrays.<String>asList("x"))',
+    )
+    expect(javaArgument(['x'], string1, 'Collection<String>').type).toBe(
+      'java.util.Collection<String>',
+    )
+    expect(javaArgument(['x'], string1, 'Iterable<String>').type).toBe('java.lang.Iterable<String>')
+    expect(javaArgument([['x']], string2, 'List<ArrayList<String>>').type).toBe(
+      'java.util.List<java.util.ArrayList<String>>',
+    )
+    expect(javaArgument('x', string0, 'List<String>')).toEqual({
+      type: 'String',
+      expression: '"x"',
+    })
   })
 })

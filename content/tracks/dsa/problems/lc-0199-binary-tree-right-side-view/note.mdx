@@ -1,0 +1,50 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Đứng bên phải cây, ở mỗi tầng ta nhìn thấy đúng một node: node **ngoài cùng bên phải** của tầng đó. Node này không nhất thiết nằm trên nhánh phải; nếu nhánh phải ngắn hơn, các tầng dưới lộ ra node của nhánh trái. Vì thế bài này là <Term vi="tìm kiếm theo chiều rộng">BFS</Term> theo tầng, giống Binary Tree Level Order Traversal: xử lý từng tầng bằng một <Term vi="hàng đợi">queue</Term>, và chỉ giữ node **cuối cùng** được lấy ra ở mỗi tầng.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">Queue chứa `root` nếu cây không rỗng; `result` rỗng.</Step>
+
+<Step title="Chốt kích thước tầng">Đầu mỗi vòng, `size = len(queue)`.</Step>
+
+<Step title="Duyệt tầng">Lấy ra `size` node theo thứ tự trái sang phải; node thứ `size - 1` (cuối cùng) được thêm vào `result`. Mỗi node đưa con trái rồi con phải vào queue. Bản Go làm cách tương đương: lấy node cuối cùng của `queue` (`queue[len(queue)-1]`) làm node nhìn thấy của tầng, rồi duyệt hết `queue` và gom các con vào một slice `next` riêng, thay `queue` bằng `next` cho tầng sau.</Step>
+
+<Step title="Kết thúc">Queue rỗng thì trả về `result`.</Step>
+
+</Steps>
+
+Chạy thử với `root = [7, 3, 9, 1, 5, null, null, null, null, 4]`:
+
+<VarTable caption="root = [7, 3, 9, 1, 5, null, null, null, null, 4]">
+
+| Tầng | Các node, trái sang phải | Node cuối | result |
+| --- | --- | --- | --- |
+| 0 | 7 | 7 | `[7]` |
+| 1 | 3, 9 | 9 | `[7, 9]` |
+| 2 | 1, 5 | 5 | `[7, 9, 5]` |
+| 3 | 4 | 4 | `[7, 9, 5, 4]` |
+
+</VarTable>
+
+Node 5 và 4 nằm trong cây con **trái** của gốc, nhưng vẫn được nhìn thấy vì nhánh phải (chỉ có 9) đã hết từ tầng 1.
+
+<Callout tone="warning" title="Chỉ đi theo con phải là sai">
+
+Đi từ gốc xuống theo `right` liên tục cho `[7, 9]` và bỏ sót tầng 2 và 3. Một cách khác cũng đúng: <Term vi="tìm kiếm theo chiều sâu">DFS</Term> thăm con phải trước con trái, và thêm một node vào kết quả khi độ sâu của nó bằng `len(result)`, tức lần đầu tới tầng đó.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(n)" />
+
+Mỗi node vào và ra khỏi queue một lần; queue lớn nhất bằng tầng rộng nhất, tới khoảng `n / 2` node.
+
+<Solution />
+
+<Bilingual vi="BFS theo tầng với một queue; ở mỗi tầng, node được lấy ra cuối cùng là node nhìn thấy từ bên phải, nên chỉ thêm node đó vào kết quả." en="Do a level-by-level BFS with a queue. In each level, the last node dequeued is the rightmost one, which is the node visible from the right side, so append only that node's value. Every node is processed once: O(n) time and space." />

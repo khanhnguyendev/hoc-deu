@@ -1,0 +1,11 @@
+# content-verify fixture: a ListNode[] input (an array of list encodings).
+signature:
+  { kind: linked-list, name: mergeKLists, params: { lists: 'ListNode[]' }, returns: ListNode }
+cases:
+  - name: example-1
+    input: { lists: [[1, 4, 5], [1, 3, 4], [2, 6]] }
+    expected: [1, 1, 2, 3, 4, 4, 5, 6]
+  - { name: example-2, input: { lists: [] }, expected: [] }
+  - { name: example-3, input: { lists: [[]] }, expected: [] }
+  - { name: some-empty, input: { lists: [[], [2], [1, 3]] }, expected: [1, 2, 3] }
+  - { name: single-list, input: { lists: [[5, 6]] }, expected: [5, 6] }

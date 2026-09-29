@@ -1,0 +1,52 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Giống Diameter of Binary Tree, mỗi đường đi có một node cao nhất nơi nó gập lại, và đường tốt nhất gập tại `node` là `node.val` cộng phần tốt nhất đi xuống bên trái và bên phải. Hàm <Term vi="hậu thứ tự">post-order</Term> `gain(node)` trả về tổng lớn nhất của một đường **chỉ đi xuống** từ `node`, vì node cha chỉ có thể nối tiếp **một** nhánh. Điểm mới so với Diameter là giá trị có thể âm: một nhánh có tổng âm thì thà không đi còn hơn, nên ta coi nó bằng 0.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Khởi tạo">`best = root.val`; cây có ít nhất một node, và đáp án có thể âm.</Step>
+
+<Step title="Lợi ích hai nhánh">Trong `gain(node)`: `left = max(gain(node.left), 0)` và `right = max(gain(node.right), 0)`; node rỗng cho 0.</Step>
+
+<Step title="Đường gập tại node">Cập nhật `best = max(best, node.val + left + right)`.</Step>
+
+<Step title="Trả về cho cha">Trả về `node.val + max(left, right)`: cha chỉ được nối vào một nhánh.</Step>
+
+</Steps>
+
+Chạy thử với `root = [-3, 4, 5, -6, 2]`:
+
+<VarTable caption="root = [-3, 4, 5, -6, 2]">
+
+| Node | left | right | Đường gập tại node | best | Trả về |
+| --- | --- | --- | --- | --- | --- |
+| -6 | 0 | 0 | -6 | -3 | -6 |
+| 2 | 0 | 0 | 2 | 2 | 2 |
+| 4 | 0 (bỏ -6) | 2 | 6 | 6 | 6 |
+| 5 | 0 | 0 | 5 | 6 | 5 |
+| -3 | 6 | 5 | 8 | 8 | 3 |
+
+</VarTable>
+
+Đáp án là 8, đường 2 → 4 → -3 → 5. Đường này đi qua gốc âm vì hai nhánh bù lại đủ.
+
+<Callout tone="warning" title="Hai giá trị khác nhau">
+
+- Giá trị **trả về** cho cha chỉ gồm một nhánh; giá trị để **cập nhật** `best` gồm cả hai nhánh. Trả về `node.val + left + right` sẽ tạo ra một "đường" rẽ nhánh, không hợp lệ.
+- Đừng khởi tạo `best = 0`: với `[-3]` đáp án là -3, vì đường đi phải có ít nhất một node.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được thăm một lần; bộ nhớ là <Term vi="ngăn xếp lời gọi">call stack</Term> sâu bằng chiều cao `h` của cây.
+
+<Solution />
+
+<Bilingual vi="Hàm post-order trả về tổng lớn nhất của đường đi xuống từ mỗi node, bỏ nhánh âm; tại mỗi node, giá trị node cộng hai nhánh là đường gập ở đó, giữ lại lớn nhất." en="A post-order function returns the best downward path sum from each node, treating negative branches as 0. At each node, value + left gain + right gain is the best path bending there; keep the maximum, but return value + the larger gain. O(n) time." />

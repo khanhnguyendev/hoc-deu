@@ -1,0 +1,49 @@
+---
+status: active
+---
+
+## Ý tưởng chính
+
+Lật một cây như soi gương: ở **mọi** node, con trái và con phải đổi chỗ cho nhau. Chỉ đổi hai con của gốc là chưa đủ, vì bên trong mỗi cây con cũng phải được lật. Đây là một bài <Term vi="đệ quy">recursion</Term> điển hình trên cây: lật hai cây con, rồi gắn chúng vào node hiện tại theo vị trí đã đổi. Cây rỗng thì lật xong vẫn là cây rỗng.
+
+## Cách làm
+
+<Steps>
+
+<Step title="Trường hợp cơ sở">Nếu `root` là `null`, trả về `null`.</Step>
+
+<Step title="Lật hai cây con">Gọi đệ quy trên `root.right` và `root.left` để có hai cây con đã lật.</Step>
+
+<Step title="Đổi chỗ">Gán cây phải đã lật vào `root.left` và cây trái đã lật vào `root.right`, rồi trả về `root`.</Step>
+
+</Steps>
+
+Chạy thử với `root = [5, 3, 8, 1, 4]`. Các hàng theo thứ tự lời gọi trả về: cây con phải được lật trước, như ở bước 2.
+
+<VarTable caption="root = [5, 3, 8, 1, 4]">
+
+| Node | Con trái trước | Con phải trước | Con trái sau | Con phải sau |
+| --- | --- | --- | --- | --- |
+| 8 | — | — | — | — |
+| 4 | — | — | — | — |
+| 1 | — | — | — | — |
+| 3 | 1 | 4 | 4 | 1 |
+| 5 | 3 | 8 | 8 | 3 |
+
+</VarTable>
+
+Kết quả theo tầng là `[5, 8, 3, null, null, 4, 1]`.
+
+<Callout tone="warning" title="Đừng ghi đè trước khi đọc">
+
+Nếu viết `root.left = invert(root.right)` rồi mới `root.right = invert(root.left)`, dòng thứ hai đọc `root.left` **đã bị ghi đè**. Hãy lưu một con vào biến tạm, hoặc gán cả hai cùng lúc như Python `a, b = x, y`.
+
+</Callout>
+
+<Complexity time="O(n)" space="O(h)" />
+
+Mỗi node được thăm một lần; <Term vi="ngăn xếp lời gọi">call stack</Term> sâu bằng chiều cao `h` của cây, tức `O(n)` trong trường hợp xấu nhất khi cây là một chuỗi.
+
+<Solution />
+
+<Bilingual vi="Ở mỗi node, lật đệ quy hai cây con rồi đổi chỗ chúng cho nhau; cây rỗng trả về rỗng. Nhớ đọc cả hai con trước khi ghi đè." en="Invert a tree recursively: at every node, invert both subtrees and swap them, so the old right subtree becomes the left one. An empty tree stays empty. Read both children before overwriting either. O(n) time, O(h) stack space." />

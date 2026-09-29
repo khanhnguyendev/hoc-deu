@@ -1,15 +1,20 @@
 /**
  * Python runner (Part B-M3 decision 19): the static `runner.py` and `check.py` are copied into the
  * work directory with the solution (fix 6: every file the sandbox runs lives there). Cases send a
- * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check.
+ * JSON request on stdin; `check.py` is both the tested pre-check and the compile-only check. For
+ * the structured kinds (M3b) the request names the codecs: `runner.py` holds the `ListNode`,
+ * `TreeNode` and `Node` dataclasses and their LeetCode encodings. A design class (M3c) sends its
+ * operations instead of a method and arguments.
  */
 import { join } from 'node:path'
+import type { ParamType, Structure } from '@/lib/content/schemas/tests'
 import { SOLUTION_FILES } from '../discover'
 import type { Command } from '../sandbox'
 import {
   caseArguments,
   copyRegularFile,
   COMPILE_TIMEOUT_MS,
+  designOperations,
   functionCall,
   modeOf,
   noCases,
@@ -52,7 +57,50 @@ export const pythonHarness: Harness = {
         sharedDirs: [],
       }
     }
+    if (problem.tests.signature.kind === 'design-class') {
+      // M3c: the operations in order; `{ $result: n }` arguments travel as they are and runner.py
+      // passes the earlier operation's own (Python) result.
+      const { className } = problem.tests.signature
+      return {
+        compile: [check],
+        warmUp: [],
+        runCase: (index) => ({
+          cmd: 'python',
+          args: [...PYTHON_FLAGS, 'runner.py'],
+          cwd: workDir,
+          stdin: JSON.stringify({
+            file: SOLUTION,
+            design: {
+              className,
+              ops: designOperations(problem.tests, index).map((operation) => ({
+                name: operation.name,
+                args: operation.args.map((arg) =>
+                  arg.kind === 'result' ? { $result: arg.op } : arg.value,
+                ),
+                void: operation.returns === null,
+              })),
+            },
+          }),
+          timeoutMs: problem.tests.timeoutMs,
+        }),
+        compileOnly: [],
+        signatureIssues: [],
+        sharedDirs: [],
+      }
+    }
     const call = functionCall(problem.tests)
+    // Structured kinds (M3b): the codec of each argument and of the result (null: a plain JSON
+    // value; an in-place argument is encoded with its own codec) and the deep-copy check.
+    const codec = (type: ParamType | null): Structure | null =>
+      type?.kind === 'structure' ? type.structure : null
+    const codecs =
+      problem.tests.signature.kind === 'function'
+        ? null
+        : {
+            params: call.params.map((param) => codec(param.type)),
+            returns: codec(call.returns),
+            copyOf: call.copyOf,
+          }
     return {
       compile: [check],
       warmUp: [],
@@ -65,6 +113,7 @@ export const pythonHarness: Harness = {
           method: call.name,
           args: caseArguments(problem.tests, index),
           output: call.output,
+          ...(codecs === null ? {} : { codecs }),
         }),
         timeoutMs: problem.tests.timeoutMs,
       }),

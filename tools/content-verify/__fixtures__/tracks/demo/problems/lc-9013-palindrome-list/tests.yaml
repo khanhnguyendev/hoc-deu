@@ -1,0 +1,9 @@
+# content-verify fixture: the solution reverses the second half of its input and never restores
+# it — the result is a bool, so the mutated input list does not matter.
+signature: { kind: linked-list, name: isPalindrome, params: { head: ListNode }, returns: bool }
+cases:
+  - { name: example-1, input: { head: [1, 2, 2, 1] }, expected: true }
+  - { name: example-2, input: { head: [1, 2] }, expected: false }
+  - { name: odd-length, input: { head: [1, 2, 3, 2, 1] }, expected: true }
+  - { name: single-node, input: { head: [5] }, expected: true }
+  - { name: not-palindrome, input: { head: [1, 2, 3] }, expected: false }
