@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -43,7 +43,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -59,7 +59,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -75,7 +75,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -94,7 +94,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -121,7 +121,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
